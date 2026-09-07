@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>AGG Games — Spiele direkt im Browser</title>
+<meta name="description" content="Fünf Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, Farbgedächtnis, Jump ’n’ Run und ein Reaktor-Idle.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AGG Games">
+<meta property="og:description" content="Fünf Spiele, die ohne Installation direkt im Browser laufen.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='5' width='12' height='7' fill='%23ffb648'/%3E%3Crect x='4' y='7' width='2' height='3' fill='%230b0d12'/%3E%3Crect x='3' y='8' width='4' height='1' fill='%230b0d12'/%3E%3Crect x='10' y='7' width='2' height='2' fill='%230b0d12'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* ── AGG Games · Regalbrett ──────────────────────────────────────────
+   Dunkler Grund wie ein ausgeschalteter Bildschirm, harte 2px-Kanten,
+   und jede Karte leiht sich ihre Akzentfarbe aus dem eigenen Spiel.  */
+:root{
+  --bg:#0b0d12; --bg-2:#0f131c;
+  --panel:#141926; --panel-2:#1b2231;
+  --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --ink-dim:#98a3b6; --ink-faint:#616d84;
+  --amber:#ffb648;
+  --pix:"Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --accent:var(--amber);
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--ui); font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+/* Ein feines Raster im Grund, damit die schwarze Fläche Tiefe bekommt. */
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(120% 70% at 50% -10%, #1b2740 0%, transparent 60%),
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px) 0 0/100% 32px,
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px) 0 0/32px 100%;
+  mask-image:linear-gradient(#000 0%, #000 55%, transparent 100%);
+}
+.wrap{position:relative; z-index:1; width:min(1180px,100%); margin:0 auto; padding:0 20px}
+a{color:inherit}
+
+/* ── Kopfzeile ─────────────────────────────────────────────────────── */
+header.top{
+  position:sticky; top:0; z-index:30;
+  background:rgba(11,13,18,.82); backdrop-filter:blur(14px);
+  border-bottom:2px solid var(--edge);
+}
+.top-in{display:flex; align-items:center; justify-content:space-between; gap:16px; height:60px}
+.logo{display:flex; align-items:center; gap:10px; white-space:nowrap; font-family:var(--pix); font-size:22px; font-weight:700; letter-spacing:.04em; text-decoration:none}
+.logo .mark{width:26px; height:26px; flex:none}
+.logo b{color:var(--amber); font-weight:700}
+.top-count{font-family:var(--pix); font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap}
+@media (max-width:560px){ .top-count{font-size:11px; letter-spacing:.08em} .logo{font-size:19px} }
+@media (max-width:400px){ .top-count{display:none} }
+
+/* ── Aufschlag ─────────────────────────────────────────────────────── */
+.hero{padding:64px 0 40px; text-align:center}
+.hero h1{
+  font-family:var(--pix); font-weight:700; margin:0 0 14px;
+  font-size:clamp(40px,9vw,84px); line-height:.94; letter-spacing:.01em; text-wrap:balance;
+  background:linear-gradient(180deg,#fff2d4,#ffb648 55%,#b8792a);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 4px 0 #2a1c08);
+}
+.hero p{margin:0 auto; max-width:56ch; color:var(--ink-dim); font-size:clamp(15px,2.2vw,18px); text-wrap:pretty}
+.hero .kicker{
+  display:inline-block; margin-bottom:18px; padding:5px 12px;
+  font-family:var(--pix); font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--amber); border:2px solid #3a2c10; background:#1a1408;
+}
+
+/* ── Filterreihe ───────────────────────────────────────────────────── */
+.bar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:22px 0 26px; border-bottom:2px solid var(--edge); margin-bottom:34px;
+}
+.chip{
+  font-family:var(--pix); font-size:15px; letter-spacing:.02em;
+  padding:7px 14px; cursor:pointer; color:var(--ink-dim);
+  background:var(--panel); border:2px solid var(--edge);
+  transition:color .12s, background .12s, border-color .12s;
+}
+.chip:hover{background:var(--panel-2); border-color:var(--edge-hi); color:var(--ink)}
+.chip[aria-pressed="true"]{background:#2a2008; border-color:var(--amber); color:var(--amber)}
+.chip .n{font-size:12px; opacity:.65; margin-left:5px}
+.chip:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
+.bar .spacer{flex:1 1 auto; min-width:0}
+.chip.dice{color:var(--ink); border-color:var(--edge-hi)}
+
+/* ── Karten ────────────────────────────────────────────────────────── */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:22px; padding-bottom:16px}
+.card{
+  --accent:var(--amber);
+  display:flex; flex-direction:column; text-decoration:none;
+  background:var(--panel); border:2px solid var(--edge);
+  box-shadow:0 8px 0 rgba(0,0,0,.4);
+  transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.card:hover,.card:focus-visible{
+  transform:translateY(-4px); border-color:var(--accent);
+  box-shadow:0 12px 0 rgba(0,0,0,.45), 0 0 0 1px var(--accent) inset;
+  outline:none;
+}
+.card:focus-visible{outline:3px solid var(--accent); outline-offset:3px}
+.card.hide{display:none}
+.cover{position:relative; aspect-ratio:16/9; overflow:hidden; background:#05070b; border-bottom:2px solid var(--edge)}
+.cover svg{display:block; width:100%; height:100%}
+.card:hover .cover{border-bottom-color:var(--accent)}
+.card-body{display:flex; flex-direction:column; gap:10px; padding:16px 17px 18px; flex:1}
+.card h2{
+  font-family:var(--pix); font-weight:600; margin:0; font-size:25px; line-height:1.1;
+  color:var(--ink); letter-spacing:.01em; text-wrap:balance;
+}
+.card:hover h2{color:var(--accent)}
+.genre{
+  font-family:var(--pix); font-size:12px; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--accent); margin:-4px 0 0;
+}
+.card p.desc{margin:0; color:var(--ink-dim); font-size:14.5px; line-height:1.5; text-wrap:pretty}
+.meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:4px}
+.tag{
+  font-size:11.5px; letter-spacing:.03em; padding:3px 8px; color:var(--ink-faint);
+  background:var(--bg-2); border:1px solid var(--edge);
+}
+.tag.warn{color:#e8b98a; border-color:#4a3520; background:#1d1409}
+.play{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  margin-top:12px; padding:11px 14px;
+  font-family:var(--pix); font-size:17px; color:var(--ink);
+  background:var(--panel-2); border:2px solid var(--edge); border-bottom-width:4px;
+  transition:background .12s, border-color .12s, color .12s;
+}
+.card:hover .play{background:var(--accent); border-color:var(--accent); color:#0b0d12}
+.play .arrow{transition:transform .14s ease}
+.card:hover .play .arrow{transform:translateX(4px)}
+
+/* Die erste Karte bekommt auf breiten Schirmen die volle Breite. */
+@media (min-width:920px){
+  .card.feature{grid-column:1/-1; flex-direction:row}
+  .card.feature .cover{flex:0 0 52%; aspect-ratio:auto; border-bottom:0; border-right:2px solid var(--edge)}
+  .card:hover.feature .cover{border-right-color:var(--accent); border-bottom-color:transparent}
+  .card.feature .card-body{justify-content:center; padding:30px 32px; gap:12px}
+  .card.feature h2{font-size:40px}
+  .card.feature p.desc{font-size:16px; max-width:52ch}
+  .card.feature .play{align-self:flex-start; min-width:230px; margin-top:16px}
+}
+
+/* ── Leermeldung ───────────────────────────────────────────────────── */
+.empty{display:none; padding:50px 0; text-align:center; color:var(--ink-faint); font-family:var(--pix); font-size:18px}
+.empty.show{display:block}
+
+/* ── Fuß ───────────────────────────────────────────────────────────── */
+footer{margin-top:56px; border-top:2px solid var(--edge); background:var(--bg-2)}
+.foot-in{display:flex; flex-wrap:wrap; gap:26px; justify-content:space-between; padding:32px 0 40px}
+footer h3{font-family:var(--pix); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 10px; font-weight:500}
+footer p{margin:0 0 8px; color:var(--ink-dim); font-size:14px; max-width:46ch}
+footer ul{margin:0; padding:0; list-style:none; font-size:14px}
+footer li{margin-bottom:6px}
+footer a{color:var(--ink-dim); text-decoration:none; border-bottom:1px solid var(--edge-hi)}
+footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important}
+  .card:hover{transform:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="logo" href="#spiele">
+      <svg class="mark" viewBox="0 0 16 16" aria-hidden="true">
+        <rect width="16" height="16" fill="#141926" stroke="#3a465c" stroke-width="2"/>
+        <rect x="3.5" y="6.5" width="9" height="5" fill="#ffb648"/>
+        <rect x="5" y="8" width="1.5" height="2.5" fill="#0b0d12"/>
+        <rect x="4.2" y="8.8" width="3" height="1" fill="#0b0d12"/>
+        <rect x="9.5" y="8" width="1.6" height="1.6" fill="#0b0d12"/>
+      </svg>
+      <span>AGG <b>GAMES</b></span>
+    </a>
+    <span class="top-count">5 Spiele · kein Download</span>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero">
+    <span class="kicker">Direkt im Browser</span>
+    <h1>Fünf Spiele,<br>ein Regalbrett.</h1>
+    <p>Voxel-Survival, ein Backrooms-Band, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Alle laufen offline, auf dem Handy wie am Rechner — antippen und los.</p>
+  </section>
+
+  <div class="wrap">
+    <div class="bar" role="group" aria-label="Nach Art filtern">
+      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">5</span></button>
+      <button class="chip" type="button" data-filter="3d" aria-pressed="false">3D-Welten <span class="n">2</span></button>
+      <button class="chip" type="button" data-filter="arcade" aria-pressed="false">Arcade <span class="n">2</span></button>
+      <button class="chip" type="button" data-filter="idle" aria-pressed="false">Idle &amp; Aufbau <span class="n">1</span></button>
+      <button class="chip" type="button" data-filter="horror" aria-pressed="false">Horror <span class="n">1</span></button>
+      <span class="spacer"></span>
+      <button class="chip dice" type="button" id="dice">🎲 Überrasch mich</button>
+    </div>
+
+    <div class="grid" id="spiele">
+
+      <!-- ── Taschenwelt ──────────────────────────────────────────── -->
+      <a class="card feature" href="games/taschenwelt.html" data-cat="3d" style="--accent:#78a84e">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Isometrische Voxel-Landschaft bei Nacht mit Baum und Fackel">
+            <defs>
+              <linearGradient id="tw-sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#1d3350"/><stop offset=".6" stop-color="#121822"/><stop offset="1" stop-color="#0e1118"/>
+              </linearGradient>
+              <radialGradient id="tw-glow" cx=".5" cy=".5" r=".5">
+                <stop offset="0" stop-color="#ffb648" stop-opacity=".55"/><stop offset="1" stop-color="#ffb648" stop-opacity="0"/>
+              </radialGradient>
+              <g id="tw-grass">
+                <path d="M0 0 22 11 0 22 -22 11Z" fill="#78a84e"/>
+                <path d="M-22 11 0 22 0 46 -22 35Z" fill="#4f7534"/>
+                <path d="M22 11 0 22 0 46 22 35Z" fill="#3d5c28"/>
+              </g>
+              <g id="tw-dirt">
+                <path d="M0 0 22 11 0 22 -22 11Z" fill="#8b6239"/>
+                <path d="M-22 11 0 22 0 46 -22 35Z" fill="#6b4a2b"/>
+                <path d="M22 11 0 22 0 46 22 35Z" fill="#513720"/>
+              </g>
+              <g id="tw-log">
+                <path d="M0 0 22 11 0 22 -22 11Z" fill="#8a6a3f"/>
+                <path d="M-22 11 0 22 0 46 -22 35Z" fill="#5f4526"/>
+                <path d="M22 11 0 22 0 46 22 35Z" fill="#48331b"/>
+              </g>
+              <g id="tw-leaf">
+                <path d="M0 0 22 11 0 22 -22 11Z" fill="#8fc45e"/>
+                <path d="M-22 11 0 22 0 46 -22 35Z" fill="#5d8a3c"/>
+                <path d="M22 11 0 22 0 46 22 35Z" fill="#456a2c"/>
+              </g>
+            </defs>
+            <rect width="320" height="180" fill="url(#tw-sky)"/>
+            <g fill="#dfe8f5">
+              <rect x="34" y="22" width="2" height="2" opacity=".8"/><rect x="88" y="14" width="2" height="2" opacity=".5"/>
+              <rect x="141" y="30" width="2" height="2" opacity=".7"/><rect x="209" y="18" width="2" height="2" opacity=".9"/>
+              <rect x="266" y="34" width="2" height="2" opacity=".6"/><rect x="292" y="12" width="2" height="2" opacity=".8"/>
+              <rect x="62" y="46" width="2" height="2" opacity=".45"/><rect x="184" y="44" width="2" height="2" opacity=".55"/>
+              <rect x="242" y="56" width="2" height="2" opacity=".4"/><rect x="16" y="62" width="2" height="2" opacity=".5"/>
+            </g>
+            <circle cx="264" cy="40" r="15" fill="#e8eef7" opacity=".92"/>
+            <circle cx="258" cy="35" r="3" fill="#c9d4e4" opacity=".7"/>
+            <circle cx="269" cy="46" r="2" fill="#c9d4e4" opacity=".6"/>
+            <ellipse cx="196" cy="92" rx="56" ry="46" fill="url(#tw-glow)"/>
+            <g transform="translate(160,66) scale(.80)">
+              <!-- Erdschicht -->
+              <g>
+                <use href="#tw-dirt" x="0" y="24"/>
+                <use href="#tw-dirt" x="-22" y="35"/><use href="#tw-dirt" x="22" y="35"/>
+                <use href="#tw-dirt" x="-44" y="46"/><use href="#tw-dirt" x="0" y="46"/><use href="#tw-dirt" x="44" y="46"/>
+                <use href="#tw-dirt" x="-22" y="57"/><use href="#tw-dirt" x="22" y="57"/>
+                <use href="#tw-dirt" x="0" y="68"/>
+              </g>
+              <!-- Grasnarbe -->
+              <use href="#tw-grass" x="0" y="0"/>
+              <use href="#tw-grass" x="-22" y="11"/><use href="#tw-grass" x="22" y="11"/>
+              <use href="#tw-grass" x="-44" y="22"/><use href="#tw-grass" x="0" y="22"/><use href="#tw-grass" x="44" y="22"/>
+              <use href="#tw-grass" x="-22" y="33"/><use href="#tw-grass" x="22" y="33"/>
+              <use href="#tw-grass" x="0" y="44"/>
+              <!-- Baum -->
+              <use href="#tw-log" x="-22" y="-13"/><use href="#tw-log" x="-22" y="-37"/>
+              <use href="#tw-leaf" x="-44" y="-72"/><use href="#tw-leaf" x="0" y="-72"/>
+              <use href="#tw-leaf" x="-22" y="-61"/>
+              <use href="#tw-leaf" x="-44" y="-50"/><use href="#tw-leaf" x="0" y="-50"/>
+              <!-- Fackel -->
+              <g transform="translate(44,33)">
+                <rect x="-2" y="-14" width="4" height="16" fill="#5f4526"/>
+                <path d="M0-26c5 5 6 9 3 12s-9 2-9-3 4-6 6-9Z" fill="#ffb648"/>
+                <path d="M0-21c3 3 3 6 1 7s-5 0-4-3 2-3 3-4Z" fill="#fff0c2"/>
+              </g>
+            </g>
+            <g opacity=".9">
+              <rect x="34" y="150" width="40" height="14" fill="#181d26" stroke="#3d4757" stroke-width="2"/>
+              <rect x="42" y="154" width="6" height="6" fill="#c8873a"/>
+              <rect x="52" y="154" width="6" height="6" fill="#78a84e"/>
+              <rect x="62" y="154" width="6" height="6" fill="#5ec8e8"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Survival · Sandbox · 3D</p>
+          <h2>Taschenwelt</h2>
+          <p class="desc">Bau, grab, überlebe. Prozedural erzeugtes Terrain mit Höhlen und Erzadern, Werkbank und Ofen zum Herstellen, ein Hungerbalken, der nicht wartet — und nachts Zombies. Survival oder Kreativ, Welt-Startwert frei wählbar. Fürs Touchdisplay gebaut und komplett offline.</p>
+          <div class="meta">
+            <span class="tag">Touch + Tastatur</span><span class="tag">Offline</span>
+            <span class="tag">Speicherstand</span><span class="tag">Hochkant &amp; quer</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Found Tape ───────────────────────────────────────────── -->
+      <a class="card" href="games/foundtape.html" data-cat="3d horror" style="--accent:#c8b26a">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Gelber Backrooms-Flur in Fluchtperspektive, Camcorder-Bild mit REC-Anzeige">
+            <defs>
+              <linearGradient id="ft-wallL" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#4a3f1c"/><stop offset="1" stop-color="#b6a052"/>
+              </linearGradient>
+              <linearGradient id="ft-wallR" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#b6a052"/><stop offset="1" stop-color="#4a3f1c"/>
+              </linearGradient>
+              <linearGradient id="ft-floor" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#9c8944"/><stop offset="1" stop-color="#2e2712"/>
+              </linearGradient>
+              <linearGradient id="ft-ceil" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2a2410"/><stop offset="1" stop-color="#8e7c3d"/>
+              </linearGradient>
+              <radialGradient id="ft-vig" cx=".5" cy=".5" r=".72">
+                <stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".92"/>
+              </radialGradient>
+              <pattern id="ft-scan" width="4" height="4" patternUnits="userSpaceOnUse">
+                <rect width="4" height="2" fill="#000" opacity=".22"/>
+              </pattern>
+            </defs>
+            <rect width="320" height="180" fill="#0a0a06"/>
+            <!-- Flucht auf den Fluchtpunkt bei 160,94 -->
+            <path d="M0 0 320 0 196 74 124 74Z" fill="url(#ft-ceil)"/>
+            <path d="M0 180 320 180 196 112 124 112Z" fill="url(#ft-floor)"/>
+            <path d="M0 0 124 74 124 112 0 180Z" fill="url(#ft-wallL)"/>
+            <path d="M320 0 196 74 196 112 320 180Z" fill="url(#ft-wallR)"/>
+            <rect x="124" y="74" width="72" height="38" fill="#191505"/>
+            <!-- Tapetenstreifen -->
+            <g stroke="#3c3314" stroke-width="1.4" opacity=".55">
+              <path d="M30 18 130 80M62 34 142 84M92 49 152 88"/>
+              <path d="M290 18 190 80M258 34 178 84M228 49 168 88"/>
+            </g>
+            <!-- Deckenlampen -->
+            <g fill="#f2e6b4" opacity=".85">
+              <path d="M132 12 188 12 182 22 138 22Z"/>
+              <path d="M144 44 176 44 173 50 147 50Z"/>
+              <path d="M152 64 168 64 166.5 68 153.5 68Z"/>
+            </g>
+            <!-- Etwas steht im Flur -->
+            <path d="M158 78c3.6 0 5 2.2 5 5l1.4 12c.3 2.4-1.2 3.4-3 3.4h-6.8c-1.8 0-3.3-1-3-3.4L153 83c0-2.8 1.4-5 5-5Z" fill="#0d0b04" opacity=".9"/>
+            <rect width="320" height="180" fill="url(#ft-scan)"/>
+            <rect width="320" height="180" fill="url(#ft-vig)"/>
+            <!-- Camcorder-Anzeige -->
+            <g font-family="'Courier New',monospace" font-size="11" fill="#d8d0b0">
+              <circle cx="22" cy="19" r="4.5" fill="#d9484c"/>
+              <text x="33" y="23" letter-spacing="1.5">REC</text>
+              <text x="228" y="23" letter-spacing="1">00:04:17</text>
+              <text x="22" y="166" letter-spacing="1" opacity=".8">SUBLEVEL 0</text>
+              <text x="248" y="166" letter-spacing="1" opacity=".8">BAND 2/6</text>
+            </g>
+            <g stroke="#d8d0b0" stroke-width="1.6" opacity=".55" fill="none">
+              <path d="M150 84h-6m6 0v-5"/><path d="M170 84h6m-6 0v-5"/>
+              <path d="M150 102h-6m6 0v5"/><path d="M170 102h6m-6 0v5"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Horror · Ego-Perspektive · 3D</p>
+          <h2>Found Tape — Sublevel 0</h2>
+          <p class="desc">Du hältst den Camcorder selbst. Sammle die verlorenen Bänder in den gelben Fluren, finde danach den Ausgang — und komm dem, was hier unten mitläuft, nicht zu nahe. Drei Schwierigkeitsgrade von BABY bis EXTREME; mit jedem Band wird sie schneller.</p>
+          <div class="meta">
+            <span class="tag">Touch + Maus/Tastatur</span><span class="tag">Offline</span>
+            <span class="tag warn">Jumpscares</span><span class="tag warn">~8 MB, lädt kurz</span>
+          </div>
+          <span class="play">Band einlegen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Snapshade ────────────────────────────────────────────── -->
+      <a class="card" href="games/snapshade.html" data-cat="arcade" style="--accent:#5ec8e8">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Farbfeld über drei Reglern für Farbton, Sättigung und Helligkeit">
+            <defs>
+              <linearGradient id="ss-hue" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#ff4d4d"/><stop offset=".17" stop-color="#ffd24d"/>
+                <stop offset=".34" stop-color="#5ee86b"/><stop offset=".5" stop-color="#5ec8e8"/>
+                <stop offset=".67" stop-color="#5a6ff0"/><stop offset=".84" stop-color="#d45ee8"/>
+                <stop offset="1" stop-color="#ff4d4d"/>
+              </linearGradient>
+              <linearGradient id="ss-sat" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#6b7280"/><stop offset="1" stop-color="#12b5e0"/>
+              </linearGradient>
+              <linearGradient id="ss-lum" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#06131a"/><stop offset="1" stop-color="#eafaff"/>
+              </linearGradient>
+              <linearGradient id="ss-bg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#101722"/><stop offset="1" stop-color="#0a0a0f"/>
+              </linearGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#ss-bg)"/>
+            <!-- Zielfarbe, halb verdeckt -->
+            <rect x="34" y="26" width="106" height="80" fill="#12b5e0"/>
+            <rect x="34" y="26" width="106" height="80" fill="none" stroke="#2b3a4a" stroke-width="2"/>
+            <text x="34" y="120" font-family="'Pixelify Sans',monospace" font-size="12" fill="#5f6b82" letter-spacing="2">GESUCHT</text>
+            <!-- Dein Versuch -->
+            <rect x="180" y="26" width="106" height="80" fill="#2aa9cf"/>
+            <rect x="180" y="26" width="106" height="80" fill="none" stroke="#2b3a4a" stroke-width="2"/>
+            <text x="180" y="120" font-family="'Pixelify Sans',monospace" font-size="12" fill="#5f6b82" letter-spacing="2">DEINS</text>
+            <!-- Fadenkreuz auf dem Treffer -->
+            <g stroke="#eafaff" stroke-width="2" opacity=".85" fill="none">
+              <path d="M233 46v10M233 86v10M203 66h10M253 66h10"/>
+              <circle cx="233" cy="66" r="15"/>
+            </g>
+            <!-- Regler -->
+            <g>
+              <rect x="34" y="134" width="252" height="8" fill="url(#ss-hue)"/>
+              <rect x="164" y="128" width="6" height="20" fill="#eafaff"/>
+              <rect x="34" y="150" width="252" height="6" fill="url(#ss-sat)"/>
+              <rect x="216" y="145" width="5" height="16" fill="#eafaff"/>
+              <rect x="34" y="164" width="252" height="6" fill="url(#ss-lum)"/>
+              <rect x="130" y="159" width="5" height="16" fill="#eafaff"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Geschick · Gedächtnis</p>
+          <h2>Snapshade</h2>
+          <p class="desc">Sieh die Farbe. Merk sie dir. Triff sie. Fünf Runden, in denen ein Farbton kurz aufblitzt und wieder verschwindet — danach stellst du ihn aus dem Gedächtnis über Farbton, Sättigung und Helligkeit nach. Punkte gibt es für Genauigkeit und Tempo.</p>
+          <div class="meta">
+            <span class="tag">Touch</span><span class="tag">Offline</span>
+            <span class="tag">Bestwert</span><span class="tag">Eine Runde: 2 Minuten</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Mario ────────────────────────────────────────────────── -->
+      <a class="card" href="games/mario.html" data-cat="arcade" style="--accent:#5c94fc">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Jump-’n’-Run-Level mit Hügeln, Fragezeichenblock, Münze und Fahne">
+            <defs>
+              <linearGradient id="mr-sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2478e8"/><stop offset=".62" stop-color="#70c4ff"/><stop offset="1" stop-color="#d9f4ff"/>
+              </linearGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#mr-sky)"/>
+            <!-- Wolken -->
+            <g fill="#fff" opacity=".95">
+              <circle cx="48" cy="34" r="9"/><circle cx="60" cy="27" r="12"/><circle cx="74" cy="34" r="10"/>
+              <circle cx="228" cy="24" r="7"/><circle cx="238" cy="19" r="9"/><circle cx="249" cy="24" r="8"/>
+            </g>
+            <!-- Hügel -->
+            <path d="M0 148q42-64 84 0Z" fill="#49b64b"/>
+            <path d="M186 148q30-46 60 0Z" fill="#49b64b"/>
+            <!-- Büsche -->
+            <g fill="#20a83b">
+              <path d="M108 148q0-13 12-13t12 13Z"/><path d="M120 148q0-16 15-16t15 16Z"/>
+              <path d="M268 148q0-12 11-12t11 12Z"/>
+            </g>
+            <!-- Blöcke -->
+            <g>
+              <rect x="96" y="72" width="26" height="26" fill="#c86632" stroke="#733319" stroke-width="2"/>
+              <path d="M96 85h26M109 72v13M103 85v13M116 85v13" stroke="#8c3c23" stroke-width="1.6"/>
+              <rect x="122" y="72" width="26" height="26" fill="#f7b928" stroke="#733319" stroke-width="2"/>
+              <text x="135" y="92" font-family="Arial,sans-serif" font-weight="900" font-size="19" fill="#fff" text-anchor="middle">?</text>
+              <rect x="148" y="72" width="26" height="26" fill="#c86632" stroke="#733319" stroke-width="2"/>
+              <path d="M148 85h26M161 72v13M155 85v13M168 85v13" stroke="#8c3c23" stroke-width="1.6"/>
+            </g>
+            <!-- Münzen -->
+            <g>
+              <ellipse cx="196" cy="72" rx="6" ry="10" fill="#ffcf21" stroke="#d98100" stroke-width="2"/>
+              <rect x="194" y="67" width="2.5" height="8" fill="#fff6a0"/>
+              <ellipse cx="216" cy="60" rx="6" ry="10" fill="#ffcf21" stroke="#d98100" stroke-width="2"/>
+              <rect x="214" y="55" width="2.5" height="8" fill="#fff6a0"/>
+            </g>
+            <!-- Röhre -->
+            <g>
+              <rect x="242" y="118" width="24" height="30" fill="#168c35"/>
+              <rect x="246" y="122" width="6" height="26" fill="#38c653"/>
+              <rect x="238" y="110" width="32" height="10" fill="#20a941" stroke="#0d5c28" stroke-width="2"/>
+            </g>
+            <!-- Fahne -->
+            <g>
+              <rect x="292" y="52" width="3" height="96" fill="#eee"/>
+              <path d="M295 56 318 64 295 72Z" fill="#57cf42"/>
+              <circle cx="293.5" cy="50" r="4" fill="#e8b75b"/>
+            </g>
+            <!-- Boden -->
+            <rect y="148" width="320" height="32" fill="#c56b33"/>
+            <rect y="148" width="320" height="5" fill="#5abf36"/>
+            <g fill="#8c4925">
+              <rect x="10" y="160" width="8" height="5"/><rect x="46" y="167" width="8" height="5"/>
+              <rect x="86" y="160" width="8" height="5"/><rect x="126" y="167" width="8" height="5"/>
+              <rect x="166" y="160" width="8" height="5"/><rect x="206" y="167" width="8" height="5"/>
+              <rect x="248" y="160" width="8" height="5"/><rect x="288" y="167" width="8" height="5"/>
+            </g>
+            <!-- Held -->
+            <g transform="translate(48,110)">
+              <rect x="1" y="0" width="16" height="5" fill="#e52521"/><rect x="4" y="-3" width="10" height="4" fill="#e52521"/>
+              <rect x="3" y="5" width="13" height="9" fill="#f2b37e"/>
+              <rect x="3" y="5" width="4" height="7" fill="#6b3219"/><rect x="12" y="7" width="4" height="3" fill="#6b3219"/>
+              <rect x="13" y="6" width="2" height="3" fill="#111"/>
+              <rect x="1" y="14" width="17" height="8" fill="#e52521"/>
+              <rect x="4" y="20" width="12" height="12" fill="#1746a2"/>
+              <rect x="0" y="16" width="4" height="6" fill="#f2b37e"/><rect x="16" y="16" width="4" height="6" fill="#f2b37e"/>
+              <rect x="3" y="32" width="6" height="5" fill="#6b3219"/><rect x="11" y="32" width="6" height="5" fill="#6b3219"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Jump ’n’ Run · 2D · Retro</p>
+          <h2>Mario — Mini Jump ’n’ Run</h2>
+          <p class="desc">Ein Level klassisches Seitenscrolling in einem Rutsch: Münzen einsammeln, ?-Blöcke von unten aufschlagen, auf Gegner springen, Röhren und Lücken überstehen — und am Ende die Fahne vorm Schloss erreichen. Drei Leben, und die Zeit gibt Bonuspunkte.</p>
+          <div class="meta">
+            <span class="tag">Touch + Tastatur</span><span class="tag">Offline</span>
+            <span class="tag">Ein Level</span><span class="tag">Sofort losspielen</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── KernClicker ──────────────────────────────────────────── -->
+      <a class="card" href="games/kernclicker.html" data-cat="idle" style="--accent:#00c853">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Leuchtender Atomkern mit Elektronenbahnen vor Kühltürmen">
+            <defs>
+              <radialGradient id="kc-glow" cx=".5" cy=".5" r=".5">
+                <stop offset="0" stop-color="#00e676" stop-opacity=".6"/><stop offset="1" stop-color="#00e676" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="kc-bg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#06170e"/><stop offset="1" stop-color="#050a07"/>
+              </linearGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#kc-bg)"/>
+            <!-- Kühltürme im Hintergrund -->
+            <g fill="#0d2417" opacity=".9">
+              <path d="M24 180q4-46 14-58-8-6-6-14h34q2 8-6 14 10 12 14 58Z"/>
+              <path d="M262 180q3-38 12-48-7-5-5-12h29q2 7-5 12 9 10 12 48Z"/>
+            </g>
+            <g fill="#00c853" opacity=".13">
+              <path d="M40 108q-10-16-6-26h20q4 10-6 26Z"/>
+              <path d="M276 120q-8-13-5-21h16q3 8-5 21Z"/>
+            </g>
+            <ellipse cx="160" cy="86" rx="92" ry="72" fill="url(#kc-glow)"/>
+            <!-- Bahnen -->
+            <g fill="none" stroke="#00c853" stroke-width="2" opacity=".75">
+              <ellipse cx="160" cy="86" rx="76" ry="27"/>
+              <ellipse cx="160" cy="86" rx="76" ry="27" transform="rotate(60 160 86)"/>
+              <ellipse cx="160" cy="86" rx="76" ry="27" transform="rotate(-60 160 86)"/>
+            </g>
+            <!-- Elektronen -->
+            <g fill="#8affc1">
+              <circle cx="236" cy="86" r="5"/><circle cx="122" cy="20" r="5"/><circle cx="122" cy="152" r="5"/>
+            </g>
+            <!-- Kern -->
+            <circle cx="160" cy="86" r="24" fill="#00a844"/>
+            <circle cx="160" cy="86" r="24" fill="none" stroke="#8affc1" stroke-width="2.5"/>
+            <circle cx="152" cy="79" r="7" fill="#00e676"/><circle cx="168" cy="83" r="6" fill="#00c853"/>
+            <circle cx="158" cy="94" r="6.5" fill="#39f08a"/>
+            <!-- Zähler -->
+            <g font-family="'Pixelify Sans',monospace">
+              <rect x="18" y="16" width="122" height="26" fill="#0a1c12" stroke="#14472c" stroke-width="2"/>
+              <text x="28" y="34" font-size="15" fill="#8affc1" letter-spacing="1">4.72e9 ⚛</text>
+              <text x="196" y="34" font-size="13" fill="#00c853" letter-spacing="1">+18.4 Mio/s</text>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Idle · Clicker · Aufbau</p>
+          <h2>KernClicker</h2>
+          <p class="desc">Es ist das Jahr 2041 und der Reaktor ist deine Sache. Klick den Kern, bau dich von Handarbeit über Mine, Solarfeld und Atomkraftwerk bis zum Hyperkanal hoch, erforsche Kernspaltung und Quantenphysik — und setz alles zurück, wenn ein dauerhafter Multiplikator lockt.</p>
+          <div class="meta">
+            <span class="tag">Touch</span><span class="tag">Offline</span>
+            <span class="tag">Speicherstand</span><span class="tag">Läuft nebenher</span>
+          </div>
+          <span class="play">Reaktor anwerfen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+    </div>
+    <p class="empty" id="empty">Hier ist gerade nichts. Nimm einen anderen Filter.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <div>
+      <h3>Über das Regal</h3>
+      <p>Alle fünf Spiele liegen als fertige Seiten in diesem Projekt und brauchen weder Server noch Installation. Auf dem Handy lassen sie sich über „Zum Startbildschirm hinzufügen“ wie eine App ablegen.</p>
+    </div>
+    <div>
+      <h3>Wo die Spiele herkommen</h3>
+      <ul>
+        <li><a href="https://github.com/MuMaFi/SNAPSHADE">SNAPSHADE</a> — Found Tape &amp; Snapshade</li>
+        <li><a href="https://github.com/MuMaFi/marioana">marioana</a> — Mini Jump ’n’ Run</li>
+        <li><a href="https://github.com/MuMaFi/Kern-clicker">Kern-clicker</a> — KernClicker</li>
+        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite &amp; Taschenwelt</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+  const cards  = [...document.querySelectorAll('.card')];
+  const chips  = [...document.querySelectorAll('.chip[data-filter]')];
+  const empty  = document.getElementById('empty');
+
+  function apply(filter){
+    let shown = 0;
+    for(const card of cards){
+      const cats = (card.dataset.cat || '').split(/\s+/);
+      const on = filter === 'alle' || cats.includes(filter);
+      card.classList.toggle('hide', !on);
+      if(on) shown++;
+    }
+    empty.classList.toggle('show', shown === 0);
+    for(const chip of chips) chip.setAttribute('aria-pressed', String(chip.dataset.filter === filter));
+  }
+
+  for(const chip of chips){
+    chip.addEventListener('click', () => apply(chip.dataset.filter));
+  }
+
+  document.getElementById('dice').addEventListener('click', () => {
+    const offen = cards.filter(c => !c.classList.contains('hide'));
+    if(!offen.length) return;
+    location.href = offen[Math.floor(Math.random() * offen.length)].getAttribute('href');
+  });
+})();
+</script>
+</body>
+</html>
