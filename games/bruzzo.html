@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0806">
+<title>Bruzzo — AGG Games</title>
+<meta name="description" content="Sechs Stunden Nachtwache in Bruzzos Pizza-Palast. Zwei Türen, eine Luke, ein Tablet — und viel zu wenig Strom.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0806'/%3E%3Cpath d='M8 2 L14 14 L2 14 Z' fill='%23e8b44a'/%3E%3Ccircle cx='7' cy='10' r='1.4' fill='%23c8402e'/%3E%3Ccircle cx='10' cy='11.5' r='1.2' fill='%23c8402e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0a0806; --panel:#14100c; --edge:#2a231a; --edge-hi:#463a2a;
+  --ink:#f0e6d2; --dim:#9c9080; --faint:#6a6153;
+  --teig:#e8b44a; --sauce:#c8402e; --gruen:#7ab648; --blau:#6fa8d0;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#050403; color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,1.6)));
+  aspect-ratio:var(--seite,1.6); max-height:100vh; overflow:hidden}
+canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none;
+  image-rendering:pixelated}
+
+/* ── Kopfzeile ────────────────────────────────────────────── */
+#kopf{position:absolute; left:0; right:0; top:0; padding:8px 10px; pointer-events:none;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:8px; z-index:3}
+.feld{background:#100c08cc; border:2px solid var(--edge); padding:4px 9px; line-height:1.12}
+.feld b{display:block; font-size:18px; color:var(--teig)}
+.feld small{display:block; font-size:8.5px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#stromB{min-width:112px}
+#stromleiste{height:9px; background:#241c14; border:1px solid var(--edge-hi); margin-top:3px; position:relative}
+#stromleiste i{position:absolute; inset:1px; width:100%; background:var(--gruen); transform-origin:left; display:block}
+#stromleiste.knapp i{background:var(--sauce)}
+
+/* ── Knopfleiste ──────────────────────────────────────────── */
+#leiste{position:absolute; left:0; right:0; bottom:0; z-index:4;
+  display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:5px}
+.kn{font-family:var(--pix); font-size:clamp(9px,1.5vw,12px); letter-spacing:.06em; cursor:pointer;
+  border:2px solid var(--edge-hi); background:#14100ce6; color:var(--ink);
+  padding:9px 2px; text-transform:uppercase; line-height:1.15}
+.kn small{font-size:clamp(7px,1.1vw,9px)}
+.kn small{display:block; font-size:8px; color:var(--faint); letter-spacing:.12em}
+.kn.an{background:var(--teig); color:#20180a; border-color:var(--teig)}
+.kn.an small{color:#20180a99}
+.kn:disabled{opacity:.35; cursor:default}
+#knTablet{grid-column:span 1}
+#knKurbel.an{background:var(--blau); color:#08131c; border-color:var(--blau)}
+
+/* ── Tablet ───────────────────────────────────────────────── */
+#tablet{position:absolute; inset:0; z-index:2; display:none}
+#tablet.an{display:block}
+#raeume{position:absolute; left:6px; right:6px; bottom:64px; display:flex; flex-wrap:wrap; gap:4px;
+  justify-content:center; z-index:5}
+.rk{font-family:var(--pix); font-size:10px; letter-spacing:.06em; cursor:pointer;
+  border:2px solid #ffffff26; background:#0c0a08cc; color:var(--dim); padding:6px 8px}
+.rk.an{border-color:var(--teig); color:var(--teig); background:#241c10}
+.rk b{display:block; font-size:12px; color:inherit}
+
+#meldung{position:absolute; left:0; right:0; top:38%; text-align:center; z-index:6;
+  pointer-events:none; font-size:clamp(20px,5.5vw,34px); opacity:0; transition:opacity .18s;
+  color:var(--teig); text-shadow:0 3px 0 #000000aa}
+#meldung.an{opacity:1}
+#meldung small{display:block; font-size:13px; letter-spacing:.14em; color:var(--dim)}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#0a0806e8,#0a0806f4); text-align:center; z-index:9; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(38px,13vw,64px); line-height:.92; letter-spacing:.02em; color:var(--teig)}
+h1 small{display:block; font-family:var(--pix); font-size:clamp(11px,3vw,15px);
+  letter-spacing:.28em; color:var(--dim); margin-top:8px}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.5; margin:12px auto; max-width:34ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#100c08; padding:11px 13px; margin:9px auto;
+  font-size:12.5px; color:var(--dim); line-height:1.7; max-width:35ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+.tafel dt{color:var(--ink); font-weight:600}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--teig); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #9b7420; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #9b7420}
+a.zurueck{display:inline-block; margin-top:12px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+#naechte{display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin:10px 0}
+.nk{width:44px; height:44px; border:2px solid var(--edge); background:var(--panel);
+  font-family:var(--pix); font-size:16px; color:var(--dim); cursor:pointer; padding:0}
+.nk.frei{border-color:var(--teig); color:var(--teig)}
+.nk.geschafft{border-color:var(--gruen); color:var(--gruen)}
+.nk:disabled{opacity:.3; cursor:default}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+  <div id="tablet"></div>
+
+  <div id="kopf">
+    <div class="feld" id="uhrB"><b>12 Uhr</b><small id="nachtT">Nacht 1</small></div>
+    <div class="feld" id="stromB"><b><span id="stromZ">100</span> %</b><small>Strom</small>
+      <div id="stromleiste"><i></i></div></div>
+  </div>
+
+  <div id="raeume"></div>
+  <div id="meldung"></div>
+
+  <div id="leiste">
+    <button class="kn" id="knLichtL">Licht ◀<small>links</small></button>
+    <button class="kn" id="knTuerL">Tür ◀<small>links</small></button>
+    <button class="kn" id="knTuerR">Tür ▶<small>rechts</small></button>
+    <button class="kn" id="knLichtR">Licht ▶<small>rechts</small></button>
+    <button class="kn" id="knLuke">Luke<small>Lüftung</small></button>
+    <button class="kn" id="knTablet">Tablet<small>Kameras</small></button>
+    <button class="kn" id="knKurbel">Kurbel<small>laut!</small></button>
+  </div>
+
+  <div class="blende weg" id="drehen" style="z-index:12">
+    <div>
+      <div style="font-size:52px;line-height:1;margin-bottom:10px">&#128241;</div>
+      <h1 style="font-size:clamp(24px,8vw,38px)">QUER HALTEN</h1>
+      <p>Bruzzo hat zwei T&uuml;ren links und rechts &mdash; das braucht Breite.
+         Dreh das Ger&auml;t, dann passt das B&uuml;ro ins Bild.</p>
+      <button class="los" id="trotzdem">TROTZDEM SPIELEN</button>
+    </div>
+  </div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>BRUZZO<small>PIZZA-PALAST · NACHTWACHE</small></h1>
+      <p>Von <b>12 bis 6 Uhr</b>. Du sitzt im Büro und stehst nicht auf.
+         Du hast zwei Türen, eine Lüftungsluke, ein Tablet — und viel zu wenig Strom.</p>
+      <div class="tafel">
+        <u>Das Personal</u>
+        <dt style="color:var(--teig)">Bruzzo</dt> der Pizzabäcker. Kommt von links. Tür zu.<br>
+        <dt style="color:var(--gruen)">Olivia</dt> die Olive mit dem einen Auge. Kommt von rechts —
+        und rührt sich <b>nur, wenn niemand hinsieht</b>.<br>
+        <dt style="color:var(--blau)">Krempel</dt> die Musikbox auf Rollen. Nimmt die Lüftung,
+        Türen helfen nicht. Luke zu.<br>
+        <dt style="color:var(--sauce)">Der Teigling</dt> halbfertig, ohne Gesicht. Wacht auf,
+        wenn das Tablet zu lange oben ist. Dann sofort runter damit.
+      </div>
+      <div class="tafel">
+        <u>Strom</u>
+        Alles kostet: Türen, Lichter, Luke, Tablet. Bei null geht alles auf.<br>
+        Die <b>Handkurbel</b> holt Strom zurück — aber sie ist laut, und Lärm
+        macht sie schneller.
+      </div>
+      <div id="naechte"></div>
+      <button class="los" id="losKnopf">SCHICHT BEGINNEN</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel" style="font-size:clamp(30px,10vw,52px)">SCHICHTENDE</h1>
+      <p id="endeText"></p>
+      <div id="endeWer" style="font-size:13px;letter-spacing:.14em;color:var(--faint)"></div>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   BRUZZO — sechs Stunden Nachtwache in einer Pizzeria.
+
+   Der Kern ist ein Verteilungsproblem, kein Reaktionsspiel: du hast
+   einen Stromvorrat und vier Dinge, die ihn fressen, und du weißt nie
+   genug, um sparsam zu sein. Jede Figur zwingt zu einer anderen
+   Untersuchung — und die Untersuchungen widersprechen sich:
+
+   * Bruzzo prüft man mit dem Türlicht (kurz, teuer, sicher).
+   * Olivia bewegt sich NUR, wenn ihre Kamera nicht offen ist — man muss
+     also hinsehen, um sie anzuhalten, und verliert dabei den Rest.
+   * Krempel hört man in der Lüftung, bevor man ihn sieht.
+   * Der Teigling wacht auf, WEIL man das Tablet oben lässt. Wer Olivia
+     im Blick behält, weckt ihn.
+
+   Damit ist jede Sekunde eine Entscheidung, und keine Maßnahme ist
+   umsonst. Die Handkurbel oben drauf: Strom gegen Lärm.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+/* Festes Querformat 16:10. Zwei Türen links und rechts, eine Rückwand
+   dazwischen und ein Schreibtisch davor brauchen Breite: im Hochformat
+   wurden die Nischen zu hohen Schlitzen, in denen die Figuren wie Puppen
+   in einer Ecke standen. Auf hochkant gehaltenen Geräten kommt deshalb
+   der Hinweis, das Gerät zu drehen. */
+const B = 864, H = 540;
+$('#buehne').style.setProperty('--seite', (B/H).toFixed(4));
+const cv = $('#c'), g = cv.getContext('2d');
+function passeAn(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(B*dpr); cv.height = Math.round(H*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0); g.imageSmoothingEnabled = false;
+}
+passeAn();
+
+/* ── Räume ────────────────────────────────────────────────────────── */
+const RAEUME = [
+  {id:'buehne',   nr:'1A', name:'Bühne'},
+  {id:'saal',     nr:'1B', name:'Speisesaal'},
+  {id:'gangL',    nr:'2L', name:'Gang links'},
+  {id:'gangR',    nr:'2R', name:'Gang rechts'},
+  {id:'kueche',   nr:'3',  name:'Küche', blind:true},
+  {id:'werkstatt',nr:'4',  name:'Werkstatt'},
+  {id:'lueftung', nr:'5',  name:'Lüftung'}
+];
+const R_IDX = {}; RAEUME.forEach((r,i) => R_IDX[r.id] = i);
+
+/* ── Die Figuren ──────────────────────────────────────────────────── */
+function neueFiguren(){
+  return [
+    {id:'bruzzo', name:'Bruzzo', farbe:'#e8b44a',
+     weg:['buehne','saal','gangL','tuerL'], pos:0, uhr:0, takt:4.6, eifer:0, griff:0,
+     hinweis:'Schritte im linken Gang'},
+    {id:'olivia', name:'Olivia', farbe:'#7ab648',
+     weg:['buehne','saal','gangR','tuerR'], pos:0, uhr:0, takt:4.2, eifer:0, griff:0,
+     stillWennGesehen:true, hinweis:'Etwas steht rechts im Gang'},
+    {id:'krempel', name:'Krempel', farbe:'#6fa8d0',
+     weg:['kueche','werkstatt','lueftung','luke'], pos:0, uhr:0, takt:5.6, eifer:0, griff:0,
+     hinweis:'Musik aus der Lüftung'},
+    {id:'teigling', name:'Der Teigling', farbe:'#c8402e',
+     weg:['werkstatt'], pos:0, uhr:0, takt:9, eifer:0, griff:0, wach:0}
+  ];
+}
+/* Wie eifrig die vier je Nacht sind. Nacht 1 ist eine Einführung: nur
+   Bruzzo rührt sich überhaupt. */
+const EIFER = [
+  [ 4, 0, 0, 0],
+  [ 6, 4, 3, 2],
+  [ 8, 7, 5, 4],
+  [10, 9, 7, 6],
+  [13,12, 9, 8],
+  [16,15,12,11]
+];
+const STUNDEN = 6, STUNDE_S = 52;
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let sp = null, laeuft = false, zeit = 0;
+let geschafft = +(localStorage.getItem('bruzzo.naechte') || 0);
+let gewaehlteNacht = Math.min(geschafft, EIFER.length-1);
+
+function neu(nacht){
+  sp = {
+    nacht, stunde: 0, uhr: 0, strom: 100,
+    tuerL:false, tuerR:false, lichtL:false, lichtR:false, luke:false,
+    tablet:false, kamera:0, kurbel:false,
+    laerm:0, tabletUhr:0, blitz:0, ruettel:0,
+    figuren: neueFiguren(), aus:false, gewonnen:false, taeter:null,
+    schreck:0, schreckWer:null, knall:0, tuerBlink:{l:0,r:0,v:0}
+  };
+  const e = EIFER[klemm(nacht,0,EIFER.length-1)];
+  sp.figuren.forEach((f,i) => f.eifer = e[i]);
+  anzeige(); raeumeBauen();
+}
+
+/* ── Klang ────────────────────────────────────────────────────────── */
+let actx=null, meister=null, brummen=null, luefter=null;
+function tonStart(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+  actx = new AC(); if(actx.state==='suspended') actx.resume();
+  meister = actx.createGain(); meister.gain.value = .8; meister.connect(actx.destination);
+  // Raumbrummen und der Tischventilator
+  const o = actx.createOscillator(); o.type='sawtooth'; o.frequency.value=52;
+  const og = actx.createGain(); og.gain.value=.035;
+  const of_ = actx.createBiquadFilter(); of_.type='lowpass'; of_.frequency.value=260;
+  o.connect(of_); of_.connect(og); og.connect(meister); o.start(); brummen = og;
+  const n = actx.createBufferSource(); n.buffer = rauschPuffer(2); n.loop = true;
+  const nf = actx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=520; nf.Q.value=.7;
+  const ng = actx.createGain(); ng.gain.value=.05;
+  n.connect(nf); nf.connect(ng); ng.connect(meister); n.start(); luefter = ng;
+}
+function rauschPuffer(sek){
+  const n = actx.sampleRate*sek, b = actx.createBuffer(1,n,actx.sampleRate), d = b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  return b;
+}
+function ton(f0,f1,form,dauer,laut){
+  if(!actx) return;
+  const t=actx.currentTime, o=actx.createOscillator(), gn=actx.createGain();
+  o.type=form; o.frequency.setValueAtTime(f0,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(18,f1), t+dauer);
+  gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(laut,t+.01);
+  gn.gain.exponentialRampToValueAtTime(.0001,t+dauer);
+  o.connect(gn); gn.connect(meister); o.start(t); o.stop(t+dauer+.03);
+}
+function knall(dauer,laut,mitte,q,rate){
+  if(!actx) return;
+  const t=actx.currentTime, s=actx.createBufferSource();
+  s.buffer = rauschPuffer(Math.max(dauer,.05)); s.playbackRate.value = rate||1;
+  const f=actx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=mitte; f.Q.value=q;
+  const gn=actx.createGain();
+  gn.gain.setValueAtTime(laut,t); gn.gain.exponentialRampToValueAtTime(.0001,t+dauer);
+  s.connect(f); f.connect(gn); gn.connect(meister); s.start(t); s.stop(t+dauer+.05);
+}
+const klangTuer   = zu => { knall(.22,.30,180,.6,.7); ton(zu?120:200, zu?60:300,'square',.14,.07); };
+const klangKlick  = () => ton(700,540,'square',.05,.05);
+const klangSchritt= () => knall(.10,.10,300,.9,.6);
+const klangBumm   = () => { knall(.35,.34,110,.5,.5); ton(90,40,'sine',.4,.12); };
+const klangStatik = () => knall(.16,.10,2600,.5,1.5);
+const klangUhr    = () => { ton(523,523,'triangle',.18,.09); setTimeout(()=>ton(784,784,'triangle',.4,.08),160); };
+function klangOrgel(){                              // Krempel spielt, während er rollt
+  if(!actx) return;
+  const noten = [392,440,466,392];
+  noten.forEach((f,i) => setTimeout(() => ton(f,f,'triangle',.22,.05), i*150));
+}
+function klangSchreck(){
+  if(!actx) return;
+  knall(.9,.55,900,.3,1);
+  for(const f of [70,74,110,180]) ton(f*3, f, 'sawtooth', .9, .16);
+}
+
+/* ── Bedienung ────────────────────────────────────────────────────── */
+function schalte(was){
+  if(!laeuft || sp.aus) return;
+  tonStart();
+  if(was === 'tuerL'){ sp.tuerL = !sp.tuerL; klangTuer(sp.tuerL); larm(sp.tuerL?3:2); }
+  if(was === 'tuerR'){ sp.tuerR = !sp.tuerR; klangTuer(sp.tuerR); larm(sp.tuerR?3:2); }
+  if(was === 'luke'){  sp.luke  = !sp.luke;  klangTuer(sp.luke);  larm(2); }
+  if(was === 'lichtL'){ sp.lichtL = !sp.lichtL; sp.lichtR = false; klangKlick(); }
+  if(was === 'lichtR'){ sp.lichtR = !sp.lichtR; sp.lichtL = false; klangKlick(); }
+  if(was === 'tablet'){
+    sp.tablet = !sp.tablet;
+    $('#tablet').classList.toggle('an', sp.tablet);
+    $('#raeume').style.display = sp.tablet ? 'flex' : 'none';
+    if(sp.tablet){ klangStatik(); sp.tabletUhr = 0; }
+    else sp.tabletUhr = 0;
+  }
+  knoepfe();
+}
+function larm(menge){
+  sp.laerm = Math.min(24, sp.laerm + menge);
+}
+function raeumeBauen(){
+  const box = $('#raeume'); box.innerHTML = '';
+  RAEUME.forEach((r,i) => {
+    const el = document.createElement('button');
+    el.className = 'rk' + (i === sp.kamera ? ' an' : '');
+    el.innerHTML = '<b>' + r.nr + '</b>' + r.name;
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if(!sp.tablet) return;
+      sp.kamera = i; klangStatik(); raeumeBauen();
+    });
+    box.appendChild(el);
+  });
+  box.style.display = sp && sp.tablet ? 'flex' : 'none';
+}
+function knoepfe(){
+  $('#knTuerL').classList.toggle('an', sp.tuerL);
+  $('#knTuerR').classList.toggle('an', sp.tuerR);
+  $('#knLuke').classList.toggle('an', sp.luke);
+  $('#knLichtL').classList.toggle('an', sp.lichtL);
+  $('#knLichtR').classList.toggle('an', sp.lichtR);
+  $('#knTablet').classList.toggle('an', sp.tablet);
+  $('#knKurbel').classList.toggle('an', sp.kurbel);
+}
+for(const [id, was] of [['#knTuerL','tuerL'],['#knTuerR','tuerR'],['#knLuke','luke'],
+                        ['#knLichtL','lichtL'],['#knLichtR','lichtR'],['#knTablet','tablet']]){
+  $(id).addEventListener('click', e => { e.stopPropagation(); schalte(was); });
+}
+/* Die Kurbel wird gehalten, nicht getippt. */
+const kurbelKn = $('#knKurbel');
+kurbelKn.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  if(!laeuft || sp.aus) return;
+  tonStart(); sp.kurbel = true; knoepfe();
+});
+for(const t of ['pointerup','pointercancel','pointerleave'])
+  kurbelKn.addEventListener(t, () => { if(sp){ sp.kurbel = false; knoepfe(); } });
+
+addEventListener('keydown', e => {
+  if(!laeuft) return;
+  const k = {KeyA:'lichtL', KeyQ:'tuerL', KeyD:'lichtR', KeyE:'tuerR',
+             KeyS:'luke',  Space:'tablet', KeyW:'tablet'}[e.code];
+  if(k){ schalte(k); e.preventDefault(); }
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight'){ sp.kurbel = true; knoepfe(); }
+});
+addEventListener('keyup', e => {
+  if(sp && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')){ sp.kurbel = false; knoepfe(); }
+});
+addEventListener('blur', () => { if(sp){ sp.kurbel = false; knoepfe(); } });
+
+/* ── Ablauf ───────────────────────────────────────────────────────── */
+const KOSTEN = {grund:0.20, tuer:0.30, licht:0.26, luke:0.22, tablet:0.18};
+const KURBEL = 2.4;
+
+function schritt(dt){
+  zeit += dt;
+  if(!laeuft || sp.aus) return;
+
+  // Strom
+  let ab = KOSTEN.grund;
+  if(sp.tuerL) ab += KOSTEN.tuer;
+  if(sp.tuerR) ab += KOSTEN.tuer;
+  if(sp.luke)  ab += KOSTEN.luke;
+  if(sp.lichtL || sp.lichtR) ab += KOSTEN.licht;
+  if(sp.tablet) ab += KOSTEN.tablet;
+  sp.strom -= ab*dt;
+  if(sp.kurbel){
+    sp.strom = Math.min(100, sp.strom + KURBEL*dt);
+    larm(9*dt);
+    if(Math.random() < dt*7) knall(.06,.05,420,1.2,.8);
+  }
+  if(sp.strom <= 0){
+    /* Bei null geht alles auf — und wer dann im Gang steht, kommt herein.
+       Das ist der eigentliche Verlierzustand: nicht ein Fehler, sondern
+       eine falsche Bilanz über sechs Stunden. */
+    sp.strom = 0;
+    if(sp.tuerL || sp.tuerR || sp.luke || sp.tablet || sp.lichtL || sp.lichtR){
+      sp.tuerL = sp.tuerR = sp.luke = sp.tablet = sp.lichtL = sp.lichtR = false;
+      $('#tablet').classList.remove('an'); $('#raeume').style.display = 'none';
+      knoepfe(); klangBumm(); melde('STROM WEG', 'die Türen stehen offen');
+    }
+  }
+
+  // Lärm verfliegt
+  sp.laerm = Math.max(0, sp.laerm - dt*2.2);
+
+  // Stunden
+  sp.uhr += dt;
+  if(sp.uhr >= STUNDE_S){
+    sp.uhr = 0; sp.stunde++;
+    klangUhr();
+    if(sp.stunde >= STUNDEN){ gewonnen(); return; }
+    melde(uhrzeit() , 'noch ' + (STUNDEN - sp.stunde) + ' Stunden');
+  }
+
+  if(sp.tablet) sp.tabletUhr += dt; else sp.tabletUhr = Math.max(0, sp.tabletUhr - dt*1.6);
+  if(sp.blitz > 0) sp.blitz -= dt;
+  if(sp.ruettel > 0) sp.ruettel = Math.max(0, sp.ruettel - dt*2.6);
+  for(const k in sp.tuerBlink) sp.tuerBlink[k] = Math.max(0, sp.tuerBlink[k] - dt*2);
+
+  figurenDenken(dt);
+  anzeige();
+}
+const uhrzeit = () => (sp.stunde === 0 ? '12' : String(sp.stunde)) + ' UHR';
+
+function figurenDenken(dt){
+  for(const f of sp.figuren){
+    if(f.id === 'teigling'){ teiglingDenken(f, dt); continue; }
+    if(f.eifer <= 0) continue;
+
+    const ort = f.weg[f.pos];
+    const amZiel = f.pos === f.weg.length-1;
+
+    if(amZiel){
+      const zu = ort === 'tuerL' ? sp.tuerL : ort === 'tuerR' ? sp.tuerR : sp.luke;
+      if(zu){
+        /* Verschlossen: zurück in den Gang. Der Schlag gegen das Blech ist
+           die Rückmeldung, dass die Maßnahme gegriffen hat. */
+        f.pos = Math.max(0, f.pos-2); f.griff = 0;
+        klangBumm();
+        sp.tuerBlink[ort==='tuerL'?'l':ort==='tuerR'?'r':'v'] = 1;
+        melde('BLECH', f.name + ' ist wieder weg');
+      } else {
+        f.griff += dt;
+        if(f.griff > 2.2){ erwischt(f); return; }
+      }
+      continue;
+    }
+
+    // Olivia hält still, solange ihre Kamera offen ist
+    if(f.stillWennGesehen && sp.tablet && RAEUME[sp.kamera].id === ort) continue;
+
+    f.uhr += dt;
+    if(f.uhr < f.takt) continue;
+    f.uhr = 0;
+    const chance = (f.eifer + sp.laerm*0.5) / 22;
+    if(Math.random() < chance){
+      f.pos++;
+      const neu = f.weg[f.pos];
+      if(neu === 'gangL' || neu === 'gangR') klangSchritt();
+      if(neu === 'lueftung') klangOrgel();
+      if(f.pos === f.weg.length-1){
+        f.griff = 0;
+        if(neu === 'tuerL' || neu === 'tuerR') klangSchritt();
+        if(neu === 'luke') klangOrgel();
+      }
+    }
+  }
+}
+/* Der Teigling ist die Strafe fürs Hinsehen: er wacht auf, während das
+   Tablet oben ist, und steht dann plötzlich im Büro. Wer es sofort
+   runternimmt, kommt davon. */
+function teiglingDenken(f, dt){
+  if(f.eifer <= 0) return;
+  if(sp.tablet) f.wach += dt * (f.eifer/9);
+  else f.wach = Math.max(0, f.wach - dt*2.4);
+  if(f.wach > 9 && !f.griff){
+    f.griff = 1.15; sp.blitz = .5; klangStatik(); knall(.3,.2,700,.6,.6);
+  }
+  if(f.griff > 0){
+    if(!sp.tablet){ f.griff = 0; f.wach = 0; melde('KNAPP', 'der Teigling geht zurück'); return; }
+    f.griff -= dt;
+    if(f.griff <= 0) erwischt(f);
+  }
+}
+
+function erwischt(f){
+  sp.aus = true; laeuft = false;
+  sp.schreck = 1.1; sp.schreckWer = f; sp.ruettel = 1; sp.taeter = f;
+  sp.tablet = false; $('#tablet').classList.remove('an'); $('#raeume').style.display='none';
+  klangSchreck();
+  setTimeout(() => {
+    $('#endeTitel').textContent = 'ERWISCHT';
+    $('#endeTitel').style.color = 'var(--sauce)';
+    $('#endeText').textContent = uhrzeit().replace(' UHR',' Uhr') + ' — so weit bist du gekommen.';
+    $('#endeWer').textContent = f.name + ' hat dich geholt.';
+    $('#ende').classList.remove('weg');
+  }, 1500);
+}
+function gewonnen(){
+  sp.aus = true; sp.gewonnen = true; laeuft = false;
+  klangUhr();
+  if(sp.nacht + 1 > geschafft){
+    geschafft = sp.nacht + 1;
+    localStorage.setItem('bruzzo.naechte', String(geschafft));
+  }
+  $('#endeTitel').textContent = '6 UHR';
+  $('#endeTitel').style.color = 'var(--gruen)';
+  $('#endeText').textContent = 'Schicht überstanden. Nacht ' + (sp.nacht+1) + ' ist durch.';
+  $('#endeWer').textContent = sp.nacht+1 < EIFER.length
+    ? 'Nacht ' + (sp.nacht+2) + ' ist jetzt frei.' : 'Alle sechs Nächte geschafft.';
+  $('#ende').classList.remove('weg');
+}
+let meldeUhr = 0;
+function melde(gross, klein){
+  $('#meldung').innerHTML = gross + (klein ? '<small>'+klein+'</small>' : '');
+  $('#meldung').classList.add('an'); meldeUhr = 1.6;
+}
+
+/* ── Anzeige ──────────────────────────────────────────────────────── */
+function anzeige(){
+  $('#uhrB b').textContent = uhrzeit().replace('UHR','Uhr');
+  $('#nachtT').textContent = 'Nacht ' + (sp.nacht+1);
+  $('#stromZ').textContent = Math.ceil(sp.strom);
+  $('#stromleiste i').style.transform = 'scaleX(' + (klemm(sp.strom,0,100)/100).toFixed(3) + ')';
+  $('#stromleiste').classList.toggle('knapp', sp.strom < 25);
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+function malen(){
+  const rx = sp && sp.ruettel > 0 ? zuf(-1,1)*sp.ruettel*7 : 0;
+  const ry = sp && sp.ruettel > 0 ? zuf(-1,1)*sp.ruettel*7 : 0;
+  g.save(); g.translate(Math.round(rx), Math.round(ry));
+  if(!sp){ g.fillStyle='#0a0806'; g.fillRect(0,0,B,H); g.restore(); return; }
+  if(sp.schreck > 0) malSchreck();
+  else if(sp.tablet) malKamera();
+  else malBuero();
+  g.restore();
+  if(sp.blitz > 0){
+    g.fillStyle = 'rgba(200,64,46,' + (sp.blitz*.5).toFixed(2) + ')';
+    g.fillRect(0,0,B,H);
+  }
+}
+
+/* ── Das Büro ─────────────────────────────────────────────────────── */
+function malBuero(){
+  const dunkel = sp.strom <= 0;
+  g.fillStyle = dunkel ? '#050403' : '#0f0b08'; g.fillRect(0,0,B,H);
+  const M = B/2, bodenY = H*0.72;
+
+  // Rückwand mit Plakat
+  g.fillStyle = dunkel ? '#0a0806' : '#1a1410';
+  g.fillRect(B*0.225, H*0.06, B*0.55, bodenY - H*0.06);
+  g.fillStyle = dunkel ? '#0c0906' : '#221a12';
+  for(let y=H*0.06; y<bodenY; y+=26) g.fillRect(B*0.225, y, B*0.55, 2);
+  if(!dunkel){
+    // Plakat: Bruzzo mit Pizza
+    const px = M-58, py = H*0.11;
+    g.fillStyle = '#2a2016'; g.fillRect(px-3, py-3, 122, 90);
+    g.fillStyle = '#e8b44a'; g.fillRect(px, py, 116, 84);
+    g.fillStyle = '#c8402e';
+    g.beginPath(); g.moveTo(px+58, py+13); g.lineTo(px+96, py+70); g.lineTo(px+20, py+70); g.closePath(); g.fill();
+    g.fillStyle = '#f0e6d2'; g.fillRect(px+45, py+38, 9, 9); g.fillRect(px+64, py+48, 8, 8);
+    g.fillStyle = '#20180a'; g.font = '700 12px "Pixelify Sans",monospace'; g.textAlign='center';
+    g.fillText('BRUZZO', px+58, py+80);
+  }
+  // Boden
+  g.fillStyle = dunkel ? '#070604' : '#151009';
+  g.fillRect(0, bodenY, B, H-bodenY);
+  g.fillStyle = dunkel ? '#090705' : '#1d1610';
+  for(let x=-40; x<B+80; x+=44){
+    g.beginPath(); g.moveTo(x, H); g.lineTo(misch(x, M, .78), bodenY); g.lineTo(misch(x+44, M, .78), bodenY);
+    g.lineTo(x+44, H); g.closePath();
+    if(((x/44)|0)%2) g.fill();
+  }
+
+  // Türnischen links und rechts
+  malTuer(true,  sp.tuerL, sp.lichtL, sp.tuerBlink.l, dunkel);
+  malTuer(false, sp.tuerR, sp.lichtR, sp.tuerBlink.r, dunkel);
+
+  // Lüftungsluke unten links in der Wand
+  const lx = B*0.245, ly = bodenY - 54;
+  g.fillStyle = '#0c0906'; g.fillRect(lx-3, ly-3, 62, 46);
+  g.fillStyle = sp.luke ? '#3a2f22' : '#100c08'; g.fillRect(lx, ly, 56, 40);
+  if(sp.luke){
+    g.fillStyle = '#5a4a34';
+    for(let y=0;y<40;y+=7) g.fillRect(lx+2, ly+y+1, 52, 4);
+    g.fillStyle = '#e8b44a'; g.fillRect(lx+20, ly+16, 16, 8);
+  } else {
+    g.fillStyle = '#050403'; g.fillRect(lx+3, ly+3, 50, 34);
+    g.fillStyle = '#1a140d';                      // der Schacht dahinter
+    for(let y=0;y<34;y+=8) g.fillRect(lx+3, ly+4+y, 50, 2);
+    g.strokeStyle = '#3a2f22'; g.lineWidth = 2; g.strokeRect(lx+1, ly+1, 54, 38);
+    // Wer in der Luke steht, schimmert schwach
+    const k = sp.figuren.find(f => f.weg[f.pos] === 'luke' || f.weg[f.pos] === 'lueftung');
+    if(k && k.weg[k.pos] === 'luke'){
+      g.fillStyle = 'rgba(111,168,208,' + (0.35+0.25*Math.sin(zeit*7)).toFixed(2) + ')';
+      g.fillRect(lx+14, ly+13, 8, 8); g.fillRect(lx+34, ly+13, 8, 8);
+    }
+  }
+  if(sp.tuerBlink.v > 0){
+    g.fillStyle = 'rgba(232,180,74,' + (sp.tuerBlink.v*.5).toFixed(2) + ')';
+    g.fillRect(lx-6, ly-6, 68, 52);
+  }
+
+  // Schreibtisch im Vordergrund
+  g.fillStyle = '#1d160e'; g.fillRect(0, H*0.86, B, H*0.14);
+  g.fillStyle = '#2a2016'; g.fillRect(0, H*0.86, B, 5);
+  // Ventilator
+  const fx = B*0.40, fy = H*0.87;
+  g.fillStyle = '#3a3028'; g.fillRect(fx-3, fy-8, 6, 8);
+  g.save(); g.translate(fx, fy-24);
+  g.rotate(zeit*(sp.strom>0?9:0.3));
+  g.strokeStyle = '#4a4038'; g.lineWidth = 4;
+  for(let i=0;i<3;i++){ const a=i*2.094;
+    g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(a)*16, Math.sin(a)*16); g.stroke(); }
+  g.restore();
+  g.strokeStyle = '#3a3028'; g.lineWidth = 2;
+  g.beginPath(); g.arc(fx, fy-24, 18, 0, 6.284); g.stroke();
+  // Becher
+  g.fillStyle = '#c8402e'; g.fillRect(B*0.62, fy-16, 16, 16);
+  g.fillStyle = '#8a2c1e'; g.fillRect(B*0.62, fy-16, 16, 4);
+
+  if(dunkel){
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0,0,B,H);
+    g.fillStyle = '#c8402e'; g.font='700 15px "Pixelify Sans",monospace'; g.textAlign='center';
+    g.fillText('KEIN STROM', B/2, H*0.5);
+  }
+}
+function malTuer(links, zu, licht, blink, dunkel){
+/* Die Nische war 17 % breit und lief über die ganze Wandhöhe. Eine Figur,
+   die hineinpasste, wurde damit zur Puppe unten in der Ecke. Breiter und
+   niedriger — und die Füße enden unterhalb der Öffnung, sodass die Gestalt
+   angeschnitten und dadurch nah wirkt. */
+  const br = B*0.215;
+  const x = links ? 0 : B-br;
+  const oben = H*0.16, unten = H*0.80;
+
+  // Nische
+  g.fillStyle = '#0a0806'; g.fillRect(x, oben-8, br, unten-oben+8);
+  // Was steht draußen?
+  const wer = sp.figuren.find(f => f.weg[f.pos] === (links ? 'tuerL' : 'tuerR'));
+  if(!zu){
+    g.fillStyle = licht ? '#241c12' : '#060504';
+    g.fillRect(x+6, oben, br-12, unten-oben);
+    if(licht && wer){
+      malFigur(wer, x + br/2, unten + 22, (unten-oben)*1.05, br-24);
+    } else if(licht){
+      g.fillStyle = '#181209';
+      g.fillRect(x+10, unten-40, br-20, 34);      // leerer Gang
+      g.fillStyle = '#241c12'; g.fillRect(x+10, oben+10, br-20, 3);
+    }
+  } else {
+    // Rollladen
+    g.fillStyle = '#2e261a'; g.fillRect(x+4, oben-6, br-8, unten-oben+6);
+    g.fillStyle = '#3d3323';
+    for(let y=oben-4; y<unten; y+=9) g.fillRect(x+6, y, br-12, 5);
+    g.fillStyle = '#1a140d'; g.fillRect(x+4, unten-8, br-8, 8);
+  }
+  // Rahmen
+  g.fillStyle = dunkel ? '#100c08' : '#241c14';
+  g.fillRect(links ? x+br-6 : x, oben-10, 6, unten-oben+12);
+  g.fillRect(x, oben-10, br, 6);
+  if(blink > 0){
+    g.fillStyle = 'rgba(232,180,74,' + (blink*.45).toFixed(2) + ')';
+    g.fillRect(x, oben-10, br, unten-oben+12);
+  }
+}
+
+/* ── Die Figuren ──────────────────────────────────────────────────── */
+/* Der Maßstab kam nur aus der Höhe. In der Türnische war Bruzzo damit
+   159 Pixel breit bei 95 Pixeln Nische — er quoll seitlich heraus und war
+   angeschnitten. Jetzt begrenzt auch die verfügbare Breite. */
+function malFigur(f, mx, fussY, hoehe, maxBreite){
+  let s = hoehe/100;
+  if(maxBreite) s = Math.min(s, maxBreite/58);
+  g.save(); g.translate(mx, fussY); g.scale(s, s);
+  if(f.id === 'bruzzo'){
+    g.fillStyle='#241a10'; g.fillRect(-26,-92,52,92);            // Umriss
+    g.fillStyle='#e8b44a'; g.fillRect(-22,-62,44,54);            // Fassbauch
+    g.fillStyle='#c8402e'; g.fillRect(-22,-40,44,10);            // Schürzenband
+    g.fillStyle='#f0e6d2'; g.fillRect(-16,-92,32,26);            // Kopf
+    g.fillStyle='#f4efe2'; g.fillRect(-18,-104,36,14);           // Kochmütze
+    g.fillStyle='#20180a'; g.fillRect(-11,-84,7,7); g.fillRect(4,-84,7,7);
+    g.fillStyle='#ffd66b'; g.fillRect(-10,-83,4,4); g.fillRect(5,-83,4,4);   // Leuchtaugen
+    g.fillStyle='#3a2a18'; g.fillRect(-12,-72,24,5);             // Schnurrbart
+    g.fillStyle='#241a10'; g.fillRect(-24,-8,10,8); g.fillRect(14,-8,10,8);  // Füße
+  } else if(f.id === 'olivia'){
+    g.fillStyle='#243014'; g.fillRect(-4,-58,8,58);              // dünner Körper
+    g.fillStyle='#7ab648';
+    g.beginPath(); g.ellipse(0,-74,20,22,0,0,6.284); g.fill();   // Olivenkopf
+    g.fillStyle='#c8402e';
+    g.beginPath(); g.arc(0,-74,9,0,6.284); g.fill();             // Paprika-Auge
+    g.fillStyle='#20180a';
+    g.beginPath(); g.arc(0,-74,4.5,0,6.284); g.fill();
+    g.fillStyle='#ffdcd4';
+    g.beginPath(); g.arc(-1.5,-76,1.8,0,6.284); g.fill();
+    g.strokeStyle='#243014'; g.lineWidth=3;                       // lange Arme
+    g.beginPath(); g.moveTo(-3,-46); g.lineTo(-20,-16); g.moveTo(3,-46); g.lineTo(20,-16); g.stroke();
+    g.beginPath(); g.moveTo(-3,-2); g.lineTo(-11,0); g.moveTo(3,-2); g.lineTo(11,0); g.stroke();
+  } else if(f.id === 'krempel'){
+    g.fillStyle='#1a2430'; g.fillRect(-28,-70,56,62);            // Kasten
+    g.fillStyle='#6fa8d0'; g.fillRect(-24,-66,48,30);            // Lautsprechergitter
+    g.fillStyle='#122030';
+    for(let y=-64;y<-38;y+=5) g.fillRect(-22,y,44,2);
+    g.fillStyle='#ffd66b'; g.fillRect(-14,-58,8,8); g.fillRect(6,-58,8,8);
+    g.fillStyle='#c8402e'; g.fillRect(-10,-44,20,4);             // Mundschlitz
+    g.fillStyle='#2a3a4a'; g.fillRect(-24,-34,48,20);
+    g.fillStyle='#3a4a5a';
+    g.beginPath(); g.arc(-16,-6,8,0,6.284); g.fill();            // Rollen
+    g.beginPath(); g.arc(16,-6,8,0,6.284); g.fill();
+  } else {
+    g.fillStyle='#2a221a'; g.fillRect(-24,-84,48,84);
+    g.fillStyle='#d8c8a8';                                        // roher Teig
+    g.beginPath(); g.ellipse(0,-46,24,38,0,0,6.284); g.fill();
+    g.fillStyle='#c0ad8c';
+    g.beginPath(); g.ellipse(-8,-62,9,7,0,0,6.284); g.fill();
+    g.beginPath(); g.ellipse(10,-52,7,6,0,0,6.284); g.fill();
+    g.fillStyle='#1a1008';                                        // Kiefer, kein Gesicht
+    g.fillRect(-13,-34,26,12);
+    g.fillStyle='#d8c8a8';
+    for(let i=0;i<5;i++) g.fillRect(-12+i*5,-34,3,5);
+  }
+  g.restore();
+}
+
+/* ── Kameras ──────────────────────────────────────────────────────── */
+function malKamera(){
+  const r = RAEUME[sp.kamera];
+  g.fillStyle = '#070906'; g.fillRect(0,0,B,H);
+  const hier = sp.figuren.filter(f => f.weg[f.pos] === r.id);
+
+  if(r.blind){
+    /* Die Küche hat kein Bild — nur Ton. Klassisch, billig und wirksam:
+       man weiß, dass da jemand ist, und sieht nichts. */
+    g.fillStyle = '#0d0f0c'; g.fillRect(0,0,B,H);
+    malRauschen(0.55);
+    g.fillStyle = '#6a6153'; g.font='700 15px "Pixelify Sans",monospace'; g.textAlign='center';
+    g.fillText('KEIN BILD', B/2, H/2-8);
+    g.font='400 12px "Pixelify Sans",monospace';
+    g.fillText(hier.length ? 'aber Geschirr klappert' : 'nur das Kühlaggregat', B/2, H/2+14);
+    if(hier.length && Math.random() < .04) knall(.09,.09,1800,1.4,1.2);
+  } else {
+    malRaum(r.id);
+    for(let i=0;i<hier.length;i++)
+      malFigur(hier[i], B*(0.30 + i*0.20), H*0.78, H*0.46, B*0.16);
+    malRauschen(0.20);
+  }
+
+  // Rahmen des Tablets
+  g.strokeStyle = 'rgba(232,180,74,.30)'; g.lineWidth = 3;
+  g.strokeRect(6, 6, B-12, H-12);
+  /* Mittig oben: links sitzt die Uhr, rechts der Strom — dort war die
+     Beschriftung vorher halb verdeckt. */
+  g.fillStyle = '#e8b44a'; g.font='700 14px "Pixelify Sans",monospace'; g.textAlign='center';
+  g.fillText('KAM ' + r.nr + '  ·  ' + r.name.toUpperCase(), B/2, 28);
+  if(Math.sin(zeit*4) > 0){
+    g.fillStyle = '#c8402e'; g.beginPath(); g.arc(B-24, 20, 5, 0, 6.284); g.fill();
+  }
+  // Warnung, wenn der Teigling aufwacht
+  const tg = sp.figuren.find(f => f.id === 'teigling');
+  if(tg && tg.wach > 5){
+    g.fillStyle = 'rgba(200,64,46,' + (0.10 + 0.14*Math.sin(zeit*12)).toFixed(2) + ')';
+    g.fillRect(0,0,B,H);
+  }
+}
+function malRauschen(staerke){
+  g.globalAlpha = staerke;
+  for(let i=0;i<900;i++){
+    const x = Math.random()*B, y = Math.random()*H;
+    const h = Math.random()*255|0;
+    g.fillStyle = 'rgb(' + h + ',' + h + ',' + h + ')';
+    g.fillRect(x, y, 2, 2);
+  }
+  g.globalAlpha = 1;
+  // Bildzeile, die durchläuft
+  const y = ((zeit*140) % (H+80)) - 40;
+  g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, y, B, 26);
+}
+/* Jeder Raum ist ein gezeichnetes Bild, kein Foto: Boden, Rückwand und
+   ein paar Möbel, die ihn erkennbar machen. */
+function malRaum(id){
+  const bodenY = H*0.66;
+  const wand = {buehne:'#1e1208', saal:'#171208', gangL:'#120e0a', gangR:'#120e0a',
+                werkstatt:'#141410', lueftung:'#0e1014'}[id] || '#141008';
+  g.fillStyle = wand; g.fillRect(0,0,B,bodenY);
+  g.fillStyle = '#0c0906'; g.fillRect(0,bodenY,B,H-bodenY);
+  g.fillStyle = '#151009';
+  for(let x=-30;x<B+60;x+=40){
+    g.beginPath(); g.moveTo(x,H); g.lineTo(misch(x,B/2,.7),bodenY);
+    g.lineTo(misch(x+40,B/2,.7),bodenY); g.lineTo(x+40,H); g.closePath();
+    if(((x/40)|0)%2) g.fill();
+  }
+  if(id === 'buehne'){
+    g.fillStyle='#2a1810'; g.fillRect(B*0.10, H*0.78-16, B*0.80, 22);   // Podest
+    g.fillStyle='#c8402e'; g.fillRect(B*0.06, 0, B*0.88, 34);           // Vorhang
+    g.fillStyle='#8a2c1e';
+    for(let x=B*0.06;x<B*0.94;x+=16) g.fillRect(x, 0, 7, 34);
+    g.fillStyle='#e8b44a'; g.font='700 12px "Pixelify Sans",monospace'; g.textAlign='center';
+    g.fillText('BRUZZO & FREUNDE', B/2, 76);
+  } else if(id === 'saal'){
+    for(const [tx,ty,s] of [[B*0.22,bodenY+18,1],[B*0.62,bodenY+34,1.2],[B*0.44,bodenY-2,.8]]){
+      g.fillStyle='#241a10'; g.fillRect(tx-26*s, ty-8*s, 52*s, 8*s);
+      g.fillStyle='#1a130c'; g.fillRect(tx-4*s, ty, 8*s, 22*s);
+    }
+    g.fillStyle='#2a2016'; g.fillRect(0, bodenY-30, B, 5);
+  } else if(id === 'gangL' || id === 'gangR'){
+    const seite = id === 'gangL' ? 1 : -1;
+    g.fillStyle='#0a0806';
+    g.beginPath();
+    g.moveTo(B/2 - seite*B*0.18, 0); g.lineTo(B/2 + seite*B*0.10, H*0.22);
+    g.lineTo(B/2 + seite*B*0.10, bodenY); g.lineTo(B/2 - seite*B*0.18, H);
+    g.closePath(); g.fill();
+    g.fillStyle='#241c12';                                            // Leuchte
+    g.fillRect(B/2 - 26, H*0.12, 52, 7);
+    g.fillStyle='#3a2f1c'; g.fillRect(0, bodenY-6, B, 4);
+  } else if(id === 'werkstatt'){
+    g.fillStyle='#232018'; g.fillRect(B*0.08, bodenY-40, B*0.5, 44);   // Werkbank
+    g.fillStyle='#3a3428';
+    for(let i=0;i<5;i++) g.fillRect(B*0.12+i*22, bodenY-52, 8, 12);    // Werkzeug
+    g.fillStyle='#141208'; g.fillRect(B*0.66, bodenY-90, B*0.24, 94);  // Schrank
+    g.fillStyle='#242018'; g.fillRect(B*0.68, bodenY-86, B*0.09, 86);
+  } else if(id === 'lueftung'){
+    g.fillStyle='#0a0d12'; g.fillRect(0,0,B,H);
+    for(let i=0;i<7;i++){
+      const t = i/7, w = B*(0.9 - t*0.62), h = H*(0.9 - t*0.62);
+      g.strokeStyle = 'rgba(111,168,208,' + (0.30 - t*0.03).toFixed(2) + ')';
+      g.lineWidth = 2;
+      g.strokeRect((B-w)/2, (H-h)/2, w, h);
+    }
+  }
+}
+
+/* ── Der Schreck ──────────────────────────────────────────────────── */
+function malSchreck(){
+  const f = sp.schreckWer;
+  const t = 1 - sp.schreck;
+  g.fillStyle = '#1a0604'; g.fillRect(0,0,B,H);
+  malRauschen(0.35);
+  const hoehe = H * (0.9 + Math.sin(zeit*40)*0.06 + t*0.5);
+  malFigur(f, B/2 + Math.sin(zeit*33)*7, H*0.99, hoehe, B*0.40);
+  g.fillStyle = 'rgba(200,64,46,' + (0.18 + 0.2*Math.abs(Math.sin(zeit*20))).toFixed(2) + ')';
+  g.fillRect(0,0,B,H);
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .05); vorher = jetzt;
+  if(sp && sp.schreck > 0) sp.schreck = Math.max(0, sp.schreck - dt*0.7);
+  schritt(dt);
+  if(meldeUhr > 0){ meldeUhr -= dt; if(meldeUhr <= 0) $('#meldung').classList.remove('an'); }
+  malen();
+}
+
+/* ── Menü ─────────────────────────────────────────────────────────── */
+function naechteBauen(){
+  const box = $('#naechte'); box.innerHTML = '';
+  for(let i=0;i<EIFER.length;i++){
+    const el = document.createElement('button');
+    const frei = i <= geschafft;
+    el.className = 'nk' + (i < geschafft ? ' geschafft' : frei ? ' frei' : '');
+    el.textContent = i+1; el.disabled = !frei;
+    if(i === gewaehlteNacht) el.style.background = 'var(--edge)';
+    el.addEventListener('click', () => { gewaehlteNacht = i; naechteBauen(); });
+    box.appendChild(el);
+  }
+}
+function starten(){
+  tonStart();
+  neu(gewaehlteNacht);
+  laeuft = true;
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+  $('#tablet').classList.remove('an'); $('#raeume').style.display = 'none';
+  knoepfe();
+  melde('12 UHR', 'sechs Stunden');
+}
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', () => {
+  if(sp && sp.gewonnen && sp.nacht+1 < EIFER.length) gewaehlteNacht = sp.nacht+1;
+  naechteBauen(); starten();
+});
+/* Hochkant ist das Büro ein Streifen. Wir bitten einmal ums Drehen und
+   lassen es trotzdem zu, weil nicht jedes Gerät sich drehen lässt. */
+let drehHinweisWeg = false;
+function drehPruefen(){
+  const hoch = innerHeight > innerWidth * 1.02;
+  $('#drehen').classList.toggle('weg', !hoch || drehHinweisWeg);
+}
+$('#trotzdem').addEventListener('click', () => { drehHinweisWeg = true; drehPruefen(); });
+addEventListener('resize', () => { if(innerWidth > innerHeight) drehHinweisWeg = false; drehPruefen(); });
+drehPruefen();
+
+naechteBauen();
+neu(gewaehlteNacht); laeuft = false;
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__bruzzo = {
+  get sp(){return sp}, RAEUME, EIFER, STUNDEN, STUNDE_S,
+  starten, schalte, neu,
+  setzeNacht: n => { gewaehlteNacht = n; },
+  setzeFigur: (id, pos) => { const f = sp.figuren.find(x=>x.id===id); if(f) f.pos = pos; },
+  get laeuft(){return laeuft}
+};
+</script>
+</body>
+</html>
