@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Bollwerk — AGG Games</title>
+<meta name="description" content="Türme setzen, Weg verbauen, Wellen aufhalten. Zumauern ist verboten — aber ein langer Umweg ist erlaubt.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0f14'/%3E%3Crect x='3' y='6' width='10' height='8' fill='%235e8fb8'/%3E%3Crect x='6' y='2' width='4' height='5' fill='%23cfe0f2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0f14; --panel:#131a24; --edge:#233042; --edge-hi:#38495f;
+  --ink:#e6eefa; --dim:#93a3b8; --faint:#5f6f85;
+  --gold:#ffb648; --gruen:#5be0b0; --rot:#ff6b5e; --blau:#5e8fb8; --lila:#b58cff;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#070a0e; color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,1.5)));
+  aspect-ratio:var(--seite,1.5); max-height:100vh; overflow:hidden}
+canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none}
+
+#kopf{position:absolute; left:0; right:0; top:0; padding:7px 9px; pointer-events:none;
+  display:flex; gap:6px; align-items:flex-start; z-index:3; flex-wrap:wrap}
+.feld{background:#0c1219cc; border:2px solid var(--edge); padding:4px 9px; line-height:1.12}
+.feld b{display:block; font-size:17px; color:var(--gold)}
+.feld small{display:block; font-size:8.5px; letter-spacing:.15em; color:var(--faint); text-transform:uppercase}
+#leben b{color:var(--rot)} #welleF b{color:var(--gruen)}
+
+#bar{position:absolute; left:0; right:0; bottom:0; z-index:4; display:flex; gap:4px; padding:5px;
+  background:linear-gradient(transparent,#070a0ecc 40%)}
+.tk{flex:1; font-family:var(--pix); font-size:clamp(9px,1.4vw,12px); letter-spacing:.04em; cursor:pointer;
+  border:2px solid var(--edge-hi); background:#131a24e6; color:var(--ink); padding:7px 3px; line-height:1.2}
+.tk b{display:block; font-size:clamp(10px,1.6vw,13px)}
+.tk small{display:block; font-size:clamp(7px,1.1vw,9px); color:var(--gold)}
+.tk.an{border-color:var(--gold); background:#241c10}
+.tk:disabled{opacity:.38; cursor:default}
+#loswelle{flex:1.25; border-color:var(--gruen); color:var(--gruen)}
+#loswelle:disabled{opacity:.4}
+
+#hinweis{position:absolute; left:0; right:0; bottom:56px; text-align:center; pointer-events:none;
+  font-size:11.5px; letter-spacing:.1em; color:#ffffff70; z-index:3}
+#ruf{position:absolute; left:0; right:0; top:30%; text-align:center; pointer-events:none; z-index:5;
+  font-size:clamp(22px,5vw,36px); opacity:0; transition:opacity .16s; color:var(--gold);
+  text-shadow:0 3px 0 #000a}
+#ruf.an{opacity:1}
+#ruf small{display:block; font-size:13px; letter-spacing:.14em; color:var(--dim)}
+
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#0b0f14e6,#0b0f14f5); text-align:center; z-index:9; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(34px,11vw,58px); line-height:.94; color:var(--blau)}
+h1 span{color:var(--ink)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.5; margin:12px auto; max-width:35ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0f151d; padding:11px 13px; margin:9px auto;
+  font-size:12.5px; color:var(--dim); line-height:1.7; max-width:36ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+.tafel dt{color:var(--ink); font-weight:600; display:inline}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+a.zurueck{display:inline-block; margin-top:12px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+
+  <div id="kopf">
+    <div class="feld" id="geldF"><b>0</b><small>Schrauben</small></div>
+    <div class="feld" id="leben"><b>20</b><small>Kern</small></div>
+    <div class="feld" id="welleF"><b>0 / 20</b><small>Welle</small></div>
+  </div>
+
+  <div id="ruf"></div>
+  <div id="hinweis">Feld antippen: Turm setzen · Turm antippen: aufrüsten oder abreißen</div>
+
+  <div id="bar"></div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>BOLL<span>WERK</span></h1>
+      <p>Sie laufen von links nach rechts zum Kern. Du baust ihnen den Weg —
+         nicht zu, sondern <b>lang</b>.</p>
+      <div class="tafel">
+        <u>Die Regel</u>
+        Türme stehen auf dem Boden und versperren den Weg. <b>Ganz zumauern
+        geht nicht</b> — ein Turm, der den letzten Durchgang schließt, lässt
+        sich nicht setzen. Aber ein Umweg über das halbe Feld ist erlaubt,
+        und genau daraus baust du deine Verteidigung.
+      </div>
+      <div class="tafel">
+        <u>Was da kommt</u>
+        <dt style="color:#c8d4e4">Läufer</dt> — normal.<br>
+        <dt style="color:#ffb648">Panzer</dt> — dicke Platten: jeder Treffer verliert 6 Schaden.
+        Der Mörser trifft trotzdem hart.<br>
+        <dt style="color:#5be0b0">Schwarm</dt> — schnell, viele, dünn. Flächenschaden.<br>
+        <dt style="color:#b58cff">Flieger</dt> — fliegt schnurgerade über dein Labyrinth hinweg.
+        Nur Geschütz und Tesla erreichen ihn.
+      </div>
+      <button class="los" id="losKnopf">BAUEN</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel" style="font-size:clamp(28px,9vw,48px)">DURCHBRUCH</h1>
+      <p id="endeText"></p>
+      <div id="endeBest" style="color:var(--faint);font-size:13px;letter-spacing:.12em"></div>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   BOLLWERK — Turmverteidigung, bei der man den Weg selbst baut.
+
+   Der Reiz steckt in einer einzigen Regel: Türme versperren den Weg,
+   aber ganz zumauern ist verboten. Wer den letzten Durchgang schließen
+   will, bekommt den Turm nicht gesetzt. Damit ist jedes Bauteil zugleich
+   Waffe und Mauer, und die eigentliche Arbeit ist, den Gang so zu legen,
+   dass er lang wird und trotzdem offen bleibt.
+
+   Durchgesetzt wird das mit einer Breitensuche vom Kern aus: sie liefert
+   ein Abstandsfeld über alle freien Felder. Die Gegner laufen einfach
+   bergab. Vor jedem Bau wird das Feld probeweise gesetzt und die Suche
+   wiederholt — ist der Eingang danach unerreichbar oder steht ein
+   Gegner im Nichts, wird der Bau abgelehnt.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+const SP = 18, ZE = 12, Z = 42;                  // Spalten, Zeilen, Zellgröße
+/* Oben ein Streifen für die Anzeige, unten einer für die Leiste. Ohne den
+   oberen lagen Uhr und Schraubenzahl über der ersten Reihe — ein Turm
+   dort war verdeckt und nicht mehr antippbar. */
+const OBEN = 38;
+const B = SP*Z, H = ZE*Z + 54 + OBEN;
+$('#buehne').style.setProperty('--seite', (B/H).toFixed(4));
+const cv = $('#c'), g = cv.getContext('2d');
+(function passeAn(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(B*dpr); cv.height = Math.round(H*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+})();
+
+const EIN = {x:0, y:(ZE>>1)};                    // Eingang links
+const KERN = {x:SP-1, y:(ZE>>1)};                // Kern rechts
+
+/* ── Türme ────────────────────────────────────────────────────────── */
+const TUERME = {
+  geschuetz:{name:'Geschütz', kurz:'Geschütz', preis:55,  farbe:'#5e8fb8', reich:3.4, takt:0.62,
+             schaden:11, luft:true,  art:'einzel'},
+  frost:    {name:'Frost',    kurz:'Frost',    preis:70,  farbe:'#7ee8e0', reich:2.7, takt:0.5,
+             schaden:0,  luft:true,  art:'frost', bremse:0.45},
+  moerser:  {name:'Mörser',   kurz:'Mörser',   preis:95,  farbe:'#ffb648', reich:4.2, takt:1.55,
+             schaden:26, luft:false, art:'flaeche', radius:1.5},
+  tesla:    {name:'Tesla',    kurz:'Tesla',    preis:120, farbe:'#b58cff', reich:3.0, takt:0.9,
+             schaden:9,  luft:true,  art:'kette', ketten:3}
+};
+const T_IDS = Object.keys(TUERME);
+/* Aufrüsten: gleiche Rolle, spürbar mehr. Preis verdoppelt sich je Stufe. */
+const STUFE_WERTE = [1, 1.55, 2.3];
+
+/* ── Gegner ───────────────────────────────────────────────────────── */
+const GEGNER = {
+  laeufer:{name:'Läufer', farbe:'#c8d4e4', hp:34,  tempo:1.55, wert:7,  panzer:0, r:9},
+  panzer: {name:'Panzer', farbe:'#ffb648', hp:150, tempo:0.95, wert:20, panzer:6, r:13},
+  schwarm:{name:'Schwarm',farbe:'#5be0b0', hp:16,  tempo:2.55, wert:4,  panzer:0, r:7},
+  flieger:{name:'Flieger',farbe:'#b58cff', hp:60,  tempo:1.75, wert:14, panzer:2, r:10, fliegt:true}
+};
+/* Zwanzig Wellen von Hand. Jede Welle ist eine Liste von Gruppen:
+   [Art, Anzahl, Abstand in Sekunden, Startverzögerung]. */
+const WELLEN = [
+  [['laeufer',6,0.85,0]],
+  [['laeufer',10,0.7,0]],
+  [['laeufer',8,0.6,0],['schwarm',6,0.35,7]],
+  [['schwarm',16,0.3,0]],
+  [['laeufer',10,0.55,0],['panzer',1,1,7]],
+  [['flieger',4,1.1,0],['laeufer',8,0.6,2]],
+  [['panzer',3,2.2,0],['schwarm',12,0.3,3]],
+  [['laeufer',16,0.42,0],['flieger',3,1.4,6]],
+  [['schwarm',22,0.24,0],['panzer',2,2.4,6]],
+  [['flieger',7,0.8,0],['laeufer',12,0.5,3]],
+  [['panzer',5,1.8,0],['schwarm',18,0.28,4]],
+  [['laeufer',22,0.36,0],['flieger',5,1.0,7]],
+  [['panzer',6,1.6,0],['flieger',6,0.9,5]],
+  [['schwarm',30,0.2,0],['panzer',4,2.0,6]],
+  [['flieger',10,0.7,0],['laeufer',18,0.4,3]],
+  [['panzer',8,1.4,0],['schwarm',24,0.24,5]],
+  [['laeufer',30,0.3,0],['flieger',8,0.8,6]],
+  [['panzer',10,1.2,0],['flieger',8,0.85,4]],
+  [['schwarm',40,0.16,0],['panzer',6,1.6,6]],
+  [['panzer',12,1.1,0],['flieger',12,0.7,3],['schwarm',30,0.2,8]]
+];
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let gitter, tuerme, feinde, schuesse, funken, spiel, karte;
+let bestwert = +(localStorage.getItem('bollwerk.best') || 0);
+let gewaehlt = 'geschuetz', ausgewaehlterTurm = null;
+let zeit = 0, laeuft = false;
+
+function neu(){
+  gitter = new Uint8Array(SP*ZE);                // 0 frei, 1 Turm
+  tuerme = []; feinde = []; schuesse = []; funken = [];
+  spiel = {geld:170, leben:20, welle:0, laufend:false, rest:[], aus:false,
+           gewonnen:false, ruf:0};
+  karteRechnen();
+  anzeige(); leisteBauen();
+}
+const idx = (x,y) => y*SP + x;
+const frei = (x,y) => x>=0 && y>=0 && x<SP && y<ZE && !gitter[idx(x,y)];
+
+/* ── Wegfindung ───────────────────────────────────────────────────────
+   Breitensuche vom Kern über die freien Felder. `karte` ist danach das
+   Abstandsfeld; jeder Gegner geht auf den Nachbarn mit dem kleinsten
+   Wert. Nicht erreichbare Felder bleiben auf 65535.                  */
+function karteRechnen(g2 = gitter){
+  const d = new Uint16Array(SP*ZE).fill(65535);
+  const q = [idx(KERN.x, KERN.y)];
+  d[q[0]] = 0;
+  for(let k=0;k<q.length;k++){
+    const i = q[k], x = i%SP, y = (i/SP)|0;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||ny<0||nx>=SP||ny>=ZE) continue;
+      const j = idx(nx,ny);
+      if(g2[j] || d[j] !== 65535) continue;
+      d[j] = d[i]+1; q.push(j);
+    }
+  }
+  if(g2 === gitter) karte = d;
+  return d;
+}
+/* Darf hier gebaut werden? Probeweise setzen, neu rechnen, prüfen. */
+function bauErlaubt(x, y){
+  if(!frei(x,y)) return false;
+  if(x === EIN.x && y === EIN.y) return false;
+  if(x === KERN.x && y === KERN.y) return false;
+  const probe = gitter.slice();
+  probe[idx(x,y)] = 1;
+  const d = karteRechnen(probe);
+  if(d[idx(EIN.x, EIN.y)] === 65535) return false;      // Eingang abgeschnitten
+  for(const f of feinde){                                // niemand darf einbetoniert werden
+    if(f.art === 'flieger') continue;
+    const fx = Math.floor(f.x/Z), fy = Math.floor(f.y/Z);
+    if(d[idx(klemm(fx,0,SP-1), klemm(fy,0,ZE-1))] === 65535) return false;
+  }
+  return true;
+}
+
+/* ── Bauen ────────────────────────────────────────────────────────── */
+function setzen(x, y){
+  const bestehend = tuerme.find(t => t.x === x && t.y === y);
+  if(bestehend){ ausgewaehlterTurm = bestehend; leisteBauen(); return; }
+  const bau = TUERME[gewaehlt];
+  if(spiel.geld < bau.preis){ ruf('ZU TEUER', bau.preis + ' Schrauben'); return; }
+  if(!bauErlaubt(x,y)){ ruf('NICHT HIER', 'der Weg muss offen bleiben'); klangNein(); return; }
+  gitter[idx(x,y)] = 1;
+  tuerme.push({x, y, typ:gewaehlt, stufe:0, uhr:0, ziel:null, dreh:-Math.PI/2, blitz:0});
+  spiel.geld -= bau.preis;
+  karteRechnen(); klangBau(); anzeige(); leisteBauen();
+}
+function aufruesten(t){
+  if(t.stufe >= 2) return;
+  const preis = Math.round(TUERME[t.typ].preis * Math.pow(2, t.stufe+1) * 0.75);
+  if(spiel.geld < preis){ ruf('ZU TEUER', preis + ' Schrauben'); return; }
+  spiel.geld -= preis; t.stufe++; klangBau(); anzeige(); leisteBauen();
+}
+function abreissen(t){
+  spiel.geld += Math.round(TUERME[t.typ].preis * (0.5 + t.stufe*0.35));
+  gitter[idx(t.x,t.y)] = 0;
+  tuerme = tuerme.filter(o => o !== t);
+  ausgewaehlterTurm = null;
+  karteRechnen(); anzeige(); leisteBauen();
+}
+
+/* ── Wellen ───────────────────────────────────────────────────────── */
+function welleStarten(){
+  if(spiel.laufend || spiel.aus) return;
+  if(spiel.welle >= WELLEN.length){ gewonnen(); return; }
+  const w = WELLEN[spiel.welle];
+  spiel.rest = [];
+  for(const [art, zahl, abstand, start] of w)
+    for(let i=0;i<zahl;i++) spiel.rest.push({art, t: start + i*abstand});
+  spiel.rest.sort((a,b) => a.t - b.t);
+  spiel.laufend = true; spiel.wellenUhr = 0; spiel.welle++;
+  klangWelle(); ruf('WELLE ' + spiel.welle, spiel.rest.length + ' Stück');
+  anzeige(); leisteBauen();
+}
+function macheFeind(art){
+  const v = GEGNER[art];
+  const f = {art, x: EIN.x*Z + Z/2, y: EIN.y*Z + Z/2,
+             hp: v.hp * (1 + spiel.welle*0.06), maxHp: v.hp * (1 + spiel.welle*0.06),
+             tempo: v.tempo*Z, grund: v.tempo*Z, bremse:0, blitz:0, r:v.r, wert:v.wert};
+  if(v.fliegt){ f.fliegt = true; f.zielX = KERN.x*Z + Z/2; f.zielY = KERN.y*Z + Z/2; }
+  return f;
+}
+
+/* ── Ablauf ───────────────────────────────────────────────────────── */
+function schritt(dt){
+  if(!laeuft || spiel.aus) return;
+  zeit += dt;
+
+  if(spiel.laufend){
+    spiel.wellenUhr += dt;
+    while(spiel.rest.length && spiel.rest[0].t <= spiel.wellenUhr)
+      feinde.push(macheFeind(spiel.rest.shift().art));
+    if(!spiel.rest.length && !feinde.length){
+      spiel.laufend = false;
+      const bonus = 40 + spiel.welle*12;
+      spiel.geld += bonus;
+      ruf('WELLE ' + spiel.welle + ' GEHALTEN', '+' + bonus + ' Schrauben');
+      klangWelleAus();
+      if(spiel.welle >= WELLEN.length) gewonnen();
+      anzeige(); leisteBauen();
+    }
+  }
+
+  bewegeFeinde(dt);
+  tuermeDenken(dt);
+  for(const s of schuesse){ s.t -= dt; }
+  schuesse = schuesse.filter(s => s.t > 0);
+  for(const f of funken){ f.x += f.vx*dt; f.y += f.vy*dt; f.t -= dt; }
+  funken = funken.filter(f => f.t > 0);
+  if(spiel.ruf > 0){ spiel.ruf -= dt; if(spiel.ruf <= 0) $('#ruf').classList.remove('an'); }
+}
+
+function bewegeFeinde(dt){
+  for(const f of feinde){
+    if(f.bremse > 0){ f.bremse -= dt; f.tempo = f.grund*0.55; } else f.tempo = f.grund;
+    if(f.blitz > 0) f.blitz -= dt;
+
+    if(f.fliegt){
+      const dx = f.zielX - f.x, dy = f.zielY - f.y, d = Math.hypot(dx,dy) || 1;
+      f.x += dx/d*f.tempo*dt; f.y += dy/d*f.tempo*dt;
+      if(d < 8) durchbruch(f);
+      continue;
+    }
+    // Bergab auf dem Abstandsfeld
+    const cx = Math.floor(f.x/Z), cy = Math.floor(f.y/Z);
+    if(cx === KERN.x && cy === KERN.y){ durchbruch(f); continue; }
+    let bestX = cx, bestY = cy, best = karte[idx(klemm(cx,0,SP-1), klemm(cy,0,ZE-1))];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx = cx+dx, ny = cy+dy;
+      if(nx<0||ny<0||nx>=SP||ny>=ZE) continue;
+      const w = karte[idx(nx,ny)];
+      if(w < best){ best = w; bestX = nx; bestY = ny; }
+    }
+    const zx = bestX*Z + Z/2, zy = bestY*Z + Z/2;
+    const dx = zx - f.x, dy = zy - f.y, d = Math.hypot(dx,dy) || 1;
+    f.x += dx/d*f.tempo*dt; f.y += dy/d*f.tempo*dt;
+  }
+  feinde = feinde.filter(f => f.hp > 0 && !f.weg);
+}
+function durchbruch(f){
+  f.weg = true;
+  spiel.leben -= f.art === 'panzer' ? 3 : f.art === 'flieger' ? 2 : 1;
+  klangTreffer();
+  if(spiel.leben <= 0){ spiel.leben = 0; verloren(); }
+  anzeige();
+}
+function schaden(f, menge, quelle){
+  const v = GEGNER[f.art];
+  const echt = Math.max(1, menge - v.panzer);
+  f.hp -= echt; f.blitz = .08;
+  for(let i=0;i<3;i++) funken.push({x:f.x, y:f.y, vx:zuf(-60,60), vy:zuf(-60,60),
+                                    t:zuf(.12,.3), farbe:quelle});
+  if(f.hp <= 0){
+    f.weg = true; spiel.geld += f.wert;
+    for(let i=0;i<8;i++) funken.push({x:f.x, y:f.y, vx:zuf(-110,110), vy:zuf(-110,110),
+                                      t:zuf(.2,.5), farbe:v.farbe});
+    klangKill(); anzeige();
+  }
+}
+function tuermeDenken(dt){
+  for(const t of tuerme){
+    const bau = TUERME[t.typ];
+    const stark = STUFE_WERTE[t.stufe];
+    const reich = bau.reich * (1 + t.stufe*0.12) * Z;
+    const mx = t.x*Z + Z/2, my = t.y*Z + Z/2;
+    if(t.blitz > 0) t.blitz -= dt;
+
+    // Frost bremst dauerhaft im Umkreis
+    if(bau.art === 'frost'){
+      let traf = false;
+      for(const f of feinde){
+        if(Math.hypot(f.x-mx, f.y-my) < reich){ f.bremse = 0.35; traf = true; }
+      }
+      t.blitz = traf ? 0.2 : 0;
+      continue;
+    }
+
+    t.uhr -= dt;
+    // Nächstes Ziel in Reichweite, das dieser Turm überhaupt treffen kann
+    let ziel = null, bd = 1e9;
+    for(const f of feinde){
+      if(f.fliegt && !bau.luft) continue;
+      const d = Math.hypot(f.x-mx, f.y-my);
+      if(d < reich && d < bd){ bd = d; ziel = f; }
+    }
+    if(ziel) t.dreh = Math.atan2(ziel.y-my, ziel.x-mx);
+    if(!ziel || t.uhr > 0) continue;
+    t.uhr = bau.takt / (1 + t.stufe*0.18);
+    t.blitz = 0.12;
+
+    if(bau.art === 'einzel'){
+      schaden(ziel, bau.schaden*stark, bau.farbe);
+      schuesse.push({x1:mx, y1:my, x2:ziel.x, y2:ziel.y, t:.09, farbe:bau.farbe, dick:2});
+      klangSchuss(1);
+    } else if(bau.art === 'flaeche'){
+      const rr = bau.radius*Z;
+      for(const f of feinde){
+        if(f.fliegt) continue;
+        if(Math.hypot(f.x-ziel.x, f.y-ziel.y) < rr) schaden(f, bau.schaden*stark, bau.farbe);
+      }
+      schuesse.push({kreis:true, x:ziel.x, y:ziel.y, r:rr, t:.22, farbe:bau.farbe});
+      klangSchuss(0.5);
+    } else if(bau.art === 'kette'){
+      let letzter = {x:mx, y:my};
+      const getroffen = new Set();
+      let aktuell = ziel;
+      for(let k=0;k<bau.ketten + (t.stufe>1?1:0);k++){
+        if(!aktuell) break;
+        schaden(aktuell, bau.schaden*stark, bau.farbe);
+        schuesse.push({x1:letzter.x, y1:letzter.y, x2:aktuell.x, y2:aktuell.y,
+                       t:.14, farbe:bau.farbe, dick:3});
+        getroffen.add(aktuell);
+        letzter = aktuell;
+        let n = null, nd = 1e9;
+        for(const f of feinde){
+          if(getroffen.has(f) || f.hp <= 0) continue;
+          const d = Math.hypot(f.x-letzter.x, f.y-letzter.y);
+          if(d < Z*2.6 && d < nd){ nd = d; n = f; }
+        }
+        aktuell = n;
+      }
+      klangSchuss(1.6);
+    }
+  }
+}
+
+/* ── Klang ────────────────────────────────────────────────────────── */
+let actx=null, meister=null;
+function tonStart(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+  actx = new AC(); if(actx.state==='suspended') actx.resume();
+  meister = actx.createGain(); meister.gain.value = .6; meister.connect(actx.destination);
+}
+function ton(f0,f1,form,dauer,laut){
+  if(!actx) return;
+  const t=actx.currentTime, o=actx.createOscillator(), gn=actx.createGain();
+  o.type=form; o.frequency.setValueAtTime(f0,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dauer);
+  gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(laut,t+.006);
+  gn.gain.exponentialRampToValueAtTime(.0001,t+dauer);
+  o.connect(gn); gn.connect(meister); o.start(t); o.stop(t+dauer+.02);
+}
+const klangSchuss  = h => ton(420*h, 220*h, 'square', .05, .035);
+const klangKill    = () => ton(300, 520, 'triangle', .09, .05);
+const klangBau     = () => { ton(300,300,'triangle',.07,.07); setTimeout(()=>ton(450,450,'triangle',.1,.06),70); };
+const klangNein    = () => ton(190, 120, 'sawtooth', .16, .07);
+const klangTreffer = () => ton(160, 60, 'sawtooth', .3, .10);
+const klangWelle   = () => { ton(392,392,'triangle',.16,.07); setTimeout(()=>ton(523,523,'triangle',.3,.07),150); };
+const klangWelleAus= () => { ton(523,523,'triangle',.14,.06); setTimeout(()=>ton(784,784,'triangle',.34,.06),130); };
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+cv.addEventListener('pointerdown', e => {
+  if(!laeuft || spiel.aus) return;
+  tonStart();
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((e.clientX-r.left)/r.width*B / Z);
+  const y = Math.floor(((e.clientY-r.top)/r.height*H - OBEN) / Z);
+  if(y < 0 || y >= ZE || x < 0 || x >= SP) return;
+  const t = tuerme.find(o => o.x === x && o.y === y);
+  if(t){ ausgewaehlterTurm = (ausgewaehlterTurm === t) ? null : t; leisteBauen(); }
+  else { ausgewaehlterTurm = null; setzen(x,y); }
+  e.preventDefault();
+});
+addEventListener('keydown', e => {
+  const n = {Digit1:0, Digit2:1, Digit3:2, Digit4:3}[e.code];
+  if(n !== undefined){ gewaehlt = T_IDS[n]; ausgewaehlterTurm = null; leisteBauen(); }
+  if(e.code === 'Space'){ welleStarten(); e.preventDefault(); }
+});
+
+/* ── Leiste ───────────────────────────────────────────────────────── */
+function leisteBauen(){
+  const bar = $('#bar'); bar.innerHTML = '';
+  if(ausgewaehlterTurm){
+    const t = ausgewaehlterTurm, bau = TUERME[t.typ];
+    const preis = Math.round(bau.preis * Math.pow(2, t.stufe+1) * 0.75);
+    const a = document.createElement('button');
+    a.className = 'tk'; a.disabled = t.stufe >= 2 || spiel.geld < preis;
+    a.innerHTML = '<b>Aufrüsten</b>' + (t.stufe>=2 ? '<small>Höchststufe</small>'
+                                                   : '<small>' + preis + '</small>');
+    a.addEventListener('click', ev => { ev.stopPropagation(); aufruesten(t); });
+    const b2 = document.createElement('button');
+    b2.className = 'tk';
+    b2.innerHTML = '<b>Abreißen</b><small>+' +
+      Math.round(bau.preis*(0.5+t.stufe*0.35)) + '</small>';
+    b2.addEventListener('click', ev => { ev.stopPropagation(); abreissen(t); });
+    const c2 = document.createElement('button');
+    c2.className = 'tk';
+    c2.innerHTML = '<b>' + bau.name + ' ' + '★'.repeat(t.stufe+1) + '</b><small>zurück</small>';
+    c2.addEventListener('click', ev => { ev.stopPropagation(); ausgewaehlterTurm = null; leisteBauen(); });
+    bar.append(c2, a, b2);
+    return;
+  }
+  for(const id of T_IDS){
+    const bau = TUERME[id];
+    const el = document.createElement('button');
+    el.className = 'tk' + (gewaehlt === id ? ' an' : '');
+    el.disabled = spiel.geld < bau.preis;
+    el.innerHTML = '<b>' + bau.kurz + '</b><small>' + bau.preis + '</small>';
+    el.addEventListener('click', ev => { ev.stopPropagation(); gewaehlt = id; leisteBauen(); });
+    bar.appendChild(el);
+  }
+  const w = document.createElement('button');
+  w.className = 'tk'; w.id = 'loswelle';
+  w.disabled = spiel.laufend;
+  w.innerHTML = spiel.laufend ? '<b>Welle läuft</b><small>halte durch</small>'
+    : '<b>Welle ' + (spiel.welle+1) + '</b><small>starten</small>';
+  w.addEventListener('click', ev => { ev.stopPropagation(); welleStarten(); });
+  bar.appendChild(w);
+}
+function ruf(gross, klein){
+  $('#ruf').innerHTML = gross + (klein ? '<small>'+klein+'</small>' : '');
+  $('#ruf').classList.add('an'); spiel.ruf = 1.5;
+}
+function anzeige(){
+  $('#geldF b').textContent = spiel.geld;
+  $('#leben b').textContent = spiel.leben;
+  $('#welleF b').textContent = spiel.welle + ' / ' + WELLEN.length;
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+function malen(){
+  g.fillStyle = '#0b0f14'; g.fillRect(0,0,B,H);
+  g.save(); g.translate(0, OBEN);
+  // Boden: Schachbrett, dazu das Abstandsfeld als schwaches Gefälle
+  for(let y=0;y<ZE;y++) for(let x=0;x<SP;x++){
+    const d = karte ? karte[idx(x,y)] : 0;
+    const offen = d !== 65535;
+    g.fillStyle = (x+y)%2 ? '#101720' : '#0d141c';
+    g.fillRect(x*Z, y*Z, Z, Z);
+    if(offen && !gitter[idx(x,y)]){
+      g.fillStyle = 'rgba(94,143,184,' + (0.16*(1 - Math.min(d,40)/40)).toFixed(3) + ')';
+      g.fillRect(x*Z+1, y*Z+1, Z-2, Z-2);
+    }
+  }
+  // Der Gang, den die Gegner nehmen: eine Linie durchs Abstandsfeld
+  malGang();
+  g.strokeStyle = '#16202c'; g.lineWidth = 1;
+  for(let x=1;x<SP;x++){ g.beginPath(); g.moveTo(x*Z+.5,0); g.lineTo(x*Z+.5,ZE*Z); g.stroke(); }
+  for(let y=1;y<ZE;y++){ g.beginPath(); g.moveTo(0,y*Z+.5); g.lineTo(B,y*Z+.5); g.stroke(); }
+
+  malEingangKern();
+  for(const t of tuerme) malTurm(t);
+  for(const s of schuesse) malSchuss(s);
+  for(const f of feinde) malFeind(f);
+  for(const f of funken){
+    g.globalAlpha = klemm(f.t*3,0,1); g.fillStyle = f.farbe;
+    g.fillRect(f.x-1.5, f.y-1.5, 3, 3);
+  }
+  g.globalAlpha = 1;
+  if(ausgewaehlterTurm) malReichweite(ausgewaehlterTurm);
+  g.restore();
+  // Streifen oben und unten abdunkeln
+  g.fillStyle = '#070a0e'; g.fillRect(0, 0, B, OBEN);
+  g.fillStyle = '#070a0e'; g.fillRect(0, ZE*Z + OBEN, B, H - ZE*Z - OBEN);
+}
+/* Zeigt den kürzesten Weg vom Eingang zum Kern — man baut sonst blind. */
+function malGang(){
+  if(!karte || karte[idx(EIN.x,EIN.y)] === 65535) return;
+  let x = EIN.x, y = EIN.y;
+  const punkte = [[x,y]];
+  for(let k=0;k<SP*ZE;k++){
+    if(x === KERN.x && y === KERN.y) break;
+    let bx=x, by=y, best = karte[idx(x,y)];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||ny<0||nx>=SP||ny>=ZE) continue;
+      if(karte[idx(nx,ny)] < best){ best = karte[idx(nx,ny)]; bx=nx; by=ny; }
+    }
+    if(bx===x && by===y) break;
+    x=bx; y=by; punkte.push([x,y]);
+  }
+  g.strokeStyle = 'rgba(255,182,72,.22)'; g.lineWidth = 10; g.lineJoin='round'; g.lineCap='round';
+  g.beginPath();
+  punkte.forEach(([px,py],i) => i ? g.lineTo(px*Z+Z/2, py*Z+Z/2) : g.moveTo(px*Z+Z/2, py*Z+Z/2));
+  g.stroke();
+}
+function malEingangKern(){
+  g.fillStyle = '#243042'; g.fillRect(EIN.x*Z, EIN.y*Z, Z, Z);
+  g.fillStyle = '#5be0b0'; g.fillRect(EIN.x*Z+3, EIN.y*Z+Z/2-3, Z-6, 6);
+  const kx = KERN.x*Z + Z/2, ky = KERN.y*Z + Z/2;
+  const p = 1 + Math.sin(zeit*3)*0.06;
+  g.fillStyle = '#2a1a1a'; g.fillRect(KERN.x*Z, KERN.y*Z, Z, Z);
+  g.fillStyle = '#ff6b5e';
+  g.beginPath(); g.arc(kx, ky, 13*p, 0, 6.284); g.fill();
+  g.fillStyle = '#ffd0c8';
+  g.beginPath(); g.arc(kx, ky, 6*p, 0, 6.284); g.fill();
+}
+function malTurm(t){
+  const bau = TUERME[t.typ];
+  const x = t.x*Z, y = t.y*Z, m = Z/2;
+  g.fillStyle = '#1b2532'; g.fillRect(x+3, y+3, Z-6, Z-6);
+  g.fillStyle = '#26323f'; g.fillRect(x+5, y+5, Z-10, Z-10);
+  g.fillStyle = bau.farbe;
+  if(bau.art === 'frost'){
+    g.beginPath(); g.arc(x+m, y+m, 11, 0, 6.284); g.fill();
+    g.fillStyle = '#0b0f14';
+    g.beginPath(); g.arc(x+m, y+m, 5, 0, 6.284); g.fill();
+    if(t.blitz > 0){
+      g.strokeStyle = bau.farbe; g.lineWidth = 2; g.globalAlpha = .5;
+      g.beginPath(); g.arc(x+m, y+m, 16, 0, 6.284); g.stroke(); g.globalAlpha = 1;
+    }
+  } else {
+    g.beginPath(); g.arc(x+m, y+m, 10, 0, 6.284); g.fill();
+    g.save(); g.translate(x+m, y+m); g.rotate(t.dreh);
+    g.fillStyle = t.blitz > 0 ? '#ffffff' : bau.farbe;
+    g.fillRect(4, -3.5, 15, 7);
+    g.restore();
+  }
+  // Sterne für die Stufe
+  g.fillStyle = '#ffb648';
+  for(let i=0;i<=t.stufe;i++) g.fillRect(x+6+i*7, y+Z-9, 5, 4);
+}
+function malReichweite(t){
+  const bau = TUERME[t.typ];
+  const r = bau.reich*(1+t.stufe*0.12)*Z;
+  g.strokeStyle = 'rgba(255,182,72,.55)'; g.lineWidth = 2;
+  g.beginPath(); g.arc(t.x*Z+Z/2, t.y*Z+Z/2, r, 0, 6.284); g.stroke();
+  g.fillStyle = 'rgba(255,182,72,.07)'; g.fill();
+}
+function malSchuss(s){
+  if(s.kreis){
+    g.strokeStyle = s.farbe; g.lineWidth = 3; g.globalAlpha = klemm(s.t*4,0,1);
+    g.beginPath(); g.arc(s.x, s.y, s.r*(1-s.t*2), 0, 6.284); g.stroke();
+    g.globalAlpha = 1; return;
+  }
+  g.strokeStyle = s.farbe; g.lineWidth = s.dick; g.globalAlpha = klemm(s.t*8,0,1);
+  g.beginPath(); g.moveTo(s.x1,s.y1); g.lineTo(s.x2,s.y2); g.stroke();
+  g.globalAlpha = 1;
+}
+function malFeind(f){
+  const v = GEGNER[f.art];
+  const x = Math.round(f.x), y = Math.round(f.y);
+  if(f.fliegt){
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.beginPath(); g.ellipse(x+5, y+9, f.r, f.r*0.4, 0, 0, 6.284); g.fill();
+  }
+  g.fillStyle = f.blitz > 0 ? '#ffffff' : v.farbe;
+  if(f.art === 'panzer'){
+    g.fillRect(x-f.r, y-f.r, f.r*2, f.r*2);
+    g.fillStyle = '#6b4a12'; g.fillRect(x-f.r+3, y-3, f.r*2-6, 6);
+  } else if(f.art === 'flieger'){
+    g.beginPath(); g.moveTo(x+f.r, y); g.lineTo(x-f.r, y-f.r*0.8);
+    g.lineTo(x-f.r*0.4, y); g.lineTo(x-f.r, y+f.r*0.8); g.closePath(); g.fill();
+  } else {
+    g.beginPath(); g.arc(x, y, f.r, 0, 6.284); g.fill();
+  }
+  if(f.bremse > 0){
+    g.strokeStyle = 'rgba(126,232,224,.8)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(x, y, f.r+3, 0, 6.284); g.stroke();
+  }
+  if(f.hp < f.maxHp){
+    g.fillStyle = '#2a0b09'; g.fillRect(x-f.r, y-f.r-7, f.r*2, 3);
+    g.fillStyle = '#5be0b0'; g.fillRect(x-f.r, y-f.r-7, f.r*2*klemm(f.hp/f.maxHp,0,1), 3);
+  }
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .05); vorher = jetzt;
+  schritt(dt);
+  malen();
+}
+
+/* ── Anfang und Ende ──────────────────────────────────────────────── */
+function starten(){
+  tonStart(); neu(); laeuft = true;
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+}
+function verloren(){
+  spiel.aus = true; laeuft = false;
+  if(spiel.welle-1 > bestwert){ bestwert = spiel.welle-1; localStorage.setItem('bollwerk.best', String(bestwert)); }
+  $('#endeTitel').textContent = 'DURCHBRUCH';
+  $('#endeTitel').style.color = 'var(--rot)';
+  $('#endeText').textContent = 'Der Kern ist hin. Welle ' + spiel.welle + ' von ' + WELLEN.length + '.';
+  $('#endeBest').textContent = 'am weitesten: Welle ' + bestwert;
+  $('#ende').classList.remove('weg');
+}
+function gewonnen(){
+  if(spiel.aus) return;
+  spiel.aus = true; spiel.gewonnen = true; laeuft = false;
+  bestwert = WELLEN.length; localStorage.setItem('bollwerk.best', String(bestwert));
+  $('#endeTitel').textContent = 'GEHALTEN';
+  $('#endeTitel').style.color = 'var(--gruen)';
+  $('#endeText').textContent = 'Alle ' + WELLEN.length + ' Wellen. Der Kern steht noch, mit ' +
+    spiel.leben + ' von 20.';
+  $('#endeBest').textContent = '';
+  $('#ende').classList.remove('weg');
+}
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', starten);
+neu(); laeuft = false;
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__bollwerk = {
+  get spiel(){return spiel}, get tuerme(){return tuerme}, get feinde(){return feinde},
+  get gitter(){return gitter}, get karte(){return karte},
+  SP, ZE, Z, EIN, KERN, TUERME, GEGNER, WELLEN,
+  starten, setzen, welleStarten, bauErlaubt, karteRechnen, idx,
+  waehle: id => { gewaehlt = id; leisteBauen(); },
+  gib: n => { spiel.geld += n; anzeige(); leisteBauen(); },
+  get laeuft(){return laeuft}
+};
+</script>
+</body>
+</html>
