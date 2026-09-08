@@ -26,6 +26,28 @@ Der Rundkurs bleibt trotzdem gewertet: Wer ihn abkürzt (mehr als 0,7 s neben
 der Bahn), bekommt seine Zeit angezeigt, aber sie zählt nicht als Bestzeit.
 `Enter` setzt den Wagen auf den nächsten Punkt des Kurses zurück.
 
+### Boxengasse
+
+Die Boxengasse war nie gesperrt — sie ist Teil von `road_mat` und lag von
+Anfang an im befahrbaren Netz. Eine Erreichbarkeitsprüfung über das ganze
+Gelände belegt das: ein Raster von 2,5 m, an jedem Punkt **alle** Asphaltebenen
+gesammelt (nur so lässt sich eine Brücke von einer Kreuzung unterscheiden),
+Nachbarn nur bei fahrbarem Höhenunterschied verbunden — von der Startlinie aus
+sind **100 % der Fahrbahn erreichbar**, die 198 Rasterzellen der Boxengasse
+eingeschlossen.
+
+Was fehlte, war der Weg dorthin: sie liegt jenseits der Brücke, rund 200 m vom
+Rundkurs entfernt. Deshalb ist sie jetzt
+
+* im Menü als **Startplatz wählbar** (der Wagen setzt vor den Garagen auf),
+* auf der Minimap **türkis markiert**, damit man sie im Netz findet.
+
+Ihre Geometrie steckt in `boxengasse.js`: 385 m lang, 7,4 m breit, aus dem
+schmalen Band zwischen Boxenmauer und Garagen gewonnen — begrenzt auf den
+Bereich, in dem Gasse und Hauptgerade wirklich nebeneinanderliegen und eine
+Mauer dazwischen steht. Ein Querschnitt zeigt beide auf derselben Höhe
+(7,55 m im Westen, 3,79 m im Osten), getrennt durch 2,7–5,8 m ohne Asphalt.
+
 ## Woher die Strecke ihre Ideallinie hat
 
 Das Streckenmodell bringt keine Wegdaten mit — nur Geometrie. Die Mittellinie

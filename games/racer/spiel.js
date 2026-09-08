@@ -10,6 +10,7 @@ import { GLTFLoader } from './lib/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from './lib/three-mesh-bvh.module.js';
 import { STRECKE as S } from './strecke.js';
 import { KARTE } from './karte.js';
+import { BOXENGASSE as BG } from './boxengasse.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -232,6 +233,7 @@ const spulPuffer = [];        // Schnappschüsse fürs Zurückspulen
 const SPUL_HZ = 20, SPUL_SEK = 8;
 
 let modus = 'menu';           // menu | fahren | spulen
+let startPlatz = 'kurs';      // kurs | boxen
 let kameraArt = 0;            // 0 verfolgen, 1 Stoßstange
 const kamPos = new THREE.Vector3(), kamZiel = new THREE.Vector3();
 
@@ -272,8 +274,40 @@ function kameraWechsel(){
   $('#btnKamera').textContent = 'KAMERA: ' + (kameraArt ? 'STOSSSTANGE' : 'VERFOLGEN');
 }
 $('#btnKamera').addEventListener('click', kameraWechsel);
+$('#btnStart').addEventListener('click', () => {
+  startPlatz = startPlatz === 'kurs' ? 'boxen' : 'kurs';
+  $('#btnStart').textContent = 'START: ' + (startPlatz === 'boxen' ? 'BOXENGASSE' : 'START-ZIEL');
+});
 
 /* ── Wagen setzen ──────────────────────────────────────────────────── */
+/* Setzt den Wagen in die Boxengasse, ausgerichtet in Fahrtrichtung.
+   Sie war nie gesperrt, lag aber jenseits der Brücke — von der Startlinie
+   aus fährt man eine Weile, bis man sie findet. */
+function setzeInDieBoxen(){
+  // Vor den Garagen einsetzen (sie stehen bei X ≈ 94…120), damit man an
+  // ihnen entlang zur Ausfahrt fährt statt am leeren Westende zu starten.
+  let i = 0, best = Infinity;
+  for(let k = 0; k < BG.n; k++){
+    const d = Math.abs(BG.x[k] - 45);
+    if(d < best){ best = d; i = k; }
+  }
+  const j = Math.min(BG.n - 1, i + 4);
+  const dx = BG.x[j] - BG.x[i], dz = BG.z[j] - BG.z[i];
+  auto.pos.set(BG.x[i], 40, BG.z[i]);
+  auto.gier = Math.atan2(dx, dz);
+  auto.vx = auto.vy = auto.gierRate = auto.lenk = 0;
+  auto.puls = 0; auto.luft = 0; auto.sauber = true; auto.schmutzUhr = 0;
+  spulPuffer.length = 0;
+  // Auf den Asphalt fallen lassen und Rundkurs-Bezug neu setzen
+  strahl.far = 200;
+  strahl.set(hilf.set(auto.pos.x, 120, auto.pos.z), RUNTER);
+  const t = strahl.intersectObjects(strasse, false);
+  auto.pos.y = t.length ? t[0].point.y : 8;
+  auto.retter.copy(auto.pos); auto.retterGier = auto.gier;
+  auto.idx = auto.letzterIdx = vollSuche(auto.pos.x, auto.pos.z);
+  kameraSetzen();
+}
+
 function setzeAuf(i, seitlich = 0){
   auto.pos.set(S.x[i] + normale(i)[0]*seitlich, S.y[i], S.z[i] + normale(i)[1]*seitlich);
   auto.gier = Math.atan2(S.tx[i], S.tz[i]);
@@ -602,6 +636,12 @@ function zeichneKarte(){
   for(let i=1;i<N;i++) kctx.lineTo(px(S.x[i]), pz(S.z[i]));
   kctx.closePath(); kctx.stroke();
 
+  // Boxengasse gesondert markieren, sonst geht sie im Netz unter
+  kctx.strokeStyle = '#4fd2e8'; kctx.lineWidth = 2.6; kctx.beginPath();
+  kctx.moveTo(px(BG.x[0]), pz(BG.z[0]));
+  for(let i=1;i<BG.n;i++) kctx.lineTo(px(BG.x[i]), pz(BG.z[i]));
+  kctx.stroke();
+
   const [nx,nz] = normale(START);
   kctx.strokeStyle = '#e8edf6'; kctx.lineWidth = 3; kctx.beginPath();
   kctx.moveTo(px(S.x[START]+nx*10), pz(S.z[START]+nz*10));
@@ -746,6 +786,60 @@ window.__probelauf = (sekunden = 120, dt = 1/60) => {
 /* Setzt den Wagen an beliebige Weltpunkte und fragt, ob dort Asphalt
    erkannt wird. Beantwortet die Frage: ist wirklich JEDE Straße befahrbar
    oder nur der gewertete Rundkurs? */
+/* Wo liegen die Boxen? Liefert die Weltboxen der Gebäude-Meshes, damit man
+   die Boxengasse im Streckennetz gezielt finden kann. */
+/* Höhenschnitt quer über einen Bereich: liefert für ein Raster von
+   Weltpunkten die Fahrbahnhöhe (oder null). Damit lässt sich prüfen, ob
+   zwei benachbarte Straßen wirklich zusammenhängen oder eine Stufe haben. */
+/* Erreichbarkeitsraster: tastet den Fahrbahnbereich ab und sammelt an jedem
+   Punkt ALLE Asphaltebenen (nicht nur die oberste). Nur so lässt sich eine
+   Brücke von einer Kreuzung unterscheiden. Ergebnis geht an die Auswertung. */
+window.__ebenen = (x0,x1,z0,z1,schritt) => {
+  const rc = new THREE.Raycaster(); rc.firstHitOnly = false; rc.far = 600;
+  const runter = new THREE.Vector3(0,-1,0), o = new THREE.Vector3();
+  const nx = Math.floor((x1-x0)/schritt)+1, nz = Math.floor((z1-z0)/schritt)+1;
+  const zellen = [];
+  for(let j=0;j<nz;j++){
+    const reihe = [];
+    for(let i=0;i<nx;i++){
+      rc.set(o.set(x0+i*schritt, 300, z0+j*schritt), runter);
+      const t = rc.intersectObjects(strasse, false);
+      // Ebenen zusammenfassen, die weniger als 0,5 m auseinanderliegen
+      const ys = [];
+      for(const h of t){ const y=h.point.y;
+        if(!ys.length || Math.abs(ys[ys.length-1]-y) > .5) ys.push(+y.toFixed(2)); }
+      reihe.push(ys);
+    }
+    zellen.push(reihe);
+  }
+  return {x0, z0, schritt, nx, nz, zellen};
+};
+
+window.__schnitt = (x0,x1,z0,z1,nx,nz) => {
+  const auf=(x,z)=>{ strahl.far=600; strahl.set(hilf.set(x,300,z),RUNTER);
+    const t=strahl.intersectObjects(strasse,false); return t.length? +t[0].point.y.toFixed(2):null; };
+  const rows=[];
+  for(let j=0;j<nz;j++){
+    const z=z0+(z1-z0)*j/(nz-1), r=[];
+    for(let i=0;i<nx;i++) r.push(auf(x0+(x1-x0)*i/(nx-1), z));
+    rows.push({z:+z.toFixed(1), y:r});
+  }
+  return rows;
+};
+
+window.__bauten = () => {
+  const aus = [];
+  szene.traverse(o => {
+    if(!o.isMesh || !o.material) return;
+    const mn = o.material.name || '?';
+    if(!/pit|desk|roof|tent|wall|garage|box/i.test(mn)) return;
+    const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+    aus.push({mat:mn, ctr:[+c.x.toFixed(1),+c.y.toFixed(1),+c.z.toFixed(1)],
+              gr:[+s.x.toFixed(1),+s.y.toFixed(1),+s.z.toFixed(1)]});
+  });
+  return aus;
+};
+
 window.__abdeckung = (punkte) => {
   const auf = (x,y,z,w) => { strahl.far=w; strahl.set(hilf.set(x,y,z),RUNTER);
     const t=strahl.intersectObjects(strasse,false); return t.length? t[0].point.y : null; };
@@ -902,11 +996,13 @@ function zumMenue(){
 }
 $('#start').addEventListener('click', () => {
   $('#menu').classList.remove('an'); $('#hud').classList.add('an');
-  setzeAuf(START, 0);
+  if(startPlatz === 'boxen') setzeInDieBoxen(); else setzeAuf(START, 0);
   zeit.laeuft = false; zeit.aktuell = 0; zeit.runden = 0;
   geister.aufnahme = []; geister.zeiger = 0;
   modus = 'fahren';
-  melde('LOS', 'Erste Runde startet an der Linie');
+  melde(startPlatz === 'boxen' ? 'BOXENGASSE' : 'LOS',
+        startPlatz === 'boxen' ? BG.laenge.toFixed(0) + ' m — raus auf die Gerade und rüber zum Kurs'
+                               : 'Erste Runde startet an der Linie');
 });
 
 /* ── Start ─────────────────────────────────────────────────────────── */
