@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from './lib/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from './lib/three-mesh-bvh.module.js';
 import { STRECKE as S } from './strecke.js';
+import { KARTE } from './karte.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -217,7 +218,9 @@ const auto = {
   lenk: 0, gas: 0, brems: 0,
   aufBahn: true, bodenY: 0, normalV: new THREE.Vector3(0,1,0),
   idx: 0, quer: 0, fortschritt: 0, runde: 0, letzterIdx: 0,
-  puls: 0, pulsAn: false, luft: 0, radWinkel: 0
+  puls: 0, pulsAn: false, luft: 0, radWinkel: 0,
+  amKurs: true, suchUhr: 0, retterGier: 0, sauber: true, schmutzUhr: 0,
+  retter: new THREE.Vector3()
 };
 let profil = AUTOS[wahl], modell = null;
 
@@ -240,6 +243,7 @@ const tasten = {ArrowUp:'gas',KeyW:'gas',ArrowDown:'brems',KeyS:'brems',
 addEventListener('keydown', e => {
   if(tasten[e.code]){ taste[tasten[e.code]] = true; e.preventDefault(); }
   if(e.code === 'KeyC') kameraWechsel();
+  if(e.code === 'Enter' && modus === 'fahren') zurueckAufDieStrecke();
   if(e.code === 'Escape') zumMenue();
 });
 addEventListener('keyup', e => { if(tasten[e.code]){ taste[tasten[e.code]] = false; e.preventDefault(); } });
@@ -255,6 +259,14 @@ knopf('#tLinks','links'); knopf('#tRechts','rechts'); knopf('#tGas','gas');
 knopf('#tBrems','brems'); knopf('#tPuls','puls'); knopf('#tHand','hand');
 if(matchMedia('(pointer:coarse)').matches) $('#touch').classList.add('an');
 
+/* Setzt den Wagen auf den nächsten Punkt des Rundkurses. Bei freier Fahrt
+   ist das der Weg zurück, ohne über den halben Kurs zurückrollen zu müssen. */
+function zurueckAufDieStrecke(){
+  setzeAuf(vollSuche(auto.pos.x, auto.pos.z), 0);
+  zeit.laeuft = false; zeit.aktuell = 0; auto.sauber = true; auto.schmutzUhr = 0;
+  geister.aufnahme = []; geister.zeiger = 0;
+  melde('AUF DER STRECKE', 'Zeitnahme startet an der Linie');
+}
 function kameraWechsel(){
   kameraArt = (kameraArt+1) % 2;
   $('#btnKamera').textContent = 'KAMERA: ' + (kameraArt ? 'STOSSSTANGE' : 'VERFOLGEN');
@@ -391,47 +403,71 @@ function anDenBoden(dt){
   if(auto.pos.y < soll + .02){ auto.pos.y = soll; auto.luft = 0; }
   else { auto.luft += dt; auto.pos.y = mischen(auto.pos.y, soll, klemm(dt*14,0,1)); }
 
-  // Grenzen über die Mittellinie: erst Warnung, dann Leitplanke
+  // Freie Fahrt: keine Leitplanke aus der Mittellinie mehr. Gefahren wird
+  // überall, wo Asphalt ist — auch auf Boxengasse, Zufahrten und den
+  // Abschnitten jenseits der Brücke, die zu keinem Rundkurs gehören.
+  // Die Mittellinie dient nur noch der Zeitnahme, der Karte und dem Regler.
   auto.idx = naechsterIndex(auto.pos.x, auto.pos.z, auto.idx);
-  const i = auto.idx, [nx, nz] = normale(i);
-  const dx = auto.pos.x - S.x[i], dz = auto.pos.z - S.z[i];
-  auto.quer = dx*nx + dz*nz;
-  const grenzePlus = HW_P[i] + 2.2, grenzeMinus = -(HW_M[i] + 2.2);
-  let ueber = 0;
-  if(auto.quer > grenzePlus) ueber = auto.quer - grenzePlus;
-  else if(auto.quer < grenzeMinus) ueber = auto.quer - grenzeMinus;
-  if(ueber !== 0){
-    auto.pos.x -= nx*ueber; auto.pos.z -= nz*ueber;
-    // Geschwindigkeit in die Welt drehen und in Bandennormale/-tangente zerlegen.
-    // Nur der Anteil senkrecht zur Bande wird gebrochen; längs rutscht der Wagen
-    // weiter. Nimmt man beides, klebt er nach dem ersten Kontakt fest.
-    const sy = Math.sin(auto.gier), cy = Math.cos(auto.gier);
-    let wx = auto.vx*sy + auto.vy*cy, wz = auto.vx*cy - auto.vy*sy;
-    const vn = wx*nx + wz*nz;                 // Anteil auf die Bande zu
-    const wucht = Math.abs(vn);
-    if(vn * ueber > 0){                       // fährt weiter hinein
-      const weg = vn * 1.35;                  // abprallen mit Verlust
-      wx -= nx*weg; wz -= nz*weg;
+  let dx = auto.pos.x - S.x[auto.idx], dz = auto.pos.z - S.z[auto.idx];
+  // Weit weg von der Linie läuft die lokale Suche fest — dann neu anpeilen
+  if(dx*dx + dz*dz > 70*70){
+    auto.suchUhr = (auto.suchUhr || 0) + dt;
+    if(auto.suchUhr > .4){
+      auto.suchUhr = 0;
+      auto.idx = auto.letzterIdx = vollSuche(auto.pos.x, auto.pos.z);
+      dx = auto.pos.x - S.x[auto.idx]; dz = auto.pos.z - S.z[auto.idx];
     }
-    wx *= .975; wz *= .975;                   // Schrammen kostet etwas Tempo
-    auto.vx = wx*sy + wz*cy;
-    auto.vy = wx*cy - wz*sy;
-    auto.gierRate *= .62;
-    if(wucht > 13){ auto.puls = 0; melde('EINSCHLAG', 'Puls zurückgesetzt'); }
+  }
+  const [nx, nz] = normale(auto.idx);
+  auto.quer = dx*nx + dz*nz;
+  auto.amKurs = (dx*dx + dz*dz) < 26*26;
+
+  // Letzten festen Boden merken, um nach einem Sturz dorthin zurückzusetzen
+  if(auto.aufBahn && auto.luft < .3){
+    auto.retter.set(auto.pos.x, auto.pos.y, auto.pos.z);
+    auto.retterGier = auto.gier;
+  }
+  if(auto.pos.y < -80 || auto.luft > 6){
+    auto.pos.copy(auto.retter); auto.gier = auto.retterGier;
+    auto.vx = auto.vy = auto.gierRate = auto.luft = 0;
+    kameraSetzen(); melde('ZURÜCK AUF DIE STRASSE', '');
   }
 }
 
+/* Steht der Wagen dicht an einer Asphaltkante? Wird per Strahl seitlich
+   geprüft und funktioniert dadurch auf dem ganzen Netz, nicht nur am Kurs. */
+function kanteNah(){
+  const s = Math.sin(auto.gier), c = Math.cos(auto.gier);
+  const rx = -c, rz = s;                   // rechter Vektor des Wagens
+  strahl.far = 24;
+  for(const d of [3.4, -3.4]){
+    strahl.set(hilf.set(auto.pos.x + rx*d, auto.pos.y + 4, auto.pos.z + rz*d), RUNTER);
+    if(!strahl.intersectObjects(strasse, false).length) return true;
+  }
+  return false;
+}
+
 /* ── Runden zählen ─────────────────────────────────────────────────── */
-function rundenLogik(){
+function rundenLogik(dt){
+  // Eine Runde zählt als Bestzeit nur, wenn sie auf der Bahn gefahren wurde.
+  // Bei freier Fahrt heißt das: wer abkürzt, bekommt die Zeit angezeigt,
+  // aber sie wird nicht zur Bestzeit.
+  if(zeit.laeuft && !auto.aufBahn){
+    auto.schmutzUhr += dt;
+    if(auto.schmutzUhr > .7) auto.sauber = false;
+  } else auto.schmutzUhr = Math.max(0, auto.schmutzUhr - dt*.5);
+
   const i = auto.idx, vor = auto.letzterIdx;
   const zielIdx = START;
   // Überquerung der Ziellinie erkennen: Index läuft über START hinweg
   const warVor = ((vor - zielIdx + N) % N) > N*0.5;
   const istNach = ((i - zielIdx + N) % N) < N*0.5;
-  if(warVor && istNach && Math.abs(((i - vor + N + N/2) % N) - N/2) < 20){
+  if(auto.amKurs && warVor && istNach && Math.abs(((i - vor + N + N/2) % N) - N/2) < 20){
     if(zeit.laeuft){
       zeit.letzte = zeit.aktuell;
-      if(!zeit.beste || zeit.letzte < zeit.beste){
+      if(!auto.sauber){
+        melde('RUNDE ABGEKÜRZT', fmt(zeit.letzte) + ' — zählt nicht');
+      } else if(!zeit.beste || zeit.letzte < zeit.beste){
         zeit.beste = zeit.letzte;
         geister.beste = geister.aufnahme.slice();
         melde('BESTZEIT', fmt(zeit.letzte));
@@ -439,6 +475,7 @@ function rundenLogik(){
       zeit.runden++;
     }
     zeit.laeuft = true; zeit.aktuell = 0;
+    auto.sauber = true; auto.schmutzUhr = 0;
     geister.aufnahme = []; geister.zeiger = 0;
   }
   auto.letzterIdx = i;
@@ -449,9 +486,7 @@ function pulsLogik(dt){
   const tempo = Math.abs(auto.vx);
   let laden = 0;
   if(auto.aufBahn && tempo > 12){
-    const i = auto.idx;
-    const kante = Math.min(Math.abs(HW_P[i] - auto.quer), Math.abs(auto.quer + HW_M[i]));
-    if(kante < 3.2) laden += (3.2 - kante) * .085;          // dicht an der Kante
+    if(kanteNah()) laden += .27;                            // dicht an der Kante
     const quer = Math.abs(Math.atan2(auto.vy, Math.abs(auto.vx)+1));
     if(quer > .16) laden += (quer - .16) * 1.35;            // quer stehen
   }
@@ -540,34 +575,44 @@ function melde(gross, klein){
   $('#meldung').classList.add('an'); meldeUhr = 2.2;
 }
 const kkarte = $('#karte canvas'), kctx = kkarte.getContext('2d');
-let kartenBox = null;
+const kartenBild = new Image(); kartenBild.src = KARTE.bild;
+let kartenRahmen = null;
 function zeichneKarte(){
-  if(!kartenBox){
-    let miX=1e9,maX=-1e9,miZ=1e9,maZ=-1e9;
-    for(let i=0;i<N;i++){ miX=Math.min(miX,S.x[i]); maX=Math.max(maX,S.x[i]);
-                          miZ=Math.min(miZ,S.z[i]); maZ=Math.max(maZ,S.z[i]); }
-    const sp = Math.max(maX-miX, maZ-miZ)*1.1;
-    kartenBox = {cx:(miX+maX)/2, cz:(miZ+maZ)/2, sp};
+  const W = kkarte.width;
+  if(!kartenRahmen){
+    // Auf das Straßennetz einpassen, nicht nur auf den Rundkurs — sonst
+    // sieht man nicht, wohin man sonst noch fahren kann.
+    const bx = KARTE.maxX - KARTE.minX, bz = KARTE.maxZ - KARTE.minZ;
+    const k = W / Math.max(bx, bz);
+    kartenRahmen = {k, ox: (W - bx*k)/2, oy: (W - bz*k)/2};
   }
-  const W = kkarte.width, k = W/kartenBox.sp;
-  const px = x => W/2 + (x-kartenBox.cx)*k, pz = z => W/2 + (z-kartenBox.cz)*k;
+  const {k, ox, oy} = kartenRahmen;
+  const px = x => ox + (x - KARTE.minX)*k, pz = z => oy + (z - KARTE.minZ)*k;
   kctx.clearRect(0,0,W,W);
-  kctx.strokeStyle='#2b3a45'; kctx.lineWidth=13; kctx.lineJoin='round';
-  kctx.beginPath(); kctx.moveTo(px(S.x[0]),pz(S.z[0]));
-  for(let i=1;i<N;i++) kctx.lineTo(px(S.x[i]),pz(S.z[i]));
-  kctx.closePath(); kctx.stroke();
-  kctx.strokeStyle='#4b5a74'; kctx.lineWidth=2; kctx.stroke();
-  // Ziellinie
-  const [nx,nz]=normale(START);
-  kctx.strokeStyle='#e8edf6'; kctx.lineWidth=4; kctx.beginPath();
-  kctx.moveTo(px(S.x[START]+nx*11), pz(S.z[START]+nz*11));
-  kctx.lineTo(px(S.x[START]-nx*11), pz(S.z[START]-nz*11)); kctx.stroke();
-  if(geistObj && geistObj.visible){
-    kctx.fillStyle='#39e0ff'; kctx.beginPath();
-    kctx.arc(px(geistObj.position.x), pz(geistObj.position.z), 5, 0, 7); kctx.fill();
+
+  // Straßennetz: alles, was befahrbar ist
+  if(kartenBild.complete && kartenBild.naturalWidth){
+    kctx.globalAlpha = .30;
+    kctx.drawImage(kartenBild, ox, oy, (KARTE.maxX-KARTE.minX)*k, (KARTE.maxZ-KARTE.minZ)*k);
+    kctx.globalAlpha = 1;
   }
-  kctx.fillStyle = auto.pulsAn ? '#ffd66b' : '#ff9d2e';
-  kctx.beginPath(); kctx.arc(px(auto.pos.x), pz(auto.pos.z), 7, 0, 7); kctx.fill();
+  // Der gewertete Rundkurs darüber
+  kctx.strokeStyle = '#5d6c86'; kctx.lineWidth = 3.4; kctx.lineJoin = 'round';
+  kctx.beginPath(); kctx.moveTo(px(S.x[0]), pz(S.z[0]));
+  for(let i=1;i<N;i++) kctx.lineTo(px(S.x[i]), pz(S.z[i]));
+  kctx.closePath(); kctx.stroke();
+
+  const [nx,nz] = normale(START);
+  kctx.strokeStyle = '#e8edf6'; kctx.lineWidth = 3; kctx.beginPath();
+  kctx.moveTo(px(S.x[START]+nx*10), pz(S.z[START]+nz*10));
+  kctx.lineTo(px(S.x[START]-nx*10), pz(S.z[START]-nz*10)); kctx.stroke();
+
+  if(geistObj && geistObj.visible){
+    kctx.fillStyle = '#39e0ff'; kctx.beginPath();
+    kctx.arc(px(geistObj.position.x), pz(geistObj.position.z), 4, 0, 7); kctx.fill();
+  }
+  kctx.fillStyle = auto.pulsAn ? '#ffd66b' : auto.aufBahn ? '#ff9d2e' : '#8e9ab0';
+  kctx.beginPath(); kctx.arc(px(auto.pos.x), pz(auto.pos.z), 5.5, 0, 7); kctx.fill();
 }
 function anzeige(dt){
   const kmh = Math.abs(auto.vx)*3.6;
@@ -594,7 +639,10 @@ function anzeige(dt){
   $('#pulszahl').textContent = Math.round(auto.puls*100)+'%';
   $('#pulsbar').classList.toggle('voll', auto.puls > .85);
   $('#pulstext').textContent = modus==='spulen' ? 'Zurückspulen …'
-    : auto.pulsAn ? 'Gezündet' : auto.puls>.15 ? 'Shift zündet · R spult zurück' : '';
+    : auto.pulsAn ? 'Gezündet'
+    : !auto.amKurs ? 'Freie Fahrt · Enter setzt zurück auf den Kurs'
+    : !auto.sauber ? 'Runde abgekürzt — zählt nicht'
+    : auto.puls>.15 ? 'Shift zündet · R spult zurück' : '';
   if(meldeUhr > 0){ meldeUhr -= dt; if(meldeUhr <= 0) $('#meldung').classList.remove('an'); }
   zeichneKarte();
 }
@@ -629,7 +677,7 @@ function schleife(jetzt){
     const h = dt/schritte;
     for(let k=0;k<schritte;k++) fahre(h);
     anDenBoden(dt);
-    rundenLogik();
+    rundenLogik(dt);
     pulsLogik(dt);
     merkeSchnappschuss(dt);
     if(zeit.laeuft){ zeit.aktuell += dt; geistLogik(dt); }
@@ -668,7 +716,7 @@ window.__probelauf = (sekunden = 120, dt = 1/60) => {
     anDenBoden(dt);
     if(Math.abs(querVor) > HW_P[auto.idx] + 2.2) b.wandTreffer++;
     const vorher = zeit.runden;
-    rundenLogik();
+    rundenLogik(dt);
     if(zeit.runden > vorher) b.runden.push(+zeit.letzte.toFixed(3));
     pulsLogik(dt);
     if(zeit.laeuft) zeit.aktuell += dt;
@@ -691,24 +739,85 @@ window.__probelauf = (sekunden = 120, dt = 1/60) => {
 /* Breiten neu vermessen — mit demselben kurzen Strahl, den auch der Wagen
    benutzt. Die erste Messung strahlte aus großer Höhe und traf dabei
    benachbarte Streckenteile, was die Fahrbahn viel zu breit erscheinen ließ. */
+/* Prüft eine beliebige Ringlinie in 3D: misst die Fahrbahnhöhe fortlaufend
+   und meldet den größten Sprung zwischen benachbarten Stützpunkten. Ein
+   Sprung von mehreren Metern auf 4 m Abstand heißt, dass die Linie in der
+   Draufsicht über eine Brücke läuft und in Wahrheit nicht zusammenhängt. */
+/* Setzt den Wagen an beliebige Weltpunkte und fragt, ob dort Asphalt
+   erkannt wird. Beantwortet die Frage: ist wirklich JEDE Straße befahrbar
+   oder nur der gewertete Rundkurs? */
+window.__abdeckung = (punkte) => {
+  const auf = (x,y,z,w) => { strahl.far=w; strahl.set(hilf.set(x,y,z),RUNTER);
+    const t=strahl.intersectObjects(strasse,false); return t.length? t[0].point.y : null; };
+  let erkannt=0, verfehlt=[], amKurs=0;
+  for(const [x,z] of punkte){
+    const y = auf(x,300,z,600);
+    if(y===null){ verfehlt.push([x,z]); continue; }
+    // So absetzen, wie es das Spiel täte, und die Bodenprüfung laufen lassen
+    auto.pos.set(x, y, z); auto.luft=0; auto.idx = vollSuche(x,z);
+    anDenBoden(1/60);
+    if(auto.aufBahn) erkannt++; else verfehlt.push([x,z]);
+    const dx=x-S.x[auto.idx], dz=z-S.z[auto.idx];
+    if(dx*dx+dz*dz < 26*26) amKurs++;
+  }
+  return {geprueft:punkte.length, erkannt, aufRundkurs:amKurs,
+          abseitsDesKurses: punkte.length-amKurs, verfehlt: verfehlt.slice(0,12)};
+};
+
+window.__hoehenPruefen = (punkte) => {
+  const auf = (x,y,z,w) => { strahl.far=w; strahl.set(hilf.set(x,y,z),RUNTER);
+    const t=strahl.intersectObjects(strasse,false); return t.length? t[0].point.y : null; };
+  const M=punkte.length, Y=new Array(M).fill(null);
+  let bezug = auf(punkte[0][0],300,punkte[0][1],600) ?? 0;
+  for(let runde=0; runde<2; runde++)
+    for(let k=0;k<M;k++){
+      const i=k%M, [x,z]=punkte[i];
+      let y = auf(x,bezug+6,z,14) ?? auf(x,bezug+20,z,60) ?? auf(x,300,z,600);
+      if(y!==null){ Y[i]=y; bezug=y; }
+    }
+  let sprung=0, wo=-1, fehlend=0;
+  for(let i=0;i<M;i++){
+    if(Y[i]===null){ fehlend++; continue; }
+    const v=Y[(i-1+M)%M]; if(v===null) continue;
+    const d=Math.abs(Y[i]-v); if(d>sprung){ sprung=d; wo=i; }
+  }
+  const gY=Y.filter(v=>v!==null);
+  return {sprung:+sprung.toFixed(2), bei:wo, fehlend,
+          minY:+Math.min(...gY).toFixed(2), maxY:+Math.max(...gY).toFixed(2)};
+};
+
 window.__vermessen = () => {
-  const L = [], R = [], Y = [];
+  const strahlAuf = (x, y, z, weite) => {
+    strahl.far = weite;
+    strahl.set(hilf.set(x, y, z), RUNTER);
+    const t = strahl.intersectObjects(strasse, false);
+    return t.length ? t[0].point.y : null;
+  };
+  // Höhe fortlaufend messen: jeder Punkt startet knapp über dem vorigen.
+  // So folgt die Messung der Fahrbahn auch dort, wo der Kurs sich selbst
+  // kreuzt — ein Strahl von weit oben würde dort die obere Ebene nehmen.
+  const Y = new Array(N).fill(null);
+  let bezug = strahlAuf(S.x[0], 300, S.z[0], 600) ?? 0;
+  for(let runde = 0; runde < 2; runde++){
+    for(let k = 0; k < N; k++){
+      const i = k % N;
+      let y = strahlAuf(S.x[i], bezug + 6, S.z[i], 14);
+      if(y === null) y = strahlAuf(S.x[i], bezug + 20, S.z[i], 60);
+      if(y === null) y = strahlAuf(S.x[i], 300, S.z[i], 600);
+      if(y !== null){ Y[i] = y; bezug = y; }
+    }
+  }
+  // Kanten dann mit demselben kurzen Strahl, den auch der Wagen benutzt
+  const L = [], R = [];
   for(let i = 0; i < N; i++){
-    const [nx, nz] = normale(i);
-    const treffer = (d) => {
-      const x = S.x[i] + nx*d, z = S.z[i] + nz*d;
-      strahl.far = 24;
-      strahl.set(hilf.set(x, S.y[i] + 4, z), RUNTER);
-      const t = strahl.intersectObjects(strasse, false);
-      return t.length ? t[0].point.y : null;
-    };
-    Y.push(+(treffer(0) ?? S.y[i]).toFixed(2));
+    const [nx, nz] = normale(i), yb = Y[i] ?? 0;
+    const da = d => strahlAuf(S.x[i] + nx*d, yb + 4, S.z[i] + nz*d, 14) !== null;
     let l = 0, r = 0;
-    for(let d = 0.25; d <= 14; d += 0.25){ if(treffer(d)  === null) break; l = d; }
-    for(let d = 0.25; d <= 14; d += 0.25){ if(treffer(-d) === null) break; r = d; }
+    for(let d = 0.25; d <= 14; d += 0.25){ if(!da(d))  break; l = d; }
+    for(let d = 0.25; d <= 14; d += 0.25){ if(!da(-d)) break; r = d; }
     L.push(+l.toFixed(2)); R.push(+r.toFixed(2));
   }
-  return {L, R, Y};
+  return {L, R, Y: Y.map(v => v === null ? 0 : +v.toFixed(2))};
 };
 
 /* Punktprobe: Wagen auf die Mittellinie setzen und die Bahnerkennung fragen */

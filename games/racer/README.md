@@ -14,6 +14,18 @@ python3 -m http.server 8000     # im Wurzelverzeichnis des Projekts
 # dann http://localhost:8000/games/racer/ aufrufen
 ```
 
+## Freie Fahrt auf dem ganzen Netz
+
+Es gibt **keine Leitplanken**. Gefahren wird überall, wo Asphalt liegt — auch
+auf Boxengasse, Zufahrten und den Abschnitten, die zu keinem Rundkurs gehören.
+Eine Stichprobe von 900 Punkten, gleichmäßig über das gesamte Straßennetz
+gestreut, wird zu **99,4 %** als Asphalt erkannt; 551 dieser Punkte liegen
+abseits des gewerteten Kurses.
+
+Der Rundkurs bleibt trotzdem gewertet: Wer ihn abkürzt (mehr als 0,7 s neben
+der Bahn), bekommt seine Zeit angezeigt, aber sie zählt nicht als Bestzeit.
+`Enter` setzt den Wagen auf den nächsten Punkt des Kurses zurück.
+
 ## Woher die Strecke ihre Ideallinie hat
 
 Das Streckenmodell bringt keine Wegdaten mit — nur Geometrie. Die Mittellinie
@@ -23,17 +35,47 @@ ist deshalb aus dem Modell selbst herausgerechnet:
    schwarz-weiße Maske gerendert. Vier farbige Marker an bekannten
    Weltkoordinaten liefern die exakte Umrechnung Pixel ↔ Welt.
 2. Maske gesäubert (kleine Löcher zu, Splitter weg) und skelettiert.
-3. Sackgassen abgeschnitten, bis nur noch Ringe übrig waren — damit fallen
-   Boxengasse und Zufahrten heraus.
-4. Im verbleibenden Kreuzungsgraph den **längsten geschlossenen Kreis** gesucht:
-   5 Kreuzungen, 8 Kanten, längster Kreis 2551 Pixel.
+3. Im Kreuzungsgraph **alle** geschlossenen Kreise gesucht: 8 Kreuzungen,
+   12 Kanten, 10 verschiedene Kreise zwischen 467 m und 1978 m.
+4. Jeden Kandidaten in 3D nachgemessen und die unfahrbaren verworfen (siehe
+   unten). Übrig bleibt der längste echte Rundkurs.
 5. Gleichmäßig auf 4 Einheiten abgetastet, geglättet — 248 Stützpunkte,
-   **991 m Runde**.
+   **991,6 m Runde, 11 Kurven, 13 m Höhenunterschied**.
 6. Höhe und Fahrbahnkanten je Punkt per Strahl gemessen, mit demselben kurzen
    Strahl, den auch der Wagen benutzt.
 
-Das Ergebnis liegt in `strecke.js`. Fällt die Strecke mal aus, muss nur dieses
-eine Modul neu erzeugt werden.
+Das Ergebnis liegt in `strecke.js`, das Straßennetz für die Karte in `karte.js`.
+
+### Zwei Fallen, die dabei zuschnappten
+
+**Die orthografische Kamera spannt relativ zu ihrer eigenen Position auf.**
+`left`/`right` sind Abstände von der Kamera, keine Weltkoordinaten. Die erste
+Maske war deshalb um 56 Einheiten verschoben und links beschnitten — ein
+Sechstel der Strecke fehlte, ohne dass das Ergebnis kaputt aussah. Jetzt wird
+symmetrisch um die Kameramitte aufgespannt.
+
+**Die langen Kreise gibt es nur in der Draufsicht.** Mit der vollständigen
+Maske findet die Suche Kreise bis 1978 m — sie sehen nach einem
+Grand-Prix-Kurs aus. An einer Stelle führt der Kurs aber über sich selbst
+hinweg, und das 2D-Skelett verschmilzt die beiden Ebenen zu einer Kreuzung.
+Die Nachmessung zeigt es eindeutig: dort springt die Fahrbahnhöhe um 9,3 m
+zwischen zwei Punkten, die 4 m auseinanderliegen.
+
+| Kandidat | Höhensprung | Urteil |
+|---|---|---|
+| 1977,9 m | 9,34 m | Brücke — nicht zusammenhängend |
+| 1953,2 m | 9,35 m | Brücke |
+| 1945,9 m | 9,34 m | Brücke |
+| 1921,1 m | 9,35 m | Brücke |
+| 1475,6 m | 9,33 m | Brücke |
+| 1450,8 m | 9,34 m | Brücke |
+| **991,6 m** | **0,43 m** | **fahrbar** |
+| 959,6 m | 0,43 m | fahrbar |
+| 926,1 m | 0,40 m | fahrbar |
+| 467,2 m | 0,34 m | Brücke |
+
+Der Asphalt jenseits der Brücke ist deshalb kein Rundkurs — befahrbar ist er
+trotzdem, und genau dafür gibt es die freie Fahrt.
 
 ## Fahrmodell
 
@@ -49,10 +91,12 @@ starrer Körper, keine Physik-Bibliothek:
 * Feste Teilschritte von 1/120 s, damit das Reifenmodell bei Bildratenschwankung
   nicht ausbricht.
 
-Der Wagen liegt per Strahl auf der Fahrbahn. Die Streckengrenzen kommen aus der
-Mittellinie: jenseits von Kante + 2,2 wird nur der Anteil **senkrecht** zur
-Bande gebrochen, längs rutscht der Wagen weiter — sonst klebt er nach dem
-ersten Kontakt fest.
+Der Wagen liegt per Strahl auf der Fahrbahn. Es wird zuerst nur gegen das
+Fahrbahn-Mesh gestrahlt und erst bei einem Fehlschlag gegen Gras und Sand —
+das Gelände-Mesh spannt sich über die ganze Karte und liegt stellenweise über
+dem Asphalt, ein gemeinsamer Strahl würde den Wagen dauernd als neben der Bahn
+melden. Fällt er aus der Welt, setzt er auf die zuletzt befahrene Stelle
+zurück.
 
 ## Selbsttest
 
@@ -71,8 +115,9 @@ Bandenkontakte. Messwerte des eingebauten Reglers (konservativ eingestellt):
 | Dodge Charger | 66,2 s | 94 km/h | 3,2 % | 0 |
 | McLaren P1 | 59,3 s | 123 km/h | 8,0 % | 16 |
 
-Weitere Haken: `__vermessen()` misst Höhe und Kanten neu, `__probeBahn()`
-prüft die Fahrbahnerkennung punktweise.
+Weitere Haken: `__vermessen()` misst Höhe und Kanten neu, `__hoehenPruefen()`
+prüft eine beliebige Ringlinie auf Höhensprünge, `__abdeckung()` streut Punkte
+über das ganze Netz und meldet, wie viel davon als Asphalt erkannt wird.
 
 ## Herkunft
 
