@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#06070d">
+<title>Gegenfarbe — AGG Games</title>
+<meta name="description" content="Kugeln deiner Farbe schluckst du, die andere tötet dich. Ein Tipp wechselt die Farbe.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2306070d'/%3E%3Cpath d='M8 1 L14 15 L2 15 Z' fill='%23f2f6ff'/%3E%3Cpath d='M8 1 L14 15 L8 15 Z' fill='%23ff5570'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#06070d; --panel:#101422; --edge:#20283c; --edge-hi:#354160;
+  --ink:#eaeefb; --dim:#96a0bd; --faint:#5e688a;
+  --hell:#f2f6ff; --rot:#ff5570; --gold:#ffb648; --gruen:#5be0b0;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#04050a; color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,0.72)));
+  aspect-ratio:var(--seite,0.72); max-height:100vh; overflow:hidden}
+canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none}
+
+#kopf{position:absolute; left:0; right:0; top:0; padding:8px 10px; pointer-events:none;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:8px; z-index:3}
+.feld{background:#0a0d16cc; border:2px solid var(--edge); padding:4px 9px; line-height:1.12}
+.feld b{display:block; font-size:18px; color:var(--gold)}
+.feld small{display:block; font-size:8.5px; letter-spacing:.15em; color:var(--faint); text-transform:uppercase}
+#lebenF b{color:var(--rot); letter-spacing:.12em}
+#konterbox{position:absolute; left:10px; right:10px; bottom:76px; height:12px; z-index:3;
+  background:#0a0d16cc; border:2px solid var(--edge); pointer-events:none}
+#konterbox i{position:absolute; inset:2px; width:100%; transform-origin:left; display:block;
+  background:var(--gruen)}
+#konterbox.voll{border-color:var(--gruen); box-shadow:0 0 12px #5be0b055}
+#konterbox span{position:absolute; right:5px; top:-2px; font-size:8px; letter-spacing:.14em; color:#04050a}
+
+#griff{position:absolute; left:0; right:0; bottom:0; z-index:4; display:flex; gap:6px; padding:8px}
+.gk{flex:1; font-family:var(--pix); font-size:13px; letter-spacing:.08em; cursor:pointer;
+  border:2px solid var(--edge-hi); background:#101422e6; color:var(--ink); padding:12px 6px;
+  text-transform:uppercase}
+.gk small{display:block; font-size:8.5px; color:var(--faint); letter-spacing:.12em}
+#gWechsel{border-color:var(--hell)}
+#gWechsel.rot{border-color:var(--rot); color:var(--rot)}
+#gKonter{border-color:var(--gruen); color:var(--gruen)}
+#gKonter:disabled{opacity:.35; cursor:default}
+
+#ruf{position:absolute; left:0; right:0; top:26%; text-align:center; pointer-events:none; z-index:5;
+  font-size:clamp(22px,6vw,38px); opacity:0; transition:opacity .16s; color:var(--gold);
+  text-shadow:0 3px 0 #000a}
+#ruf.an{opacity:1}
+#ruf small{display:block; font-size:13px; letter-spacing:.14em; color:var(--dim)}
+
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#06070de6,#06070df6); text-align:center; z-index:9; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(32px,11vw,54px); line-height:.94; color:var(--hell)}
+h1 span{color:var(--rot)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.5; margin:12px auto; max-width:34ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0c1018; padding:11px 13px; margin:9px auto;
+  font-size:12.5px; color:var(--dim); line-height:1.7; max-width:34ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+kbd{border:1px solid var(--edge-hi); border-bottom-width:2px; padding:0 5px; color:var(--ink)}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+a.zurueck{display:inline-block; margin-top:12px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+
+  <div id="kopf">
+    <div class="feld" id="punkteF"><b>0</b><small>Punkte</small></div>
+    <div class="feld" id="welleF"><b>1</b><small>Welle</small></div>
+    <div class="feld" id="lebenF"><b>✚✚✚</b><small>Schiffe</small></div>
+  </div>
+
+  <div id="konterbox"><i></i><span>KONTER</span></div>
+  <div id="ruf"></div>
+
+  <div id="griff">
+    <button class="gk" id="gWechsel">Farbe<small>tippen</small></button>
+    <button class="gk" id="gKonter" disabled>Konter<small>voll aufladen</small></button>
+  </div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>GEGEN<span>FARBE</span></h1>
+      <p>Alles hier hat eine von zwei Farben — auch du. Und du entscheidest
+         jederzeit, welche.</p>
+      <div class="tafel">
+        <u>Die eine Regel</u>
+        Kugeln in <b>deiner</b> Farbe <b>schluckst</b> du: sie laden den Konter.<br>
+        Kugeln in der <b>anderen</b> Farbe kosten ein Schiff.<br>
+        Und deine Schüsse machen an einem Gegner der <b>Gegenfarbe</b>
+        doppelten Schaden.
+      </div>
+      <div class="tafel">
+        <u>Steuerung</u>
+        Finger auf den Bildschirm ziehen — das Schiff folgt.<br>
+        Am Rechner: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> oder Maus,
+        <kbd>Leertaste</kbd> Farbe wechseln, <kbd>Shift</kbd> Konter.<br>
+        Geschossen wird von allein.
+      </div>
+      <button class="los" id="losKnopf">STARTEN</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel" style="font-size:clamp(28px,9vw,46px)">ABGESCHOSSEN</h1>
+      <div style="font-size:54px;color:var(--gold);line-height:1" id="ePunkte">0</div>
+      <p style="margin:4px 0 2px">Punkte</p>
+      <div id="eBest" style="color:var(--faint);font-size:13px;letter-spacing:.12em"></div>
+      <p id="eText"></p>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   GEGENFARBE — ein Schießspiel mit genau einer Regel.
+
+   Alles im Bild ist entweder HELL oder ROT, auch das eigene Schiff, und
+   die eigene Farbe lässt sich jederzeit umschalten. Daraus folgt alles:
+
+   * Eine Kugel in der eigenen Farbe wird geschluckt und lädt den Konter.
+   * Eine Kugel in der anderen Farbe kostet ein Schiff.
+   * Eigene Schüsse machen an einem Gegner der Gegenfarbe doppelten
+     Schaden.
+
+   Damit ist ein dichter Kugelvorhang kein Hindernis mehr, sondern
+   Munition — solange man rechtzeitig umschaltet. Das Spiel besteht
+   nicht daraus, Kugeln auszuweichen, sondern daraus, sich in die
+   richtigen hineinzustellen.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+const SEITE = klemm(innerWidth/Math.max(innerHeight,1), .50, 1.05);
+const H = 640, B = Math.round(klemm(H*SEITE, 340, 700));
+$('#buehne').style.setProperty('--seite', (B/H).toFixed(4));
+const cv = $('#c'), g = cv.getContext('2d');
+(function passeAn(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(B*dpr); cv.height = Math.round(H*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+})();
+
+const HELL = 0, ROT = 1;
+const FARBE = ['#f2f6ff', '#ff5570'];
+const FARBE_DUNKEL = ['#7f93c4', '#8a2a3c'];
+const UNTEN = H - 76;                            // über der Knopfleiste
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let sp, feinde, kugeln, meine, funken, sterne, spiel;
+let bestwert = +(localStorage.getItem('gegenfarbe.best') || 0);
+let zeit = 0, laeuft = false;
+
+function neu(){
+  sp = {x:B/2, y:UNTEN-70, zx:B/2, zy:UNTEN-70, farbe:HELL, r:8,
+        feuerUhr:0, unverwundbar:2, blitz:0, tot:0};
+  feinde = []; kugeln = []; meine = []; funken = [];
+  sterne = Array.from({length:90}, () => ({x:zuf(0,B), y:zuf(0,H), v:zuf(18,70), gr:Math.random()<.2?2:1}));
+  spiel = {punkte:0, welle:0, leben:3, konter:0, aus:false, ruf:0,
+           wellenUhr:0, rest:[], laufend:false, konterBlitz:0, ruettel:0};
+  naechsteWelle();
+  anzeige();
+}
+
+/* ── Wellen ───────────────────────────────────────────────────────────
+   Jede Welle ist eine Liste von Gegnern mit Startzeit. Die Muster
+   wechseln durch, alle vier Wellen kommt ein dicker Brocken.        */
+function naechsteWelle(){
+  spiel.welle++;
+  const w = spiel.welle, hart = 1 + (w-1)*0.14;
+  spiel.rest = [];
+  const setz = (art, x, t, farbe) => spiel.rest.push({art, x, t, farbe});
+
+  if(w % 4 === 0){
+    // Brocken in der Mitte, dazu Begleitung
+    setz('brocken', B/2, 0.6, w % 8 === 0 ? ROT : HELL);
+    for(let i=0;i<6;i++) setz('flieger', B*(0.15+0.14*i), 2.5+i*0.5, i%2);
+  } else if(w % 3 === 0){
+    for(let i=0;i<10;i++) setz('kreuzer', B*(0.12+0.08*(i%9)), 0.4+i*0.42, i%2);
+  } else if(w % 3 === 1){
+    for(let i=0;i<12;i++) setz('flieger', B*(0.5 + Math.sin(i*0.9)*0.36), 0.3+i*0.36, (i>>1)%2);
+  } else {
+    for(let i=0;i<8;i++){ setz('flieger', B*0.18, 0.3+i*0.5, HELL); setz('flieger', B*0.82, 0.3+i*0.5, ROT); }
+  }
+  spiel.rest.sort((a,b) => a.t - b.t);
+  spiel.wellenUhr = 0; spiel.laufend = true; spiel.hart = hart;
+  $('#welleF b').textContent = w;
+  if(w > 1) ruf('WELLE ' + w, '');
+}
+const BAUART = {
+  flieger:{hp:26, tempo:78,  r:14, punkte:60,  takt:1.5,  art:'einzel'},
+  kreuzer:{hp:52, tempo:52,  r:18, punkte:130, takt:1.15, art:'faecher'},
+  brocken:{hp:520,tempo:22,  r:38, punkte:900, takt:0.72, art:'kreis'}
+};
+function macheFeind(v){
+  const b = BAUART[v.art];
+  return {art:v.art, x:v.x, y:-40, hp:b.hp*spiel.hart, maxHp:b.hp*spiel.hart,
+          farbe:v.farbe, r:b.r, tempo:b.tempo, takt:b.takt, uhr:zuf(0.3,1.0),
+          punkte:b.punkte, blitz:0, phase:zuf(0,6.28), grund:v.x};
+}
+
+/* ── Klang ────────────────────────────────────────────────────────── */
+let actx=null, meister=null;
+function tonStart(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+  actx = new AC(); if(actx.state==='suspended') actx.resume();
+  meister = actx.createGain(); meister.gain.value = .55; meister.connect(actx.destination);
+}
+function ton(f0,f1,form,dauer,laut){
+  if(!actx) return;
+  const t=actx.currentTime, o=actx.createOscillator(), gn=actx.createGain();
+  o.type=form; o.frequency.setValueAtTime(f0,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dauer);
+  gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(laut,t+.005);
+  gn.gain.exponentialRampToValueAtTime(.0001,t+dauer);
+  o.connect(gn); gn.connect(meister); o.start(t); o.stop(t+dauer+.02);
+}
+const klangSchuss   = () => ton(760, 520, 'square', .04, .025);
+const klangSchluck  = () => ton(520, 900, 'sine', .06, .045);
+const klangKill     = () => ton(260, 120, 'triangle', .12, .06);
+const klangWechsel  = () => ton(340, 620, 'triangle', .07, .05);
+const klangTreffer  = () => ton(200, 60, 'sawtooth', .35, .11);
+const klangKonter   = () => { for(let i=0;i<4;i++) setTimeout(()=>ton(300+i*160, 900, 'sawtooth', .3, .07), i*60); };
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+const taste = {};
+addEventListener('keydown', e => {
+  taste[e.code] = true;
+  if(e.code === 'Space'){ farbeWechseln(); e.preventDefault(); }
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight'){ konterZuenden(); e.preventDefault(); }
+  if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))
+    e.preventDefault();
+});
+addEventListener('keyup', e => { taste[e.code] = false; });
+addEventListener('blur', () => { for(const k in taste) taste[k] = false; zieher = null; });
+
+let zieher = null;
+function bildPunkt(e){
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX-r.left)/r.width*B, (e.clientY-r.top)/r.height*H];
+}
+cv.addEventListener('pointerdown', e => {
+  if(!laeuft) return;
+  tonStart();
+  const [x,y] = bildPunkt(e);
+  /* Das Schiff springt nicht unter den Finger, sondern zieht relativ mit —
+     sonst verliert man beim Aufsetzen die Position und stirbt daran. */
+  zieher = {id:e.pointerId, x, y, sx:sp.zx, sy:sp.zy};
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  if(!zieher || e.pointerId !== zieher.id) return;
+  const [x,y] = bildPunkt(e);
+  sp.zx = klemm(zieher.sx + (x - zieher.x)*1.25, 14, B-14);
+  sp.zy = klemm(zieher.sy + (y - zieher.y)*1.25, 40, UNTEN-10);
+});
+for(const t of ['pointerup','pointercancel'])
+  cv.addEventListener(t, e => { if(zieher && e.pointerId === zieher.id) zieher = null; });
+addEventListener('mousemove', e => {
+  if(!laeuft || zieher) return;
+  if(e.buttons) return;
+  const [x,y] = bildPunkt(e);
+  if(x < 0 || x > B || y < 0 || y > H) return;
+  sp.zx = klemm(x, 14, B-14); sp.zy = klemm(y, 40, UNTEN-10);
+});
+$('#gWechsel').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); farbeWechseln(); });
+$('#gKonter').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); konterZuenden(); });
+
+function farbeWechseln(){
+  if(!laeuft || spiel.aus) return;
+  tonStart();
+  sp.farbe = sp.farbe === HELL ? ROT : HELL;
+  klangWechsel();
+  $('#gWechsel').classList.toggle('rot', sp.farbe === ROT);
+  for(let i=0;i<8;i++) funken.push({x:sp.x, y:sp.y, vx:zuf(-70,70), vy:zuf(-70,70),
+                                    t:zuf(.15,.3), farbe:FARBE[sp.farbe]});
+}
+function konterZuenden(){
+  if(!laeuft || spiel.aus || spiel.konter < 1) return;
+  spiel.konter = 0; spiel.konterBlitz = .55; spiel.ruettel = .8;
+  klangKonter();
+  /* Der Konter räumt alle Kugeln ab und trifft jeden Gegner hart — am
+     härtesten die der Gegenfarbe. */
+  for(const k of kugeln) funken.push({x:k.x, y:k.y, vx:zuf(-90,90), vy:zuf(-90,90),
+                                      t:zuf(.2,.5), farbe:FARBE[k.farbe]});
+  kugeln.length = 0;
+  for(const f of feinde) treffer(f, f.farbe === sp.farbe ? 60 : 130);
+  anzeige();
+}
+
+/* ── Ablauf ───────────────────────────────────────────────────────── */
+function schritt(dt){
+  if(!laeuft || spiel.aus) return;
+  zeit += dt;
+  for(const s of sterne){ s.y += s.v*dt; if(s.y > H){ s.y = -2; s.x = zuf(0,B); } }
+  if(spiel.ruf > 0){ spiel.ruf -= dt; if(spiel.ruf <= 0) $('#ruf').classList.remove('an'); }
+  if(spiel.konterBlitz > 0) spiel.konterBlitz -= dt;
+  if(spiel.ruettel > 0) spiel.ruettel = Math.max(0, spiel.ruettel - dt*2.2);
+  if(sp.unverwundbar > 0) sp.unverwundbar -= dt;
+  if(sp.blitz > 0) sp.blitz -= dt;
+
+  // Steuerung per Tastatur
+  const mx = (taste.KeyD||taste.ArrowRight?1:0) - (taste.KeyA||taste.ArrowLeft?1:0);
+  const my = (taste.KeyS||taste.ArrowDown?1:0) - (taste.KeyW||taste.ArrowUp?1:0);
+  if(mx || my){
+    sp.zx = klemm(sp.zx + mx*300*dt, 14, B-14);
+    sp.zy = klemm(sp.zy + my*300*dt, 40, UNTEN-10);
+  }
+  sp.x += (sp.zx - sp.x) * Math.min(dt*18, 1);
+  sp.y += (sp.zy - sp.y) * Math.min(dt*18, 1);
+
+  // Eigenes Feuer
+  sp.feuerUhr -= dt;
+  if(sp.feuerUhr <= 0){
+    sp.feuerUhr = 0.105;
+    for(const dx of [-5, 5])
+      meine.push({x:sp.x+dx, y:sp.y-10, vy:-620, farbe:sp.farbe, r:3});
+    klangSchuss();
+  }
+  for(const m of meine){ m.y += m.vy*dt; }
+  meine = meine.filter(m => m.y > -20);
+
+  // Nachschub
+  if(spiel.laufend){
+    spiel.wellenUhr += dt;
+    while(spiel.rest.length && spiel.rest[0].t <= spiel.wellenUhr)
+      feinde.push(macheFeind(spiel.rest.shift()));
+    if(!spiel.rest.length && !feinde.length){
+      spiel.laufend = false;
+      spiel.punkte += 250 + spiel.welle*60;
+      naechsteWelle(); anzeige();
+    }
+  }
+
+  feindeDenken(dt);
+  kugelnDenken(dt);
+  for(const f of funken){ f.x += f.vx*dt; f.y += f.vy*dt; f.t -= dt; }
+  funken = funken.filter(f => f.t > 0);
+  anzeige();
+}
+
+function feindeDenken(dt){
+  for(const f of feinde){
+    if(f.blitz > 0) f.blitz -= dt;
+    if(f.art === 'brocken'){
+      f.y = Math.min(f.y + f.tempo*dt, H*0.20);
+      f.x = f.grund + Math.sin(zeit*0.7 + f.phase) * B*0.26;
+    } else {
+      f.y += f.tempo*dt;
+      f.x = f.grund + Math.sin(zeit*1.5 + f.phase) * 34;
+    }
+    f.uhr -= dt;
+    if(f.uhr <= 0 && f.y > 10){
+      f.uhr = f.takt / (1 + spiel.welle*0.03);
+      schiessen(f);
+    }
+    // Zusammenstoß
+    if(sp.unverwundbar <= 0 && Math.hypot(f.x-sp.x, f.y-sp.y) < f.r + sp.r) getroffen();
+    if(f.y > H + 60) f.weg = true;
+  }
+  feinde = feinde.filter(f => !f.weg && f.hp > 0);
+
+  // Eigene Schüsse gegen Gegner
+  for(const m of meine){
+    for(const f of feinde){
+      if(Math.hypot(m.x-f.x, m.y-f.y) < f.r + 4){
+        // Gegenfarbe: doppelter Schaden. Das ist der Grund umzuschalten.
+        treffer(f, m.farbe === f.farbe ? 10 : 20);
+        m.y = -100;
+        break;
+      }
+    }
+  }
+  meine = meine.filter(m => m.y > -20);
+}
+function treffer(f, menge){
+  f.hp -= menge; f.blitz = .07;
+  for(let i=0;i<2;i++) funken.push({x:f.x, y:f.y, vx:zuf(-50,50), vy:zuf(-30,60),
+                                    t:zuf(.1,.24), farbe:FARBE[f.farbe]});
+  if(f.hp <= 0 && !f.weg){
+    f.weg = true;
+    spiel.punkte += f.punkte;
+    klangKill();
+    for(let i=0;i<(f.art==='brocken'?40:12);i++)
+      funken.push({x:f.x, y:f.y, vx:zuf(-190,190), vy:zuf(-190,190),
+                   t:zuf(.25,.7), farbe: Math.random()<.5 ? FARBE[f.farbe] : '#ffd66b'});
+    if(f.art === 'brocken') spiel.ruettel = 1;
+  }
+}
+function schiessen(f){
+  const zu = Math.atan2(sp.y-f.y, sp.x-f.x);
+  const b = BAUART[f.art];
+  const tempo = 150 + spiel.welle*4;
+  if(b.art === 'einzel'){
+    kugeln.push(machKugel(f.x, f.y, zu, tempo, f.farbe));
+  } else if(b.art === 'faecher'){
+    for(const d of [-0.28, 0, 0.28]) kugeln.push(machKugel(f.x, f.y, zu+d, tempo, f.farbe));
+  } else {
+    /* Der Brocken feuert einen Ring in beiden Farben — hier muss man
+       mitten hinein und im richtigen Moment umschalten. */
+    const n = 14, dreh = zeit*0.8;
+    for(let i=0;i<n;i++){
+      const a = dreh + i*(6.283/n);
+      kugeln.push(machKugel(f.x, f.y, a, tempo*0.8, i%2));
+    }
+  }
+}
+const machKugel = (x,y,a,v,farbe) => ({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, farbe, r:6});
+
+function kugelnDenken(dt){
+  for(const k of kugeln){
+    k.x += k.vx*dt; k.y += k.vy*dt;
+    if(k.x < -30 || k.x > B+30 || k.y < -40 || k.y > H+40){ k.weg = true; continue; }
+    if(Math.hypot(k.x-sp.x, k.y-sp.y) < k.r + sp.r){
+      if(k.farbe === sp.farbe){
+        /* Eigene Farbe: geschluckt. Genau das ist der Kern des Spiels. */
+        k.weg = true;
+        spiel.konter = Math.min(1, spiel.konter + 0.035);
+        spiel.punkte += 12;
+        klangSchluck();
+        for(let i=0;i<3;i++) funken.push({x:k.x, y:k.y, vx:zuf(-40,40), vy:zuf(-40,40),
+                                          t:zuf(.1,.2), farbe:FARBE[k.farbe]});
+      } else if(sp.unverwundbar <= 0){
+        k.weg = true; getroffen();
+      }
+    }
+  }
+  kugeln = kugeln.filter(k => !k.weg);
+}
+function getroffen(){
+  spiel.leben--; sp.unverwundbar = 2.2; sp.blitz = .5; spiel.ruettel = 1;
+  klangTreffer();
+  for(let i=0;i<24;i++) funken.push({x:sp.x, y:sp.y, vx:zuf(-200,200), vy:zuf(-200,200),
+                                     t:zuf(.3,.7), farbe: Math.random()<.5 ? FARBE[sp.farbe] : '#ffd66b'});
+  anzeige();
+  if(spiel.leben <= 0) ende();
+}
+function ruf(gross, klein){
+  $('#ruf').innerHTML = gross + (klein ? '<small>'+klein+'</small>' : '');
+  $('#ruf').classList.add('an'); spiel.ruf = 1.4;
+}
+function anzeige(){
+  $('#punkteF b').textContent = spiel.punkte;
+  $('#lebenF b').textContent = '✚'.repeat(Math.max(0,spiel.leben)) || '—';
+  $('#konterbox i').style.transform = 'scaleX(' + spiel.konter.toFixed(3) + ')';
+  $('#konterbox').classList.toggle('voll', spiel.konter >= 1);
+  $('#gKonter').disabled = spiel.konter < 1;
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+function malen(){
+  const rx = spiel && spiel.ruettel > 0 ? zuf(-1,1)*spiel.ruettel*6 : 0;
+  const ry = spiel && spiel.ruettel > 0 ? zuf(-1,1)*spiel.ruettel*6 : 0;
+  g.fillStyle = '#06070d'; g.fillRect(0,0,B,H);
+  g.save(); g.translate(Math.round(rx), Math.round(ry));
+
+  for(const s of sterne){
+    g.fillStyle = 'rgba(234,238,251,' + (s.gr>1?.55:.28) + ')';
+    g.fillRect(s.x|0, s.y|0, s.gr, s.gr);
+  }
+  if(!sp){ g.restore(); return; }
+
+  for(const f of funken){
+    g.globalAlpha = klemm(f.t*3,0,1); g.fillStyle = f.farbe;
+    g.fillRect(f.x-1.5, f.y-1.5, 3, 3);
+  }
+  g.globalAlpha = 1;
+
+  for(const f of feinde) malFeind(f);
+  for(const m of meine){
+    g.fillStyle = FARBE[m.farbe];
+    g.fillRect(m.x-1.5, m.y-8, 3, 12);
+  }
+  for(const k of kugeln) malKugel(k);
+  malSchiff();
+
+  g.restore();
+  if(spiel.konterBlitz > 0){
+    g.fillStyle = 'rgba(91,224,176,' + (spiel.konterBlitz*.5).toFixed(2) + ')';
+    g.fillRect(0,0,B,H);
+  }
+  // Untere Kante markieren, damit man weiß, wo die Knöpfe anfangen
+  g.fillStyle = '#04050a'; g.fillRect(0, UNTEN, B, H-UNTEN);
+  g.fillStyle = '#20283c'; g.fillRect(0, UNTEN, B, 2);
+}
+/* Eine Kugel ist ein Ring in ihrer Farbe mit hellem Kern — so bleibt sie
+   auch vor dunklem Grund und in Mengen unterscheidbar. */
+function malKugel(k){
+  const eigen = k.farbe === sp.farbe;
+  g.fillStyle = FARBE_DUNKEL[k.farbe];
+  g.beginPath(); g.arc(k.x, k.y, k.r+2, 0, 6.284); g.fill();
+  g.fillStyle = FARBE[k.farbe];
+  g.beginPath(); g.arc(k.x, k.y, k.r, 0, 6.284); g.fill();
+  g.fillStyle = eigen ? '#ffffff' : '#1a0a10';
+  g.beginPath(); g.arc(k.x, k.y, k.r*0.42, 0, 6.284); g.fill();
+}
+function malFeind(f){
+  const c = f.blitz > 0 ? '#ffffff' : FARBE[f.farbe];
+  const d = FARBE_DUNKEL[f.farbe];
+  g.save(); g.translate(f.x, f.y);
+  if(f.art === 'brocken'){
+    g.fillStyle = d; g.fillRect(-f.r-4, -f.r-4, f.r*2+8, f.r*2+8);
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(0,f.r); g.lineTo(f.r,0); g.lineTo(0,-f.r); g.lineTo(-f.r,0);
+    g.closePath(); g.fill();
+    g.fillStyle = '#06070d';
+    g.beginPath(); g.arc(0,0,f.r*0.36,0,6.284); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.arc(0,0,f.r*0.18,0,6.284); g.fill();
+  } else if(f.art === 'kreuzer'){
+    g.fillStyle = d; g.fillRect(-f.r-2, -f.r*0.6-2, f.r*2+4, f.r*1.2+4);
+    g.fillStyle = c; g.fillRect(-f.r, -f.r*0.6, f.r*2, f.r*1.2);
+    g.fillStyle = '#06070d'; g.fillRect(-f.r*0.4, -f.r*0.25, f.r*0.8, f.r*0.5);
+  } else {
+    g.fillStyle = d;
+    g.beginPath(); g.moveTo(0,f.r+2); g.lineTo(f.r+2,-f.r-2); g.lineTo(-f.r-2,-f.r-2);
+    g.closePath(); g.fill();
+    g.fillStyle = c;
+    g.beginPath(); g.moveTo(0,f.r); g.lineTo(f.r,-f.r); g.lineTo(-f.r,-f.r);
+    g.closePath(); g.fill();
+  }
+  g.restore();
+  if(f.hp < f.maxHp){
+    g.fillStyle = '#2a0b12'; g.fillRect(f.x-f.r, f.y-f.r-9, f.r*2, 3);
+    g.fillStyle = c;         g.fillRect(f.x-f.r, f.y-f.r-9, f.r*2*klemm(f.hp/f.maxHp,0,1), 3);
+  }
+}
+function malSchiff(){
+  if(sp.unverwundbar > 0 && Math.floor(sp.unverwundbar*14)%2) return;
+  const c = FARBE[sp.farbe], d = FARBE_DUNKEL[sp.farbe];
+  g.save(); g.translate(sp.x, sp.y);
+  // Schleppe
+  g.fillStyle = 'rgba(255,214,107,.5)';
+  g.fillRect(-3, 10, 6, 8 + Math.sin(zeit*30)*3);
+  g.fillStyle = d;
+  g.beginPath(); g.moveTo(0,-16); g.lineTo(13,12); g.lineTo(0,7); g.lineTo(-13,12);
+  g.closePath(); g.fill();
+  g.fillStyle = c;
+  g.beginPath(); g.moveTo(0,-12); g.lineTo(9,10); g.lineTo(0,5); g.lineTo(-9,10);
+  g.closePath(); g.fill();
+  // Kern: der Trefferpunkt, klein und deutlich
+  g.fillStyle = '#06070d';
+  g.beginPath(); g.arc(0,0,4.5,0,6.284); g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.arc(0,0,2.5,0,6.284); g.fill();
+  g.restore();
+  // Farbring, damit die eigene Farbe immer ablesbar ist
+  g.strokeStyle = c; g.lineWidth = 2; g.globalAlpha = .55;
+  g.beginPath(); g.arc(sp.x, sp.y, 20 + Math.sin(zeit*4)*1.5, 0, 6.284); g.stroke();
+  g.globalAlpha = 1;
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .04); vorher = jetzt;
+  schritt(dt);
+  malen();
+}
+
+function starten(){
+  tonStart(); neu(); laeuft = true;
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+  $('#gWechsel').classList.remove('rot');
+}
+function ende(){
+  if(spiel.aus) return;
+  spiel.aus = true; laeuft = false;
+  const p = spiel.punkte;
+  const rekord = p > bestwert;
+  if(rekord){ bestwert = p; localStorage.setItem('gegenfarbe.best', String(p)); }
+  $('#endeTitel').textContent = rekord ? 'REKORD' : 'ABGESCHOSSEN';
+  $('#endeTitel').style.color = rekord ? 'var(--gruen)' : 'var(--ink)';
+  $('#ePunkte').textContent = p;
+  $('#eBest').textContent = rekord ? 'so weit warst du noch nie' : 'bester Flug: ' + bestwert;
+  $('#eText').textContent = 'Welle ' + spiel.welle + '.';
+  $('#ende').classList.remove('weg');
+}
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', starten);
+neu(); laeuft = false;
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__gegenfarbe = {
+  get sp(){return sp}, get spiel(){return spiel}, get kugeln(){return kugeln},
+  get feinde(){return feinde}, get meine(){return meine},
+  HELL, ROT, B, H, UNTEN,
+  starten, farbeWechseln, konterZuenden, machKugel,
+  setzeSchiff:(x,y)=>{ sp.x=sp.zx=x; sp.y=sp.zy=y; },
+  get laeuft(){return laeuft}
+};
+</script>
+</body>
+</html>
