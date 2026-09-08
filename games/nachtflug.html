@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Nachtflug — AGG Games</title>
+<meta name="description" content="Ein Tastendruck, ein Falter, vier Tageszeiten. Je knapper du durchkommst, desto mehr zählt es.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='5' y='6' width='6' height='4' fill='%23f0e0b8'/%3E%3Crect x='2' y='4' width='4' height='5' fill='%23c9b088'/%3E%3Crect x='10' y='4' width='4' height='5' fill='%23c9b088'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141926; --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --dim:#98a3b6; --faint:#616d84;
+  --falter:#f0e0b8; --gold:#ffb648; --gruen:#5be0b0; --rot:#ff6b5e;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#05070c; color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,0.7)));
+  aspect-ratio:var(--seite,0.7); max-height:100vh}
+canvas{display:block; width:100%; height:100%; image-rendering:pixelated;
+  touch-action:none}   /* nicht vererbt — sonst nimmt der Browser das Tippen als Scrollen */
+
+/* ── Anzeige ──────────────────────────────────────────────── */
+#punktzahl{position:absolute; left:0; right:0; top:6%; text-align:center; pointer-events:none;
+  font-size:clamp(44px,13vw,80px); line-height:1; color:#fff;
+  text-shadow:0 3px 0 #00000088, 0 0 22px #00000066}
+#kombo{position:absolute; left:0; right:0; top:calc(6% + 1.05em); text-align:center;
+  pointer-events:none; font-size:15px; letter-spacing:.14em; color:var(--gold); opacity:0;
+  transition:opacity .2s; text-shadow:0 2px 0 #00000099}
+#kombo.an{opacity:1}
+#abschnitt{position:absolute; left:0; right:0; bottom:14px; text-align:center; pointer-events:none;
+  font-size:11px; letter-spacing:.3em; color:#ffffff70; text-transform:uppercase}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#070a10cc,#070a10ee); text-align:center; z-index:5; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(36px,12vw,58px); line-height:.94; letter-spacing:.01em}
+h1 span{color:var(--falter)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.5; margin:12px auto; max-width:33ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0d1119; padding:11px 13px; margin:9px auto;
+  font-size:13px; color:var(--dim); line-height:1.7; max-width:33ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+kbd{border:1px solid var(--edge-hi); border-bottom-width:2px; padding:0 5px; color:var(--ink)}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+a.zurueck{display:inline-block; margin-top:12px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+
+/* ── Ergebnis ─────────────────────────────────────────────── */
+#tafelErgebnis{display:flex; gap:8px; justify-content:center; margin:10px 0 2px}
+.zahlfeld{background:var(--panel); border:2px solid var(--edge); padding:8px 14px; min-width:92px}
+.zahlfeld b{display:block; font-size:30px; line-height:1.05; color:var(--gold)}
+.zahlfeld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#orden{font-size:15px; letter-spacing:.14em; margin-top:10px; color:var(--falter)}
+#neuerBest{color:var(--gruen); font-size:13px; letter-spacing:.14em; height:1.2em}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+  <div id="punktzahl">0</div>
+  <div id="kombo"></div>
+  <div id="abschnitt"></div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>NACHT<span>FLUG</span></h1>
+      <p>Ein Falter, eine Taste. Er fällt immer — du gibst ihm nur ab und zu
+         einen Schlag mit den Flügeln.</p>
+      <div class="tafel">
+        <u>Der Unterschied zu den anderen</u>
+        Wer <b>haarscharf</b> an der Kante vorbeikommt, bekommt einen Punkt
+        extra — und für jede Kante in Folge einen mehr. Weit in der Mitte
+        durchzufliegen ist sicher, aber es bringt fast nichts.
+      </div>
+      <div class="tafel">
+        <u>Vier Abschnitte, immer im Kreis</u>
+        <b>Abend</b> — Laternen stehen still<br>
+        <b>Nacht</b> — sie wandern auf und ab<br>
+        <b>Sturm</b> — Böen drücken dich weg, dafür sind die Lücken weiter<br>
+        <b>Morgen</b> — zwei Tore kurz hintereinander
+      </div>
+      <div class="tafel">
+        <u>Steuerung</u>
+        <kbd>Leertaste</kbd>, Klick oder Tippen — überall<br>
+        <kbd>P</kbd> Pause &middot; <kbd>M</kbd> Ton
+      </div>
+      <button class="los" id="losKnopf">LOSFLIEGEN</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel">RUNTER</h1>
+      <div id="tafelErgebnis">
+        <div class="zahlfeld"><b id="ePunkte">0</b><small>Punkte</small></div>
+        <div class="zahlfeld"><b id="eTore">0</b><small>Tore</small></div>
+        <div class="zahlfeld"><b id="eScharf">0</b><small>Haarscharf</small></div>
+      </div>
+      <div id="neuerBest"></div>
+      <div id="orden"></div>
+      <p id="endeText"></p>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   NACHTFLUG — ein Falter, eine Taste.
+
+   Der Unterschied zum üblichen Röhrenspringer steckt in zwei Sachen:
+
+   1. HAARSCHARF. Wer dicht an einer Kante vorbeizieht, bekommt Punkte
+      obendrauf, und in Folge immer mehr. Damit ist dasselbe Tor jedes
+      Mal eine Entscheidung — sicher durch die Mitte oder knapp am Rand —
+      statt nur eine Hürde.
+   2. VIER ABSCHNITTE, die sich alle zehn Tore abwechseln und jeweils
+      etwas anderes mit den Toren machen: still, wandernd, Böen, Doppel.
+      Dadurch wird der Lauf nicht bloß schneller, sondern anders.
+
+   Gezeichnet wird in einen kleinen Puffer und hart hochskaliert; die
+   Hintergründe laufen in drei Ebenen unterschiedlich schnell, das gibt
+   Tiefe ohne eine einzige Grafikdatei.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+/* Bildausschnitt nimmt die Form des Fensters an, damit auf dem Telefon
+   keine schwarzen Balken stehen und am Rechner nichts verzerrt. */
+/* Die Höhe bleibt fest, damit Schwerkraft, Schlagkraft und Lückenmaß
+   überall gleich wirken. Die Breite folgt dem Fenster, hat aber eine
+   Untergrenze: bei einem schmalen Telefon wäre das Bild sonst nur gut
+   zweihundert Pixel breit, und ein Tor käme so spät ins Bild, dass keine
+   Zeit zum Reagieren bliebe. */
+const SEITE = klemm(innerWidth/Math.max(innerHeight,1), .48, 1.75);
+const H = 360, B = Math.round(klemm(H*SEITE, 258, 640));
+$('#buehne').style.setProperty('--seite', (B/H).toFixed(4));
+const cv = $('#c'), g = cv.getContext('2d');
+cv.width = B; cv.height = H;
+g.imageSmoothingEnabled = false;
+
+const BODEN = H - 26;                          // Grasnarbe
+const FX = Math.round(B*0.30);                 // wo der Falter fliegt
+
+/* ── Abschnitte ───────────────────────────────────────────────────── */
+const ABSCHNITTE = [
+  {name:'Abend',  himmelO:'#2b2140', himmelU:'#7d4f58', huegel:'#241b32', baum:'#150f20',
+   boden:'#1a1327', lampe:'#ffb648', dunst:'#ff9a5e22', art:'still'},
+  {name:'Nacht',  himmelO:'#070a18', himmelU:'#16203c', huegel:'#0c1226', baum:'#060911',
+   boden:'#0a0f1c', lampe:'#8ad7ff', dunst:'#8ad7ff18', art:'wandern'},
+  {name:'Sturm',  himmelO:'#1c1f28', himmelU:'#495264', huegel:'#151a26', baum:'#090c13',
+   boden:'#0d1017', lampe:'#c9d3e6', dunst:'#ffffff10', art:'boe'},
+  {name:'Morgen', himmelO:'#3a2f4a', himmelU:'#e8a06a', huegel:'#2b2438', baum:'#171326',
+   boden:'#1d1730', lampe:'#ffd08a', dunst:'#ffd08a22', art:'doppel'}
+];
+const TORE_JE_ABSCHNITT = 10;
+
+/* ── Klang ────────────────────────────────────────────────────────── */
+let actx = null, meister = null, tonAn = localStorage.getItem('nachtflug.ton') !== 'aus';
+function tonStart(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  actx = new AC(); if(actx.state === 'suspended') actx.resume();
+  meister = actx.createGain(); meister.gain.value = tonAn ? .8 : 0;
+  meister.connect(actx.destination);
+}
+function ton({f0, f1, form='sine', dauer=.14, laut=.12, art:typ}){
+  if(!actx || !tonAn) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(); o.type = form;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(24,f1), t+dauer);
+  const gn = actx.createGain();
+  gn.gain.setValueAtTime(0, t);
+  gn.gain.linearRampToValueAtTime(laut, t+.008);
+  gn.gain.exponentialRampToValueAtTime(.0001, t+dauer);
+  o.connect(gn); gn.connect(meister); o.start(t); o.stop(t+dauer+.03);
+}
+function rausch(dauer, laut, mitte, q){
+  if(!actx || !tonAn) return;
+  const t = actx.currentTime, n = actx.sampleRate*dauer;
+  const buf = actx.createBuffer(1, n, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const s = actx.createBufferSource(); s.buffer = buf;
+  const f = actx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=mitte; f.Q.value=q;
+  const gn = actx.createGain(); gn.gain.value = laut;
+  s.connect(f); f.connect(gn); gn.connect(meister); s.start(t);
+}
+const klangSchlag  = () => { rausch(.12, .14, 900, .8); ton({f0:300,f1:170,form:'triangle',dauer:.10,laut:.05}); };
+const klangTor     = () => ton({f0:620, f1:640, form:'triangle', dauer:.10, laut:.08});
+const klangScharf  = n => ton({f0:760*Math.pow(1.12, Math.min(n,8)), f1:1180, form:'sine', dauer:.14, laut:.10});
+const klangWechsel = () => { ton({f0:392,f1:392,form:'triangle',dauer:.5,laut:.07});
+                             setTimeout(()=>ton({f0:587,f1:587,form:'triangle',dauer:.6,laut:.06}),120); };
+function klangSturz(){
+  rausch(.5, .18, 260, .5);
+  ton({f0:200, f1:52, form:'sawtooth', dauer:.55, laut:.10});
+}
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let f, tore, teile, regen, spiel, hg;
+let bestwert = +(localStorage.getItem('nachtflug.best') || 0);
+let bild = 0, zeit = 0;
+
+function neu(){
+  f = {y:H*0.42, vy:0, dreh:0, fluegel:0, lebt:true, sturzUhr:0};
+  tore = []; teile = []; regen = [];
+  spiel = {
+    punkte:0, tore:0, scharf:0, kombo:0, komboUhr:0, grund:'',
+    tempo:132, abschnitt:0, laeuft:false, bereit:true, aus:false,
+    ruettel:0, blitz:0, naechstesX: B + 90, boe:0, pause:false
+  };
+  hg = {sterne: Array.from({length:70}, () => ({x:zuf(0,B), y:zuf(0,BODEN*0.7),
+          gr: Math.random()<.22 ? 2 : 1, blink: zuf(0,6.28)})),
+        huegel: baueHuegel(), baeume: baueBaeume()};
+  $('#punktzahl').textContent = '0';
+  $('#abschnitt').textContent = ABSCHNITTE[0].name;
+  malAlles();
+}
+/* Hügelkette und Baumreihe einmal als Zackenzug bauen und dann endlos
+   durchschieben — billiger als jedes Bild neu zu würfeln, und die Kette
+   bleibt beim Scrollen ruhig. */
+function baueHuegel(){
+  const p = []; let x = 0;
+  while(x < B*2 + 120){ p.push({x, h: zuf(26, 62), br: zuf(60, 130)}); x += p[p.length-1].br*0.8; }
+  return p;
+}
+function baueBaeume(){
+  const p = []; let x = 0;
+  while(x < B*2 + 80){ p.push({x, h: zuf(24, 54), br: zuf(12, 24)}); x += zuf(16, 34); }
+  return p;
+}
+
+/* ── Tore ─────────────────────────────────────────────────────────── */
+const TOR_BR = 42;
+function torBauen(){
+  const a = ABSCHNITTE[spiel.abschnitt];
+  const enge = klemm(1 - spiel.tore/140, .62, 1);
+  let luecke = misch(96, 132, enge);
+  if(a.art === 'boe')    luecke += 22;          // Böen machen es ohnehin schwer
+  if(a.art === 'doppel') luecke += 12;
+  const rand = 46;
+  const mitte = zuf(rand + luecke/2, BODEN - rand - luecke/2);
+  const t = {x: spiel.naechstesX, mitte, luecke, gezaehlt:false, scharfGeprueft:false,
+             schwing: a.art === 'wandern' ? zuf(16, 34) : 0,
+             takt: zuf(0.5, 1.1), phase: zuf(0, 6.28), basis: mitte, zwilling:null};
+  tore.push(t);
+  if(a.art === 'doppel'){
+    /* Das zweite Tor darf nur wenig versetzt stehen, sonst ist der Winkel
+       zwischen beiden Lücken in der kurzen Strecke nicht mehr zu fliegen. */
+    const versatz = zuf(-26, 26);
+    const m2 = klemm(mitte + versatz, rand + luecke/2, BODEN - rand - luecke/2);
+    tore.push({x: spiel.naechstesX + 78, mitte:m2, luecke: luecke + 6, gezaehlt:false,
+               scharfGeprueft:false, schwing:0, takt:1, phase:0, basis:m2, zwilling:t});
+  }
+  const abstand = misch(212, 168, klemm(spiel.tore/90, 0, 1))
+                + (a.art === 'doppel' ? 108 : 0);
+  spiel.naechstesX += abstand;
+}
+
+/* ── Ablauf ───────────────────────────────────────────────────────── */
+const SCHWERE = 1150, SCHLAG = -352, FALL_MAX = 620;
+/* Bei 15 Pixeln streifte selbst ein Autopilot, der stur die Mitte
+   anfliegt, dreizehnmal in zwölf Toren — dann ist "haarscharf" kein
+   Kunststück mehr, sondern der Normalfall. Zehn ist knapp genug, dass
+   man es wollen muss. */
+const SCHARF = 10;
+
+function schlagen(){
+  if(spiel.aus || spiel.pause) return;
+  tonStart();
+  if(spiel.bereit){ spiel.bereit = false; spiel.laeuft = true; }
+  if(!f.lebt) return;
+  f.vy = SCHLAG; f.fluegel = 1;
+  klangSchlag();
+  for(let i=0;i<3;i++) teile.push({x:FX-4, y:f.y+4, vx:zuf(-40,-6), vy:zuf(-14,26),
+                                   t:zuf(.25,.5), farbe:'#f0e0b8'});
+}
+
+function schritt(dt){
+  zeit += dt;
+  if(spiel.komboUhr > 0){
+    spiel.komboUhr -= dt;
+    if(spiel.komboUhr <= 0){ spiel.kombo = 0; $('#kombo').classList.remove('an'); }
+  }
+  if(spiel.ruettel > 0) spiel.ruettel = Math.max(0, spiel.ruettel - dt*3.4);
+  if(spiel.blitz > 0)   spiel.blitz   = Math.max(0, spiel.blitz - dt*4);
+
+  for(const p of teile){ p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 120*dt; p.t -= dt; }
+  teile = teile.filter(p => p.t > 0);
+
+  if(!spiel.laeuft){                             // Warteschleife: Falter schwebt
+    f.y = H*0.42 + Math.sin(zeit*2.6)*7;
+    f.dreh = Math.sin(zeit*2.6)*.12;
+    f.fluegel = (Math.sin(zeit*9)+1)/2;
+    return;
+  }
+
+  const a = ABSCHNITTE[spiel.abschnitt];
+
+  // Böen im Sturm: eine langsame Grundströmung plus kurze Stöße
+  if(a.art === 'boe'){
+    /* Bei ±190 schwankte die Schwerkraft nur zwischen 960 und 1340 — das
+       hat man kaum gemerkt, und der Abschnitt hieß umsonst "Sturm". */
+    spiel.boe = Math.sin(zeit*0.9)*250 + Math.sin(zeit*2.7)*130;
+    /* Zwei Tropfen in der Sekunde sahen nach Nieselwetter aus. Bei 26 sind
+       gut ein Dutzend gleichzeitig im Bild, und der Abschnitt sieht auch
+       aus wie er heißt. */
+    const wieviel = dt*26;
+    for(let i=0; i<Math.floor(wieviel) + (Math.random() < wieviel%1 ? 1:0); i++)
+      regen.push({x:zuf(-20,B+60), y:zuf(-30,-4), v:zuf(430,640), l:zuf(9,18)});
+  } else spiel.boe = misch(spiel.boe, 0, Math.min(dt*3,1));
+  for(const r of regen){ r.y += r.v*dt; r.x -= (spiel.tempo*1.4 + 90)*dt; }
+  regen = regen.filter(r => r.y < H && r.x > -20);
+
+  if(f.lebt){
+    f.vy = klemm(f.vy + (SCHWERE + spiel.boe)*dt, -520, FALL_MAX);
+    f.y += f.vy*dt;
+    f.dreh = klemm(f.vy/900, -.45, 1.15);
+    f.fluegel = Math.max(0, f.fluegel - dt*4.2);
+    if(f.y < 8){ f.y = 8; f.vy = 0; }
+    if(f.y > BODEN - 8){ sturz('Im Gras gelandet.'); }
+  } else {
+    f.vy = Math.min(f.vy + SCHWERE*dt, FALL_MAX);
+    f.y = Math.min(f.y + f.vy*dt, BODEN - 6);
+    f.dreh = Math.min(f.dreh + dt*5, 1.6);
+    f.sturzUhr -= dt;
+    if(f.sturzUhr <= 0) ende();
+    return;
+  }
+
+  // Tore schieben
+  spiel.tempo = misch(132, 232, klemm(spiel.tore/70, 0, 1));
+  const v = spiel.tempo*dt;
+  spiel.naechstesX -= v;
+  while(spiel.naechstesX < B + 60) torBauen();
+
+  for(const t of tore){
+    t.x -= v;
+    if(t.schwing) t.mitte = t.basis + Math.sin(zeit*t.takt + t.phase) * t.schwing;
+
+    const links = t.x, rechts = t.x + TOR_BR;
+    const oben = t.mitte - t.luecke/2, unten = t.mitte + t.luecke/2;
+
+    // Treffer? Der Falter ist ein Kreis, das Tor zwei Balken.
+    if(FX + 7 > links && FX - 7 < rechts){
+      if(f.y - 6 < oben || f.y + 6 > unten){ sturz('An der Laterne hängengeblieben.'); break; }
+      if(!t.scharfGeprueft){
+        const luft = Math.min(f.y - 6 - oben, unten - (f.y + 6));
+        if(luft < SCHARF){
+          t.scharfGeprueft = true;
+          spiel.scharf++; spiel.kombo++; spiel.komboUhr = 2.6;
+          // Bei acht war ein Messerkantenflug siebenmal so viel wert wie ein
+        // sicherer — das kippt das Spiel. Sechs reicht als Anreiz.
+        const bonus = Math.min(spiel.kombo, 6);
+          spiel.punkte += bonus;
+          klangScharf(spiel.kombo);
+          spiel.blitz = .5;
+          $('#kombo').textContent = 'HAARSCHARF +' + bonus +
+            (spiel.kombo > 1 ? '  ×' + spiel.kombo : '');
+          $('#kombo').classList.add('an');
+          for(let i=0;i<7;i++) teile.push({x:FX, y:f.y, vx:zuf(-90,40), vy:zuf(-70,70),
+                                           t:zuf(.2,.45), farbe:ABSCHNITTE[spiel.abschnitt].lampe});
+        }
+      }
+    }
+    if(!t.gezaehlt && t.x + TOR_BR < FX - 7){
+      t.gezaehlt = true;
+      // Beim Doppeltor zählt nur das erste, sonst springt die Zahl in Zweiern
+      if(!t.zwilling){
+        spiel.tore++; spiel.punkte++;
+        klangTor();
+        $('#punktzahl').textContent = spiel.punkte;
+        const neuerAbschnitt = Math.floor(spiel.tore/TORE_JE_ABSCHNITT) % ABSCHNITTE.length;
+        if(neuerAbschnitt !== spiel.abschnitt){
+          spiel.abschnitt = neuerAbschnitt;
+          $('#abschnitt').textContent = ABSCHNITTE[neuerAbschnitt].name;
+          klangWechsel();
+        }
+      }
+    }
+  }
+  tore = tore.filter(t => t.x > -TOR_BR - 120);
+  $('#punktzahl').textContent = spiel.punkte;
+}
+
+function sturz(text){
+  if(!f.lebt) return;
+  f.lebt = false; f.vy = -180; f.sturzUhr = 1.15;
+  spiel.ruettel = 1; spiel.grund = text;
+  klangSturz();
+  for(let i=0;i<16;i++) teile.push({x:FX, y:f.y, vx:zuf(-150,90), vy:zuf(-190,60),
+                                    t:zuf(.4,.9), farbe: Math.random()<.5 ? '#f0e0b8' : '#c9b088'});
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+/* Liest Hex UND rgb(). Vorher nur Hex — und weil `farben()` seine Werte
+   schon als rgb() zurückgibt, kam beim zweiten Mischen (die Torpfeiler
+   werden aus der Baumfarbe abgeleitet) NaN heraus. Eine ungültige Farbe
+   wirft die Leinwand still weg und behält die letzte gültige: die Pfeiler
+   waren mal dunkel, mal leuchtend weiß. */
+function farbeLesen(s){
+  if(s[0] === '#') return [parseInt(s.slice(1,3),16), parseInt(s.slice(3,5),16), parseInt(s.slice(5,7),16)];
+  const m = s.match(/-?\d+/g);
+  return m ? [+m[0], +m[1], +m[2]] : [0,0,0];
+}
+function farbeMischen(a, b, t){
+  const A = farbeLesen(a), Bb = farbeLesen(b);
+  return 'rgb(' + Math.round(misch(A[0],Bb[0],t)) + ',' + Math.round(misch(A[1],Bb[1],t)) +
+         ',' + Math.round(misch(A[2],Bb[2],t)) + ')';
+}
+/* Zwischen zwei Abschnitten wird die Farbe geblendet, damit der Wechsel
+   nicht wie ein Schnitt aussieht. */
+function farben(){
+  const a = ABSCHNITTE[spiel.abschnitt];
+  const rest = spiel.tore % TORE_JE_ABSCHNITT;
+  const b = ABSCHNITTE[(spiel.abschnitt+1) % ABSCHNITTE.length];
+  const t = rest >= TORE_JE_ABSCHNITT-2 ? (rest-(TORE_JE_ABSCHNITT-2))/2 : 0;
+  return {
+    himmelO: farbeMischen(a.himmelO, b.himmelO, t),
+    himmelU: farbeMischen(a.himmelU, b.himmelU, t),
+    huegel:  farbeMischen(a.huegel,  b.huegel,  t),
+    baum:    farbeMischen(a.baum,    b.baum,    t),
+    boden:   farbeMischen(a.boden,   b.boden,   t),
+    lampe:   a.lampe, dunst: a.dunst, art: a.art
+  };
+}
+function malAlles(){
+  const c = farben();
+  const rx = spiel.ruettel > 0 ? zuf(-1,1)*spiel.ruettel*5 : 0;
+  const ry = spiel.ruettel > 0 ? zuf(-1,1)*spiel.ruettel*5 : 0;
+  g.save(); g.translate(Math.round(rx), Math.round(ry));
+
+  // Himmel
+  const lv = g.createLinearGradient(0,0,0,BODEN);
+  lv.addColorStop(0, c.himmelO); lv.addColorStop(1, c.himmelU);
+  g.fillStyle = lv; g.fillRect(-6,-6,B+12,BODEN+6);
+
+  // Mond und Sterne (im Morgen als Sonne warm eingefärbt)
+  const mx = B*0.74, my = BODEN*0.22;
+  g.fillStyle = c.art === 'doppel' ? '#ffe6b0' : '#e8eeff';
+  g.beginPath(); g.arc(mx, my, 17, 0, 6.284); g.fill();
+  g.globalAlpha = .16; g.beginPath(); g.arc(mx, my, 30, 0, 6.284); g.fill(); g.globalAlpha = 1;
+  if(c.art !== 'doppel'){
+    g.fillStyle = '#c9d3e6';
+    g.beginPath(); g.arc(mx+6, my-4, 3, 0, 6.284); g.fill();
+    g.beginPath(); g.arc(mx-5, my+5, 2, 0, 6.284); g.fill();
+  }
+  for(const s of hg.sterne){
+    const hell = .28 + .5*(0.5+0.5*Math.sin(zeit*2 + s.blink));
+    g.fillStyle = 'rgba(233,237,245,' + (hell*(c.art==='doppel'?.25:1)).toFixed(2) + ')';
+    g.fillRect(Math.round(s.x), Math.round(s.y), s.gr, s.gr);
+  }
+
+  // Drei Ebenen, unterschiedlich schnell
+  const w = spiel.laeuft ? 1 : 0;
+  malKette(hg.huegel, (zeit*spiel.tempo*0.10*w) % (B*2), c.huegel, BODEN, 0);
+  malKette(hg.huegel, (zeit*spiel.tempo*0.18*w + B*0.7) % (B*2), c.huegel, BODEN, .18);
+  malBaeume(c.baum, (zeit*spiel.tempo*0.42*w) % (B*2));
+
+  if(c.dunst){ g.fillStyle = c.dunst; g.fillRect(0,0,B,BODEN); }
+
+  for(const r of regen){
+    g.strokeStyle = 'rgba(206,220,240,.42)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(r.x, r.y); g.lineTo(r.x-3, r.y+r.l); g.stroke();
+  }
+
+  for(const t of tore) malTor(t, c);
+
+  // Boden
+  g.fillStyle = c.boden; g.fillRect(0, BODEN, B, H-BODEN);
+  g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, BODEN, B, 2);
+  const gv = (zeit*spiel.tempo*w) % 14;
+  g.fillStyle = 'rgba(0,0,0,.22)';
+  for(let x = -14 + (14 - gv); x < B; x += 14) g.fillRect(x, BODEN+4, 7, 3);
+
+  for(const p of teile){
+    g.globalAlpha = klemm(p.t*2.2, 0, 1);
+    g.fillStyle = p.farbe;
+    g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2);
+  }
+  g.globalAlpha = 1;
+
+  malFalter();
+
+  if(spiel.blitz > 0){
+    g.fillStyle = 'rgba(255,255,255,' + (spiel.blitz*.14).toFixed(3) + ')';
+    g.fillRect(0,0,B,H);
+  }
+  g.restore();
+}
+function malKette(kette, versatz, farbe, unten, dunkel){
+  g.fillStyle = dunkel ? farbeMischen(farbe, '#000000', dunkel) : farbe;
+  for(const h of kette){
+    const x = h.x - versatz;
+    for(const xx of [x, x + B*2]){
+      if(xx > B + 60 || xx + h.br < -60) continue;
+      g.beginPath();
+      g.moveTo(xx, unten);
+      g.lineTo(xx + h.br*0.5, unten - h.h);
+      g.lineTo(xx + h.br, unten);
+      g.closePath(); g.fill();
+    }
+  }
+}
+function malBaeume(farbe, versatz){
+  g.fillStyle = farbe;
+  for(const t of hg.baeume){
+    const x = t.x - versatz;
+    for(const xx of [x, x + B*2]){
+      if(xx > B + 40 || xx + t.br < -40) continue;
+      // Nadelbaum: drei Stufen und ein Stamm
+      const u = BODEN + 2;
+      for(let k=0;k<3;k++){
+        const br = t.br*(1 - k*0.24), hh = t.h*0.42;
+        g.beginPath();
+        g.moveTo(xx + t.br/2, u - t.h + k*hh*0.62 - hh);
+        g.lineTo(xx + t.br/2 - br/2, u - t.h + k*hh*0.62 + 2);
+        g.lineTo(xx + t.br/2 + br/2, u - t.h + k*hh*0.62 + 2);
+        g.closePath(); g.fill();
+      }
+      g.fillRect(xx + t.br/2 - 1.5, u - t.h*0.28, 3, t.h*0.28);
+    }
+  }
+}
+/* Ein Tor ist ein dunkler Pfeiler oben und unten, und an jeder Lückenkante
+   hängt eine Laterne. Die leuchtet — und sie ist genau die Kante, an der
+   "haarscharf" gemessen wird, deshalb darf sie ruhig auffallen. */
+function malTor(t, c){
+  const x = Math.round(t.x), oben = Math.round(t.mitte - t.luecke/2), unten = Math.round(t.mitte + t.luecke/2);
+  if(x > B + 4 || x + TOR_BR < -4) return;
+
+  const dunkel = farbeMischen(c.baum, '#000000', .25);
+  const kante  = farbeMischen(c.huegel, '#ffffff', .10);
+  for(const [y0, y1] of [[-6, oben],[unten, BODEN+6]]){
+    g.fillStyle = dunkel; g.fillRect(x, y0, TOR_BR, y1-y0);
+    g.fillStyle = kante;  g.fillRect(x, y0, 3, y1-y0); g.fillRect(x+TOR_BR-3, y0, 3, y1-y0);
+    // Querstreben, damit der Pfeiler nicht wie ein Balken aussieht
+    g.fillStyle = 'rgba(0,0,0,.28)';
+    for(let y = y0 + 10; y < y1 - 6; y += 18) g.fillRect(x+3, y, TOR_BR-6, 3);
+  }
+  // Laternen an den beiden Kanten
+  for(const [ly, richtung] of [[oben, -1],[unten, 1]]){
+    const cx = x + TOR_BR/2, cy = ly + richtung*-5;
+    g.fillStyle = c.lampe;
+    g.globalAlpha = .13;
+    g.beginPath(); g.arc(cx, ly, 26, 0, 6.284); g.fill();
+    g.globalAlpha = .3;
+    g.beginPath(); g.arc(cx, ly, 13, 0, 6.284); g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = farbeMischen(c.lampe, '#000000', .55);
+    g.fillRect(cx-6, ly + (richtung<0 ? -9 : 1), 12, 9);
+    g.fillStyle = c.lampe;
+    g.fillRect(cx-4, ly + (richtung<0 ? -7 : 3), 8, 5);
+    g.fillStyle = '#ffffff';
+    g.fillRect(cx-2, ly + (richtung<0 ? -6 : 4), 4, 3);
+  }
+}
+/* Der Falter: zwei Flügelpaare, die im Schlag zusammenklappen, ein
+   pelziger Körper, zwei Fühler. Gedreht wird nach der Fallgeschwindigkeit
+   — das allein macht den Unterschied zwischen "Klotz" und "Tier". */
+function malFalter(){
+  g.save();
+  g.translate(FX, Math.round(f.y));
+  g.rotate(f.dreh*0.55);
+  const s = f.fluegel;                            // 1 = ganz oben, 0 = ausgebreitet
+  const spann = misch(11, 5, s);
+  const hoch  = misch(0, -5, s);
+
+  g.fillStyle = '#c9b088';
+  g.beginPath();                                   // Hinterflügel
+  g.ellipse(-3, 3 + hoch*0.4, spann*0.8, 6, -0.2, 0, 6.284); g.fill();
+  g.beginPath();
+  g.ellipse(-3, -1 + hoch, spann, 7, 0.15, 0, 6.284); g.fill();   // Vorderflügel
+  g.fillStyle = '#f0e0b8';
+  g.beginPath();
+  g.ellipse(-2, -1 + hoch, spann*0.62, 4.4, 0.15, 0, 6.284); g.fill();
+  g.fillStyle = '#6b5a3e';
+  g.fillRect(-1, -4 + hoch*0.6, 2, 3);             // Fleck auf dem Flügel
+
+  g.fillStyle = '#8a7350';                          // Körper
+  g.beginPath(); g.ellipse(1, 1, 7, 4, 0, 0, 6.284); g.fill();
+  g.fillStyle = '#c9b088';
+  g.beginPath(); g.ellipse(4, 0, 3.4, 3.4, 0, 0, 6.284); g.fill();
+  g.fillStyle = '#20180a'; g.fillRect(5, -1, 2, 2); // Auge
+  g.strokeStyle = '#8a7350'; g.lineWidth = 1;       // Fühler
+  g.beginPath(); g.moveTo(6,-2); g.lineTo(11,-6); g.moveTo(6,-1); g.lineTo(11,-2); g.stroke();
+  g.restore();
+}
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+addEventListener('keydown', e => {
+  if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW'){ schlagen(); e.preventDefault(); }
+  if(e.code === 'KeyP') pause();
+  if(e.code === 'KeyM'){
+    tonAn = !tonAn; localStorage.setItem('nachtflug.ton', tonAn ? 'an' : 'aus');
+    if(meister) meister.gain.value = tonAn ? .8 : 0;
+  }
+});
+cv.addEventListener('pointerdown', e => { schlagen(); e.preventDefault(); });
+function pause(){
+  if(spiel.aus || !spiel.laeuft) return;
+  spiel.pause = !spiel.pause;
+  $('#abschnitt').textContent = spiel.pause ? 'PAUSE' : ABSCHNITTE[spiel.abschnitt].name;
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .045); vorher = jetzt;
+  if(!spiel) return;
+  if(!spiel.aus && !spiel.pause) schritt(dt);
+  malAlles();
+}
+
+/* ── Anfang und Ende ──────────────────────────────────────────────── */
+const ORDEN = [
+  {ab: 60, text:'GOLDENER FALTER'},
+  {ab: 35, text:'SILBERNER FALTER'},
+  {ab: 18, text:'BRONZENER FALTER'},
+  {ab:  8, text:'ANGEHENDER NACHTFLIEGER'},
+  {ab:  0, text:''}
+];
+function starten(){
+  tonStart(); neu();
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+  $('#kombo').classList.remove('an');
+}
+function ende(){
+  if(spiel.aus) return;
+  spiel.aus = true; spiel.laeuft = false;
+  const p = spiel.punkte;
+  const rekord = p > bestwert;
+  if(rekord){ bestwert = p; localStorage.setItem('nachtflug.best', String(p)); }
+  $('#endeTitel').textContent = rekord ? 'REKORD' : 'RUNTER';
+  $('#endeTitel').style.color = rekord ? 'var(--gruen)' : 'var(--ink)';
+  $('#ePunkte').textContent = p;
+  $('#eTore').textContent   = spiel.tore;
+  $('#eScharf').textContent = spiel.scharf;
+  $('#neuerBest').textContent = rekord ? 'so weit warst du noch nie' : 'bester Flug: ' + bestwert;
+  $('#orden').textContent = (ORDEN.find(o => p >= o.ab) || {text:''}).text;
+  const anteil = spiel.tore ? Math.round(100*spiel.scharf/spiel.tore) : 0;
+  $('#endeText').textContent = spiel.grund + ' ' +
+    (spiel.tore ? 'An ' + anteil + ' % der Tore bist du haarscharf vorbei.' : '');
+  $('#ende').classList.remove('weg');
+}
+
+$('#losKnopf').addEventListener('click', e => { e.stopPropagation(); starten(); });
+$('#nochmal').addEventListener('click', e => { e.stopPropagation(); starten(); });
+neu(); spiel.aus = true;                          // Bild hinter dem Startschirm
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__nachtflug = {
+  get f(){return f}, get spiel(){return spiel}, get tore(){return tore},
+  starten, schlagen, sturz,
+  setzeTore: n => { spiel.tore = n; spiel.abschnitt = Math.floor(n/TORE_JE_ABSCHNITT) % ABSCHNITTE.length;
+                    $('#abschnitt').textContent = ABSCHNITTE[spiel.abschnitt].name; },
+  ABSCHNITTE, TOR_BR, FX, B, H, BODEN
+};
+</script>
+</body>
+</html>

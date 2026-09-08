@@ -122,12 +122,12 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 /* ── Touch ─────────────────────────────────────────────── */
 #touch{position:fixed;inset:0;z-index:50;display:none;pointer-events:none}
 #touch.an{display:block}
-#stick{position:absolute;left:20px;bottom:20px;width:130px;height:130px;border-radius:50%;
+#stick{position:absolute;left:20px;bottom:20px;width:130px;height:130px;border-radius:50%;touch-action:none;
   border:2px solid #ffffff22;background:#0f1a13aa;pointer-events:auto}
 #stick i{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;
   background:#ffffff2e;border:2px solid #ffffff33}
-#blick{position:absolute;right:0;top:0;width:52%;height:78%;pointer-events:auto}
-.tb{position:absolute;pointer-events:auto;border:2px solid #ffffff22;background:#0f1a13c4;
+#blick{position:absolute;right:0;top:0;width:52%;height:78%;pointer-events:auto;touch-action:none}
+.tb{position:absolute;pointer-events:auto;touch-action:none;border:2px solid #ffffff22;background:#0f1a13c4;
   display:grid;place-items:center;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--kreide)}
 .tb.gedrueckt{background:var(--gelb);color:#16241b}
 #tRennen{right:22px;bottom:30px;width:84px;height:84px;border-radius:50%}
