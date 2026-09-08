@@ -22,18 +22,36 @@ durchs Gitter; die getroffene Wand wird als Texturspalte direkt in einen
 Leinwand geht. Figuren und Gegenstände kommen danach als Billboards, sortiert
 nach Entfernung und gegen den Tiefenpuffer der Wandstrahlen geprüft.
 
+**Boden und Decke sind texturiert**, nicht flach gefüllt: Für jede Bildzeile
+unterhalb des Horizonts steht der Abstand fest, daraus ergibt sich die
+Weltposition, die man Spalte für Spalte weiterschiebt; die Decke ist dieselbe
+Zeile gespiegelt. Das ist der größte Unterschied im Bild — Fliesen mit Fugen
+und Deckenplatten mit Leuchtröhren statt zweier Farbverläufe.
+
 Die Innenauflösung ist fest 240 Zeilen hoch, die Breite folgt dem
 Seitenverhältnis. Hart hochskaliert (`image-rendering: pixelated`) — das gibt
-den groben Look und läuft auch auf dem Handy flüssig.
+den groben Look und läuft mit 60 fps.
 
 Alle Texturen sind im Code gezeichnet, nicht geladen: Flurwand mit grünem
-Sockel, Spindreihe, Klassenraumtür mit Fensterchen, Tafel, Ausgangsschild.
+Sockel, Spindreihe, Klassenraumtür mit Fensterchen, Tafel, Ausgangsschild,
+Linoleumboden, Deckenplatte. Dazu zwei Wandvarianten — Plakat und
+Anschlagbrett —, die über einen Streuwert aus den Zellkoordinaten verteilt
+werden, damit die Gänge nicht alle gleich aussehen.
+
+Figuren bekommen beim Backen automatisch einen dunklen Umriss: jedes
+durchsichtige Pixel neben einem undurchsichtigen wird eingefärbt. Ohne das
+verschwimmen sie mit der Wand dahinter.
 
 ## Das Schulhaus
 
 `schule.js` erzeugt es aus einem Startwert. Flurachsen in unregelmäßigen
 Abständen und zwei Zellen breit, die Felder dazwischen werden Klassenräume mit
-je einer Tür und einer Tafel, ein paar bleiben massiv. Spinde setzen sich an
+je einer Tür und einer Tafel, ein paar bleiben massiv.
+
+Wichtig dabei: zwischen Flur und Klassenraum muss eine **Wandzelle** stehen
+bleiben. Anfangs begannen die Räume direkt am Gang — die Räume flossen in die
+Flure über, und das Schulhaus wirkte wie eine offene Lagerhalle statt wie ein
+Gebäude. Ein Prüflauf zählt heute 0 Raumkanten ohne Wand zum Flur. Spinde setzen sich an
 Flurwände, drei Ausgänge werden an die Außenwände gebrochen. Ergebnis bei
 Startwert 1998: 45 × 45 Zellen, 12 Klassenräume, 3 Ausgänge — und jeder Raum
 vom Start aus erreichbar (per Breitensuche geprüft).

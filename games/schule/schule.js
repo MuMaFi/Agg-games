@@ -32,6 +32,10 @@ export function baueSchule(saat = 1998){
   const achsenX = [3], achsenY = [3];
   while(achsenX[achsenX.length-1] < B-12) achsenX.push(achsenX[achsenX.length-1] + 8 + Math.floor(z()*4));
   while(achsenY[achsenY.length-1] < H-12) achsenY.push(achsenY[achsenY.length-1] + 8 + Math.floor(z()*4));
+  // Flure sind zwei Zellen breit — schmaler ließe sich an der Lehrkraft
+  // nicht mehr vorbeikommen. Entscheidend ist, dass danach eine Wandzelle
+  // folgt: vorher begannen die Klassenräume direkt am Flur, die Räume
+  // flossen in die Gänge über und alles wirkte wie eine offene Halle.
   for(const x of achsenX) for(let y=3;y<H-3;y++){ setz(x,y,FLUR); setz(x+1,y,FLUR); }
   for(const y of achsenY) for(let x=3;x<B-3;x++){ setz(x,y,FLUR); setz(x,y+1,FLUR); }
 
@@ -39,7 +43,7 @@ export function baueSchule(saat = 1998){
   const raeume = [];
   for(let i=0;i<achsenX.length-1;i++){
     for(let j=0;j<achsenY.length-1;j++){
-      const x0 = achsenX[i]+2, y0 = achsenY[j]+2;
+      const x0 = achsenX[i]+3, y0 = achsenY[j]+3;   // +2 wäre direkt am Flur
       const x1 = achsenX[i+1]-1, y1 = achsenY[j+1]-1;
       if(x1-x0 < 3 || y1-y0 < 3) continue;
       if(z() < .18) continue;                            // manche Felder bleiben Wand
@@ -78,7 +82,7 @@ export function baueSchule(saat = 1998){
     if(ausgaenge.some(a => Math.abs(a.x-x)+Math.abs(a.y-y) < 14)) continue;
     let cx=x, cy=y;
     while(hol(cx+dx,cy+dy)===WAND || hol(cx+dx,cy+dy)===SPIND){ cx+=dx; cy+=dy; setz(cx,cy,FLUR); if(cx<2||cy<2||cx>B-3||cy>H-3) break; }
-    setz(cx,cy,AUSGANG); setz(cx+(dy?1:0), cy+(dx?1:0), AUSGANG);
+    setz(cx,cy,AUSGANG);
     ausgaenge.push({x:cx, y:cy});
   }
 

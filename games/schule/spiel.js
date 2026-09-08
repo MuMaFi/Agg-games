@@ -61,6 +61,59 @@ TEX[TAFEL] = textur((g,S) => {
   g.font='9px monospace'; g.fillStyle='rgba(238,243,234,.7)'; g.fillText('7×8=', 34, 40);
   g.fillStyle='#c9b98a'; g.fillRect(2,S-10,S-4,4);              // Kreideablage
 });
+/* Boden und Decke werden ab jetzt texturiert statt flach gefüllt —
+   das ist der größte Unterschied im Bild. */
+const BODEN = textur((g,S) => {
+  // Linoleum in zwei Tönen, mit Fugen
+  for(let j=0;j<2;j++) for(let i=0;i<2;i++){
+    g.fillStyle = (i+j)%2 ? '#7d7a6b' : '#8c8879';
+    g.fillRect(i*S/2, j*S/2, S/2, S/2);
+  }
+  g.fillStyle='rgba(255,255,255,.05)';
+  for(let k=0;k<70;k++) g.fillRect(z0()*S, z0()*S, 1+z0()*2, 1);   // Sprenkel
+  g.fillStyle='rgba(40,38,32,.45)';
+  g.fillRect(0,S/2-1,S,2); g.fillRect(S/2-1,0,2,S);
+  g.fillRect(0,0,S,1); g.fillRect(0,0,1,S);
+});
+const DECKE = textur((g,S) => {
+  g.fillStyle='#3a3f38'; g.fillRect(0,0,S,S);
+  g.fillStyle='#454b42';
+  g.fillRect(2,2,S-4,S-4);
+  g.fillStyle='rgba(20,22,19,.5)';
+  g.fillRect(0,0,S,2); g.fillRect(0,0,2,S);
+  // Leuchtröhre in jeder zweiten Platte
+  g.fillStyle='#cfd6c4'; g.fillRect(S*.22, S*.42, S*.56, S*.16);
+  g.fillStyle='#eef3ea'; g.fillRect(S*.24, S*.44, S*.52, S*.08);
+});
+/* Wandvarianten: Plakat und Anschlagbrett, damit die Gänge nicht
+   alle gleich aussehen. Welche Zelle welche bekommt, entscheidet ein
+   Streuwert aus ihren Koordinaten — bleibt also über die Runde gleich. */
+const WAND_PLAKAT = textur((g,S) => {
+  g.fillStyle='#cdbf9a'; g.fillRect(0,0,S,S);
+  g.fillStyle='#4e7a55'; g.fillRect(0,S*.58,S,S*.42);
+  g.fillStyle='#8a9b6e'; g.fillRect(0,S*.55,S,S*.05);
+  g.fillStyle='#d8503f'; g.fillRect(S*.22,S*.10,S*.56,S*.38);
+  g.fillStyle='#f3f0e2'; g.fillRect(S*.26,S*.14,S*.48,S*.16);
+  g.fillStyle='#20261c'; for(let i=0;i<3;i++) g.fillRect(S*.28,S*.34+i*4,S*.30-i*3,2);
+  g.fillStyle='rgba(0,0,0,.22)'; g.fillRect(S*.22,S*.48,S*.56,2);
+});
+const WAND_BRETT = textur((g,S) => {
+  g.fillStyle='#cdbf9a'; g.fillRect(0,0,S,S);
+  g.fillStyle='#4e7a55'; g.fillRect(0,S*.58,S,S*.42);
+  g.fillStyle='#8a9b6e'; g.fillRect(0,S*.55,S,S*.05);
+  g.fillStyle='#6b4326'; g.fillRect(S*.10,S*.08,S*.80,S*.42);
+  g.fillStyle='#9a7a52'; g.fillRect(S*.13,S*.11,S*.74,S*.36);
+  const bl=[['#f3f0e2',.17,.15,.20,.14],['#e8dfa8',.42,.13,.16,.18],
+            ['#dfe8f0',.62,.18,.20,.12],['#f0dfe0',.24,.32,.18,.12]];
+  for(const [f,x,y,b,h] of bl){ g.fillStyle=f; g.fillRect(S*x,S*y,S*b,S*h);
+    g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(S*x,S*(y+h),S*b,1); }
+});
+function wandVariante(mx,my){
+  const h = ((mx*73856093) ^ (my*19349663)) >>> 0;
+  const v = h % 11;
+  return v === 3 ? WAND_PLAKAT : v === 7 ? WAND_BRETT : TEX[WAND];
+}
+
 TEX[AUSGANG] = textur((g,S) => {
   g.fillStyle='#2e4a35'; g.fillRect(0,0,S,S);
   g.fillStyle='#79b84a'; g.fillRect(5,5,S-10,S-10);
@@ -70,48 +123,140 @@ TEX[AUSGANG] = textur((g,S) => {
 });
 
 /* ── Figuren und Gegenstände als Billboards ────────────────────── */
-function sprite(b, h, malen){
+function sprite(b, h, malen, rand = true){
   const c = document.createElement('canvas'); c.width=b; c.height=h;
   const g = c.getContext('2d'); malen(g,b,h);
   const d = g.getImageData(0,0,b,h).data;
-  const px = new Uint32Array(b*h);
+  let px = new Uint32Array(b*h);
   for(let i=0;i<b*h;i++)
     px[i] = d[i*4+3] < 128 ? 0 : ((255<<24)|(d[i*4+2]<<16)|(d[i*4+1]<<8)|d[i*4]);
+  if(rand) px = mitRand(px, b, h);
   return {b, h, px};
 }
-function figur(g,B,H,{hemd,hose,haut,haar,extra}){
-  g.fillStyle=hose; g.fillRect(B*.30,H*.58,B*.16,H*.36); g.fillRect(B*.54,H*.58,B*.16,H*.36);
-  g.fillStyle='#2b2b30'; g.fillRect(B*.28,H*.92,B*.20,H*.07); g.fillRect(B*.52,H*.92,B*.20,H*.07);
-  g.fillStyle=hemd; g.fillRect(B*.26,H*.30,B*.48,H*.30);
-  g.fillStyle=haut; g.fillRect(B*.17,H*.32,B*.10,H*.24); g.fillRect(B*.73,H*.32,B*.10,H*.24);
-  g.fillStyle=haut; g.fillRect(B*.32,H*.08,B*.36,H*.24);
-  g.fillStyle=haar; g.fillRect(B*.30,H*.05,B*.40,H*.09);
-  g.fillStyle='#1a1a1a'; g.fillRect(B*.39,H*.17,B*.05,H*.05); g.fillRect(B*.56,H*.17,B*.05,H*.05);
-  if(extra) extra(g,B,H);
+/* Dunkler Umriss um alles Undurchsichtige — dadurch heben sich die
+   Figuren von der Wand ab, statt in ihr zu verschwimmen. */
+function mitRand(px, b, h){
+  const aus = px.slice();
+  for(let y=0;y<h;y++) for(let x=0;x<b;x++){
+    if(px[y*b+x]) continue;
+    let nachbar = false;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<b&&ny<h&&px[ny*b+nx]){ nachbar = true; break; }
+    }
+    if(nachbar) aus[y*b+x] = 0xff1a1614;
+  }
+  return aus;
 }
+
+/* Zeichenhilfe: spiegelt links/rechts automatisch, damit Figuren
+   symmetrisch bleiben, ohne jede Koordinate doppelt zu schreiben. */
+function paar(g, farbe, x, y, b, h, B){
+  g.fillStyle = farbe;
+  g.fillRect(x, y, b, h);
+  g.fillRect(B-x-b, y, b, h);
+}
+
+/* Herr Kreide — Glatze mit Haarkranz, Pullunder, Lineal in der Hand. */
+function malKreide(g, B, H){
+  const HAUT='#e9c39a', HAUT_D='#c9a077', KRANZ='#5e564d', PULLI='#3f7a63',
+        PULLI_D='#2e5c4a', HEMD='#eef3ea', HOSE='#3b3f4a', SCHUH='#23252b';
+  // Beine
+  paar(g, HOSE, B*.30, H*.62, B*.15, H*.28, B);
+  paar(g, SCHUH, B*.27, H*.89, B*.20, H*.07, B);
+  // Rumpf
+  g.fillStyle = PULLI;  g.fillRect(B*.24, H*.34, B*.52, H*.30);
+  g.fillStyle = PULLI_D; g.fillRect(B*.24, H*.58, B*.52, H*.06);
+  // Hemdkragen als V
+  g.fillStyle = HEMD;
+  g.fillRect(B*.40, H*.34, B*.20, H*.05);
+  g.fillRect(B*.44, H*.39, B*.12, H*.05);
+  // Arme
+  paar(g, PULLI, B*.16, H*.36, B*.09, H*.18, B);
+  paar(g, HAUT,  B*.16, H*.54, B*.09, H*.07, B);
+  // Kopf: Glatze
+  g.fillStyle = HAUT;   g.fillRect(B*.30, H*.10, B*.40, H*.22);
+  g.fillStyle = HAUT;   g.fillRect(B*.34, H*.07, B*.32, H*.04);   // gewölbter Scheitel
+  g.fillStyle = 'rgba(255,255,255,.30)';
+  g.fillRect(B*.38, H*.09, B*.14, H*.03);                          // Glanz auf der Glatze
+  paar(g, HAUT_D, B*.26, H*.18, B*.05, H*.07, B);                  // Ohren
+  // Haarkranz nur an den Seiten und hinten
+  paar(g, KRANZ, B*.28, H*.20, B*.04, H*.11, B);
+  g.fillStyle = KRANZ; g.fillRect(B*.30, H*.29, B*.40, H*.03);
+  // Gesicht
+  g.fillStyle = '#f6f6f2'; g.fillRect(B*.37, H*.19, B*.09, H*.05); g.fillRect(B*.54, H*.19, B*.09, H*.05);
+  g.fillStyle = '#20262e'; g.fillRect(B*.40, H*.20, B*.04, H*.04); g.fillRect(B*.57, H*.20, B*.04, H*.04);
+  g.fillStyle = KRANZ;    g.fillRect(B*.36, H*.16, B*.11, H*.02); g.fillRect(B*.53, H*.16, B*.11, H*.02);
+  g.fillStyle = HAUT_D;   g.fillRect(B*.47, H*.22, B*.06, H*.05);  // Nase
+  g.fillStyle = '#8f5f52'; g.fillRect(B*.42, H*.28, B*.16, H*.02); // Mund
+  g.fillStyle = HAUT;     g.fillRect(B*.42, H*.32, B*.16, H*.03);  // Hals
+  // Lineal
+  g.fillStyle = '#d9c17a'; g.fillRect(B*.80, H*.28, B*.06, H*.34);
+  g.fillStyle = '#a8894a';
+  for(let i=0;i<7;i++) g.fillRect(B*.80, H*(.31+i*.045), B*.03, H*.008);
+}
+
+/* Der Direktor — grauer Anzug, Brille, Klemmbrett. */
+function malDirektor(g, B, H){
+  const HAUT='#dcae86', HAAR='#8e9099', ANZUG='#404a5c', ANZUG_D='#2f3746',
+        HEMD='#eef3ea', KRAW='#8f2f3a', SCHUH='#1e2026';
+  paar(g, ANZUG_D, B*.30, H*.62, B*.15, H*.28, B);
+  paar(g, SCHUH, B*.27, H*.89, B*.20, H*.07, B);
+  g.fillStyle = ANZUG; g.fillRect(B*.24, H*.34, B*.52, H*.30);
+  g.fillStyle = HEMD;  g.fillRect(B*.42, H*.34, B*.16, H*.24);
+  g.fillStyle = KRAW;  g.fillRect(B*.46, H*.36, B*.08, H*.20);
+  g.fillStyle = ANZUG; g.fillRect(B*.24, H*.34, B*.14, H*.30); g.fillRect(B*.62, H*.34, B*.14, H*.30);
+  paar(g, ANZUG, B*.16, H*.36, B*.09, H*.18, B);
+  paar(g, HAUT,  B*.16, H*.54, B*.09, H*.07, B);
+  g.fillStyle = HAUT; g.fillRect(B*.31, H*.11, B*.38, H*.21);
+  g.fillStyle = HAAR; g.fillRect(B*.29, H*.08, B*.42, H*.07);
+  paar(g, HAAR, B*.28, H*.14, B*.04, H*.10, B);
+  paar(g, HAUT, B*.26, H*.18, B*.05, H*.07, B);
+  // Brille
+  g.fillStyle = '#20262e';
+  g.fillRect(B*.34, H*.19, B*.13, H*.02); g.fillRect(B*.53, H*.19, B*.13, H*.02);
+  g.fillStyle = '#cfe2ea'; g.fillRect(B*.36, H*.21, B*.09, H*.05); g.fillRect(B*.55, H*.21, B*.09, H*.05);
+  g.fillStyle = '#20262e'; g.fillRect(B*.45, H*.22, B*.10, H*.015);
+  g.fillStyle = '#c08f6a'; g.fillRect(B*.47, H*.24, B*.06, H*.05);
+  g.fillStyle = '#7a4f45'; g.fillRect(B*.43, H*.29, B*.14, H*.02);
+  // Klemmbrett
+  g.fillStyle = '#8a6a45'; g.fillRect(B*.72, H*.44, B*.18, H*.20);
+  g.fillStyle = '#f3f0e2'; g.fillRect(B*.74, H*.47, B*.14, H*.15);
+  g.fillStyle = '#9aa0a8'; g.fillRect(B*.76, H*.44, B*.10, H*.03);
+}
+
 const SPR = {
-  kreide: sprite(48,80,(g,B,H)=>figur(g,B,H,{hemd:'#c8543f',hose:'#2f3a4a',haut:'#e8bf95',haar:'#3a2b1e',
-    extra:(g,B,H)=>{ g.fillStyle='#d9c17a'; g.fillRect(B*.80,H*.30,B*.05,H*.34);       // Lineal
-                     g.fillStyle='#efe6c8'; g.fillRect(B*.33,H*.42,B*.34,H*.06); }})), // Kragen
-  direktor: sprite(48,80,(g,B,H)=>figur(g,B,H,{hemd:'#3b4a6b',hose:'#20242e',haut:'#d9a97e',haar:'#20242e',
-    extra:(g,B,H)=>{ g.fillStyle='#8f2f2f'; g.fillRect(B*.46,H*.30,B*.08,H*.22);       // Krawatte
-                     g.fillStyle='#eef3ea'; g.fillRect(B*.40,H*.30,B*.20,H*.04); }})),
-  heft: sprite(32,32,(g,B,H)=>{
-    g.fillStyle='#2f4f8f'; g.fillRect(B*.16,H*.10,B*.68,H*.80);
-    g.fillStyle='#f3f0e2'; g.fillRect(B*.22,H*.16,B*.56,H*.68);
-    g.fillStyle='#c9c3ac'; for(let i=0;i<4;i++) g.fillRect(B*.28,H*.26+i*H*.12,B*.44,2);
-    g.fillStyle='#d8503f'; g.fillRect(B*.16,H*.10,B*.06,H*.80); }),
-  energie: sprite(24,32,(g,B,H)=>{
-    g.fillStyle='#c9cfd6'; g.fillRect(B*.22,H*.18,B*.56,H*.72);
-    g.fillStyle='#f2c14e'; g.fillRect(B*.22,H*.36,B*.56,H*.30);
-    g.fillStyle='#20261c'; g.fillRect(B*.30,H*.10,B*.40,H*.10); }),
-  seife: sprite(24,24,(g,B,H)=>{
-    g.fillStyle='#8fd0e0'; g.fillRect(B*.14,H*.30,B*.72,H*.42);
-    g.fillStyle='#c8ecf5'; g.fillRect(B*.20,H*.34,B*.60,H*.12); }),
-  zonk: sprite(26,20,(g,B,H)=>{
-    g.fillStyle='#6b4326'; g.fillRect(B*.08,H*.26,B*.84,H*.48);
-    g.fillStyle='#c98f4a'; g.fillRect(B*.14,H*.34,B*.72,H*.12);
-    g.fillStyle='#efe6c8'; g.font='7px monospace'; g.fillText('ZONK', B*.18, H*.66); })
+  kreide:   sprite(56, 96, malKreide),
+  direktor: sprite(56, 96, malDirektor),
+  heft: sprite(40, 46, (g,B,H) => {
+    g.fillStyle='#2f4f8f'; g.fillRect(B*.12,H*.06,B*.76,H*.88);
+    g.fillStyle='#24407a'; g.fillRect(B*.12,H*.86,B*.76,H*.08);
+    g.fillStyle='#f3f0e2'; g.fillRect(B*.22,H*.12,B*.60,H*.74);
+    g.fillStyle='#c9c3ac'; for(let i=0;i<5;i++) g.fillRect(B*.28,H*(.22+i*.13),B*.48,H*.022);
+    g.fillStyle='#d8503f'; g.fillRect(B*.12,H*.06,B*.07,H*.88);
+    g.fillStyle='#9aa0a8';                                    // Spiralbindung
+    for(let i=0;i<5;i++) g.fillRect(B*.09,H*(.14+i*.17),B*.10,H*.035);
+  }),
+  energie: sprite(28, 44, (g,B,H) => {
+    g.fillStyle='#b9bfc6'; g.fillRect(B*.20,H*.16,B*.60,H*.76);
+    g.fillStyle='#d6dbe1'; g.fillRect(B*.24,H*.18,B*.18,H*.72);
+    g.fillStyle='#f2c14e'; g.fillRect(B*.20,H*.38,B*.60,H*.26);
+    g.fillStyle='#d8503f'; g.fillRect(B*.20,H*.46,B*.60,H*.06);
+    g.fillStyle='#8a8f96'; g.fillRect(B*.30,H*.08,B*.40,H*.10);
+    g.fillStyle='#c9cfd6'; g.fillRect(B*.34,H*.05,B*.32,H*.05);
+  }),
+  seife: sprite(32, 24, (g,B,H) => {
+    g.fillStyle='#5fb6cc'; g.fillRect(B*.10,H*.30,B*.80,H*.46);
+    g.fillStyle='#8fd0e0'; g.fillRect(B*.10,H*.30,B*.80,H*.16);
+    g.fillStyle='#c8ecf5'; g.fillRect(B*.18,H*.34,B*.40,H*.08);
+    g.fillStyle='#3f8fa5'; g.fillRect(B*.10,H*.70,B*.80,H*.06);
+  }),
+  zonk: sprite(36, 24, (g,B,H) => {
+    g.fillStyle='#5b3a20'; g.fillRect(B*.06,H*.24,B*.88,H*.52);
+    g.fillStyle='#7a4f2b'; g.fillRect(B*.06,H*.24,B*.88,H*.16);
+    g.fillStyle='#c98f4a'; g.fillRect(B*.12,H*.42,B*.76,H*.14);
+    g.fillStyle='#efe6c8'; g.font='bold 8px monospace'; g.fillText('ZONK', B*.16, H*.66);
+  })
 };
 
 /* ── Eigene Grafiken ───────────────────────────────────────────────
@@ -543,15 +688,34 @@ function zeichne(){
   const px = spieler.x, py = spieler.y;
   const dx = spieler.wx, dy = spieler.wy, ebx = spieler.ebx, eby = spieler.eby;
 
-  // Decke und Boden
-  for(let y=0;y<H;y++){
-    const oben = y < H/2;
-    const t = oben ? y/(H/2) : (y-H/2)/(H/2);
-    const c = oben
-      ? mischFarbe(0x1c2119, 0x3c443a, t)
-      : mischFarbe(0x746f60, 0x35322b, 1-t);
-    puffer.fill(0xff000000 | ((c&0xff)<<16) | (((c>>8)&0xff)<<8) | ((c>>16)&0xff), y*W, y*W+W);
+  /* Boden und Decke texturiert statt flach: für jede Bildzeile unterhalb
+     des Horizonts steht der Abstand zum Betrachter fest, daraus ergibt sich
+     die Weltposition, die man Spalte für Spalte weiterschiebt. Die Decke ist
+     dieselbe Zeile gespiegelt. */
+  const rdx0 = dx - ebx, rdy0 = dy - eby;
+  const rdx1 = dx + ebx, rdy1 = dy + eby;
+  for(let y = (H>>1)+1; y < H; y++){
+    const abstand = (H*.5) / (y - H*.5);
+    const schrittX = abstand * (rdx1-rdx0) / W;
+    const schrittY = abstand * (rdy1-rdy0) / W;
+    let fx = px + abstand*rdx0, fy = py + abstand*rdy0;
+    const neb = klemm(1 - abstand/17, .16, 1);
+    const nebD = neb * .82;                       // Decke etwas dunkler
+    const zOben = (H-y-1)*W, zUnten = y*W;
+    for(let x=0; x<W; x++){
+      const tx = (((fx - Math.floor(fx)) * TG) | 0) & (TG-1);
+      const ty = (((fy - Math.floor(fy)) * TG) | 0) & (TG-1);
+      fx += schrittX; fy += schrittY;
+      const i = ty*TG + tx;
+      let c = BODEN[i];
+      puffer[zUnten + x] = 0xff000000
+        | ((((c>>16&0xff)*neb)|0)<<16) | ((((c>>8&0xff)*neb)|0)<<8) | (((c&0xff)*neb)|0);
+      c = DECKE[i];
+      puffer[zOben + x] = 0xff000000
+        | ((((c>>16&0xff)*nebD)|0)<<16) | ((((c>>8&0xff)*nebD)|0)<<8) | (((c&0xff)*nebD)|0);
+    }
   }
+  puffer.fill(0xff2a2f28, 0, W);                  // oberste Zeile, sonst Rest vom Vorbild
 
   for(let x=0;x<W;x++){
     const kam = 2*x/W - 1;
@@ -572,7 +736,7 @@ function zeichne(){
     tiefe[x] = dist;
     const hoch = Math.floor(H/dist);
     let y0 = Math.floor(-hoch/2 + H/2), y1 = Math.floor(hoch/2 + H/2);
-    const tex = TEX[feld] || TEX[WAND];
+    const tex = feld === WAND ? wandVariante(mx,my) : (TEX[feld] || TEX[WAND]);
     let wandX = seite === 0 ? py + dist*rdy : px + dist*rdx;
     wandX -= Math.floor(wandX);
     let tx = Math.floor(wandX*TG);
@@ -629,11 +793,6 @@ function zeichne(){
     }
   }
   ctx.putImageData(bild, 0, 0);
-}
-function mischFarbe(a, b, t){
-  const ar=(a>>16)&255, ag=(a>>8)&255, ab=a&255;
-  const br=(b>>16)&255, bg=(b>>8)&255, bb=b&255;
-  return (((misch(ar,br,t))|0)<<16) | (((misch(ag,bg,t))|0)<<8) | ((misch(ab,bb,t))|0);
 }
 
 /* ── Karte, Anzeige, Meldungen ─────────────────────────────────── */
