@@ -188,23 +188,24 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </svg>
       <span>AGG <b>GAMES</b></span>
     </a>
-    <span class="top-count">6 Spiele · kein Download</span>
+    <span class="top-count">7 Spiele · kein Download</span>
   </div>
 </header>
 
 <main>
   <section class="wrap hero">
     <span class="kicker">Direkt im Browser</span>
-    <h1>Sechs Spiele,<br>ein Regalbrett.</h1>
+    <h1>Sieben Spiele,<br>ein Regalbrett.</h1>
     <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
   </section>
 
   <div class="wrap">
     <div class="bar" role="group" aria-label="Nach Art filtern">
-      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">6</span></button>
+      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">7</span></button>
       <button class="chip" type="button" data-filter="3d" aria-pressed="false">3D-Welten <span class="n">3</span></button>
       <button class="chip" type="button" data-filter="rennen" aria-pressed="false">Rennen <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="arcade" aria-pressed="false">Arcade <span class="n">2</span></button>
+      <button class="chip" type="button" data-filter="action" aria-pressed="false">Action <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="idle" aria-pressed="false">Idle &amp; Aufbau <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="horror" aria-pressed="false">Horror <span class="n">1</span></button>
       <span class="spacer"></span>
@@ -447,6 +448,90 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
         </div>
       </a>
 
+      <!-- ── Blechschaden ─────────────────────────────────────────── -->
+      <a class="card" href="games/blech/" data-cat="action rennen" style="--accent:#ffc233">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Draufsicht auf eine Stadtkreuzung mit Autos, Zebrastreifen und Telefonzelle">
+            <defs>
+              <linearGradient id="bl-dach" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#8d6f5a"/><stop offset="1" stop-color="#6f5646"/>
+              </linearGradient>
+            </defs>
+            <rect width="320" height="180" fill="#4a4f45"/>
+            <!-- Gehwege -->
+            <g fill="#8d8b80">
+              <rect x="118" y="0" width="84" height="180"/><rect x="0" y="58" width="320" height="84"/>
+            </g>
+            <!-- Fahrbahn -->
+            <g fill="#3a3d44">
+              <rect x="131" y="0" width="58" height="180"/><rect x="0" y="71" width="320" height="58"/>
+            </g>
+            <!-- Mittelstreifen -->
+            <g fill="#c9c2a4">
+              <rect x="158" y="6" width="3" height="18"/><rect x="158" y="32" width="3" height="18"/>
+              <rect x="158" y="130" width="3" height="18"/><rect x="158" y="156" width="3" height="18"/>
+              <rect x="14" y="98" width="18" height="3"/><rect x="40" y="98" width="18" height="3"/>
+              <rect x="262" y="98" width="18" height="3"/><rect x="288" y="98" width="18" height="3"/>
+            </g>
+            <!-- Zebrastreifen -->
+            <g fill="#d5cfb4">
+              <rect x="136" y="46" width="7" height="14"/><rect x="150" y="46" width="7" height="14"/>
+              <rect x="164" y="46" width="7" height="14"/><rect x="178" y="46" width="7" height="14"/>
+              <rect x="136" y="140" width="7" height="14"/><rect x="150" y="140" width="7" height="14"/>
+              <rect x="164" y="140" width="7" height="14"/><rect x="178" y="140" width="7" height="14"/>
+              <rect x="104" y="76" width="14" height="7"/><rect x="104" y="90" width="14" height="7"/>
+              <rect x="104" y="104" width="14" height="7"/><rect x="104" y="118" width="14" height="7"/>
+            </g>
+            <!-- Häuser mit Schatten -->
+            <g>
+              <rect x="16" y="10" width="86" height="40" fill="#1a1720" opacity=".3" transform="translate(7,5)"/>
+              <rect x="16" y="10" width="86" height="40" fill="url(#bl-dach)"/>
+              <rect x="24" y="18" width="14" height="10" fill="#5a5f66"/><rect x="70" y="30" width="18" height="12" fill="#5a5f66"/>
+              <rect x="218" y="8" width="88" height="44" fill="#1a1720" opacity=".3" transform="translate(7,5)"/>
+              <rect x="218" y="8" width="88" height="44" fill="#7d8a72"/>
+              <rect x="234" y="20" width="20" height="12" fill="#616c58"/>
+              <rect x="18" y="150" width="82" height="34" fill="#1a1720" opacity=".3" transform="translate(6,4)"/>
+              <rect x="18" y="150" width="82" height="34" fill="#7a7f8c"/>
+              <rect x="216" y="148" width="94" height="36" fill="#1a1720" opacity=".3" transform="translate(6,4)"/>
+              <rect x="216" y="148" width="94" height="36" fill="#946f63"/>
+              <rect x="240" y="158" width="22" height="12" fill="#73554c"/>
+            </g>
+            <!-- Fahrzeuge -->
+            <g>
+              <rect x="141" y="18" width="18" height="38" rx="2" fill="#1a1720" opacity=".34" transform="translate(4,4)"/>
+              <rect x="141" y="18" width="18" height="38" rx="2" fill="#a8433c"/>
+              <rect x="143" y="27" width="14" height="8" fill="#151821"/><rect x="143" y="42" width="14" height="6" fill="#151821"/>
+              <rect x="204" y="80" width="38" height="18" rx="2" fill="#1a1720" opacity=".34" transform="translate(4,4)"/>
+              <rect x="204" y="80" width="38" height="18" rx="2" fill="#e8e8ee"/>
+              <rect x="212" y="82" width="9" height="14" fill="#151821"/><rect x="228" y="82" width="7" height="14" fill="#151821"/>
+              <rect x="219" y="85" width="8" height="5" fill="#4a7dff"/><rect x="227" y="85" width="8" height="5" fill="#ff4a4a"/>
+              <rect x="60" y="102" width="34" height="17" rx="2" fill="#1a1720" opacity=".34" transform="translate(4,4)"/>
+              <rect x="60" y="102" width="34" height="17" rx="2" fill="#2fa36a"/>
+              <rect x="67" y="104" width="8" height="13" fill="#151821"/>
+            </g>
+            <!-- Telefonzelle + Spieler mit Ring -->
+            <rect x="122" y="60" width="9" height="12" fill="#ffc233"/>
+            <circle cx="176" cy="112" r="12" fill="none" stroke="#ffc233" stroke-width="2" opacity=".8"/>
+            <circle cx="176" cy="112" r="6" fill="#e0463c"/><circle cx="176" cy="110" r="3.6" fill="#ffd9a0"/>
+            <!-- Leuchtspur -->
+            <g fill="#fff3c4"><rect x="192" y="111" width="4" height="3"/><rect x="206" y="111" width="4" height="3"/><rect x="220" y="111" width="4" height="3"/></g>
+            <!-- Passanten -->
+            <g><circle cx="112" cy="30" r="4" fill="#9a7fb0"/><circle cx="208" cy="140" r="4" fill="#7fb09a"/><circle cx="126" cy="160" r="4" fill="#b09a7f"/></g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Action · Draufsicht · Open World</p>
+          <h2>Blechschaden</h2>
+          <p class="desc">Offene Stadt aus der Vogelperspektive, im Aufbau von GTA&nbsp;2. Jedes der 98 Autos lässt sich kapern, 140 Leute laufen herum und rennen weg, wenn es laut wird. Aufträge nimmst du an gelben Telefonzellen an — acht Stück, von der Kurierfahrt bis zum Hinterhalt. Fünf Waffen, fünf Fahndungsstufen, und ab Stufe&nbsp;2 schießt die Streife zurück.</p>
+          <div class="meta">
+            <span class="tag">Touch + Tastatur</span><span class="tag">3600 × 2900 Stadt</span>
+            <span class="tag">8 Aufträge</span><span class="tag warn">Schusswaffen</span>
+            <span class="tag warn">braucht Webserver</span>
+          </div>
+          <span class="play">Losfahren <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
       <!-- ── Snapshade ────────────────────────────────────────────── -->
       <a class="card" href="games/snapshade.html" data-cat="arcade" style="--accent:#5ec8e8">
         <div class="cover">
@@ -665,7 +750,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
         <li><a href="https://github.com/MuMaFi/SNAPSHADE">SNAPSHADE</a> — Found Tape &amp; Snapshade</li>
         <li><a href="https://github.com/MuMaFi/marioana">marioana</a> — Mini Jump ’n’ Run</li>
         <li><a href="https://github.com/MuMaFi/Kern-clicker">Kern-clicker</a> — KernClicker</li>
-        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite, Taschenwelt &amp; Nachtschicht</li>
+        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite, Taschenwelt, Nachtschicht &amp; Blechschaden</li>
       </ul>
     </div>
   </div>
