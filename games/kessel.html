@@ -22,8 +22,8 @@
 html,body{height:100%; overflow:hidden; overscroll-behavior:none}
 body{background:var(--bg); color:var(--ink); font-family:var(--pix);
   display:grid; place-items:center; touch-action:none; user-select:none}
-#buehne{position:relative; aspect-ratio:4/3; width:min(100vw, 133.34vh);
-  max-height:100vh; margin:auto}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite)));
+  aspect-ratio:var(--seite); max-height:100vh; margin:auto}
 canvas{display:block; width:100%; height:100%; image-rendering:pixelated; background:#080b11}
 
 /* ── Anzeige ──────────────────────────────────────────────── */
@@ -38,6 +38,12 @@ canvas{display:block; width:100%; height:100%; image-rendering:pixelated; backgr
 #leben{position:absolute; inset:2px; width:100%; background:var(--gruen); transform-origin:left}
 #waffen{position:absolute; right:12px; bottom:12px; display:flex; gap:4px; flex-wrap:wrap;
   justify-content:flex-end; max-width:52%}
+#tipp{position:absolute; left:0; right:0; top:50%; display:flex; justify-content:space-around;
+  pointer-events:none; font-size:11px; letter-spacing:.14em; color:var(--faint);
+  transition:opacity .4s}
+#tipp span{background:#0d1119b0; border:2px solid var(--edge); padding:5px 9px}
+#tipp.weg{opacity:0}
+body.maus #tipp{display:none}
 .marke{background:#0d1119cc; border:2px solid var(--edge); color:var(--dim);
   font-size:10px; letter-spacing:.08em; padding:3px 7px}
 
@@ -88,6 +94,7 @@ a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
   </div>
   <div id="leiste"><div id="leben"></div></div>
   <div id="waffen"></div>
+  <div id="tipp"><span>LINKS LAUFEN</span><span>RECHTS ZIELEN</span></div>
 
   <div id="wahl">
     <div style="text-align:center">
@@ -144,11 +151,20 @@ a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
 'use strict';
 const $ = s => document.querySelector(s);
 const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const klemmZahl = klemm;
 const misch = (a,b,t) => a+(b-a)*t;
 const zuf = (a,b) => a + Math.random()*(b-a);
 
-const AB = 640, AH = 480;                        // Arena
+/* Die Arena nimmt die Form des Fensters an, behält aber ihre Fläche.
+   Fest auf 4:3 war sie auf einem Telefon im Hochformat ein Briefschlitz
+   quer über der Mitte — knapp ein Drittel des Bildschirms, mit schwarzen
+   Balken darüber und darunter. Die Fläche bleibt gleich, damit die
+   Wellen gleich dicht bleiben. */
+const SEITE = klemmZahl(innerWidth/Math.max(innerHeight,1), .58, 1.7);
+const AH = Math.round(Math.sqrt(307200/SEITE));
+const AB = Math.round(AH*SEITE);
 const RAND = 14;
+document.getElementById('buehne').style.setProperty('--seite', (AB/AH).toFixed(4));
 const cv = $('#c'), g = cv.getContext('2d');
 cv.width = AB; cv.height = AH;
 g.imageSmoothingEnabled = false;
@@ -277,17 +293,26 @@ cv.addEventListener('mousemove', e => { const p = inArena(e); maus.x=p.x; maus.y
 
 /* Zwei Daumen: links laufen, rechts zielen. Der Knüppel setzt sich dort
    hin, wo der Finger aufsetzt — feste Knüppel trifft man auf einem
-   Telefon nie. */
+   Telefon nie.
+
+   Wichtig: nur Finger. Vorher hörte das hier auf jeden Zeiger, also auch
+   auf die Maus — ein Klick in die linke Bildhälfte hat die Figur gepackt
+   und in die Klickrichtung gezogen, ein Klick rechts hat das Zielen
+   festgenagelt, bis man losließ. Am Rechner zählen jetzt Tasten und
+   Mausbewegung, sonst nichts. */
 const knueppel = {id:-1, ox:0, oy:0, mx:0, my:0};
 const zielen   = {id:-1, x:0, y:0, an:false};
 cv.addEventListener('pointerdown', e => {
+  if(e.pointerType === 'mouse') return;
   const p = inArena(e);
   if(p.x < AB/2 && knueppel.id < 0){ knueppel.id = e.pointerId; knueppel.ox = p.x; knueppel.oy = p.y; }
   else if(zielen.id < 0){ zielen.id = e.pointerId; zielen.x = p.x; zielen.y = p.y; zielen.an = true; }
-  cv.setPointerCapture(e.pointerId);
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}   // manche Zeiger sind schon weg
+  $('#tipp').classList.add('weg');
   e.preventDefault();
 });
 cv.addEventListener('pointermove', e => {
+  if(e.pointerType === 'mouse') return;
   const p = inArena(e);
   if(e.pointerId === knueppel.id){
     const dx = p.x-knueppel.ox, dy = p.y-knueppel.oy, l = Math.hypot(dx,dy) || 1;
@@ -500,6 +525,25 @@ function zeichne(){
     g.fillRect(Math.round(k.x)-2, Math.round(k.y)-2, 4, 4);
   }
   malSpieler();
+  malGriff();
+}
+/* Auf dem Glas muss man sehen, wo der Daumen liegt und wie weit er
+   ausgeschlagen ist — sonst steuert man blind. */
+function malGriff(){
+  if(knueppel.id >= 0){
+    g.strokeStyle = 'rgba(138,215,255,.30)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(knueppel.ox, knueppel.oy, 46, 0, 6.284); g.stroke();
+    g.fillStyle = 'rgba(138,215,255,.70)';
+    g.beginPath(); g.arc(knueppel.ox + knueppel.mx*46, knueppel.oy + knueppel.my*46, 17, 0, 6.284); g.fill();
+  }
+  if(zielen.an){
+    g.strokeStyle = 'rgba(255,138,61,.75)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(zielen.x, zielen.y, 16, 0, 6.284); g.stroke();
+    g.beginPath(); g.moveTo(zielen.x-24, zielen.y); g.lineTo(zielen.x-8, zielen.y);
+    g.moveTo(zielen.x+8, zielen.y); g.lineTo(zielen.x+24, zielen.y);
+    g.moveTo(zielen.x, zielen.y-24); g.lineTo(zielen.x, zielen.y-8);
+    g.moveTo(zielen.x, zielen.y+8); g.lineTo(zielen.x, zielen.y+24); g.stroke();
+  }
 }
 function malFeind(f){
   const x = Math.round(f.x), y = Math.round(f.y);
@@ -572,6 +616,7 @@ function ende(){
   $('#ende').classList.remove('weg');
 }
 
+if(matchMedia('(hover: hover)').matches) document.body.classList.add('maus');
 $('#losKnopf').addEventListener('click', starten);
 $('#nochmal').addEventListener('click', starten);
 neuesSpiel(); laeuft = false;

@@ -447,7 +447,7 @@ addEventListener('keyup', e => {
 let zeiger = null;
 cv.addEventListener('pointerdown', e => {
   zeiger = {id:e.pointerId, x:e.clientX, start:spiel ? spiel.zielX : B/2};
-  cv.setPointerCapture(e.pointerId);
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}   // manche Zeiger sind schon weg
 });
 cv.addEventListener('pointermove', e => {
   if(!zeiger || e.pointerId !== zeiger.id || !spiel) return;
