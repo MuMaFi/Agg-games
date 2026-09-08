@@ -376,8 +376,9 @@ function neueRunde(){
   // Herr Kreide startet weit weg
   let kp = frei(), versuch = 0;
   while(Math.hypot(kp.x-st.x, kp.y-st.y) < 18 && versuch++ < 200) kp = frei();
-  kreide = {x:kp.x, y:kp.y, tempo:1.35, weg:null, wegUhr:0, betaeubt:0, lockZiel:null,
-            zustand:'wandert', wanderZiel:null};
+  kreide = {x:kp.x, y:kp.y, weg:null, wegUhr:0, betaeubt:0, lockZiel:null,
+            zustand:'wandert', wanderZiel:null,
+            schlagUhr:SCHLAG_TAKT, ruckRest:0, schlagBlitz:0};
   const dp = frei();
   direktor = {x:dp.x, y:dp.y, tempo:1.6, weg:null, wegUhr:0, ziel:null, ruheUhr:0};
 }
@@ -520,7 +521,7 @@ function antwortPruefen(){
       heftLage.aktiv.weg = true; spieler.hefte++;
       $('#heft').classList.remove('an');
       meldung('HEFT ' + heftLage.aktiv.nr, spieler.hefte >= 7
-        ? 'Alle sieben. Raus hier!' : 'Herr Kreide wird schneller');
+        ? 'Alle sieben. Raus hier!' : 'Das hat Herr Kreide gehört');
       hoert(spieler.x, spieler.y, 1);
       heftLage.aktiv = null;
       if(laeuft) leinwand.requestPointerLock();
@@ -578,10 +579,16 @@ function hoert(x, y, staerke){
   if(kreide.betaeubt > 0) return;
   kreide.zustand = 'jagt'; kreide.lockZiel = {x, y}; kreide.wegUhr = 0;
 }
+/* Herr Kreide läuft nicht, er ruckt. Im Takt schlägt er das Lineal in die
+   Hand und schiebt sich dabei ein Stück vor — dazwischen steht er still.
+   Der Takt bleibt über die ganze Runde gleich: Hefte und Rechenfehler rufen
+   ihn her, machen ihn aber nicht schneller. */
+const SCHLAG_TAKT  = 1.05;   // Sekunden zwischen zwei Schlägen
+const SCHLAG_WEITE = 1.50;   // Zellen, die ein Ruck weit trägt
+const RUCK_TEMPO   = 7.0;    // wie hastig der Ruck abläuft
+
 function kreideDenken(dt){
-  const kt = 1.35 + (spieler.hefte + spieler.fehler) * .30;     // wird mit jedem Heft zäher
-  kreide.tempo = kt;
-  if(kreide.betaeubt > 0){ kreide.betaeubt -= dt; return; }
+  if(kreide.betaeubt > 0){ kreide.betaeubt -= dt; kreide.schlagUhr = SCHLAG_TAKT*.6; return; }
 
   const dSp = Math.hypot(spieler.x-kreide.x, spieler.y-kreide.y);
   const rennt = taste.rennen && (taste.vor||taste.zurueck||taste.links||taste.rechts||knueppel.dx||knueppel.dy);
@@ -599,7 +606,20 @@ function kreideDenken(dt){
     kreide.wegUhr = .45;
     kreide.weg = wegSuche(s, kreide.x, kreide.y, ziel.x, ziel.y);
   }
-  laufeWeg(kreide, dt);
+  // Takt: Lineal in die Hand -> ein Ruck nach vorn
+  kreide.schlagUhr -= dt;
+  if(kreide.schlagUhr <= 0){
+    kreide.schlagUhr = SCHLAG_TAKT;
+    kreide.ruckRest  = SCHLAG_WEITE;
+    kreide.schlagBlitz = .16;
+  }
+  if(kreide.ruckRest > 0){
+    const s = Math.min(kreide.ruckRest, RUCK_TEMPO*dt);
+    laufeWeg(kreide, s);
+    kreide.ruckRest -= s;
+  }
+  if(kreide.schlagBlitz > 0) kreide.schlagBlitz -= dt;
+
   if(kreide.zustand === 'jagt' && kreide.lockZiel &&
      Math.hypot(kreide.lockZiel.x-kreide.x, kreide.lockZiel.y-kreide.y) < 1.1){
     kreide.zustand = 'wandert'; kreide.lockZiel = null; kreide.weg = null;
@@ -613,12 +633,19 @@ function kreideDenken(dt){
   }
   if(dSp < .62 && !spieler.gewonnen) ende(false, 'Herr Kreide hat dich am Ärmel.');
 }
-function laufeWeg(o, dt){
-  if(!o.weg || !o.weg.length) return;
-  const p = o.weg[0];
-  const dx = p.x-o.x, dy = p.y-o.y, d = Math.hypot(dx,dy);
-  if(d < .12){ o.weg.shift(); return; }
-  o.x += dx/d * o.tempo * dt; o.y += dy/d * o.tempo * dt;
+/* Bewegt die Figur um `strecke` Zellen entlang ihres Wegs. Kreide bekommt
+   die Strecke aus seinem Ruck, der Direktor aus Tempo mal Zeit. */
+function laufeWeg(o, strecke){
+  let rest = strecke;
+  while(rest > 0 && o.weg && o.weg.length){
+    const p = o.weg[0];
+    const dx = p.x-o.x, dy = p.y-o.y, d = Math.hypot(dx,dy);
+    if(d < .06){ o.weg.shift(); continue; }
+    const s = Math.min(rest, d);
+    o.x += dx/d * s; o.y += dy/d * s;
+    rest -= s;
+    if(s >= d - 1e-6) o.weg.shift();
+  }
 }
 function sicht(a, b){
   const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy);
@@ -640,7 +667,7 @@ function direktorDenken(dt){
     direktor.wegUhr = .8;
     direktor.weg = wegSuche(s, direktor.x, direktor.y, direktor.ziel.x, direktor.ziel.y);
   }
-  laufeWeg(direktor, dt);
+  laufeWeg(direktor, direktor.tempo * dt);
 
   const rennt = taste.rennen && (taste.vor||taste.zurueck||taste.links||taste.rechts||knueppel.dx||knueppel.dy);
   const d = Math.hypot(spieler.x-direktor.x, spieler.y-direktor.y);
@@ -826,8 +853,11 @@ function anzeige(dt){
     `<div class="s ${spieler.gehalten[a]?'hat':''}"><b>${spieler.gehalten[a]}</b>${NAME[a]}</div>`).join('');
   if(box.innerHTML !== soll) box.innerHTML = soll;
   const d = Math.hypot(spieler.x-kreide.x, spieler.y-kreide.y);
-  const nah = klemm(1 - d/11, 0, 1);
-  $('#naehe').style.boxShadow = `inset 0 0 ${90+nah*130}px ${20+nah*50}px rgba(216,80,63,${(nah*.55).toFixed(2)})`;
+  let nah = klemm(1 - d/13, 0, 1);
+  // Jeder Linealschlag pulst kurz durch den roten Rand — so sieht man ihn
+  // kommen, auch wenn er noch hinter einer Ecke steht
+  if(kreide.schlagBlitz > 0) nah = klemm(nah + kreide.schlagBlitz*2.2, 0, 1);
+  $('#naehe').style.boxShadow = `inset 0 0 ${90+nah*140}px ${18+nah*56}px rgba(216,80,63,${(nah*.6).toFixed(2)})`;
   if(meldeUhr > 0){ meldeUhr -= dt; if(meldeUhr <= 0) $('#meldung').classList.remove('an'); }
   malKarte();
 }

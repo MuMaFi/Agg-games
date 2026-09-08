@@ -2,8 +2,8 @@
 
 Ein Schulhaus aus der Ich-Perspektive: sieben Hefte einsammeln, in jedem drei
 Rechenaufgaben lösen, dann durch einen der drei Ausgänge. Herr Kreide hat
-nichts dagegen, dass du die Hefte holst — er wird nur mit jedem Heft und jedem
-Rechenfehler schneller.
+nichts dagegen, dass du die Hefte holst — er kommt trotzdem. Nicht schneller
+mit jedem Heft, aber im immer gleichen, unangenehmen Takt.
 
 Eigenes Spiel im Genre der Schul-Verfolgungsspiele: eigener Code, eigene
 Grafik, keine fremden Assets. Läuft im Browser ohne Build, braucht aber einen
@@ -68,9 +68,18 @@ Er hört dich, nicht sieht dich. Ausgelöst wird er von:
 * **jeder falschen Antwort** — die zieht ihn quer durchs Haus,
 * Sichtkontakt unter 4,5 Zellen.
 
-Sein Tempo: `1,35 + 0,30 × (Hefte + Rechenfehler)` Zellen pro Sekunde. Beim
-siebten Heft ohne Fehler ist er also rund doppelt so schnell wie am Anfang —
-mit ein paar Fehlern deutlich mehr. Ohne Reiz wandert er zu zufälligen Punkten.
+**Er läuft nicht — er ruckt.** Alle 1,05 s klatscht das Lineal in die Hand,
+und genau in dem Moment schiebt er sich 1,5 Zellen nach vorn; dazwischen steht
+er still. In der Spitze ist das 7 Zellen pro Sekunde, also weit schneller als
+du (2,1 gehend) — im Mittel aber 1,43, also langsamer. Wer geradeaus rennt,
+zieht davon; wer stehen bleibt und rechnet, hat ihn plötzlich im Nacken.
+
+Der Takt bleibt die ganze Runde gleich. Hefte und Rechenfehler rufen ihn
+her, machen ihn aber **nicht** schneller — auch nach dem siebten Heft nicht.
+Ohne Reiz wandert er zu zufälligen Punkten.
+
+Jeder Schlag lässt den roten Rand kurz aufflackern — auch dann, wenn er noch
+hinter einer Ecke steht. Das ist die einzige Vorwarnung, und sie kommt im Takt.
 
 ## Der Direktor
 
@@ -104,7 +113,7 @@ Aufgabe eines Hefts zählt als ein Heft mehr.
 
 Minus wird nie negativ, Division geht immer glatt auf. Der Druck soll aus der
 Verfolgung kommen, nicht aus dem Kopfrechnen. Falsch heißt nicht verloren — es
-macht Herrn Kreide nur schneller.
+ruft Herrn Kreide nur her.
 
 ## Eigene Grafiken
 
