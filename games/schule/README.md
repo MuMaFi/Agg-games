@@ -5,6 +5,9 @@ Rechenaufgaben lösen, dann durch einen der drei Ausgänge. Herr Kreide hat
 nichts dagegen, dass du die Hefte holst — er kommt trotzdem. Nicht schneller
 mit jedem Heft, aber im immer gleichen, unangenehmen Takt.
 
+**Mit Ton spielen.** Das Spiel ist darauf gebaut, dass man ihn hört, bevor man
+ihn sieht.
+
 Eigenes Spiel im Genre der Schul-Verfolgungsspiele: eigener Code, eigene
 Grafik, keine fremden Assets. Läuft im Browser ohne Build, braucht aber einen
 Webserver (ES-Module lädt der Browser nicht vom Dateisystem):
@@ -81,6 +84,54 @@ Ohne Reiz wandert er zu zufälligen Punkten.
 Jeder Schlag lässt den roten Rand kurz aufflackern — auch dann, wenn er noch
 hinter einer Ecke steht. Das ist die einzige Vorwarnung, und sie kommt im Takt.
 
+## Wo er ist, sagt dir das Ohr
+
+Anfangs stand Herr Kreide als roter Punkt auf der Karte, die ganze Runde
+lang. Damit war das Spiel vorbei, bevor es anfing: man musste nie hinhören,
+nur auf die Ecke unten links schauen und außen herum laufen. Die Karte zeigt
+ihn jetzt gar nicht mehr — sie zeigt einen **Ping an der Stelle, an der das
+Lineal zuletzt geklatscht hat**, und der verklingt über anderthalb Takte.
+Man weiß also, wo er *war*.
+
+Wo er *ist*, sagt der Klang. Jeder Schlag wird
+
+* **leiser** mit der Entfernung (quadratisch),
+* **dumpfer** — ein Tiefpass, dessen Grenze mit dem Abstand fällt, deshalb
+  klingt er hinter zwei Wänden nach nichts und im selben Gang wie ein
+  Peitschenhieb,
+* **im Panorama dorthin gelegt**, wo er steht.
+
+Das ist die ganze Ortung. Der Rest des Klangs ist synthetisch dazugebaut:
+Netzbrummen der Leuchtstoffröhren (50/100/150 Hz plus ein schmales Zischen),
+ein Nachhall aus abfallendem Rauschen für den langen Gang, Schritte am
+wirklich gelaufenen Weg, ein Herzschlag, der erst ab elf Zellen Nähe
+einsetzt, und irgendwo im Haus fällt hin und wieder eine Tür zu. Da ist
+nichts dahinter. Es macht nur nervös. Keine Dateien, alles WebAudio —
+`klang.js`.
+
+`M` schaltet den Ton, auf dem Handy der Knopf unten rechts.
+
+## Licht
+
+Jede Deckenplatte hat ihren eigenen Wert. Ungefähr ein Drittel der Röhren
+ist tot und bekommt eine eigene Textur mit kaltem Glas, ein paar zucken.
+Danach läuft ein Weichzeichner über die Karte, damit das Licht von einer
+Zelle in die nächste blutet statt an der Plattenfuge abzureißen — sonst
+sieht es aus wie ein Schachbrett.
+
+Wände werden von dem Licht angestrahlt, das **vor** ihnen steht, nicht von
+ihrem eigenen Feld: der Raycaster merkt sich dafür die letzte freie Zelle,
+durch die der Strahl gekommen ist.
+
+Mit jedem Heft trägt das Licht knapp eine Zelle weniger weit (15 → 9), und
+ab dem fünften Heft fällt der Strom für eine halbe bis anderthalb Sekunden
+ganz aus. Das Brummen geht dabei mit. Herr Kreide wird nicht schneller —
+das Haus wird enger.
+
+Über dem Bild liegen noch eine Vignette und ein Filmkorn als eigene
+CSS-Ebenen. Das kostet nichts pro Bildpunkt, der Browser schiebt beides auf
+die Grafikkarte; gemessen bleiben 60 Bilder/s.
+
 ## Der Direktor
 
 Läuft seine eigenen Wege. Erwischt er dich beim **Rennen im Flur** in Sicht und
@@ -137,4 +188,6 @@ Auf dem Handy: Knüppel links, rechte Bildhälfte zum Umsehen, zwei Knöpfe.
 ## Werkbank
 
 `window.__schule` liegt offen: `setzen(x,y)`, `alleHefte()`, Zugriff auf
-Spieler, Verfolger, Hefte und Gegenstände.
+Spieler, Verfolger, Hefte und Gegenstände — dazu `st` (Sichtweite, Strom,
+Uhren) und `licht` (die Lichtkarte). Einen Stromausfall erzwingt man mit
+`__schule.st.ausfallUhr = 0` bei mindestens fünf Heften.

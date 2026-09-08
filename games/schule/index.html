@@ -64,6 +64,9 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 #sachen .s.hat{border-color:var(--gelb);color:var(--kreide)}
 #sachen .s b{display:block;font-size:15px;color:var(--gelb)}
 #karte{position:absolute;left:14px;bottom:14px;background:#0f1a13d9;border:2px solid #3a5442;padding:5px}
+#ton{position:absolute;right:14px;bottom:14px;pointer-events:auto;background:#0f1a13d9;border:2px solid #3a5442;
+  color:var(--faint);font:inherit;font-size:10px;letter-spacing:.14em;padding:7px 11px;cursor:pointer}
+#ton.aus{border-color:#5c3a34;color:#a86b5e}
 #karte canvas{width:160px;height:160px;display:block;image-rendering:pixelated}
 #meldung{position:absolute;left:50%;top:16%;transform:translateX(-50%);text-align:center;
   font-family:var(--titel);font-size:clamp(22px,5vw,44px);opacity:0;transition:opacity .2s;
@@ -71,6 +74,20 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 #meldung.an{opacity:1}
 #meldung small{display:block;font-family:var(--f);font-size:14px;letter-spacing:.1em;color:var(--dim);margin-top:6px}
 #naehe{position:fixed;inset:0;z-index:30;pointer-events:none;box-shadow:inset 0 0 160px 40px #d8503f00;transition:box-shadow .3s}
+/* Vignette und Filmkorn liegen als eigene Ebenen über dem Bild statt im
+   Puffer — das kostet keine Rechenzeit pro Bildpunkt und der Browser
+   schiebt beides auf die Grafikkarte. */
+#vignette{position:fixed;inset:0;z-index:28;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,#0000 34%,#000000a8 100%)}
+#korn{position:fixed;inset:-60px;z-index:29;pointer-events:none;opacity:.16;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  animation:kornZuck .28s steps(1) infinite}
+@keyframes kornZuck{
+  0%{transform:translate(0,0)}   25%{transform:translate(-24px,14px)}
+  50%{transform:translate(18px,-20px)} 75%{transform:translate(-12px,-9px)}}
+/* Beim Stromausfall bleibt nur noch das Notlicht */
+#dunkel{position:fixed;inset:0;z-index:31;pointer-events:none;background:#03050299;opacity:0;transition:opacity .12s}
+#dunkel.an{opacity:1}
 #kreuz{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:#eef3ea88}
 
 /* ── Heft / Mathe ──────────────────────────────────────── */
@@ -129,13 +146,19 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
      schlägt er das Lineal in die Hand und schiebt sich dabei ein Stück vor;
      dazwischen steht er still. Schneller wird er nie. Aber jedes Heft und jede
      falsche Antwort verrät ihm, wo du bist.</p>
-  <p>Hast du alle sieben, nimm einen der drei <b>Ausgänge</b>. Der Weg dahin ist das Spiel.</p>
+  <p><b>Die Karte zeigt ihn nicht.</b> Sie zeigt nur, wo das Lineal zuletzt geklatscht hat —
+     ein Ping, der wieder verklingt. Wo er jetzt ist, sagt dir dein Ohr: der Schlag kommt
+     aus der Richtung, in der er steht, und wird lauter und schärfer, je näher er kommt.
+     <b>Mit Ton spielen.</b></p>
+  <p>Hast du alle sieben, nimm einen der drei <b>Ausgänge</b>. Der Weg dahin ist das Spiel.
+     Nur: mit jedem Heft trägt das Licht weniger weit, und ab dem fünften fällt der Strom aus.</p>
   <div class="tafelbox">
     <u>Steuerung</u>
     <div>
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gehen &middot;
       <kbd>Maus</kbd> umsehen &middot; <kbd>Shift</kbd> rennen (laut!)<br>
-      <kbd>E</kbd> Heft aufnehmen / Gegenstand benutzen &middot; <kbd>Esc</kbd> Maus freigeben
+      <kbd>E</kbd> Heft aufnehmen / Gegenstand benutzen &middot; <kbd>M</kbd> Ton &middot;
+      <kbd>Esc</kbd> Maus freigeben
     </div>
   </div>
   <div class="tafelbox">
@@ -149,10 +172,14 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
   <div class="feld" id="hefte"><div class="zahl">0 / 7</div><div class="txt">Hefte</div></div>
   <div id="sachen"></div>
   <div id="karte"><canvas width="240" height="240"></canvas></div>
+  <button id="ton">TON</button>
   <div id="meldung"></div>
   <div id="kreuz"></div>
 </div>
+<div id="vignette"></div>
+<div id="korn"></div>
 <div id="naehe"></div>
+<div id="dunkel"></div>
 
 <div id="heft"><div class="heftblatt">
   <div class="kopf"><b id="heftName">Heft 1</b><span id="heftFort">Aufgabe 1 von 3</span></div>

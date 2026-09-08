@@ -7,6 +7,7 @@
    den groben Look und läuft auch auf dem Handy.
    ═══════════════════════════════════════════════════════════════════ */
 import { baueSchule, wegSuche, zufall, FLUR, WAND, RAUM, TUER, SPIND, TAFEL, AUSGANG } from './schule.js';
+import * as klang from './klang.js';
 
 const $ = s => document.querySelector(s);
 const klemm = (v,a,b) => v<a?a:v>b?b:v;
@@ -85,6 +86,18 @@ const DECKE = textur((g,S) => {
   g.fillStyle='#cfd6c4'; g.fillRect(S*.22, S*.42, S*.56, S*.16);
   g.fillStyle='#eef3ea'; g.fillRect(S*.24, S*.44, S*.52, S*.08);
 });
+/* Dieselbe Platte mit erloschener Röhre. Ungefähr ein Drittel der Decke
+   bekommt sie — ein Gang, in dem jede Röhre brennt, sieht aus wie ein Amt,
+   einer mit Lücken sieht aus, als hätte ihn jemand vergessen. */
+const DECKE_TOT = textur((g,S) => {
+  g.fillStyle='#33382f'; g.fillRect(0,0,S,S);
+  g.fillStyle='#3b4038'; g.fillRect(2,2,S-4,S-4);
+  g.fillStyle='rgba(16,18,15,.55)';
+  g.fillRect(0,0,S,2); g.fillRect(0,0,2,S);
+  g.fillStyle='#2a2e27'; g.fillRect(S*.22, S*.42, S*.56, S*.16);
+  g.fillStyle='#4a4a3c'; g.fillRect(S*.24, S*.44, S*.52, S*.08);   // kaltes Glas
+});
+
 /* Wandvarianten: Plakat und Anschlagbrett, damit die Gänge nicht
    alle gleich aussehen. Welche Zelle welche bekommt, entscheidet ein
    Streuwert aus ihren Koordinaten — bleibt also über die Runde gleich. */
@@ -309,6 +322,99 @@ async function eigeneLaden(){
   if(eigeneGrafiken) console.info(`[Nachsitzen] ${eigeneGrafiken} eigene Grafiken aus assets/ übernommen.`);
 }
 
+/* ── Stimmung: Licht, Flackern, Stromausfall ───────────────────────
+   Das Haus wird nicht gleichmäßig ausgeleuchtet. Jede Deckenplatte hat
+   ihren eigenen Wert, ein Drittel der Röhren ist tot, ein paar flackern.
+   Danach läuft ein Weichzeichner über die Karte, damit das Licht von
+   einer Zelle in die nächste blutet statt an der Fuge abzureißen.
+
+   Mit jedem Heft geht das Licht ein Stück weiter zurück und ab dem
+   fünften fällt der Strom kurz ganz aus. Herr Kreide wird nicht
+   schneller — das Haus wird enger. */
+let lichtBasis = null;      // fester Wert je Zelle
+let licht = null;           // derselbe Wert, jeden Frame mit Flackern
+let flackerZellen = [];     // Röhren, die zucken
+const ST = {
+  reich: 15,        // wie weit das Licht trägt, in Zellen
+  strom: 1,         // 1 = alles an, klein = Stromausfall
+  ausfallUhr: 14,
+  ausfallRest: 0,
+  tuerUhr: 14,
+  herzUhr: 0,
+  schrittWeg: 0,
+  schreckSperre: 0,
+  war: 0            // zuletzt gemeldeter Heftstand
+};
+
+function lichtBauen(){
+  const n = s.B*s.H;
+  lichtBasis = new Float32Array(n);
+  licht = new Float32Array(n);
+  flackerZellen = [];
+  const roh = new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const r = z();
+    roh[i] = r < .32 ? .30 : 1;                  // ein Drittel der Röhren ist aus
+    if(roh[i] === 1 && z() < .09) flackerZellen.push(i);
+  }
+  // Weichzeichnen, sonst reißt das Licht an jeder Plattenfuge ab
+  for(let y=0;y<s.H;y++) for(let x=0;x<s.B;x++){
+    let sum = 0, zahl = 0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+      const nx = x+dx, ny = y+dy;
+      if(nx<0||ny<0||nx>=s.B||ny>=s.H) continue;
+      const g = (dx===0&&dy===0) ? 3 : 1;
+      sum += roh[ny*s.B+nx]*g; zahl += g;
+    }
+    lichtBasis[y*s.B+x] = sum/zahl;
+  }
+  licht.set(lichtBasis);
+}
+/* Ob eine Deckenplatte ihre Röhre noch hat — entscheidet die Textur. */
+const roehreTot = i => lichtBasis[i] < .62;
+
+function stimmungDenken(dt, t){
+  // Sichtweite schrumpft mit jedem Heft
+  ST.reich = 15 - spieler.hefte*.85;
+
+  // Stromausfälle ab dem fünften Heft
+  if(ST.ausfallRest > 0){
+    ST.ausfallRest -= dt;
+    if(ST.ausfallRest <= 0){ ST.strom = 1; klang.roehreAn(); $('#dunkel').classList.remove('an'); }
+  } else if(spieler.hefte >= 5){
+    ST.ausfallUhr -= dt;
+    if(ST.ausfallUhr <= 0){
+      ST.ausfallUhr = 18 + z()*22;
+      ST.ausfallRest = .5 + z()*1.1;
+      ST.strom = .12; klang.roehreAus();
+      $('#dunkel').classList.add('an');
+      meldung('DUNKEL', 'Der Strom ist weg');
+    }
+  }
+
+  // Einzelne Röhren zucken
+  licht.set(lichtBasis);
+  for(const i of flackerZellen){
+    const f = Math.sin(i*1.7 + t*17) + Math.sin(i*.31 + t*41);
+    licht[i] *= f > .6 ? .22 : (f > .1 ? .7 : 1);
+  }
+
+  // Irgendwo im Haus fällt eine Tür zu. Da ist nichts — es macht nur nervös.
+  ST.tuerUhr -= dt;
+  if(ST.tuerUhr <= 0){ ST.tuerUhr = 20 + z()*34; klang.ferneTuer(); }
+
+  // Das Brummen zieht mit dem Heftstand an
+  if(spieler.hefte !== ST.war){ ST.war = spieler.hefte; klang.anspannung(spieler.hefte/7); }
+  if(ST.schreckSperre > 0) ST.schreckSperre -= dt;
+  if(kreide.ping) kreide.ping.alt += dt;
+}
+/* Licht einer Zelle, außerhalb der Karte ist es finster. */
+function lichtBei(x, y){
+  const zx = x|0, zy = y|0;
+  if(zx<0||zy<0||zx>=s.B||zy>=s.H) return .12;
+  return licht[zy*s.B+zx];
+}
+
 /* ── Bühne ─────────────────────────────────────────────────────── */
 const leinwand = document.createElement('canvas');
 $('#buehne').appendChild(leinwand);
@@ -355,6 +461,9 @@ function startPlatz(){
 
 function neueRunde(){
   s = baueSchule(1000 + Math.floor(z()*9000));
+  lichtBauen();
+  ST.strom = 1; ST.ausfallRest = 0; ST.ausfallUhr = 14;
+  ST.tuerUhr = 14; ST.herzUhr = 0; ST.schrittWeg = 0; ST.war = 0;
   // Startplatz: ein Flurstück, aus dem heraus man in Blickrichtung
   // mindestens sechs Zellen weit sieht — sonst steht man an einer Wand.
   const st = startPlatz();
@@ -377,7 +486,7 @@ function neueRunde(){
   let kp = frei(), versuch = 0;
   while(Math.hypot(kp.x-st.x, kp.y-st.y) < 18 && versuch++ < 200) kp = frei();
   kreide = {x:kp.x, y:kp.y, weg:null, wegUhr:0, betaeubt:0, lockZiel:null,
-            zustand:'wandert', wanderZiel:null,
+            zustand:'wandert', wanderZiel:null, ping:null,
             schlagUhr:SCHLAG_TAKT, ruckRest:0, schlagBlitz:0};
   const dp = frei();
   direktor = {x:dp.x, y:dp.y, tempo:1.6, weg:null, wegUhr:0, ziel:null, ruheUhr:0};
@@ -400,6 +509,7 @@ addEventListener('keydown', e => {
   if(e.code === 'Digit1') benutze('energie');
   if(e.code === 'Digit2') benutze('seife');
   if(e.code === 'Digit3') benutze('zonk');
+  if(e.code === 'KeyM') tonUmschalten();
 });
 addEventListener('keyup', e => { if(bindung[e.code]){ taste[bindung[e.code]] = false; e.preventDefault(); } });
 leinwand.addEventListener('click', () => { if(laeuft && !document.pointerLockElement) leinwand.requestPointerLock(); });
@@ -496,6 +606,7 @@ function frageBauen(heftNr, aufgabeNr){
 
 function heftOeffnen(h){
   heftLage.aktiv = h; heftLage.aufgabe = 0; heftLage.fehlerHier = 0;
+  klang.heftAuf();
   $('#heft').classList.add('an');
   if(document.pointerLockElement) document.exitPointerLock();
   for(const k in taste) taste[k] = false;
@@ -516,6 +627,7 @@ function antwortPruefen(){
   const w = parseInt($('#antwort').value, 10);
   if(Number.isNaN(w)) return;
   if(w === heftLage.loesung){
+    klang.richtig();
     heftLage.aufgabe++;
     if(heftLage.aufgabe >= 3){
       heftLage.aktiv.weg = true; spieler.hefte++;
@@ -528,6 +640,7 @@ function antwortPruefen(){
     } else naechsteAufgabe();
   } else {
     heftLage.fehlerHier++; spieler.fehler++;
+    klang.falsch();
     $('#frage').classList.remove('wackel'); void $('#frage').offsetWidth; $('#frage').classList.add('wackel');
     $('#heftFehler').textContent = heftLage.fehlerHier + ' daneben';
     $('#antwort').value = '';
@@ -557,6 +670,7 @@ function nehmen(){
   for(const d of dinge){
     if(!d.weg && Math.hypot(d.x-spieler.x, d.y-spieler.y) < .8){
       d.weg = true; spieler.gehalten[d.art]++;
+      klang.aufnehmen();
       meldung(NAME[d.art].toUpperCase(), 'eingesteckt'); return true;
     }
   }
@@ -566,10 +680,11 @@ const NAME = {energie:'Energie', seife:'Seife', zonk:'Zonk'};
 function benutze(art){
   if(!art || !spieler.gehalten[art]) return;
   spieler.gehalten[art]--;
-  if(art === 'energie'){ spieler.energieUhr = 18; meldung('ENERGIE', '18 s schneller, ohne Lärm'); }
+  if(art === 'energie'){ spieler.energieUhr = 18; klang.energie(); meldung('ENERGIE', '18 s schneller, ohne Lärm'); }
   if(art === 'seife'){ dinge.push({x:spieler.x, y:spieler.y, art:'seife', gelegt:true, weg:false});
                        meldung('SEIFE', 'liegt jetzt hinter dir'); }
   if(art === 'zonk'){ const a = spieler.blick + Math.PI;
+    klang.zonkWurf();
     hoert(spieler.x + Math.cos(a)*8, spieler.y + Math.sin(a)*8, 1);
     meldung('ZONK', 'Krach hinter dir geworfen'); }
 }
@@ -612,6 +727,14 @@ function kreideDenken(dt){
     kreide.schlagUhr = SCHLAG_TAKT;
     kreide.ruckRest  = SCHLAG_WEITE;
     kreide.schlagBlitz = .16;
+    /* Der Schlag ist das wichtigste Geräusch im Spiel: leiser und dumpfer
+       mit der Entfernung, im Panorama dort, wo er steht. So hört man ihn
+       durch zwei Wände hindurch näher kommen. */
+    const rx = kreide.x-spieler.x, ry = kreide.y-spieler.y;
+    const e = Math.hypot(rx,ry) || .001;
+    klang.linealSchlag(e, (-spieler.wy*rx + spieler.wx*ry)/e);
+    // Der Schlag ist auch das, was die Karte überhaupt von ihm weiß
+    kreide.ping = {x:kreide.x, y:kreide.y, alt:0};
   }
   if(kreide.ruckRest > 0){
     const s = Math.min(kreide.ruckRest, RUCK_TEMPO*dt);
@@ -628,6 +751,7 @@ function kreideDenken(dt){
   for(const d of dinge){
     if(d.gelegt && !d.weg && Math.hypot(d.x-kreide.x, d.y-kreide.y) < .7){
       d.weg = true; kreide.betaeubt = 5; kreide.weg = null;
+      klang.rutschen();
       meldung('AUSGERUTSCHT', 'Herr Kreide liegt fünf Sekunden');
     }
   }
@@ -702,8 +826,14 @@ function bewege(dt){
     // Achsen getrennt prüfen, damit man an Wänden entlanggleitet, und mit
     // festem Radius statt nur einem Schritt Vorausschau
     const R = .28;
+    const ax = spieler.x, ay = spieler.y;
     if(s.begehbar(spieler.x + sx + Math.sign(sx)*R, spieler.y)) spieler.x += sx;
     if(s.begehbar(spieler.x, spieler.y + sy + Math.sign(sy)*R)) spieler.y += sy;
+    // Schritte hängen an der wirklich gelaufenen Strecke, nicht an einer Uhr:
+    // wer an einer Wand klebt, macht auch kein Geräusch
+    ST.schrittWeg += Math.hypot(spieler.x-ax, spieler.y-ay);
+    const takt = taste.rennen ? .52 : .72;
+    if(ST.schrittWeg >= takt){ ST.schrittWeg = 0; klang.schritt(!!taste.rennen); }
   }
   // Ausgang?
   if(spieler.hefte >= 7 && s.hol(Math.floor(spieler.x), Math.floor(spieler.y)) === AUSGANG)
@@ -721,28 +851,37 @@ function zeichne(){
      dieselbe Zeile gespiegelt. */
   const rdx0 = dx - ebx, rdy0 = dy - eby;
   const rdx1 = dx + ebx, rdy1 = dy + eby;
+  const reich = ST.reich, strom = ST.strom;
   for(let y = (H>>1)+1; y < H; y++){
     const abstand = (H*.5) / (y - H*.5);
     const schrittX = abstand * (rdx1-rdx0) / W;
     const schrittY = abstand * (rdy1-rdy0) / W;
     let fx = px + abstand*rdx0, fy = py + abstand*rdy0;
-    const neb = klemm(1 - abstand/17, .16, 1);
-    const nebD = neb * .82;                       // Decke etwas dunkler
+    const weite = klemm(1 - abstand/reich, 0, 1);
     const zOben = (H-y-1)*W, zUnten = y*W;
     for(let x=0; x<W; x++){
-      const tx = (((fx - Math.floor(fx)) * TG) | 0) & (TG-1);
-      const ty = (((fy - Math.floor(fy)) * TG) | 0) & (TG-1);
+      const gx = Math.floor(fx), gy = Math.floor(fy);
+      const tx = (((fx - gx) * TG) | 0) & (TG-1);
+      const ty = (((fy - gy) * TG) | 0) & (TG-1);
       fx += schrittX; fy += schrittY;
+      /* Jede Deckenplatte bringt ihr eigenes Licht mit. Vorher war das
+         Haus überall gleich hell und sah aus wie ein Bürogang am
+         Vormittag. */
+      const drin = gx>=0 && gy>=0 && gx<s.B && gy<s.H;
+      const zi = drin ? gy*s.B+gx : -1;
+      const lam = drin ? licht[zi] : .12;
+      const neb = klemm(weite*lam*strom + .045, .03, 1);
+      const nebD = neb * .82;                       // Decke etwas dunkler
       const i = ty*TG + tx;
       let c = BODEN[i];
       puffer[zUnten + x] = 0xff000000
         | ((((c>>16&0xff)*neb)|0)<<16) | ((((c>>8&0xff)*neb)|0)<<8) | (((c&0xff)*neb)|0);
-      c = DECKE[i];
+      c = (zi >= 0 && roehreTot(zi) ? DECKE_TOT : DECKE)[i];
       puffer[zOben + x] = 0xff000000
         | ((((c>>16&0xff)*nebD)|0)<<16) | ((((c>>8&0xff)*nebD)|0)<<8) | (((c&0xff)*nebD)|0);
     }
   }
-  puffer.fill(0xff2a2f28, 0, W);                  // oberste Zeile, sonst Rest vom Vorbild
+  puffer.fill(0xff14170f, 0, W);                  // oberste Zeile, sonst Rest vom Vorbild
 
   for(let x=0;x<W;x++){
     const kam = 2*x/W - 1;
@@ -753,7 +892,9 @@ function zeichne(){
     if(rdx < 0){ stx = -1; sdx = (px-mx)*ddx; } else { stx = 1; sdx = (mx+1-px)*ddx; }
     if(rdy < 0){ sty = -1; sdy = (py-my)*ddy; } else { sty = 1; sdy = (my+1-py)*ddy; }
     let seite = 0, feld = WAND, sicher = 0;
+    let vx = mx, vy = my;                         // letzte freie Zelle davor
     while(sicher++ < 128){
+      vx = mx; vy = my;
       if(sdx < sdy){ sdx += ddx; mx += stx; seite = 0; }
       else { sdy += ddy; my += sty; seite = 1; }
       feld = s.hol(mx,my);
@@ -772,7 +913,8 @@ function zeichne(){
     const schritt = TG/hoch;
     let texPos = (y0 < 0 ? -y0 : 0) * schritt;
     const dunkel = seite === 1;
-    const neb = klemm(1 - dist/17, .18, 1);
+    // Eine Wand wird von dem Licht angestrahlt, das vor ihr steht
+    const neb = klemm(klemm(1 - dist/reich, 0, 1) * lichtBei(vx, vy) * strom + .04, .03, 1);
     const a0 = Math.max(y0,0), a1 = Math.min(y1,H);
     for(let y=a0;y<a1;y++){
       const ty = Math.min(TG-1, texPos|0); texPos += schritt;
@@ -803,7 +945,7 @@ function zeichne(){
     const versatz = Math.floor(H/ty2 * o.boden);
     const breite = Math.abs(Math.floor(H/ty2 * o.hoehe * (o.sp.b/o.sp.h)));
     const oben = Math.floor(H/2 + (H/ty2)/2 - hoehe - versatz);
-    const neb = klemm(1 - ty2/17, .18, 1);
+    const neb = klemm(klemm(1 - ty2/reich, 0, 1) * lichtBei(o.x, o.y) * strom + .05, .04, 1);
     for(let sx2=0; sx2<breite; sx2++){
       const x = bx - (breite>>1) + sx2;
       if(x < 0 || x >= W || ty2 >= tiefe[x]) continue;
@@ -834,13 +976,37 @@ function malKarte(){
     kg.fillRect(x*S, y*S, S, S);
   }
   for(const h of hefte) if(!h.weg){ kg.fillStyle='#f2c14e'; kg.fillRect(h.x*S-1.5, h.y*S-1.5, 4, 4); }
-  kg.fillStyle='#d8503f'; kg.fillRect(kreide.x*S-2, kreide.y*S-2, 5, 5);
+  /* Die Karte zeigt Herrn Kreide nicht mehr live. Sie zeigt, wo das Lineal
+     zuletzt geklatscht hat — ein Ping, der über einen Takt verklingt. Der
+     Dauerpunkt hat jede Spannung weggenommen: man wusste immer, wo er ist,
+     und musste nie hinhören. Jetzt weiß man, wo er war. */
+  if(kreide.ping){
+    const a = klemm(1 - kreide.ping.alt/(SCHLAG_TAKT*1.5), 0, 1);
+    if(a > 0){
+      const px2 = kreide.ping.x*S, py2 = kreide.ping.y*S;
+      kg.strokeStyle = `rgba(216,80,63,${(a*.85).toFixed(2)})`;
+      kg.lineWidth = 1.5;
+      kg.beginPath(); kg.arc(px2, py2, 3 + (1-a)*9, 0, 6.284); kg.stroke();
+      kg.fillStyle = `rgba(216,80,63,${(a*.95).toFixed(2)})`;
+      kg.fillRect(px2-2, py2-2, 5, 5);
+    }
+  }
   kg.fillStyle='#6b8fd8'; kg.fillRect(direktor.x*S-1.5, direktor.y*S-1.5, 4, 4);
   kg.fillStyle='#eef3ea'; kg.fillRect(spieler.x*S-2, spieler.y*S-2, 5, 5);
   kg.strokeStyle='#eef3ea'; kg.lineWidth=1; kg.beginPath();
   kg.moveTo(spieler.x*S, spieler.y*S);
   kg.lineTo(spieler.x*S + spieler.wx*7, spieler.y*S + spieler.wy*7); kg.stroke();
 }
+function tonUmschalten(){
+  const an = klang.tonSchalten();
+  $('#ton').textContent = an ? 'TON' : 'STUMM';
+  $('#ton').classList.toggle('aus', !an);
+  meldung('TON', an ? 'an' : 'aus');
+}
+$('#ton').addEventListener('click', e => { e.stopPropagation(); tonUmschalten(); });
+$('#ton').textContent = klang.tonAn() ? 'TON' : 'STUMM';
+$('#ton').classList.toggle('aus', !klang.tonAn());
+
 let meldeUhr = 0;
 function meldung(gross, klein){
   $('#meldung').innerHTML = gross + (klein ? '<small>'+klein+'</small>' : '');
@@ -854,6 +1020,17 @@ function anzeige(dt){
   if(box.innerHTML !== soll) box.innerHTML = soll;
   const d = Math.hypot(spieler.x-kreide.x, spieler.y-kreide.y);
   let nah = klemm(1 - d/13, 0, 1);
+  /* Der Puls schlägt schneller, je näher er ist — und nur dann. Stille ist
+     hier die Voreinstellung, sonst nutzt sich das Ganze ab. */
+  if(nah > .30){
+    ST.herzUhr -= dt;
+    if(ST.herzUhr <= 0){ ST.herzUhr = misch(1.15, .46, nah); klang.herz(nah); }
+  } else ST.herzUhr = 0;
+  /* Wenn er auf einmal wirklich im Gang steht. Danach eine Weile Ruhe,
+     ein Schreck, der dreimal kommt, ist kein Schreck mehr. */
+  if(d < 7 && ST.schreckSperre <= 0 && sicht(spieler, kreide)){
+    ST.schreckSperre = 16; klang.schreck();
+  }
   // Jeder Linealschlag pulst kurz durch den roten Rand — so sieht man ihn
   // kommen, auch wenn er noch hinter einer Ecke steht
   if(kreide.schlagBlitz > 0) nah = klemm(nah + kreide.schlagBlitz*2.2, 0, 1);
@@ -865,6 +1042,8 @@ function anzeige(dt){
 /* ── Ende ──────────────────────────────────────────────────────── */
 function ende(gewonnen, text){
   laeuft = false; spieler.gewonnen = gewonnen;
+  klang.schluss(gewonnen);
+  ST.strom = 1; $('#dunkel').classList.remove('an');
   if(document.pointerLockElement) document.exitPointerLock();
   $('#endeTitel').textContent = gewonnen ? 'RAUSGEKOMMEN' : 'ERWISCHT';
   $('#endeTitel').className = gewonnen ? 'gut' : 'schlecht';
@@ -884,16 +1063,19 @@ function schleife(jetzt){
   if(laeuft && !$('#heft').classList.contains('an')){
     bewege(dt); kreideDenken(dt); direktorDenken(dt);
   }
+  if(laeuft) stimmungDenken(dt, jetzt/1000);
   zeichne();
   if(laeuft) anzeige(dt);
 }
 async function starten(){
+  klang.tonStart();               // muss im Klick passieren, sonst blockt der Browser
   $('#losKnopf').textContent = 'LÄDT …';
   await eigeneLaden();
   $('#losKnopf').textContent = 'SCHULHAUS BETRETEN';
   neueRunde();
   $('#start').classList.add('weg'); $('#hud').classList.add('an');
   laeuft = true;
+  klang.roehreAn(); klang.anspannung(0);
   meldung('SIEBEN HEFTE', 'Die gelben Punkte auf der Karte');
   leinwand.requestPointerLock();
 }
@@ -922,6 +1104,7 @@ window.__schule = {
   frageBauen, setSchwere:(v)=>{schwere=v},
   get eigeneGrafiken(){return eigeneGrafiken},
   get s(){return s}, get spieler(){return spieler}, get kreide(){return kreide},
+  get st(){return ST}, get licht(){return licht}, klang,
   get direktor(){return direktor}, get hefte(){return hefte}, get dinge(){return dinge},
   starten, setzen:(x,y)=>{spieler.x=x;spieler.y=y;},
   alleHefte:()=>{for(const h of hefte)h.weg=true; spieler.hefte=7;},
