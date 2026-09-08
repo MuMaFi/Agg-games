@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0806">
+<title>Bruzzo — AGG Games</title>
+<meta name="description" content="Sechs Stunden Nachtwache in Bruzzos Pizza-Palast — in 3D. Zwei Türen, eine Luke, ein Tablet und viel zu wenig Strom.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0806'/%3E%3Cpath d='M8 2 L14 14 L2 14 Z' fill='%23e8b44a'/%3E%3Ccircle cx='7' cy='10' r='1.4' fill='%23c8402e'/%3E%3Ccircle cx='10' cy='11.5' r='1.2' fill='%23c8402e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0a0806; --panel:#14100c; --edge:#2a231a; --edge-hi:#463a2a;
+  --ink:#f0e6d2; --dim:#9c9080; --faint:#6a6153;
+  --teig:#e8b44a; --sauce:#c8402e; --gruen:#7ab648; --blau:#6fa8d0;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#050403; color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh*1.6)); aspect-ratio:16/10;
+  max-height:100vh; overflow:hidden; background:#000}
+canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none}
+#szene{z-index:1}
+#ueber{z-index:2; pointer-events:none}
+
+#kopf{position:absolute; left:0; right:0; top:0; padding:8px 10px; pointer-events:none;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:8px; z-index:4}
+.feld{background:#100c08cc; border:2px solid var(--edge); padding:4px 9px; line-height:1.12}
+.feld b{display:block; font-size:18px; color:var(--teig)}
+.feld small{display:block; font-size:8.5px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#stromB{min-width:116px}
+#stromleiste{height:9px; background:#241c14; border:1px solid var(--edge-hi); margin-top:3px; position:relative}
+#stromleiste i{position:absolute; inset:1px; width:100%; background:var(--gruen); transform-origin:left; display:block}
+#stromleiste.knapp i{background:var(--sauce)}
+
+#leiste{position:absolute; left:0; right:0; bottom:0; z-index:5;
+  display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:5px}
+.kn{font-family:var(--pix); font-size:clamp(9px,1.4vw,12px); letter-spacing:.05em; cursor:pointer;
+  border:2px solid var(--edge-hi); background:#14100ce6; color:var(--ink);
+  padding:9px 2px; text-transform:uppercase; line-height:1.15}
+.kn small{display:block; font-size:clamp(7px,1.05vw,9px); color:var(--faint); letter-spacing:.1em}
+.kn.an{background:var(--teig); color:#20180a; border-color:var(--teig)}
+.kn.an small{color:#20180a99}
+#knKurbel.an{background:var(--blau); color:#08131c; border-color:var(--blau)}
+
+#raeume{position:absolute; left:6px; right:6px; bottom:62px; display:none; flex-wrap:wrap; gap:4px;
+  justify-content:center; z-index:6}
+#raeume.an{display:flex}
+.rk{font-family:var(--pix); font-size:10px; letter-spacing:.05em; cursor:pointer;
+  border:2px solid #ffffff26; background:#0c0a08d9; color:var(--dim); padding:5px 8px}
+.rk.an{border-color:var(--teig); color:var(--teig); background:#241c10}
+.rk b{display:block; font-size:12px}
+
+#meldung{position:absolute; left:0; right:0; top:14%; text-align:center; z-index:6;
+  pointer-events:none; font-size:clamp(20px,5vw,34px); opacity:0; transition:opacity .18s;
+  color:var(--teig); text-shadow:0 3px 0 #000a}
+#meldung.an{opacity:1}
+#meldung small{display:block; font-size:13px; letter-spacing:.14em; color:var(--dim)}
+#dreh{position:absolute; left:0; right:0; bottom:64px; text-align:center; z-index:4;
+  pointer-events:none; font-size:10.5px; letter-spacing:.18em; color:#ffffff55; transition:opacity .5s}
+#dreh.weg{opacity:0}
+
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#0a0806e8,#0a0806f4); text-align:center; z-index:9; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(34px,11vw,58px); line-height:.92; letter-spacing:.02em; color:var(--teig)}
+h1 small{display:block; font-family:var(--pix); font-size:clamp(10px,2.6vw,14px);
+  letter-spacing:.26em; color:var(--dim); margin-top:8px}
+.blende p{color:var(--dim); font-size:14px; line-height:1.5; margin:11px auto; max-width:35ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#100c08; padding:10px 12px; margin:8px auto;
+  font-size:12px; color:var(--dim); line-height:1.65; max-width:36ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+.tafel dt{color:var(--ink); font-weight:600; display:inline}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--teig); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #9b7420; margin-top:10px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #9b7420}
+a.zurueck{display:inline-block; margin-top:11px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+#naechte{display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin:10px 0}
+.nk{width:44px; height:44px; border:2px solid var(--edge); background:var(--panel);
+  font-family:var(--pix); font-size:16px; color:var(--dim); cursor:pointer; padding:0}
+.nk.frei{border-color:var(--teig); color:var(--teig)}
+.nk.geschafft{border-color:var(--gruen); color:var(--gruen)}
+.nk:disabled{opacity:.3; cursor:default}
+#lade{position:absolute; inset:0; display:grid; place-items:center; z-index:10; background:#0a0806;
+  font-size:13px; letter-spacing:.2em; color:var(--faint)}
+#lade.weg{display:none}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="szene"></canvas>
+  <canvas id="ueber"></canvas>
+
+  <div id="kopf">
+    <div class="feld" id="uhrB"><b>12 Uhr</b><small id="nachtT">Nacht 1</small></div>
+    <div class="feld" id="stromB"><b><span id="stromZ">100</span> %</b><small>Strom</small>
+      <div id="stromleiste"><i></i></div></div>
+  </div>
+
+  <div id="raeume"></div>
+  <div id="meldung"></div>
+  <div id="dreh">ZIEHEN ZUM UMSEHEN</div>
+
+  <div id="leiste">
+    <button class="kn" id="knLichtL">Licht ◀<small>links</small></button>
+    <button class="kn" id="knTuerL">Tür ◀<small>links</small></button>
+    <button class="kn" id="knTuerR">Tür ▶<small>rechts</small></button>
+    <button class="kn" id="knLichtR">Licht ▶<small>rechts</small></button>
+    <button class="kn" id="knLuke">Luke<small>Lüftung</small></button>
+    <button class="kn" id="knTablet">Tablet<small>Kameras</small></button>
+    <button class="kn" id="knKurbel">Kurbel<small>laut!</small></button>
+  </div>
+
+  <div id="lade">SCHICHT WIRD VORBEREITET …</div>
+
+  <div class="blende weg" id="start">
+    <div>
+      <h1>BRUZZO<small>PIZZA-PALAST · NACHTWACHE</small></h1>
+      <p>Von <b>12 bis 6 Uhr</b>. Du sitzt im Büro und stehst nicht auf.
+         Umsehen darfst du dich — mehr nicht.</p>
+      <div class="tafel">
+        <u>Das Personal</u>
+        <dt style="color:var(--teig)">Bruzzo</dt> der Pizzabäcker. Kommt von links. Tür zu.<br>
+        <dt style="color:var(--gruen)">Olivia</dt> die Olive mit dem einen Auge. Kommt von rechts —
+        und rührt sich <b>nur, wenn niemand hinsieht</b>.<br>
+        <dt style="color:var(--blau)">Krempel</dt> die Musikbox auf Rollen. Nimmt die Lüftung,
+        Türen helfen nicht. Luke zu.<br>
+        <dt style="color:var(--sauce)">Der Teigling</dt> halbfertig, ohne Gesicht. Wacht auf,
+        wenn das Tablet zu lange oben ist. Dann sofort runter damit.
+      </div>
+      <div class="tafel">
+        <u>Strom</u>
+        Alles kostet: Türen, Lichter, Luke, Tablet. Bei null geht alles auf.
+        Die <b>Handkurbel</b> holt Strom zurück — aber sie ist laut, und Lärm
+        macht sie schneller.
+      </div>
+      <div id="naechte"></div>
+      <button class="los" id="losKnopf">SCHICHT BEGINNEN</button>
+      <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel" style="font-size:clamp(28px,9vw,48px)">SCHICHTENDE</h1>
+      <p id="endeText"></p>
+      <div id="endeWer" style="font-size:13px;letter-spacing:.14em;color:var(--faint)"></div>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"../racer/lib/three.module.js"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+</body>
+</html>
