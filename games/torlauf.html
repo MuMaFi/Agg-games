@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Torlauf — AGG Games</title>
+<meta name="description" content="Ein Daumen, zwei Tore, eine Menge, die wächst oder schrumpft. Lauf so weit du kannst.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='3' width='5' height='9' fill='%235be0b0'/%3E%3Crect x='9' y='3' width='5' height='9' fill='%23ff6b5e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141926; --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --dim:#98a3b6; --faint:#616d84;
+  --gut:#5be0b0; --schlecht:#ff6b5e; --gold:#ffb648;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none;
+}
+#buehne{position:relative; height:100%; aspect-ratio:9/16; max-width:100vw; background:#070a10}
+canvas{display:block; width:100%; height:100%; image-rendering:pixelated}
+
+/* ── Anzeige ──────────────────────────────────────────────── */
+#hud{position:absolute; inset:0; pointer-events:none; padding:12px;
+  display:flex; justify-content:space-between; align-items:flex-start; font-size:15px}
+.feld{background:#0d1119cc; border:2px solid var(--edge); padding:5px 9px; line-height:1.15}
+.feld b{display:block; font-size:22px; color:var(--gold)}
+.feld small{display:block; font-size:10px; letter-spacing:.16em; color:var(--faint);
+  text-transform:uppercase}
+#leute b{color:var(--gut)}
+
+#ruf{position:absolute; left:50%; top:26%; transform:translateX(-50%);
+  font-size:44px; opacity:0; pointer-events:none; text-shadow:3px 3px 0 #070a10;
+  transition:opacity .12s}
+#ruf.an{opacity:1}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:22px;
+  background:#070a10ee; text-align:center; z-index:5}
+.blende.weg{display:none}
+h1{font-size:clamp(38px,13vw,68px); line-height:.92; letter-spacing:.02em}
+h1 span{color:var(--gut)}
+.blende p{color:var(--dim); font-size:15px; line-height:1.5; margin:14px 0; max-width:30ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0d1119; padding:12px 14px; margin:8px 0;
+  font-size:13px; color:var(--dim); line-height:1.7; max-width:32ch}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:10px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+kbd{border:1px solid var(--edge-hi); border-bottom-width:2px; padding:0 5px; color:var(--ink)}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; border-radius:2px; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+#endeZahl{font-size:60px; color:var(--gold); line-height:1}
+#endeBest{color:var(--faint); font-size:13px; letter-spacing:.1em}
+a.zurueck{position:absolute; left:12px; bottom:12px; z-index:6; color:var(--faint);
+  font-size:12px; letter-spacing:.12em; text-decoration:none; background:#0d1119cc;
+  border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div class="feld" id="leute"><b>5</b><small>Läufer</small></div>
+    <div class="feld" id="weit"><b>0</b><small>Meter</small></div>
+  </div>
+  <div id="ruf"></div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>TOR<span>LAUF</span></h1>
+      <p>Deine Leute rennen von allein. Du entscheidest nur, durch <b>welches Tor</b>
+         sie laufen — und ob am Ende genug von ihnen übrig sind.</p>
+      <div class="tafel">
+        <u>Steuerung</u>
+        Finger über den Bildschirm ziehen<br>
+        oder <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd>
+      </div>
+      <div class="tafel">
+        <u>Was dir begegnet</u>
+        <b style="color:var(--gut)">Grüne Tore</b> machen mehr &middot;
+        <b style="color:var(--schlecht)">rote</b> weniger<br>
+        <b style="color:var(--schlecht)">Sägen</b> fressen, solange du sie berührst<br>
+        <b style="color:var(--gold)">Sperren</b> kosten genau ihre Zahl
+      </div>
+      <button class="los" id="losKnopf">LOSLAUFEN</button>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel">AUS</h1>
+      <div id="endeZahl">0</div>
+      <p style="margin:6px 0 2px">Meter</p>
+      <div id="endeBest"></div>
+      <p id="endeText"></p>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+    </div>
+  </div>
+
+  <a class="zurueck" href="../index.html">← ALLE SPIELE</a>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   TORLAUF — ein Daumen, zwei Tore.
+
+   Gezeichnet wird in einen kleinen Puffer (180 × 320) und hart
+   hochskaliert; dadurch sind die Figuren echte Pixelfiguren und das
+   Ganze läuft auch auf einem müden Telefon mit 60 Bildern.
+
+   Die Menge ist kein Sprite, sondern ein Schwarm: jede Figur hat einen
+   Platz in einer Spirale um den Anführer und zieht mit einer Feder
+   dorthin. Deshalb schwappt sie in Kurven nach, statt starr zu kleben.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+
+const B = 180, HH = 320;                 // Innenauflösung
+const cv = $('#c'), g = cv.getContext('2d');
+cv.width = B; cv.height = HH;
+g.imageSmoothingEnabled = false;
+
+const BAHN_L = 16, BAHN_R = B-16;        // Spielfeldrand
+const SPUR_Y = HH*0.74;                  // Höhe, auf der der Anführer läuft
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let spiel = null, laeuft = false, letzteZeit = 0;
+let bestwert = +(localStorage.getItem('torlauf.best') || 0);
+
+function neu(){
+  spiel = {
+    x: B/2, zielX: B/2,
+    anzahl: 5, zeigeAnzahl: 5,
+    strecke: 0, tempo: 46,               // Pixel pro Sekunde, wächst
+    dinge: [], naechstesY: -80,
+    figuren: [], blink: 0, rufUhr: 0,
+    schuett: 0, tot: false, zeit: 0
+  };
+  for(let i=0;i<5;i++) neueFigur();
+  ruf('');
+}
+/* Jede Figur startet beim Anführer und findet ihren Platz von selbst. */
+function neueFigur(){
+  spiel.figuren.push({x: spiel.x + (Math.random()-.5)*6, y: SPUR_Y + (Math.random()-.5)*6,
+                      vx:0, vy:0, takt: Math.random()*6.28});
+}
+
+/* ── Die Menge ────────────────────────────────────────────────────────
+   Plätze liegen auf einer Sonnenblumenspirale: gleichmäßig dicht, ohne
+   dass man ein Raster sieht, und der Anführer bleibt immer vorne. */
+const GOLD = Math.PI * (3 - Math.sqrt(5));
+function platz(i, n){
+  const weit = Math.min(4 + Math.sqrt(n)*3.1, (BAHN_R-BAHN_L)/2 - 6);
+  const r = Math.sqrt(i/Math.max(n,1)) * weit;
+  const a = i * GOLD;
+  return {dx: Math.cos(a)*r, dy: Math.sin(a)*r*0.72};
+}
+/* Der Radius wächst mit der Wurzel — sonst frisst die Menge ab ein paar
+   hundert Läufern die ganze Bahn. Nach oben gedeckelt, damit sie auch bei
+   zweitausend noch zwischen die Ränder passt. */
+function radius(){
+  return Math.min(3 + Math.sqrt(spiel.anzahl)*2.6, (BAHN_R-BAHN_L)/2 - 6);
+}
+
+function figurenDenken(dt){
+  const n = spiel.figuren.length;
+  for(let i=0;i<n;i++){
+    const f = spiel.figuren[i];
+    const p = platz(i, n);
+    const zx = spiel.x + p.dx, zy = SPUR_Y + p.dy;
+    // Feder zum Platz, Dämpfung, plus ein kleines Wackeln im Laufrhythmus
+    f.vx += (zx - f.x) * 26 * dt;  f.vy += (zy - f.y) * 26 * dt;
+    f.vx *= Math.pow(.0016, dt);   f.vy *= Math.pow(.0016, dt);
+    f.x += f.vx*dt; f.y += f.vy*dt;
+    f.takt += dt * (9 + (i%5));
+  }
+}
+/* Anzahl ändern — nach oben kommen Figuren dazu, nach unten fallen die
+   hintersten weg. Die hintersten, damit die Menge von außen einreißt. */
+function setzeAnzahl(n, runden = true){
+  /* Die Säge frisst bruchstückweise. Würde hier immer gerundet, käme bei
+     kleinen Mengen pro Bild weniger als ein halber Läufer heraus — die
+     Säge tat dann gar nichts mehr, ausgerechnet wenn es eng wird. */
+  n = Math.max(0, runden ? Math.round(n) : n);
+  const alt = spiel.anzahl;
+  spiel.anzahl = n;
+  const soll = Math.min(Math.round(n), 140);     // mehr zeichnen bringt nichts
+  while(spiel.figuren.length < soll) neueFigur();
+  while(spiel.figuren.length > soll) spiel.figuren.pop();
+  if(n < alt) spiel.schuett = Math.min(1, spiel.schuett + (alt-n)/Math.max(alt,1));
+  if(n < 1 && !spiel.tot) ende('Niemand mehr übrig.');
+}
+
+/* ── Hindernisse ──────────────────────────────────────────────────────
+   Alles wandert von oben nach unten durchs Bild. Was unten rausläuft,
+   fliegt raus. Der Abstand schrumpft mit der Strecke, das ist die ganze
+   Schwierigkeitskurve. */
+const ARTEN = ['tore','tore','saege','sperre','tore','saege'];
+function bauen(){
+  const s = spiel.strecke;
+  const art = s < 60 ? 'tore'
+            : s < 160 ? (Math.random()<.75 ? 'tore':'saege')
+            : ARTEN[Math.floor(Math.random()*ARTEN.length)];
+  const y = spiel.naechstesY;
+
+  if(art === 'tore'){
+    /* Ein gutes und ein schlechtes Tor nebeneinander. Beide Seiten sind
+       gleich oft gut — sonst lernt man die Seite statt zu lesen. */
+    const stark = 1 + s/220;
+    const guteArt = Math.random();
+    const gut = guteArt < .45 ? {op:'*', wert: 2}
+              : guteArt < .60 ? {op:'*', wert: 3}
+              : {op:'+', wert: Math.round(4 + 9*Math.random()*stark)};
+    const schl = Math.random() < .5 ? {op:'/', wert: 2}
+              : {op:'-', wert: Math.round(3 + 8*Math.random()*stark)};
+    const linksGut = Math.random() < .5;
+    spiel.dinge.push({art:'tore', y, hoehe:26,
+      links:  linksGut ? gut : schl,
+      rechts: linksGut ? schl : gut, benutzt:false});
+    spiel.naechstesY -= misch(112, 74, klemm(s/900,0,1));
+
+  } else if(art === 'saege'){
+    const br = misch(34, 58, Math.random());
+    const x  = misch(BAHN_L, BAHN_R-br, Math.random());
+    spiel.dinge.push({art:'saege', y, hoehe:20, x, br, dreh:0,
+      seite: Math.random()<.5 ? -1 : 1, spanne: 14 + Math.random()*22});
+    spiel.naechstesY -= misch(104, 70, klemm(s/900,0,1));
+
+  } else {
+    /* Sperre: kostet genau ihre Zahl. Sie ist so bemessen, dass sie in
+       der Nähe der aktuellen Menge liegt — sonst ist sie entweder
+       belanglos oder unfair. */
+    const zahl = Math.max(4, Math.round(spiel.anzahl * misch(.35, .95, Math.random())));
+    spiel.dinge.push({art:'sperre', y, hoehe:22, zahl, benutzt:false});
+    spiel.naechstesY -= misch(126, 92, klemm(s/900,0,1));
+  }
+}
+
+function dingeDenken(dt){
+  const v = spiel.tempo;
+  spiel.strecke += v*dt/10;
+  spiel.tempo = 46 + Math.min(38, spiel.strecke*0.075);
+
+  /* Die Marke für den nächsten Bau wandert mit der Welt nach unten. Ohne
+     das blieb sie oben stehen: einmal aufgefüllt, kam danach nie wieder
+     etwas — nach vier Toren lief man durch eine leere Bahn. */
+  spiel.naechstesY += v*dt;
+  while(spiel.naechstesY > -HH) bauen();
+
+  const r = radius();
+  for(const d of spiel.dinge){
+    d.y += v*dt;
+
+    if(d.art === 'saege'){
+      d.dreh += dt*7;
+      d.x += d.seite * d.spanne * dt * 0.55;
+      if(d.x < BAHN_L){ d.x = BAHN_L; d.seite = 1; }
+      if(d.x + d.br > BAHN_R){ d.x = BAHN_R-d.br; d.seite = -1; }
+      // Berührung frisst laufend, statt einmal hart zuzuschlagen
+      if(Math.abs(d.y - SPUR_Y) < 12 + r*.35 &&
+         spiel.x + r*.6 > d.x && spiel.x - r*.6 < d.x + d.br){
+        setzeAnzahl(spiel.anzahl - Math.max(6, spiel.anzahl*1.7) * dt, false);
+        spiel.blink = .12;
+      }
+    }
+
+    if(d.art === 'tore' && !d.benutzt && d.y > SPUR_Y - 4){
+      d.benutzt = true;
+      const t = spiel.x < B/2 ? d.links : d.rechts;
+      wende(t);
+    }
+
+    if(d.art === 'sperre' && !d.benutzt && d.y > SPUR_Y - 6){
+      d.benutzt = true;
+      if(spiel.anzahl > d.zahl){
+        setzeAnzahl(spiel.anzahl - d.zahl);
+        ruf('DURCH');
+      } else {
+        setzeAnzahl(0);
+        ende('An der Sperre hat es nicht gereicht: ' + d.zahl + ' war zu viel.');
+      }
+    }
+  }
+  spiel.dinge = spiel.dinge.filter(d => d.y < HH + 40);
+}
+
+function wende(t){
+  const a = spiel.anzahl;
+  if(t.op === '*') setzeAnzahl(a * t.wert);
+  if(t.op === '+') setzeAnzahl(a + t.wert);
+  if(t.op === '-') setzeAnzahl(a - t.wert);
+  if(t.op === '/') setzeAnzahl(Math.floor(a / t.wert));
+  ruf(zeichenVon(t));
+}
+const zeichenVon = t => (t.op==='*'?'×':t.op==='/'?'÷':t.op) + t.wert;
+const istGut = t => t.op === '*' || t.op === '+';
+
+let rufTimer = 0;
+function ruf(text){
+  const el = $('#ruf');
+  el.textContent = text;
+  el.style.color = text.startsWith('×') || text.startsWith('+') || text === 'DURCH'
+    ? 'var(--gut)' : 'var(--schlecht)';
+  el.classList.toggle('an', !!text);
+  rufTimer = .7;
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+function zeichne(){
+  // Grund: Bahn mit mitlaufenden Querstreifen, damit man das Tempo sieht
+  g.fillStyle = '#070a10'; g.fillRect(0,0,B,HH);
+  g.fillStyle = '#101725'; g.fillRect(BAHN_L, 0, BAHN_R-BAHN_L, HH);
+  const versatz = (spiel.strecke*10) % 24;
+  g.fillStyle = '#141d2e';
+  for(let y = -24 + versatz; y < HH; y += 24) g.fillRect(BAHN_L, y, BAHN_R-BAHN_L, 12);
+  g.fillStyle = '#243047';
+  g.fillRect(BAHN_L-2, 0, 2, HH); g.fillRect(BAHN_R, 0, 2, HH);
+  // Mittellinie: erinnert daran, dass die Seite über das Tor entscheidet
+  g.fillStyle = '#1b2537';
+  for(let y = -8 + versatz; y < HH; y += 16) g.fillRect(B/2-1, y, 2, 8);
+
+  for(const d of spiel.dinge){
+    if(d.art === 'tore')  malTore(d);
+    if(d.art === 'saege') malSaege(d);
+    if(d.art === 'sperre')malSperre(d);
+  }
+  malMenge();
+
+  if(spiel.blink > 0){
+    g.fillStyle = 'rgba(255,107,94,' + (spiel.blink*1.6).toFixed(2) + ')';
+    g.fillRect(0,0,B,HH);
+  }
+}
+
+function malTore(d){
+  const mitte = B/2;
+  for(const [t, x0, x1] of [[d.links, BAHN_L, mitte-1],[d.rechts, mitte+1, BAHN_R]]){
+    const gut = istGut(t);
+    const f = gut ? '#5be0b0' : '#ff6b5e';
+    const dunkel = gut ? '#16463a' : '#4a1d1a';
+    g.fillStyle = dunkel; g.fillRect(x0, d.y, x1-x0, d.hoehe);
+    g.fillStyle = f;
+    g.fillRect(x0, d.y, x1-x0, 2); g.fillRect(x0, d.y+d.hoehe-2, x1-x0, 2);
+    g.fillRect(x0, d.y, 2, d.hoehe); g.fillRect(x1-2, d.y, 2, d.hoehe);
+    schrift(zeichenVon(t), (x0+x1)/2, d.y + d.hoehe/2, f, 15);
+  }
+}
+/* Die Säge war anfangs nur ein Kästchen mit weißen Punkten — man hat nicht
+   gesehen, dass sie sich dreht, und nicht, dass sie gefährlich ist. Jetzt
+   sitzt ein richtiges Blatt in einer Schiene: Scheibe, acht Zähne außen,
+   dunkle Nabe. Die Zähne stehen über die Schiene hinaus, sonst verschwinden
+   sie im Gehäuse. */
+function malSaege(d){
+  const my = d.y + d.hoehe/2, r = d.hoehe/2 + 2;
+  // Schiene mit Warnstreifen
+  g.fillStyle = '#2a1512'; g.fillRect(d.x, d.y+3, d.br, d.hoehe-6);
+  g.fillStyle = '#54211c';
+  for(let x = d.x; x < d.x + d.br - 3; x += 8) g.fillRect(x, d.y+3, 4, d.hoehe-6);
+  g.fillStyle = '#ff6b5e';
+  g.fillRect(d.x, d.y+2, d.br, 2); g.fillRect(d.x, d.y+d.hoehe-4, d.br, 2);
+
+  const blaetter = d.br > 46 ? 3 : 2;
+  for(let i=0;i<blaetter;i++){
+    const zx = d.x + 10 + i*(d.br-20)/(blaetter-1);
+    g.fillStyle = '#c9d3e6';
+    for(let k=0;k<8;k++){                       // Zähne
+      const a = d.dreh + k*0.785;
+      g.fillRect(Math.round(zx + Math.cos(a)*r) - 2,
+                 Math.round(my + Math.sin(a)*r) - 2, 4, 4);
+    }
+    g.beginPath(); g.arc(zx, my, r-2.5, 0, 6.284);
+    g.fillStyle = '#9fadc4'; g.fill();
+    g.beginPath(); g.arc(zx, my, r*0.42, 0, 6.284);
+    g.fillStyle = '#3a4358'; g.fill();
+  }
+}
+function malSperre(d){
+  g.fillStyle = '#3a2d0c'; g.fillRect(BAHN_L, d.y, BAHN_R-BAHN_L, d.hoehe);
+  g.fillStyle = '#ffb648';
+  g.fillRect(BAHN_L, d.y, BAHN_R-BAHN_L, 2);
+  g.fillRect(BAHN_L, d.y+d.hoehe-2, BAHN_R-BAHN_L, 2);
+  for(let x = BAHN_L; x < BAHN_R; x += 10) g.fillRect(x, d.y+2, 4, d.hoehe-4);
+  schrift(String(d.zahl), B/2, d.y + d.hoehe/2, '#20180a', 15);
+}
+
+/* Eine Figur ist sieben Pixel hoch: Kopf, Rumpf, zwei Beine, die im
+   Laufrhythmus wechseln. Mehr braucht es bei der Größe nicht. */
+function malFigur(x, y, hell){
+  const px = Math.round(x), py = Math.round(y);
+  g.fillStyle = hell ? '#eaf6ff' : '#cfe0f2';
+  g.fillRect(px-1, py-7, 3, 3);                 // Kopf
+  g.fillStyle = hell ? '#5be0b0' : '#3fa98a';
+  g.fillRect(px-2, py-4, 5, 4);                 // Rumpf
+}
+function malBeine(x, y, takt){
+  const px = Math.round(x), py = Math.round(y);
+  const s = Math.sin(takt) > 0 ? 1 : -1;
+  g.fillStyle = '#2b3b52';
+  g.fillRect(px-2, py, 2, 2 + (s>0?1:0));
+  g.fillRect(px+1, py, 2, 2 + (s<0?1:0));
+}
+function malMenge(){
+  const f = spiel.figuren;
+  // hinten zuerst, damit die vorderen Reihen oben liegen
+  const reihenfolge = f.map((v,i)=>i).sort((a,b) => f[a].y - f[b].y);
+  for(const i of reihenfolge){
+    const o = f[i];
+    malBeine(o.x, o.y, o.takt);
+    malFigur(o.x, o.y, i === 0);
+  }
+}
+function schrift(text, mx, my, farbe, groesse){
+  g.font = '700 ' + groesse + 'px "Pixelify Sans", monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#070a10';
+  g.fillText(text, mx+1, my+1);
+  g.fillStyle = farbe;
+  g.fillText(text, mx, my);
+}
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+const taste = {links:false, rechts:false};
+addEventListener('keydown', e => {
+  if(e.code==='KeyA'||e.code==='ArrowLeft'){ taste.links = true; e.preventDefault(); }
+  if(e.code==='KeyD'||e.code==='ArrowRight'){ taste.rechts = true; e.preventDefault(); }
+  if(e.code==='Space' && !laeuft) starten();
+});
+addEventListener('keyup', e => {
+  if(e.code==='KeyA'||e.code==='ArrowLeft')  taste.links = false;
+  if(e.code==='KeyD'||e.code==='ArrowRight') taste.rechts = false;
+});
+/* Der Finger zieht die Menge relativ mit, statt sie an die Fingerspitze zu
+   setzen: sonst springt sie beim Antippen quer über die Bahn. */
+let zeiger = null;
+cv.addEventListener('pointerdown', e => {
+  zeiger = {id:e.pointerId, x:e.clientX, start:spiel ? spiel.zielX : B/2};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  if(!zeiger || e.pointerId !== zeiger.id || !spiel) return;
+  const skala = B / cv.getBoundingClientRect().width;
+  spiel.zielX = klemm(zeiger.start + (e.clientX - zeiger.x) * skala * 1.35, BAHN_L+4, BAHN_R-4);
+});
+for(const t of ['pointerup','pointercancel'])
+  cv.addEventListener(t, e => { if(zeiger && e.pointerId === zeiger.id) zeiger = null; });
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+function schritt(dt){
+  if(taste.links)  spiel.zielX -= 150*dt;
+  if(taste.rechts) spiel.zielX += 150*dt;
+  spiel.zielX = klemm(spiel.zielX, BAHN_L+4, BAHN_R-4);
+  spiel.x += (spiel.zielX - spiel.x) * Math.min(dt*14, 1);
+
+  dingeDenken(dt);
+  figurenDenken(dt);
+  spiel.zeit += dt;
+  if(spiel.blink > 0) spiel.blink -= dt;
+  if(spiel.schuett > 0) spiel.schuett = Math.max(0, spiel.schuett - dt*2);
+  if(rufTimer > 0){ rufTimer -= dt; if(rufTimer <= 0) $('#ruf').classList.remove('an'); }
+
+  // Die Zahl im Kopf zählt weich hoch, das liest sich besser als ein Sprung
+  spiel.zeigeAnzahl = misch(spiel.zeigeAnzahl, spiel.anzahl, Math.min(dt*12,1));
+  $('#leute b').textContent = Math.round(spiel.zeigeAnzahl);
+  $('#weit b').textContent  = Math.floor(spiel.strecke);
+}
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt - letzteZeit)/1000, .05); letzteZeit = jetzt;
+  if(!spiel) return;
+  if(laeuft) schritt(dt);
+  zeichne();
+}
+
+function starten(){
+  neu(); laeuft = true;
+  $('#start').classList.add('weg');
+  $('#ende').classList.add('weg');
+}
+function ende(text){
+  if(spiel.tot) return;
+  spiel.tot = true; laeuft = false;
+  const m = Math.floor(spiel.strecke);
+  const rekord = m > bestwert;
+  if(rekord){ bestwert = m; localStorage.setItem('torlauf.best', String(m)); }
+  $('#endeTitel').textContent = rekord ? 'REKORD' : 'AUS';
+  $('#endeTitel').style.color = rekord ? 'var(--gut)' : 'var(--ink)';
+  $('#endeZahl').textContent = m;
+  $('#endeBest').textContent = rekord ? 'so weit warst du noch nie'
+                                      : 'bester Lauf: ' + bestwert + ' m';
+  $('#endeText').textContent = text;
+  $('#ende').classList.remove('weg');
+}
+
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', starten);
+neu(); laeuft = false;
+requestAnimationFrame(t => { letzteZeit = t; requestAnimationFrame(schleife); });
+
+window.__torlauf = {
+  get spiel(){ return spiel; },
+  starten, setzeAnzahl,
+  springe: m => { spiel.strecke = m; }
+};
+</script>
+</body>
+</html>

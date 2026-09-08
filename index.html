@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
 <title>AGG Games — Spiele direkt im Browser</title>
-<meta name="description" content="Fünf Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, Farbgedächtnis, Jump ’n’ Run und ein Reaktor-Idle.">
+<meta name="description" content="Neun Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="AGG Games">
-<meta property="og:description" content="Fünf Spiele, die ohne Installation direkt im Browser laufen.">
+<meta property="og:description" content="Neun Spiele, die ohne Installation direkt im Browser laufen.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='5' width='12' height='7' fill='%23ffb648'/%3E%3Crect x='4' y='7' width='2' height='3' fill='%230b0d12'/%3E%3Crect x='3' y='8' width='4' height='1' fill='%230b0d12'/%3E%3Crect x='10' y='7' width='2' height='2' fill='%230b0d12'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -196,7 +196,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
   <section class="wrap hero">
     <span class="kicker">Direkt im Browser</span>
     <h1>Acht Spiele,<br>ein Regalbrett.</h1>
-    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
+    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
   </section>
 
   <div class="wrap">
@@ -533,7 +533,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Nachsitzen ───────────────────────────────────────────── -->
-      <a class="card" href="games/schule/" data-cat="3d action" style="--accent:#f2c14e">
+      <a class="card" href="games/schule/" data-cat="3d horror" style="--accent:#f2c14e">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Schulflur in Fluchtperspektive mit Spinden und einer Figur am Ende des Gangs">
             <defs>
@@ -673,6 +673,69 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
           <div class="meta">
             <span class="tag">Touch</span><span class="tag">Offline</span>
             <span class="tag">Bestwert</span><span class="tag">Eine Runde: 2 Minuten</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Torlauf ──────────────────────────────────────────────── -->
+      <a class="card" href="games/torlauf.html" data-cat="arcade" style="--accent:#5be0b0">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Laufbahn mit einem grünen Mal-zwei-Tor links und einem roten Geteilt-zwei-Tor rechts, davor eine Menge kleiner Läufer">
+            <defs>
+              <linearGradient id="tl-bg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#0d1422"/><stop offset="1" stop-color="#070a10"/>
+              </linearGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#tl-bg)"/>
+            <!-- Bahn mit mitlaufenden Querstreifen -->
+            <rect x="26" y="0" width="268" height="180" fill="#101725"/>
+            <g fill="#141d2e">
+              <rect x="26" y="8"  width="268" height="12"/><rect x="26" y="32" width="268" height="12"/>
+              <rect x="26" y="56" width="268" height="12"/><rect x="26" y="80" width="268" height="12"/>
+              <rect x="26" y="104" width="268" height="12"/><rect x="26" y="128" width="268" height="12"/>
+              <rect x="26" y="152" width="268" height="12"/>
+            </g>
+            <g fill="#243047"><rect x="22" y="0" width="4" height="180"/><rect x="294" y="0" width="4" height="180"/></g>
+            <g fill="#1b2537">
+              <rect x="158" y="4" width="4" height="10"/><rect x="158" y="28" width="4" height="10"/>
+              <rect x="158" y="52" width="4" height="10"/><rect x="158" y="76" width="4" height="10"/>
+              <rect x="158" y="100" width="4" height="10"/><rect x="158" y="124" width="4" height="10"/>
+            </g>
+            <!-- Torpaar -->
+            <rect x="26" y="30" width="132" height="42" fill="#16463a"/>
+            <rect x="26" y="30" width="132" height="42" fill="none" stroke="#5be0b0" stroke-width="4"/>
+            <text x="92" y="59" text-anchor="middle" font-family="'Pixelify Sans',monospace" font-size="26" fill="#5be0b0">&#215;2</text>
+            <rect x="162" y="30" width="132" height="42" fill="#4a1d1a"/>
+            <rect x="162" y="30" width="132" height="42" fill="none" stroke="#ff6b5e" stroke-width="4"/>
+            <text x="228" y="59" text-anchor="middle" font-family="'Pixelify Sans',monospace" font-size="26" fill="#ff6b5e">&#247;2</text>
+            <!-- Die Menge: Kopf, Rumpf, zwei Beine, wie im Spiel -->
+            <g>
+              <g fill="#cfe0f2">
+                <rect x="104" y="106" width="6" height="6"/><rect x="126" y="100" width="6" height="6"/>
+                <rect x="148" y="110" width="6" height="6"/><rect x="170" y="102" width="6" height="6"/>
+                <rect x="192" y="108" width="6" height="6"/><rect x="115" y="126" width="6" height="6"/>
+                <rect x="137" y="122" width="6" height="6"/><rect x="159" y="130" width="6" height="6"/>
+                <rect x="181" y="124" width="6" height="6"/><rect x="148" y="146" width="6" height="6"/>
+              </g>
+              <g fill="#5be0b0">
+                <rect x="102" y="114" width="10" height="8"/><rect x="124" y="108" width="10" height="8"/>
+                <rect x="146" y="118" width="10" height="8"/><rect x="168" y="110" width="10" height="8"/>
+                <rect x="190" y="116" width="10" height="8"/><rect x="113" y="134" width="10" height="8"/>
+                <rect x="135" y="130" width="10" height="8"/><rect x="157" y="138" width="10" height="8"/>
+                <rect x="179" y="132" width="10" height="8"/><rect x="146" y="154" width="10" height="8"/>
+              </g>
+            </g>
+            <text x="40" y="170" font-family="'Pixelify Sans',monospace" font-size="13" fill="#5f6b82" letter-spacing="2">EIN DAUMEN, ZWEI TORE</text>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Arcade · Ein Finger</p>
+          <h2>Torlauf</h2>
+          <p class="desc">Deine Leute rennen von allein. Du entscheidest nur, durch welches Tor: grün macht mehr, rot weniger. Dazwischen fressen Kreissägen, solange du sie berührst, und Sperren kosten genau ihre Zahl — reicht die Menge nicht, ist der Lauf zu Ende. Wie weit kommst du?</p>
+          <div class="meta">
+            <span class="tag">Touch</span><span class="tag">Offline</span>
+            <span class="tag">Bestwert</span><span class="tag">Endlos</span>
           </div>
           <span class="play">Spielen <span class="arrow">▶</span></span>
         </div>
@@ -850,6 +913,18 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
   const cards  = [...document.querySelectorAll('.card')];
   const chips  = [...document.querySelectorAll('.chip[data-filter]')];
   const empty  = document.getElementById('empty');
+
+  /* Die Zahlen an den Knöpfen kommen aus den Karten. Von Hand gepflegt
+     liefen sie auseinander: "Rennen 1" stand da, obwohl zwei Karten die Art
+     tragen. Wer eine Karte einfügt, muss jetzt nichts nachzählen. */
+  for(const chip of chips){
+    const f = chip.dataset.filter;
+    const n = f === 'alle' ? cards.length
+            : cards.filter(c => (c.dataset.cat||'').split(/\s+/).includes(f)).length;
+    const feld = chip.querySelector('.n');
+    if(feld) feld.textContent = n;
+    chip.hidden = n === 0;
+  }
 
   function apply(filter){
     let shown = 0;
