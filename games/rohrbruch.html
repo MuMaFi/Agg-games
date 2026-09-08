@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Rohrbruch — AGG Games</title>
+<meta name="description" content="Leg das Rohr, bevor das Wasser dich einholt. Du kannst dir nicht aussuchen, welches Stück als nächstes kommt.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='0' y='6' width='10' height='4' fill='%234aa3e0'/%3E%3Crect x='6' y='6' width='4' height='10' fill='%234aa3e0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141926; --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --dim:#98a3b6; --faint:#616d84;
+  --wasser:#4aa3e0; --gold:#ffb648; --rot:#ff6b5e; --gruen:#5be0b0;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:var(--bg); color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:manipulation; user-select:none}
+
+#huelle{position:relative; width:min(100vw,100vh*0.72); max-height:100vh;
+  display:flex; flex-direction:column; gap:10px; padding:12px}
+
+/* ── Kopfzeile ────────────────────────────────────────────── */
+#kopf{display:flex; gap:8px; align-items:stretch}
+.feld{flex:1; background:var(--panel); border:2px solid var(--edge); padding:6px 9px; line-height:1.1}
+.feld b{display:block; font-size:clamp(18px,5vw,26px); color:var(--gold)}
+.feld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#leben b{color:var(--rot); letter-spacing:.1em}
+#stufe b{color:var(--gruen)}
+
+/* ── Spielfeld ────────────────────────────────────────────── */
+#feld{position:relative; background:#080b11; border:2px solid var(--edge)}
+canvas{display:block; width:100%; height:auto; image-rendering:pixelated}
+
+/* ── Vorrat ───────────────────────────────────────────────── */
+#unten{display:flex; gap:10px; align-items:center}
+#vorrat{display:flex; gap:5px; background:var(--panel); border:2px solid var(--edge); padding:6px}
+#vorrat canvas{width:38px; height:38px; image-rendering:pixelated}
+#vorrat canvas:first-child{outline:2px solid var(--gold); outline-offset:1px}
+#uhrleiste{flex:1; height:14px; background:#0d1119; border:2px solid var(--edge); position:relative}
+#uhrfuellung{position:absolute; inset:0; width:100%; background:var(--gold); transform-origin:left}
+#uhrleiste.laeuft #uhrfuellung{background:var(--wasser)}
+#hinweis{font-size:11px; color:var(--faint); letter-spacing:.1em; text-align:center; min-height:14px}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:fixed; inset:0; display:grid; place-items:center; padding:22px;
+  background:#070a10ee; text-align:center; z-index:5}
+.blende.weg{display:none}
+h1{font-size:clamp(36px,12vw,62px); line-height:.94}
+h1 span{color:var(--wasser)}
+.blende p{color:var(--dim); font-size:15px; line-height:1.5; margin:14px 0; max-width:32ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0d1119; padding:12px 14px; margin:8px auto;
+  font-size:13px; color:var(--dim); line-height:1.7; max-width:34ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:10px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+#endeZahl{font-size:58px; color:var(--gold); line-height:1}
+#endeBest{color:var(--faint); font-size:13px; letter-spacing:.1em}
+a.zurueck{position:fixed; left:12px; bottom:12px; z-index:6; color:var(--faint);
+  font-size:12px; letter-spacing:.12em; text-decoration:none; background:#0d1119cc;
+  border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+@media(max-height:640px){ .tafel{display:none} }
+</style>
+</head>
+<body>
+<div id="huelle">
+  <div id="kopf">
+    <div class="feld" id="punkte"><b>0</b><small>Punkte</small></div>
+    <div class="feld" id="stufe"><b>1</b><small>Abschnitt</small></div>
+    <div class="feld" id="leben"><b>✚✚✚</b><small>Reserve</small></div>
+  </div>
+
+  <div id="feld"><canvas id="c"></canvas></div>
+
+  <div id="unten">
+    <div id="vorrat"></div>
+    <div id="uhrleiste"><div id="uhrfuellung"></div></div>
+  </div>
+  <div id="hinweis">Feld antippen — das oberste Stück wird gelegt</div>
+</div>
+
+<div class="blende" id="start">
+  <div>
+    <h1>ROHR<span>BRUCH</span></h1>
+    <p>Das Wasser kommt. Du legst die Leitung — aber du kannst dir nicht
+       aussuchen, <b>welches Stück als nächstes kommt</b>. Nur wohin.</p>
+    <div class="tafel">
+      <u>So geht es</u>
+      Tippe ein leeres Feld an, dort landet das oberste Stück aus dem Vorrat.<br>
+      Ein Rohr, durch das noch kein Wasser läuft, darfst du <b>überbauen</b>.<br>
+      Läuft das Wasser in ein offenes Ende, platzt es: eine Reserve weg.<br>
+      Bring es zum <b style="color:var(--gruen)">Abfluss</b>, dann kommt der nächste Abschnitt.
+    </div>
+    <div class="tafel">
+      <u>Punkte</u>
+      Jedes durchflossene Rohr zählt. Umwege sind also nicht schlimm —
+      sie sind die Punkte.
+    </div>
+    <button class="los" id="losKnopf">WASSER MARSCH</button>
+  </div>
+</div>
+
+<div class="blende weg" id="ende">
+  <div>
+    <h1 id="endeTitel">TROCKEN</h1>
+    <div id="endeZahl">0</div>
+    <p style="margin:6px 0 2px">Punkte</p>
+    <div id="endeBest"></div>
+    <p id="endeText"></p>
+    <button class="los" id="nochmal">NOCH EINMAL</button>
+  </div>
+</div>
+
+<a class="zurueck" href="../index.html">← ALLE SPIELE</a>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   ROHRBRUCH — leg die Leitung, bevor dich das Wasser einholt.
+
+   Ein Rohrstück ist nichts als eine Bitmaske seiner Öffnungen:
+   N=1, O=2, S=4, W=8. Damit ist "passt das Wasser hier hinein" ein
+   einziges Und, und die Zeichenroutine braucht keine sechzehn Fälle,
+   sondern malt je offener Seite einen Balken zur Mitte.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+
+const N=1, O=2, S=4, W=8;
+const GEGEN = {1:4, 2:8, 4:1, 8:2};              // gegenüberliegende Seite
+const VERSATZ = {1:[0,-1], 2:[1,0], 4:[0,1], 8:[-1,0]};
+
+/* Vorrat: gerade Stücke und Bögen gleich häufig, das Kreuz selten —
+   es ist zu bequem, weil es in beide Richtungen passt. */
+const STUECKE = [N|S, O|W, N|O, O|S, S|W, W|N];
+const KREUZ = N|O|S|W;
+function wuerfle(){
+  return Math.random() < .08 ? KREUZ : STUECKE[Math.floor(Math.random()*STUECKE.length)];
+}
+
+const SP = 10, ZE = 8, Z = 26;                   // Spalten, Zeilen, Zellgröße
+const cv = $('#c'), g = cv.getContext('2d');
+cv.width = SP*Z; cv.height = ZE*Z;
+g.imageSmoothingEnabled = false;
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let gitter, quelle, abfluss, vorrat, wasser, spiel;
+let bestwert = +(localStorage.getItem('rohrbruch.best') || 0);
+
+function neuesSpiel(){
+  spiel = {punkte:0, stufe:1, leben:3, aus:false};
+  baueAbschnitt();
+}
+function baueAbschnitt(){
+  const st = spiel.stufe;
+  gitter = [];
+  for(let y=0;y<ZE;y++){ gitter.push([]); for(let x=0;x<SP;x++) gitter[y].push(null); }
+
+  // Quelle links, Abfluss rechts, nie auf derselben Zeile — sonst ist der
+  // erste Abschnitt eine Gerade und man lernt nichts.
+  const qy = 1 + Math.floor(Math.random()*(ZE-2));
+  let ay = 1 + Math.floor(Math.random()*(ZE-2));
+  if(ay === qy) ay = (ay + 2) % (ZE-2) + 1;
+  quelle  = {x:0, y:qy};
+  abfluss = {x:SP-1, y:ay};
+  gitter[qy][0]      = {form:O, fest:true, art:'quelle',  voll:0, ein:W};
+  gitter[ay][SP-1]   = {form:W, fest:true, art:'abfluss', voll:0, ein:W};
+
+  // Steine: ab dem zweiten Abschnitt, nie neben Quelle oder Abfluss
+  const steine = Math.min(12, Math.max(0, (st-1)*2));
+  for(let i=0, v=0; i<steine && v<400; v++){
+    const x = 1+Math.floor(Math.random()*(SP-2)), y = Math.floor(Math.random()*ZE);
+    if(gitter[y][x]) continue;
+    if(Math.abs(x-quelle.x)+Math.abs(y-quelle.y) < 2) continue;
+    if(Math.abs(x-abfluss.x)+Math.abs(y-abfluss.y) < 2) continue;
+    gitter[y][x] = {form:0, fest:true, art:'stein', voll:0}; i++;
+  }
+
+  vorrat = [];
+  for(let i=0;i<5;i++) vorrat.push(wuerfle());
+
+  wasser = {
+    laeuft: false,
+    vorlauf: Math.max(4.5, 11 - st*0.9),          // Sekunden bis es losgeht
+    x: quelle.x, y: quelle.y, ein: W, fortschritt: 0,
+    proZelle: Math.max(0.42, 1.5 - st*0.11),      // Sekunden je Rohr
+    gelaufen: 0
+  };
+  zeichneVorrat();
+  hinweis(`Abschnitt ${st} — das Wasser kommt in ${Math.ceil(wasser.vorlauf)} s`);
+}
+
+/* ── Legen ────────────────────────────────────────────────────────── */
+function lege(x, y){
+  if(spiel.aus || x<0 || y<0 || x>=SP || y>=ZE) return;
+  const z = gitter[y][x];
+  if(z && z.fest) return;                        // Quelle, Abfluss, Stein
+  /* Ein Rohr, durch das schon Wasser läuft, ist nicht mehr zu ändern.
+     Alles andere darf man überbauen — sonst wird ein einziger Fehlgriff
+     zum Spielende, und das Spiel besteht aus Fehlgriffen. */
+  if(z && z.voll > 0) return;
+  gitter[y][x] = {form: vorrat.shift(), fest:false, art:'rohr', voll:0, ein:0};
+  vorrat.push(wuerfle());
+  zeichneVorrat();
+}
+
+/* ── Das Wasser ───────────────────────────────────────────────────── */
+function wasserDenken(dt){
+  if(spiel.aus) return;
+  if(!wasser.laeuft){
+    wasser.vorlauf -= dt;
+    if(wasser.vorlauf <= 0){ wasser.laeuft = true; hinweis('Wasser läuft'); }
+    return;
+  }
+  wasser.fortschritt += dt / wasser.proZelle;
+  const z = gitter[wasser.y][wasser.x];
+  if(z) z.voll = klemm(wasser.fortschritt, 0, 1);
+  if(wasser.fortschritt < 1) return;
+
+  /* Zelle voll — wohin geht es weiter?
+     `wasser.ein` ist die Seite *dieser* Zelle, durch die das Wasser
+     hereinkam. Anfangs stand hier `& ~GEGEN[ein]`, also die Seite
+     gegenüber — damit strich die Maske die falsche Öffnung weg und schon
+     die Quelle meldete eine Sackgasse. */
+  wasser.fortschritt = 0;
+  const jetzt = gitter[wasser.y][wasser.x];
+  const raus = jetzt.form & ~wasser.ein;         // alle Öffnungen außer dem Eingang
+  const gehe = (jetzt.form === KREUZ) ? GEGEN[wasser.ein] : ersteSeite(raus);
+
+  if(!gehe){ platzt('Sackgasse.'); return; }
+  const [dx, dy] = VERSATZ[gehe];
+  const nx = wasser.x + dx, ny = wasser.y + dy;
+
+  if(nx<0 || ny<0 || nx>=SP || ny>=ZE){ platzt('Ins Leere gelaufen.'); return; }
+  const naechste = gitter[ny][nx];
+  if(!naechste || !(naechste.form & GEGEN[gehe])){
+    platzt(naechste ? 'Das Rohr hat da keine Öffnung.' : 'Da ist gar kein Rohr.');
+    return;
+  }
+
+  wasser.x = nx; wasser.y = ny; wasser.ein = GEGEN[gehe];
+  naechste.ein = wasser.ein;                     // fürs Zeichnen: wo es hereinkommt
+  wasser.gelaufen++;
+  spiel.punkte += 10;
+
+  if(naechste.art === 'abfluss'){
+    naechste.voll = 1;
+    spiel.punkte += 50 + spiel.stufe*25;
+    spiel.stufe++;
+    hinweis('Angekommen!');
+    setTimeout(() => { if(!spiel.aus) baueAbschnitt(); }, 700);
+    wasser.laeuft = false; wasser.vorlauf = 1e9;   // wird gleich neu gebaut
+  }
+  anzeige();
+}
+/* Holt die erste gesetzte Seite aus einer Maske. */
+function ersteSeite(maske){
+  for(const d of [N,O,S,W]) if(maske & d) return d;
+  return 0;
+}
+function platzt(grund){
+  spiel.leben--;
+  wasser.laeuft = false;
+  anzeige();
+  if(spiel.leben <= 0){ ende(grund); return; }
+  hinweis(grund + ' Noch ' + spiel.leben + ' Reserve.');
+  setTimeout(() => { if(!spiel.aus) baueAbschnitt(); }, 1100);
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+const D = 10;                                   // Rohrdicke bei Zellgröße 26
+
+/* Ein Balken je Seite. `vomRand` entscheidet, woran er wächst: das Wasser
+   läuft am Eingang vom Rand zur Mitte und am Ausgang von der Mitte zum
+   Rand. Ohne diese Unterscheidung füllte sich jedes Rohr aus der Mitte
+   heraus nach beiden Seiten gleichzeitig — es sah aus, als würde es
+   überall zugleich nass, statt zu fließen. */
+function seitenBalken(ctx, seite, ox, oy, gr, h, d, anteil, vomRand){
+  const m = Math.round(gr/2), L = Math.round(m*klemm(anteil,0,1));
+  if(L <= 0) return;
+  if(seite === N) ctx.fillRect(ox+h, vomRand ? oy : oy+m-L, d, L);
+  if(seite === S) ctx.fillRect(ox+h, vomRand ? oy+gr-L : oy+m, d, L);
+  if(seite === W) ctx.fillRect(vomRand ? ox : ox+m-L, oy+h, L, d);
+  if(seite === O) ctx.fillRect(vomRand ? ox+gr-L : ox+m, oy+h, L, d);
+}
+function ganzerBalken(ctx, form, ox, oy, gr, h, d){
+  const m = Math.round(gr/2);
+  ctx.fillRect(ox+h, oy+h, d, d);                        // Kern
+  if(form & N) ctx.fillRect(ox+h, oy,   d, m);
+  if(form & S) ctx.fillRect(ox+h, oy+m, d, m);
+  if(form & W) ctx.fillRect(ox,   oy+h, m, d);
+  if(form & O) ctx.fillRect(ox+m, oy+h, m, d);
+}
+/* Bei einem Bogen bleibt nach dem Ausschließen des Eingangs genau eine
+   Seite übrig; beim Kreuz geht es geradeaus weiter. */
+function ausSeite(form, ein){
+  if(form === KREUZ) return GEGEN[ein];
+  return ersteSeite(form & ~ein);
+}
+
+function malStueck(ctx, form, ox, oy, gr, fuell, art, ein){
+  const d = Math.max(3, Math.round(gr*D/26));
+  const h = Math.round((gr-d)/2);
+  const di = Math.max(2, d-4), hi = Math.round((gr-di)/2);
+
+  if(art === 'stein'){
+    ctx.fillStyle = '#232a38'; ctx.fillRect(ox+2, oy+2, gr-4, gr-4);
+    ctx.fillStyle = '#39435a'; ctx.fillRect(ox+4, oy+4, gr-9, gr-9);
+    ctx.fillStyle = '#171d29'; ctx.fillRect(ox+7, oy+7, gr-14, gr-14);
+    return;
+  }
+  if(!form) return;
+
+  ctx.fillStyle = art === 'abfluss' ? '#2f6f57' : '#5d6b8c';   // Mantel
+  ganzerBalken(ctx, form, ox, oy, gr, h, d);
+  ctx.fillStyle = '#0f141e';                                   // Hohlraum
+  ganzerBalken(ctx, form, ox, oy, gr, hi, di);
+
+  if(fuell > 0){
+    ctx.fillStyle = art === 'abfluss' ? '#5be0b0' : '#4aa3e0';
+    const e = ein || W, a = ausSeite(form, e);
+    seitenBalken(ctx, e, ox, oy, gr, hi, di, fuell*2, true);
+    if(fuell > .5){
+      ctx.fillRect(ox+hi, oy+hi, di, di);                      // Kern
+      if(a) seitenBalken(ctx, a, ox, oy, gr, hi, di, (fuell-.5)*2, false);
+    }
+  }
+  if(art === 'quelle'){
+    ctx.fillStyle = '#4aa3e0'; ctx.fillRect(ox+3, oy+3, gr-6, gr-6);
+    ctx.fillStyle = '#0b0d12'; ctx.fillRect(ox+6, oy+6, gr-12, gr-12);
+    ctx.fillStyle = '#4aa3e0'; ctx.fillRect(ox+9, oy+9, gr-18, gr-18);
+  }
+  if(art === 'abfluss'){
+    ctx.fillStyle = fuell > .9 ? '#8bffd6' : '#5be0b0';
+    ctx.fillRect(ox+gr-6, oy+3, 4, gr-6);
+  }
+}
+
+function zeichne(){
+  g.fillStyle = '#080b11'; g.fillRect(0,0,SP*Z,ZE*Z);
+  for(let y=0;y<ZE;y++) for(let x=0;x<SP;x++){
+    // Karo im Grund, damit die Felder zählbar bleiben
+    g.fillStyle = (x+y)%2 ? '#0c1017' : '#0a0e14';
+    g.fillRect(x*Z, y*Z, Z, Z);
+  }
+  g.strokeStyle = '#141b28'; g.lineWidth = 1;
+  for(let x=1;x<SP;x++){ g.beginPath(); g.moveTo(x*Z+.5,0); g.lineTo(x*Z+.5,ZE*Z); g.stroke(); }
+  for(let y=1;y<ZE;y++){ g.beginPath(); g.moveTo(0,y*Z+.5); g.lineTo(SP*Z,y*Z+.5); g.stroke(); }
+
+  for(let y=0;y<ZE;y++) for(let x=0;x<SP;x++){
+    const z = gitter[y][x];
+    if(z) malStueck(g, z.form, x*Z, y*Z, Z, z.voll, z.art, z.ein);
+  }
+}
+function zeichneVorrat(){
+  const box = $('#vorrat');
+  box.innerHTML = '';
+  vorrat.forEach((form, i) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 26;
+    const k = c.getContext('2d');
+    k.fillStyle = i === 0 ? '#182034' : '#111725'; k.fillRect(0,0,26,26);
+    malStueck(k, form, 0, 0, 26, 0, 'rohr', 0);
+    box.appendChild(c);
+  });
+}
+
+/* ── Anzeige ──────────────────────────────────────────────────────── */
+function anzeige(){
+  $('#punkte b').textContent = spiel.punkte;
+  $('#stufe b').textContent  = spiel.stufe;
+  $('#leben b').textContent  = '✚'.repeat(Math.max(0,spiel.leben)) || '—';
+  const leiste = $('#uhrleiste'), fuell = $('#uhrfuellung');
+  if(wasser.laeuft){
+    leiste.classList.add('laeuft');
+    fuell.style.transform = 'scaleX(1)';
+  } else {
+    leiste.classList.remove('laeuft');
+    const ganz = Math.max(4.5, 11 - spiel.stufe*0.9);
+    fuell.style.transform = 'scaleX(' + klemm(wasser.vorlauf/ganz, 0, 1).toFixed(3) + ')';
+  }
+}
+function hinweis(t){ $('#hinweis').textContent = t; }
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width  * SP);
+  const y = Math.floor((e.clientY - r.top)  / r.height * ZE);
+  lege(x, y);
+  e.preventDefault();
+});
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt - vorher)/1000, .05); vorher = jetzt;
+  if(!gitter) return;
+  if(!spiel.aus) wasserDenken(dt);
+  zeichne(); anzeige();
+}
+
+function starten(){
+  neuesSpiel();
+  $('#start').classList.add('weg');
+  $('#ende').classList.add('weg');
+  anzeige();
+}
+function ende(grund){
+  spiel.aus = true;
+  const p = spiel.punkte;
+  const rekord = p > bestwert;
+  if(rekord){ bestwert = p; localStorage.setItem('rohrbruch.best', String(p)); }
+  $('#endeTitel').textContent = rekord ? 'REKORD' : 'ABGESOFFEN';
+  $('#endeTitel').style.color = rekord ? 'var(--gruen)' : 'var(--ink)';
+  $('#endeZahl').textContent = p;
+  $('#endeBest').textContent = rekord ? 'so weit warst du noch nie'
+                                      : 'bester Lauf: ' + bestwert + ' Punkte';
+  $('#endeText').textContent = grund + ' Abschnitt ' + spiel.stufe + '.';
+  $('#ende').classList.remove('weg');
+}
+
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', starten);
+neuesSpiel(); spiel.aus = true;                  // Bild im Hintergrund zeigen
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__rohrbruch = {
+  get spiel(){return spiel}, get wasser(){return wasser}, get gitter(){return gitter},
+  get vorrat(){return vorrat},
+  starten, lege, setzeVorrat: v => { vorrat = v.slice(); zeichneVorrat(); },
+  losJetzt: () => { wasser.vorlauf = 0; }
+};
+</script>
+</body>
+</html>
