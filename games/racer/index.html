@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07090e">
+<title>NACHTSCHICHT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap">
+<style>
+:root{
+  --ink:#e8edf6; --dim:#8e9ab0; --faint:#5a6478;
+  --puls:#ff9d2e; --puls-hot:#ffd66b; --neon:#39e0ff; --bad:#ff4d5e;
+  --panel:#0e1219cc; --edge:#26303f;
+  --f:"Chakra Petch", ui-monospace, "DejaVu Sans Mono", monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#07090e;color:var(--ink);
+  font-family:var(--f);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none}
+canvas{display:block;width:100%;height:100%}
+#stage{position:fixed;inset:0}
+
+/* ── Ladebalken ─────────────────────────────────────────── */
+#boot{position:fixed;inset:0;z-index:90;display:grid;place-items:center;
+  background:radial-gradient(120% 90% at 50% 0%,#141d2c 0%,#07090e 70%)}
+#boot.weg{display:none}
+.boot-in{width:min(560px,88%);text-align:center}
+.wort{font-size:clamp(38px,9vw,74px);font-weight:700;letter-spacing:.16em;margin:0 0 6px;
+  background:linear-gradient(180deg,#fff,#ff9d2e 60%,#b8560d);-webkit-background-clip:text;background-clip:text;color:transparent}
+.unter{color:var(--dim);letter-spacing:.32em;font-size:12px;margin:0 0 30px;text-transform:uppercase}
+#bar{height:5px;background:#1a2130;border:1px solid var(--edge);overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--puls),var(--puls-hot));transition:width .25s}
+#bootmsg{margin-top:12px;color:var(--faint);font-size:12.5px;letter-spacing:.1em;min-height:1.4em}
+
+/* ── Menü ───────────────────────────────────────────────── */
+#menu{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:18px;
+  background:radial-gradient(120% 90% at 50% 0%,#141d2c 0%,#07090ee6 70%)}
+#menu.an{display:grid}
+.karte{width:min(880px,100%);max-height:100%;overflow:auto;background:var(--panel);
+  border:1px solid var(--edge);backdrop-filter:blur(10px);padding:26px 26px 22px}
+.karte h1{margin:0 0 4px;font-size:clamp(28px,6vw,44px);letter-spacing:.14em;font-weight:700}
+.karte h1 b{color:var(--puls)}
+.karte>p{margin:0 0 20px;color:var(--dim);font-size:14px;line-height:1.5}
+.autos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+@media(max-width:620px){.autos{grid-template-columns:1fr}}
+.auto{padding:14px 15px;border:1px solid var(--edge);background:#0c1017;cursor:pointer;transition:border-color .12s,background .12s}
+.auto:hover{background:#111722;border-color:#3c4a60}
+.auto.aktiv{border-color:var(--puls);background:#1b1408}
+.auto h3{margin:0 0 3px;font-size:19px;letter-spacing:.06em}
+.auto .typ{color:var(--puls);font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:9px}
+.balken{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;align-items:center;font-size:11px;color:var(--faint)}
+.balken u{text-decoration:none;letter-spacing:.12em;text-transform:uppercase}
+.balken span{height:4px;background:#1c2432;display:block}
+.balken span i{display:block;height:100%;background:var(--neon)}
+.reihe{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button.los{flex:1 1 200px;padding:13px 22px;font-family:var(--f);font-size:17px;font-weight:700;letter-spacing:.14em;
+  color:#0a0d13;background:linear-gradient(180deg,var(--puls-hot),var(--puls));border:0;cursor:pointer}
+button.los:active{transform:translateY(2px)}
+button.neben{padding:13px 18px;font-family:var(--f);font-size:13px;letter-spacing:.12em;color:var(--ink);
+  background:#131a26;border:1px solid var(--edge);cursor:pointer}
+button.neben:hover{border-color:#3c4a60}
+.hinweis{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--edge);color:var(--faint);font-size:12px;line-height:1.6}
+.hinweis b{color:var(--dim);font-weight:600}
+kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background:#131a26;color:var(--dim);font-family:var(--f);font-size:11px}
+
+/* ── HUD ────────────────────────────────────────────────── */
+#hud{position:fixed;inset:0;z-index:40;pointer-events:none;display:none}
+#hud.an{display:block}
+.ecke{position:absolute;background:var(--panel);border:1px solid var(--edge);padding:10px 13px;backdrop-filter:blur(6px)}
+#zeiten{top:14px;left:14px;min-width:186px}
+#zeiten .z{display:flex;justify-content:space-between;gap:14px;font-size:13px;line-height:1.75}
+#zeiten .z u{text-decoration:none;color:var(--faint);letter-spacing:.14em;font-size:10.5px;text-transform:uppercase}
+#zeiten .gross{font-size:27px;font-weight:700;letter-spacing:.04em;line-height:1.1;margin-bottom:2px}
+#delta{font-size:13px;font-weight:600;letter-spacing:.06em}
+#delta.plus{color:var(--bad)} #delta.minus{color:#4ade80}
+#tacho{right:14px;bottom:14px;text-align:right;min-width:172px}
+#kmh{font-size:52px;font-weight:700;line-height:.92;letter-spacing:-.01em}
+#kmh sub{font-size:13px;font-weight:400;color:var(--faint);letter-spacing:.2em;vertical-align:super}
+#gang{font-size:12px;color:var(--faint);letter-spacing:.24em;text-transform:uppercase;margin-top:3px}
+#drehzahl{height:4px;background:#1c2432;margin-top:8px}
+#drehzahl i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--neon),#9dff4d 70%,var(--bad))}
+#pulsbox{left:14px;bottom:14px;width:206px}
+#pulsbox .kopf{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase;margin-bottom:7px}
+#pulsbar{height:9px;background:#1c2432;position:relative;overflow:hidden}
+#pulsbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--puls),var(--puls-hot))}
+#pulsbar.voll i{animation:pumpen .7s ease-in-out infinite}
+@keyframes pumpen{0%,100%{filter:brightness(1)}50%{filter:brightness(1.75)}}
+#pulstext{margin-top:7px;font-size:11px;color:var(--faint);letter-spacing:.08em;min-height:1.3em}
+#karte{position:absolute;top:14px;right:14px;background:var(--panel);border:1px solid var(--edge);padding:8px}
+#karte canvas{width:150px;height:150px;display:block}
+#meldung{position:absolute;top:26%;left:50%;transform:translateX(-50%);text-align:center;
+  font-size:clamp(26px,6vw,52px);font-weight:700;letter-spacing:.1em;opacity:0;transition:opacity .25s;text-shadow:0 4px 22px #000}
+#meldung.an{opacity:1}
+#meldung small{display:block;font-size:14px;letter-spacing:.24em;color:var(--dim);font-weight:400;margin-top:6px}
+
+/* ── Touch ──────────────────────────────────────────────── */
+#touch{position:fixed;inset:0;z-index:50;display:none;pointer-events:none}
+#touch.an{display:block}
+.tb{position:absolute;pointer-events:auto;border:1px solid #ffffff26;background:#0e1219b3;backdrop-filter:blur(4px);
+  display:grid;place-items:center;font-size:12px;letter-spacing:.14em;color:var(--ink);text-transform:uppercase}
+.tb.gedrueckt{background:var(--puls);color:#0a0d13;border-color:var(--puls)}
+#tLinks{left:16px;bottom:120px;width:86px;height:86px;border-radius:50%;font-size:26px}
+#tRechts{left:118px;bottom:120px;width:86px;height:86px;border-radius:50%;font-size:26px}
+#tGas{right:16px;bottom:120px;width:96px;height:96px;border-radius:50%;font-size:15px}
+#tBrems{right:124px;bottom:120px;width:82px;height:82px;border-radius:50%;font-size:13px}
+#tPuls{right:16px;bottom:232px;width:96px;height:52px;font-size:12px}
+#tHand{left:16px;bottom:236px;width:86px;height:48px;font-size:11px}
+@media(max-width:900px){#karte canvas{width:104px;height:104px}#kmh{font-size:40px}#pulsbox{width:170px}}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="boot"><div class="boot-in">
+  <h1 class="wort">NACHTSCHICHT</h1>
+  <p class="unter">Sim-Cade &middot; Illegale Rennen</p>
+  <div id="bar"><i></i></div>
+  <div id="bootmsg">Strecke wird geladen&hellip;</div>
+</div></div>
+
+<div id="menu"><div class="karte">
+  <h1>NACHT<b>SCHICHT</b></h1>
+  <p>Der Kurs ist f&uuml;r heute Nacht deiner. Fahr sauber, fahr nah &mdash; und lass den <b style="color:var(--puls)">PULS</b> nicht abrei&szlig;en.</p>
+  <div class="autos" id="autowahl"></div>
+  <div class="reihe">
+    <button class="los" id="start">LOSFAHREN</button>
+    <button class="neben" id="btnKamera">KAMERA: VERFOLGEN</button>
+  </div>
+  <p class="hinweis">
+    <b>Tastatur</b> &nbsp;<kbd>W</kbd>/<kbd>&uarr;</kbd> Gas &middot; <kbd>S</kbd>/<kbd>&darr;</kbd> Bremse &middot;
+    <kbd>A</kbd><kbd>D</kbd> Lenken &middot; <kbd>Leer</kbd> Handbremse &middot;
+    <kbd>Shift</kbd> Puls z&uuml;nden &middot; <kbd>R</kbd> Zur&uuml;ckspulen &middot; <kbd>C</kbd> Kamera &middot; <kbd>Esc</kbd> Men&uuml;<br>
+    <b>PULS</b> l&auml;dt sich, wenn du dicht an der Streckenkante f&auml;hrst, quer stehst oder abhebst. Ein Einschlag setzt ihn auf null.
+  </p>
+</div></div>
+
+<div id="hud">
+  <div class="ecke" id="zeiten">
+    <div class="gross" id="tAktuell">--:--.---</div>
+    <div class="z"><u>Beste</u><span id="tBeste">--:--.---</span></div>
+    <div class="z"><u>Letzte</u><span id="tLetzte">--:--.---</span></div>
+    <div class="z"><u>Runde</u><span id="tRunde">1</span></div>
+    <div class="z"><u>Delta</u><span id="delta">--</span></div>
+  </div>
+  <div class="ecke" id="tacho">
+    <div id="kmh">0<sub>KM/H</sub></div>
+    <div id="gang">Gang 1</div>
+    <div id="drehzahl"><i></i></div>
+  </div>
+  <div class="ecke" id="pulsbox">
+    <div class="kopf"><span>Puls</span><span id="pulszahl">0%</span></div>
+    <div id="pulsbar"><i></i></div>
+    <div id="pulstext"></div>
+  </div>
+  <div id="karte"><canvas width="300" height="300"></canvas></div>
+  <div id="meldung"></div>
+</div>
+
+<div id="touch">
+  <div class="tb" id="tLinks">&#9664;</div>
+  <div class="tb" id="tRechts">&#9654;</div>
+  <div class="tb" id="tBrems">Bremse</div>
+  <div class="tb" id="tGas">Gas</div>
+  <div class="tb" id="tPuls">Puls</div>
+  <div class="tb" id="tHand">Handbremse</div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"./lib/three.module.js"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+</body>
+</html>

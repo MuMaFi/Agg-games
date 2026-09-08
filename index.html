@@ -188,21 +188,22 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </svg>
       <span>AGG <b>GAMES</b></span>
     </a>
-    <span class="top-count">5 Spiele · kein Download</span>
+    <span class="top-count">6 Spiele · kein Download</span>
   </div>
 </header>
 
 <main>
   <section class="wrap hero">
     <span class="kicker">Direkt im Browser</span>
-    <h1>Fünf Spiele,<br>ein Regalbrett.</h1>
-    <p>Voxel-Survival, ein Backrooms-Band, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Alle laufen offline, auf dem Handy wie am Rechner — antippen und los.</p>
+    <h1>Sechs Spiele,<br>ein Regalbrett.</h1>
+    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
   </section>
 
   <div class="wrap">
     <div class="bar" role="group" aria-label="Nach Art filtern">
-      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">5</span></button>
-      <button class="chip" type="button" data-filter="3d" aria-pressed="false">3D-Welten <span class="n">2</span></button>
+      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">6</span></button>
+      <button class="chip" type="button" data-filter="3d" aria-pressed="false">3D-Welten <span class="n">3</span></button>
+      <button class="chip" type="button" data-filter="rennen" aria-pressed="false">Rennen <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="arcade" aria-pressed="false">Arcade <span class="n">2</span></button>
       <button class="chip" type="button" data-filter="idle" aria-pressed="false">Idle &amp; Aufbau <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="horror" aria-pressed="false">Horror <span class="n">1</span></button>
@@ -300,6 +301,76 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
             <span class="tag">Speicherstand</span><span class="tag">Hochkant &amp; quer</span>
           </div>
           <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Nachtschicht ─────────────────────────────────────────── -->
+      <a class="card" href="games/racer/" data-cat="3d rennen" style="--accent:#ff9d2e">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Nächtliche Rennstrecke in Fluchtperspektive mit Scheinwerferkegel und Flutlichtmasten">
+            <defs>
+              <linearGradient id="nr-himmel" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#0d1428"/><stop offset="1" stop-color="#1d2942"/>
+              </linearGradient>
+              <linearGradient id="nr-asphalt" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2a3040"/><stop offset="1" stop-color="#4a5262"/>
+              </linearGradient>
+              <linearGradient id="nr-kegel" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fff2d8" stop-opacity="0"/><stop offset="1" stop-color="#fff2d8" stop-opacity=".40"/>
+              </linearGradient>
+              <radialGradient id="nr-glut" cx=".5" cy=".5" r=".5">
+                <stop offset="0" stop-color="#ff2a1a" stop-opacity=".9"/><stop offset="1" stop-color="#ff2a1a" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#nr-himmel)"/>
+            <g fill="#c9d6ef"><rect x="28" y="16" width="2" height="2" opacity=".7"/><rect x="96" y="9" width="2" height="2" opacity=".5"/>
+              <rect x="188" y="20" width="2" height="2" opacity=".8"/><rect x="262" y="12" width="2" height="2" opacity=".6"/></g>
+            <!-- Hügel im Hintergrund -->
+            <path d="M0 92 60 74 128 86 196 70 262 84 320 76 320 100 0 100Z" fill="#16321f"/>
+            <!-- Fahrbahn in Fluchtperspektive -->
+            <path d="M118 88 202 88 320 180 -10 180Z" fill="url(#nr-asphalt)"/>
+            <path d="M118 88 202 88 206 94 114 94Z" fill="#20263a"/>
+            <!-- Mittelstreifen -->
+            <g fill="#dfe6f2" opacity=".85">
+              <path d="M158 96 162 96 163 106 157 106Z"/><path d="M156 114 164 114 166 130 154 130Z"/>
+              <path d="M152 142 168 142 172 168 148 168Z"/>
+            </g>
+            <!-- Kerbs -->
+            <path d="M118 88 114 94 -10 180 24 180Z" fill="#8f2530"/>
+            <path d="M202 88 206 94 320 180 288 180Z" fill="#8f2530"/>
+            <!-- Scheinwerferkegel -->
+            <path d="M148 120 172 120 214 176 106 176Z" fill="url(#nr-kegel)"/>
+            <!-- Flutlichtmasten -->
+            <g stroke="#7c879b" stroke-width="1.6">
+              <path d="M96 88V56M232 88V52M64 96V62M266 94V58"/>
+            </g>
+            <g fill="#ffe9b8">
+              <rect x="92" y="52" width="9" height="4"/><rect x="228" y="48" width="10" height="4"/>
+              <rect x="60" y="58" width="9" height="4"/><rect x="262" y="54" width="9" height="4"/>
+            </g>
+            <!-- Wagen von hinten -->
+            <ellipse cx="160" cy="150" rx="30" ry="9" fill="url(#nr-glut)"/>
+            <path d="M138 148c1-9 5-14 22-14s21 5 22 14l2 8h-48Z" fill="#241f4d"/>
+            <path d="M144 140c2-5 5-7 16-7s14 2 16 7Z" fill="#3b3470"/>
+            <rect x="141" y="150" width="12" height="4" rx="1" fill="#ff2a1a"/>
+            <rect x="167" y="150" width="12" height="4" rx="1" fill="#ff2a1a"/>
+            <!-- Pulsleiste -->
+            <g>
+              <rect x="16" y="158" width="74" height="8" fill="#0e1219" stroke="#26303f" stroke-width="1.5"/>
+              <rect x="18" y="160" width="42" height="4" fill="#ff9d2e"/>
+              <text x="16" y="152" font-family="ui-monospace,monospace" font-size="8" fill="#8e9ab0" letter-spacing="2">PULS</text>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Sim-Cade · Rennen · 3D</p>
+          <h2>Nachtschicht</h2>
+          <p class="desc">Ein echter Rundkurs bei Nacht, Dodge Charger gegen McLaren P1. Einspurmodell mit Schräglaufwinkeln — der Wagen rutscht, wenn du ihn überredest. Zeitnahme mit Geist deiner besten Runde, und ein <b>Puls</b>-Zähler, der sich an der Streckenkante lädt und dich per Schub oder Zurückspulen belohnt.</p>
+          <div class="meta">
+            <span class="tag">Touch + Tastatur</span><span class="tag">991-m-Kurs</span>
+            <span class="tag">Geisterrunde</span><span class="tag warn">braucht Webserver</span>
+          </div>
+          <span class="play">Motor an <span class="arrow">▶</span></span>
         </div>
       </a>
 
@@ -593,7 +664,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
         <li><a href="https://github.com/MuMaFi/SNAPSHADE">SNAPSHADE</a> — Found Tape &amp; Snapshade</li>
         <li><a href="https://github.com/MuMaFi/marioana">marioana</a> — Mini Jump ’n’ Run</li>
         <li><a href="https://github.com/MuMaFi/Kern-clicker">Kern-clicker</a> — KernClicker</li>
-        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite &amp; Taschenwelt</li>
+        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite, Taschenwelt &amp; Nachtschicht</li>
       </ul>
     </div>
   </div>
