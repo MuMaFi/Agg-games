@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05070f">
+<title>Mondgolf — AGG Games</title>
+<meta name="description" content="Achtzehn Bahnen zwischen Planeten. Die Schwerkraft spielt mit — nutz sie, sonst spielt sie gegen dich.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2305070f'/%3E%3Ccircle cx='6' cy='10' r='5' fill='%234f6b9e'/%3E%3Ccircle cx='12' cy='4' r='2' fill='%23f2f6ff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#05070f; --panel:#111726; --edge:#232c40; --edge-hi:#3a465c;
+  --ink:#eaf0fb; --dim:#98a3b6; --faint:#5d6a82;
+  --ball:#f2f6ff; --gold:#ffb648; --gruen:#5be0b0; --rot:#ff6b5e; --bahn:#8ad7ff;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:var(--bg); color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,1.4)));
+  aspect-ratio:var(--seite,1.4); max-height:100vh}
+canvas{display:block; width:100%; height:100%; touch-action:none}
+
+/* ── Anzeige ──────────────────────────────────────────────── */
+#hud{position:absolute; inset:0; pointer-events:none; padding:12px;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+.feld{background:#0b1120cc; border:2px solid var(--edge); padding:5px 10px; line-height:1.12}
+.feld b{display:block; font-size:19px; color:var(--gold)}
+.feld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#bahnName b{color:var(--bahn); font-size:15px}
+#gesamt b{color:var(--gruen)}
+#tipp{position:absolute; left:0; right:0; bottom:12px; text-align:center; pointer-events:none;
+  font-size:11.5px; letter-spacing:.14em; color:#ffffff66}
+#ruf{position:absolute; left:0; right:0; top:32%; text-align:center; pointer-events:none;
+  font-size:clamp(26px,7vw,46px); opacity:0; transition:opacity .18s; color:var(--gruen);
+  text-shadow:0 3px 0 #00000099}
+#ruf.an{opacity:1}
+#ruf small{display:block; font-size:14px; letter-spacing:.14em; color:var(--dim)}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+  background:linear-gradient(#05070fdd,#05070fee); text-align:center; z-index:5; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(34px,11vw,58px); line-height:.94}
+h1 span{color:var(--bahn)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.5; margin:12px auto; max-width:34ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0b1120; padding:11px 13px; margin:9px auto;
+  font-size:13px; color:var(--dim); line-height:1.7; max-width:34ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:5px}
+kbd{border:1px solid var(--edge-hi); border-bottom-width:2px; padding:0 5px; color:var(--ink)}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+button.klein{font-family:var(--pix); font-size:13px; letter-spacing:.1em; cursor:pointer;
+  background:transparent; color:var(--dim); border:2px solid var(--edge); padding:7px 12px; margin:4px}
+button.klein:hover{color:var(--ink); border-color:var(--edge-hi)}
+a.zurueck{display:inline-block; margin-top:10px; color:var(--faint); font-size:12px;
+  letter-spacing:.12em; text-decoration:none; border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+#karte{display:flex; flex-wrap:wrap; gap:5px; justify-content:center; max-width:min(430px,90vw); margin:12px auto}
+.loch{width:40px; height:40px; border:2px solid var(--edge); background:var(--panel);
+  font-family:var(--pix); font-size:14px; color:var(--dim); cursor:pointer; padding:0; line-height:1}
+.loch b{display:block; font-size:9px; color:var(--faint)}
+.loch.fertig{border-color:var(--gruen); color:var(--gruen)}
+.loch.jetzt{border-color:var(--gold); color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div class="feld" id="bahnName"><b>1 / 18</b><small id="bahnTitel">Erster Abschlag</small></div>
+    <div style="display:flex;gap:8px">
+      <div class="feld" id="schlaege"><b>0</b><small>Schläge · Par 2</small></div>
+      <div class="feld" id="gesamt"><b>0</b><small>Gesamt</small></div>
+    </div>
+  </div>
+  <div id="ruf"></div>
+  <div id="tipp">Ziehen und loslassen — wie beim Katapult</div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>MOND<span>GOLF</span></h1>
+      <p>Achtzehn Bahnen zwischen Planeten. Der Ball fliegt nicht geradeaus —
+         jede Kugel da draußen zieht an ihm.</p>
+      <div class="tafel">
+        <u>Schlagen</u>
+        Vom Ball weg ziehen und loslassen, wie beim Katapult: die Richtung ist
+        <b>entgegengesetzt</b>, die Länge ist die Kraft.<br>
+        Am Rechner auch <kbd>←</kbd><kbd>→</kbd> zielen, <kbd>↑</kbd><kbd>↓</kbd> Kraft,
+        <kbd>Leertaste</kbd> schlagen.
+      </div>
+      <div class="tafel">
+        <u>Worauf es ankommt</u>
+        Die gepunktete Linie zeigt nur den <b>Anfang</b> der Bahn — den Rest
+        macht die Schwerkraft.<br>
+        Ein Vorbeiflug an einem schweren Planeten schleudert dich weiter, als
+        du je schlagen könntest.<br>
+        <b style="color:var(--rot)">Rote Sonnen</b> verbrennen den Ball.
+        Wer zu weit hinausfliegt, zahlt einen Schlag.
+      </div>
+      <button class="los" id="losKnopf">ABSCHLAG</button>
+      <div><button class="klein" id="karteKnopf">BAHN WÄHLEN</button></div>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="wahl">
+    <div>
+      <h1 style="font-size:clamp(26px,8vw,40px)">BAHNEN</h1>
+      <p id="wahlText">Gespielt wird von vorn nach hinten — du darfst aber springen.</p>
+      <div id="karte"></div>
+      <button class="klein" id="wahlZu">ZURÜCK</button>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1>DURCH</h1>
+      <p>Achtzehn Bahnen gespielt.</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin:10px 0">
+        <div class="feld" style="text-align:left"><b id="eGesamt">0</b><small>Schläge</small></div>
+        <div class="feld" style="text-align:left"><b id="ePar">0</b><small>Zu Par</small></div>
+      </div>
+      <div id="eBest" style="color:var(--faint);font-size:13px;letter-spacing:.12em"></div>
+      <p id="eText"></p>
+      <button class="los" id="nochmal">NEUE RUNDE</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   MONDGOLF — Golf, bei dem die Schwerkraft mitspielt.
+
+   Der Ball zieht keine Parabel, sondern folgt der Summe aller
+   Anziehungen im Bild. Damit ist ein Schlag keine Frage von Winkel und
+   Kraft allein: ein knapper Vorbeiflug an einer schweren Kugel wirft
+   ihn weiter, als man je schlagen könnte, und dieselbe Kugel frisst
+   den Schlag, wenn man zu dicht kommt.
+
+   Integriert wird in Teilschritten (Velocity-Verlet-artig, halbe
+   Schritte), sonst tunnelt der Ball bei hohem Tempo durch kleine
+   Planeten. Jede Bahn ist unten mit einer Suche über zehntausend
+   Schlägen geprüft: sie ist lösbar, und das Par ist die gefundene
+   Mindestzahl plus eins.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+const SEITE = klemm(innerWidth/Math.max(innerHeight,1), .62, 1.85);
+const HH = 620, BB = Math.round(klemm(HH*SEITE, 500, 1200));
+$('#buehne').style.setProperty('--seite', (BB/HH).toFixed(4));
+const cv = $('#c'), g = cv.getContext('2d');
+function passeAn(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(BB*dpr); cv.height = Math.round(HH*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+}
+passeAn();
+
+/* ── Bahnen ───────────────────────────────────────────────────────────
+   Ein Planet ist {x,y,r,m,farbe}. `m` ist die Masse in willkürlichen
+   Einheiten; als Faustzahl ergibt m = r*r ungefähr gleichmäßige
+   Oberflächenschwere. Wer stärker zieht, bekommt mehr.
+   `bahn` lässt ihn um einen anderen Planeten kreisen.
+   `sonne: true` heißt: Berührung verbrennt den Ball.
+   Start und Loch sitzen als Winkel auf einem Planeten.              */
+const P = (x,y,r,m,farbe,extra={}) => Object.assign({x,y,r,m,farbe}, extra);
+/* Die Par-Werte sind nicht geraten. Eine Breitensuche über 2160 Schläge je
+   Standort (180 Winkel × 12 Kraftstufen, bis zu vier Schläge tief) hat für
+   jede Bahn die Mindestzahl gefunden; Par ist diese Zahl plus eins auf den
+   ersten sechs Bahnen und plus zwei danach. Damit ist jede Bahn beweisbar
+   lösbar, und Par ist erreichbar, ohne dass man den Rechnerweg trifft. */
+const BAHNEN = [
+  { name:'Erster Abschlag', par:2,
+    planeten:[P(300,310,86,7400,'#4f6b9e')],
+    start:{p:0, w:Math.PI}, loch:{p:0, w:0} },
+
+  { name:'Der Sprung', par:2,
+    planeten:[P(190,330,66,4400,'#4f6b9e'), P(560,290,72,5200,'#6a8f5e')],
+    start:{p:0, w:Math.PI*0.9}, loch:{p:1, w:0.1} },
+
+  { name:'Schwungholen', par:2,
+    planeten:[P(170,420,54,3000,'#4f6b9e'), P(430,250,104,13000,'#8d6b4e'),
+              P(690,430,50,2600,'#5e7f9e')],
+    start:{p:0, w:Math.PI*1.1}, loch:{p:2, w:0.2} },
+
+  { name:'Um die Ecke', par:2,
+    planeten:[P(170,300,58,3600,'#4f6b9e'), P(420,320,96,11000,'#7a5a86'),
+              P(660,300,58,3600,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:2, w:0} },
+
+  { name:'Perlenkette', par:2,
+    planeten:[P(130,430,44,2100,'#4f6b9e'), P(300,340,44,2100,'#5e7f9e'),
+              P(470,250,44,2100,'#6a8f5e'), P(650,170,48,2500,'#8d6b4e')],
+    start:{p:0, w:Math.PI*1.15}, loch:{p:3, w:-0.4} },
+
+  { name:'Heiß', par:2,
+    planeten:[P(150,320,52,3000,'#4f6b9e'),
+              P(420,320,66,16000,'#e8622e',{sonne:true}),
+              P(700,320,52,3000,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:2, w:0} },
+
+  { name:'Der Ring', par:4,
+    planeten:[P(400,320,40,1900,'#4f6b9e'),
+              P(400,140,34,1400,'#5e7f9e'), P(580,320,34,1400,'#6a8f5e'),
+              P(400,500,34,1400,'#8d6b4e'), P(220,320,34,1400,'#7a5a86')],
+    start:{p:0, w:-Math.PI/2}, loch:{p:3, w:Math.PI/2} },
+
+  { name:'Weite', par:4,
+    planeten:[P(110,470,58,3600,'#4f6b9e'), P(760,150,58,3600,'#6a8f5e')],
+    start:{p:0, w:Math.PI*1.2}, loch:{p:1, w:0.4} },
+
+  { name:'Der Mond kreist', par:3,
+    planeten:[P(280,320,88,8600,'#8d6b4e'),
+              P(0,0,30,1200,'#c9d3e6',{bahn:{um:0, r:220, tempo:0.55, phase:0}}),
+              P(700,360,50,2800,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:2, w:0.3} },
+
+  { name:'Zwischen zwei Feuern', par:3,
+    planeten:[P(120,320,48,2600,'#4f6b9e'),
+              P(420,150,52,11000,'#e8622e',{sonne:true}),
+              P(420,490,52,11000,'#e8622e',{sonne:true}),
+              P(720,320,48,2600,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:3, w:0} },
+
+  { name:'Rückhand', par:3,
+    planeten:[P(560,300,60,3800,'#4f6b9e'), P(300,300,110,15000,'#7a5a86'),
+              P(560,520,42,2000,'#6a8f5e')],
+    start:{p:0, w:0.2}, loch:{p:2, w:Math.PI*0.4} },
+
+  { name:'Karussell', par:4,
+    planeten:[P(180,320,52,3000,'#4f6b9e'),
+              P(460,320,74,7000,'#8d6b4e'),
+              P(0,0,26,900,'#c9d3e6',{bahn:{um:1, r:170, tempo:-0.8, phase:1.4}}),
+              P(760,320,46,2400,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:3, w:0} },
+
+  { name:'Enge Gasse', par:4,
+    planeten:[P(120,520,46,2400,'#4f6b9e'),
+              P(390,420,60,9000,'#7a5a86'), P(390,190,60,9000,'#7a5a86'),
+              P(740,140,46,2400,'#6a8f5e')],
+    start:{p:0, w:Math.PI*1.2}, loch:{p:3, w:-0.3} },
+
+  { name:'Doppelschwung', par:3,
+    planeten:[P(110,300,44,2200,'#4f6b9e'),
+              P(340,180,80,9500,'#8d6b4e'), P(560,470,80,9500,'#7a5a86'),
+              P(780,220,44,2200,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:3, w:0.2} },
+
+  { name:'Der Trabant', par:4,
+    planeten:[P(200,440,50,2800,'#4f6b9e'),
+              P(470,260,86,9000,'#8d6b4e'),
+              P(0,0,24,800,'#c9d3e6',{bahn:{um:1, r:150, tempo:1.0, phase:0}}),
+              P(0,0,24,800,'#c9d3e6',{bahn:{um:1, r:150, tempo:1.0, phase:Math.PI}}),
+              P(760,470,44,2300,'#6a8f5e')],
+    start:{p:0, w:Math.PI*1.2}, loch:{p:4, w:0.3} },
+
+  { name:'Sonnenrand', par:3,
+    planeten:[P(140,180,44,2300,'#4f6b9e'),
+              P(430,340,70,17000,'#e8622e',{sonne:true}),
+              P(730,180,44,2300,'#6a8f5e'), P(430,570,40,2000,'#5e7f9e')],
+    start:{p:0, w:Math.PI*1.1}, loch:{p:2, w:0.2} },
+
+  { name:'Das Labyrinth', par:4,
+    planeten:[P(110,540,40,2000,'#4f6b9e'),
+              P(300,400,58,6000,'#7a5a86'), P(500,240,58,6000,'#8d6b4e'),
+              P(300,140,44,3000,'#5e7f9e'), P(700,470,40,2000,'#6a8f5e')],
+    start:{p:0, w:Math.PI*1.3}, loch:{p:4, w:0.4} },
+
+  { name:'Finale', par:4,
+    planeten:[P(110,320,42,2100,'#4f6b9e'),
+              P(360,320,64,12000,'#e8622e',{sonne:true}),
+              P(0,0,26,900,'#c9d3e6',{bahn:{um:1, r:190, tempo:0.7, phase:0.6}}),
+              P(620,180,54,5000,'#8d6b4e'),
+              P(760,480,44,2400,'#6a8f5e')],
+    start:{p:0, w:Math.PI}, loch:{p:4, w:0.5} }
+];
+const ROH_B = 880, ROH_H = 640;                   // Maße, in denen die Bahnen entworfen sind
+
+/* ── Physik ───────────────────────────────────────────────────────── */
+/* Die Massen sind so notiert, dass m ungefähr r*r ist — damit haben alle
+   Planeten etwa dieselbe Oberflächenschwere und man kann sie nach Gefühl
+   entwerfen. G rechnet das in Pixel um: bei G = 200 zieht eine Oberfläche
+   mit rund 200 px/s². Mit G = 1 (so stand es zuerst da) waren es 1 px/s²,
+   und der Prüflauf unten fand folgerichtig auf keiner einzigen Bahn eine
+   Lösung: der Ball flog schnurgerade aus dem Bild. */
+const G = 200;
+const BALL_R = 7;
+const WEICH = 90;                                 // verhindert Unendlichkeiten im Zentrum
+const RAND = 620;                                 // so weit darf der Ball hinaus
+
+function planetenBei(bahn, t){
+  const ps = bahn.planeten.map(p => ({...p}));
+  for(const p of ps){
+    if(!p.bahn) continue;
+    const z = ps[p.bahn.um];
+    p.x = z.x + Math.cos(t*p.bahn.tempo + p.bahn.phase) * p.bahn.r;
+    p.y = z.y + Math.sin(t*p.bahn.tempo + p.bahn.phase) * p.bahn.r;
+  }
+  return ps;
+}
+function zug(ps, x, y){
+  let ax = 0, ay = 0;
+  for(const p of ps){
+    const dx = p.x-x, dy = p.y-y;
+    const q = dx*dx + dy*dy + WEICH;
+    const f = G * p.m / (q * Math.sqrt(q));
+    ax += dx*f; ay += dy*f;
+  }
+  return [ax, ay];
+}
+/* Ein Schritt der Kugel. Gibt zurück, was passiert ist: 'flug',
+   'liegt' (auf Planet i), 'loch', 'weg', 'verbrannt'. */
+function schritt(zustand, bahn, dt, teilschritte = 6){
+  const h = dt/teilschritte;
+  for(let k=0;k<teilschritte;k++){
+    zustand.t += h;
+    const ps = planetenBei(bahn, zustand.t);
+    const [ax, ay] = zug(ps, zustand.x, zustand.y);
+    zustand.vx += ax*h; zustand.vy += ay*h;
+    zustand.x += zustand.vx*h; zustand.y += zustand.vy*h;
+
+    for(let i=0;i<ps.length;i++){
+      const p = ps[i];
+      const dx = zustand.x-p.x, dy = zustand.y-p.y;
+      const d = Math.hypot(dx,dy);
+      if(d > p.r + BALL_R) continue;
+      if(p.sonne) return {was:'verbrannt', planet:i};
+
+      const nx = dx/(d||1), ny = dy/(d||1);
+      // Ins Loch? Nur am richtigen Planeten, im richtigen Bogen, nicht zu schnell.
+      if(i === bahn.loch.p){
+        const w = Math.atan2(ny, nx);
+        let dw = Math.abs(((w - bahn.loch.w + Math.PI*3) % (Math.PI*2)) - Math.PI);
+        const tempo = Math.hypot(zustand.vx, zustand.vy);
+        if(dw < 0.32 && tempo < 340) return {was:'loch', planet:i};
+      }
+      // Aufsetzen: auf die Oberfläche schieben, Stoß dämpfen
+      zustand.x = p.x + nx*(p.r + BALL_R);
+      zustand.y = p.y + ny*(p.r + BALL_R);
+      const vn = zustand.vx*nx + zustand.vy*ny;
+      zustand.vx -= (1 + 0.34)*vn*nx;
+      zustand.vy -= (1 + 0.34)*vn*ny;
+      zustand.vx *= 0.62; zustand.vy *= 0.62;      // Reibung
+      if(Math.hypot(zustand.vx, zustand.vy) < 26){
+        zustand.vx = zustand.vy = 0;
+        return {was:'liegt', planet:i, w:Math.atan2(ny,nx)};
+      }
+    }
+    if(Math.hypot(zustand.x - ROH_B/2, zustand.y - ROH_H/2) > RAND) return {was:'weg'};
+  }
+  return {was:'flug'};
+}
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let bahnNr = 0, bahn = null, ball = null, flug = false, spur = [];
+let schlaege = 0, gesamt = 0, gespielt = [], funken = [];
+let ziehen = null, zielW = -Math.PI/2, zielK = 0.55;
+let bestwert = +(localStorage.getItem('mondgolf.best') || 0);
+let sichtM = 1, sichtX = 0, sichtY = 0;
+
+function bahnLaden(n){
+  bahnNr = klemm(n, 0, BAHNEN.length-1);
+  bahn = BAHNEN[bahnNr];
+  schlaege = 0; flug = false; spur = []; funken = [];
+  const ps = planetenBei(bahn, 0);
+  const p = ps[bahn.start.p];
+  ball = {x: p.x + Math.cos(bahn.start.w)*(p.r+BALL_R),
+          y: p.y + Math.sin(bahn.start.w)*(p.r+BALL_R),
+          vx:0, vy:0, t:0, liegtAuf: bahn.start.p, liegtW: bahn.start.w};
+  zielW = bahn.start.w; zielK = 0.55;
+  sichtSetzen();
+  $('#bahnName b').textContent = (bahnNr+1) + ' / ' + BAHNEN.length;
+  $('#bahnTitel').textContent = bahn.name;
+  anzeige();
+}
+/* Der Ausschnitt wird so gewählt, dass alle Planeten samt Bahnen
+   hineinpassen — jede Bahn ist anders groß. */
+function sichtSetzen(){
+  let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  for(const p of bahn.planeten){
+    const r = p.r + (p.bahn ? p.bahn.r : 0) + 40;
+    const cx = p.bahn ? bahn.planeten[p.bahn.um].x : p.x;
+    const cy = p.bahn ? bahn.planeten[p.bahn.um].y : p.y;
+    x0 = Math.min(x0, cx-r); x1 = Math.max(x1, cx+r);
+    y0 = Math.min(y0, cy-r); y1 = Math.max(y1, cy+r);
+  }
+  const br = x1-x0, ho = y1-y0;
+  sichtM = Math.min(BB/br, HH/ho) * 0.92;
+  sichtX = BB/2 - (x0+x1)/2*sichtM;
+  sichtY = HH/2 - (y0+y1)/2*sichtM;
+}
+const zuBild = (x,y) => [x*sichtM + sichtX, y*sichtM + sichtY];
+const zuWelt = (x,y) => [(x - sichtX)/sichtM, (y - sichtY)/sichtM];
+
+/* ── Klang ────────────────────────────────────────────────────────── */
+let actx=null, meister=null;
+function tonStart(){
+  if(actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return;
+  actx = new AC(); if(actx.state==='suspended') actx.resume();
+  meister = actx.createGain(); meister.gain.value = .75; meister.connect(actx.destination);
+}
+function ton(f0,f1,form,dauer,laut){
+  if(!actx) return;
+  const t = actx.currentTime, o = actx.createOscillator(), gn = actx.createGain();
+  o.type = form; o.frequency.setValueAtTime(f0,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dauer);
+  gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(laut,t+.008);
+  gn.gain.exponentialRampToValueAtTime(.0001,t+dauer);
+  o.connect(gn); gn.connect(meister); o.start(t); o.stop(t+dauer+.03);
+}
+const klangSchlag  = k => ton(180+k*260, 90, 'triangle', .16, .13);
+const klangAufsetz = () => ton(320, 210, 'sine', .09, .06);
+const klangLoch    = () => { ton(660,660,'triangle',.12,.10);
+                             setTimeout(()=>ton(880,880,'triangle',.3,.10),110); };
+const klangWeg     = () => ton(200, 60, 'sawtooth', .5, .08);
+const klangFeuer   = () => ton(140, 40, 'sawtooth', .6, .11);
+
+/* ── Schlagen ─────────────────────────────────────────────────────── */
+/* Die Fluchtgeschwindigkeit eines kleinen Planeten liegt bei rund
+   185 px/s. Der volle Schlag muss darüber liegen, damit man überhaupt
+   von einer Kugel zur nächsten kommt — aber nicht so weit, dass jeder
+   Schlag ins Leere geht. */
+const KRAFT_MAX = 330;
+function schlagen(){
+  if(flug || !bahn) return;
+  tonStart();
+  flug = true; spur = []; ball.flugZeit = 0;
+  ball.vx = Math.cos(zielW)*KRAFT_MAX*zielK;
+  ball.vy = Math.sin(zielW)*KRAFT_MAX*zielK;
+  ball.liegtAuf = -1;
+  schlaege++; klangSchlag(zielK); anzeige();
+}
+function zurueckAufLetzten(strafe){
+  const ps = planetenBei(bahn, ball.t);
+  const p = ps[ball.liegtAuf >= 0 ? ball.liegtAuf : bahn.start.p];
+  const w = ball.liegtAuf >= 0 ? ball.liegtW : bahn.start.w;
+  ball.x = p.x + Math.cos(w)*(p.r+BALL_R);
+  ball.y = p.y + Math.sin(w)*(p.r+BALL_R);
+  ball.vx = ball.vy = 0; flug = false;
+  if(strafe){ schlaege++; }
+  zielW = w;
+  anzeige();
+}
+function ruf(gross, klein){
+  $('#ruf').innerHTML = gross + (klein ? '<small>'+klein+'</small>' : '');
+  $('#ruf').classList.add('an');
+  clearTimeout(ruf.uhr); ruf.uhr = setTimeout(() => $('#ruf').classList.remove('an'), 1500);
+}
+const PAR_NAME = {'-3':'ALBATROS','-2':'EAGLE','-1':'BIRDIE','0':'PAR','1':'BOGEY','2':'DOPPEL-BOGEY'};
+function eingelocht(){
+  flug = false;
+  klangLoch();
+  gespielt[bahnNr] = schlaege;
+  gesamt += schlaege;
+  const d = schlaege - bahn.par;
+  ruf(PAR_NAME[String(klemm(d,-3,2))] || (d>0 ? '+'+d : String(d)),
+      schlaege + (schlaege===1?' Schlag':' Schläge') + ' · Par ' + bahn.par);
+  setTimeout(() => {
+    if(bahnNr+1 >= BAHNEN.length) rundeEnde();
+    else bahnLaden(bahnNr+1);
+  }, 1600);
+}
+function rundeEnde(){
+  const par = BAHNEN.reduce((s,b)=>s+b.par,0);
+  const d = gesamt - par;
+  $('#eGesamt').textContent = gesamt;
+  $('#ePar').textContent = (d>0?'+':'') + d;
+  const rekord = !bestwert || gesamt < bestwert;
+  if(rekord){ bestwert = gesamt; localStorage.setItem('mondgolf.best', String(gesamt)); }
+  $('#eBest').textContent = rekord ? 'beste Runde bisher' : 'beste Runde: ' + bestwert;
+  $('#eText').textContent = d <= 0 ? 'Par oder besser. Das schafft nicht jeder.'
+            : d <= 6 ? 'Ordentlich gespielt.' : 'Die Schwerkraft hatte mehr Ideen als du.';
+  $('#ende').classList.remove('weg');
+}
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+function bildPunkt(e){
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX-r.left)/r.width*BB, (e.clientY-r.top)/r.height*HH];
+}
+cv.addEventListener('pointerdown', e => {
+  if(flug || !bahn) return;
+  ziehen = {von: bildPunkt(e)};
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  if(!ziehen) return;
+  const [x,y] = bildPunkt(e);
+  const [bx,by] = zuBild(ball.x, ball.y);
+  /* Gezogen wird vom Ball weg; die Richtung ist die Gegenrichtung.
+     Gemessen wird ab dem Ball, nicht ab dem Aufsetzpunkt — sonst zielt
+     man daneben, wenn man irgendwo im Bild anfasst. */
+  const dx = bx - x, dy = by - y;
+  const l = Math.hypot(dx,dy);
+  if(l > 6){ zielW = Math.atan2(dy,dx); zielK = klemm(l/190, .08, 1); }
+});
+for(const t of ['pointerup','pointercancel']) cv.addEventListener(t, () => {
+  if(!ziehen) return;
+  ziehen = null;
+  if(zielK > .08) schlagen();
+});
+addEventListener('keydown', e => {
+  if(!bahn) return;
+  if(e.code==='ArrowLeft'){ zielW -= .045; e.preventDefault(); }
+  if(e.code==='ArrowRight'){ zielW += .045; e.preventDefault(); }
+  if(e.code==='ArrowUp'){ zielK = klemm(zielK+.035,.08,1); e.preventDefault(); }
+  if(e.code==='ArrowDown'){ zielK = klemm(zielK-.035,.08,1); e.preventDefault(); }
+  if(e.code==='Space'){ schlagen(); e.preventDefault(); }
+  if(e.code==='KeyR'){ zurueckAufLetzten(true); }
+});
+
+/* ── Anzeige ──────────────────────────────────────────────────────── */
+function anzeige(){
+  $('#schlaege b').textContent = schlaege;
+  $('#schlaege small').textContent = 'Schläge · Par ' + bahn.par;
+  $('#gesamt b').textContent = gesamt;
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+const STERNE = Array.from({length:150}, () => ({x:Math.random(), y:Math.random(),
+  gr: Math.random()<.18 ? 2 : 1, hell: zuf(.2,.8)}));
+let zeit = 0;
+function malen(){
+  g.fillStyle = '#05070f'; g.fillRect(0,0,BB,HH);
+  for(const s of STERNE){
+    g.fillStyle = 'rgba(234,240,251,' + (s.hell*(0.6+0.4*Math.sin(zeit*1.6+s.x*30))).toFixed(2) + ')';
+    g.fillRect(s.x*BB|0, s.y*HH|0, s.gr, s.gr);
+  }
+  if(!bahn) return;
+  const ps = planetenBei(bahn, ball.t);
+
+  // Schwerefeld andeuten: ein paar Höhenlinien um schwere Planeten
+  for(const p of ps){
+    const [cx,cy] = zuBild(p.x,p.y);
+    const rr = p.r*sichtM;
+    const reichweite = Math.sqrt(p.m)*0.9*sichtM;
+    const lv = g.createRadialGradient(cx,cy,rr,cx,cy,Math.max(rr+1,reichweite));
+    lv.addColorStop(0, p.sonne ? 'rgba(232,98,46,.22)' : 'rgba(138,215,255,.10)');
+    lv.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = lv;
+    g.beginPath(); g.arc(cx,cy,Math.max(rr+1,reichweite),0,6.284); g.fill();
+  }
+
+  for(let i=0;i<ps.length;i++) malPlanet(ps[i], i);
+
+  // Spur des Fluges
+  if(spur.length > 1){
+    g.strokeStyle = 'rgba(138,215,255,.55)'; g.lineWidth = 2;
+    g.beginPath();
+    for(let i=0;i<spur.length;i++){
+      const [x,y] = zuBild(spur[i][0], spur[i][1]);
+      i ? g.lineTo(x,y) : g.moveTo(x,y);
+    }
+    g.stroke();
+  }
+
+  if(!flug) malZiel(ps);
+
+  for(const f of funken){
+    g.globalAlpha = klemm(f.t*2.4,0,1);
+    g.fillStyle = f.farbe;
+    const [x,y] = zuBild(f.x,f.y);
+    g.fillRect(x-1.5,y-1.5,3,3);
+  }
+  g.globalAlpha = 1;
+
+  // Ball
+  const [bx,by] = zuBild(ball.x, ball.y);
+  g.fillStyle = 'rgba(242,246,255,.25)';
+  g.beginPath(); g.arc(bx,by,BALL_R*sichtM+4,0,6.284); g.fill();
+  g.fillStyle = '#f2f6ff';
+  g.beginPath(); g.arc(bx,by,BALL_R*sichtM,0,6.284); g.fill();
+  g.fillStyle = '#9fb3d0';
+  g.beginPath(); g.arc(bx-1.5,by+1.5,BALL_R*sichtM*0.4,0,6.284); g.fill();
+}
+function malPlanet(p, i){
+  const [cx,cy] = zuBild(p.x,p.y);
+  const r = p.r*sichtM;
+  if(p.sonne){
+    g.fillStyle = 'rgba(232,98,46,.20)';
+    g.beginPath(); g.arc(cx,cy,r*1.6 + Math.sin(zeit*3)*2,0,6.284); g.fill();
+  }
+  g.fillStyle = p.farbe;
+  g.beginPath(); g.arc(cx,cy,r,0,6.284); g.fill();
+  /* Rundung über einen Verlauf statt über einen versetzten schwarzen
+     Kreis: der deckte mehr als die halbe Kugel ab und ließ nur eine dünne
+     Sichel hell — die Planeten sahen aus wie schwarze Scheiben mit Rand. */
+  g.save();
+  g.beginPath(); g.arc(cx,cy,r,0,6.284); g.clip();
+  const lv2 = g.createRadialGradient(cx - r*0.34, cy - r*0.34, r*0.06, cx, cy, r*1.25);
+  lv2.addColorStop(0,   'rgba(255,255,255,.20)');
+  lv2.addColorStop(0.42,'rgba(255,255,255,0)');
+  lv2.addColorStop(0.72,'rgba(0,0,0,.16)');
+  lv2.addColorStop(1,   'rgba(0,0,0,.46)');
+  g.fillStyle = lv2; g.fillRect(cx-r, cy-r, r*2, r*2);
+  // Krater
+  const s = (i*2654435761) >>> 0;
+  for(let k=0;k<5;k++){
+    const a = ((s>>(k*3)) % 628)/100, d = 0.25 + ((s>>(k*5)) % 60)/100;
+    g.fillStyle = 'rgba(0,0,0,.16)';
+    g.beginPath(); g.arc(cx + Math.cos(a)*r*d, cy + Math.sin(a)*r*d, r*0.13, 0, 6.284); g.fill();
+  }
+  g.restore();
+  g.strokeStyle = p.sonne ? 'rgba(255,190,140,.7)' : 'rgba(255,255,255,.16)';
+  g.lineWidth = 2; g.beginPath(); g.arc(cx,cy,r,0,6.284); g.stroke();
+
+  // Loch mit Fahne
+  if(i === bahn.loch.p){
+    const w = bahn.loch.w;
+    const [lx,ly] = zuBild(p.x + Math.cos(w)*p.r, p.y + Math.sin(w)*p.r);
+    g.save(); g.translate(lx,ly); g.rotate(w + Math.PI/2);
+    g.fillStyle = '#05070f'; g.fillRect(-6,-3,12,7);
+    g.fillStyle = '#e9edf5'; g.fillRect(-0.5,-26,1.6,24);
+    g.fillStyle = '#ff6b5e';
+    g.beginPath(); g.moveTo(1,-26); g.lineTo(15,-21); g.lineTo(1,-16); g.closePath(); g.fill();
+    g.restore();
+  }
+}
+/* Der Zielpfeil zeigt Richtung und Kraft, und eine gepunktete Vorschau
+   zeigt den Anfang der Bahn. Den ganzen Weg zu zeigen würde das Rätsel
+   wegnehmen — deshalb bricht sie nach kurzer Zeit ab. */
+function malZiel(ps){
+  const [bx,by] = zuBild(ball.x, ball.y);
+  const v = {x:ball.x, y:ball.y,
+             vx:Math.cos(zielW)*KRAFT_MAX*zielK, vy:Math.sin(zielW)*KRAFT_MAX*zielK, t:ball.t};
+  g.fillStyle = 'rgba(138,215,255,.85)';
+  for(let i=0;i<26;i++){
+    const s = {...v};
+    const r = schritt(v, bahn, 0.028, 2);
+    if(r.was !== 'flug') break;
+    if(i%2===0){
+      const [x,y] = zuBild(v.x, v.y);
+      const gr = 3 - i*0.06;
+      g.globalAlpha = klemm(1 - i/26, .12, 1);
+      g.beginPath(); g.arc(x,y,Math.max(1,gr),0,6.284); g.fill();
+    }
+  }
+  g.globalAlpha = 1;
+  // Kraftbalken am Ball
+  const laenge = 22 + zielK*54;
+  const ex = bx + Math.cos(zielW)*laenge, ey = by + Math.sin(zielW)*laenge;
+  g.strokeStyle = zielK > .85 ? '#ff6b5e' : '#8ad7ff';
+  g.lineWidth = 3;
+  g.beginPath(); g.moveTo(bx,by); g.lineTo(ex,ey); g.stroke();
+  g.beginPath();
+  g.moveTo(ex,ey);
+  g.lineTo(ex - Math.cos(zielW-0.4)*9, ey - Math.sin(zielW-0.4)*9);
+  g.lineTo(ex - Math.cos(zielW+0.4)*9, ey - Math.sin(zielW+0.4)*9);
+  g.closePath(); g.fillStyle = g.strokeStyle; g.fill();
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .033); vorher = jetzt;
+  zeit += dt;
+  if(bahn){
+    if(!flug) ball.t += dt;                        // Monde kreisen weiter
+    else {
+      const r = schritt(ball, bahn, dt);
+      ball.flugZeit = (ball.flugZeit || 0) + dt;
+      spur.push([ball.x, ball.y]);
+      if(ball.flugZeit > 22){                      // stabile Umlaufbahn: irgendwann reicht es
+        klangWeg(); ruf('KEIN ENDE', 'ein Schlag Strafe'); zurueckAufLetzten(true);
+      }
+      if(spur.length > 900) spur.shift();
+      if(r.was === 'liegt'){
+        flug = false; ball.liegtAuf = r.planet; ball.liegtW = r.w;
+        zielW = r.w; klangAufsetz();
+      } else if(r.was === 'loch'){ eingelocht(); }
+      else if(r.was === 'weg'){
+        klangWeg(); ruf('WEG', 'ein Schlag Strafe'); zurueckAufLetzten(true);
+      } else if(r.was === 'verbrannt'){
+        klangFeuer(); ruf('VERBRANNT', 'ein Schlag Strafe');
+        for(let i=0;i<24;i++) funken.push({x:ball.x, y:ball.y,
+          vx:zuf(-160,160), vy:zuf(-160,160), t:zuf(.3,.8), farbe: Math.random()<.5?'#ffb648':'#e8622e'});
+        zurueckAufLetzten(true);
+      }
+    }
+    for(const f of funken){ f.x += f.vx*dt; f.y += f.vy*dt; f.t -= dt; }
+    funken = funken.filter(f => f.t > 0);
+  }
+  malen();
+}
+
+/* ── Menü ─────────────────────────────────────────────────────────── */
+function karteBauen(){
+  const box = $('#karte'); box.innerHTML = '';
+  BAHNEN.forEach((b, i) => {
+    const el = document.createElement('button');
+    el.className = 'loch' + (gespielt[i] != null ? ' fertig' : '') + (i === bahnNr ? ' jetzt' : '');
+    el.innerHTML = (i+1) + '<b>' + (gespielt[i] != null ? gespielt[i] : 'Par '+b.par) + '</b>';
+    el.title = b.name;
+    el.addEventListener('click', () => {
+      $('#wahl').classList.add('weg'); $('#start').classList.add('weg');
+      bahnLaden(i);
+    });
+    box.appendChild(el);
+  });
+}
+$('#losKnopf').addEventListener('click', () => {
+  tonStart(); gesamt = 0; gespielt = [];
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+  bahnLaden(0);
+});
+$('#karteKnopf').addEventListener('click', () => { karteBauen(); $('#wahl').classList.remove('weg'); });
+$('#wahlZu').addEventListener('click', () => $('#wahl').classList.add('weg'));
+$('#nochmal').addEventListener('click', () => {
+  gesamt = 0; gespielt = [];
+  $('#ende').classList.add('weg'); bahnLaden(0);
+});
+bahnLaden(0);
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__mondgolf = {
+  BAHNEN, get bahn(){return bahn}, get ball(){return ball}, get flug(){return flug},
+  get schlaege(){return schlaege}, get bahnNr(){return bahnNr},
+  bahnLaden, schlagen, schritt, planetenBei, zuBild,
+  ziele: (w,k) => { zielW = w; zielK = k; },
+  KRAFT_MAX, BALL_R, ROH_B, ROH_H
+};
+</script>
+</body>
+</html>

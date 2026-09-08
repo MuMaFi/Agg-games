@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
 <title>AGG Games — Spiele direkt im Browser</title>
-<meta name="description" content="Zwölf Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
+<meta name="description" content="Dreizehn Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="AGG Games">
-<meta property="og:description" content="Zwölf Spiele, die ohne Installation direkt im Browser laufen.">
+<meta property="og:description" content="Dreizehn Spiele, die ohne Installation direkt im Browser laufen.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='5' width='12' height='7' fill='%23ffb648'/%3E%3Crect x='4' y='7' width='2' height='3' fill='%230b0d12'/%3E%3Crect x='3' y='8' width='4' height='1' fill='%230b0d12'/%3E%3Crect x='10' y='7' width='2' height='2' fill='%230b0d12'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -196,7 +196,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
   <section class="wrap hero">
     <span class="kicker">Direkt im Browser</span>
     <h1>Acht Spiele,<br>ein Regalbrett.</h1>
-    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, eine Leitung gegen die Uhr, eine Arena ohne Ausgang, ein Nachtfalter an Laternen vorbei, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
+    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, eine Leitung gegen die Uhr, eine Arena ohne Ausgang, ein Nachtfalter an Laternen vorbei, Golf zwischen Planeten, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
   </section>
 
   <div class="wrap">
@@ -938,6 +938,65 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
           <div class="meta">
             <span class="tag">Touch</span><span class="tag">Offline</span>
             <span class="tag">Bestwert</span><span class="tag">Endlos</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Mondgolf ─────────────────────────────────────────────── -->
+      <a class="card" href="games/mondgolf.html" data-cat="puzzle" style="--accent:#8ad7ff">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Golfball fliegt in einer gekrümmten Bahn zwischen Planeten hindurch zu einer Fahne auf einem grünen Planeten">
+            <defs>
+              <radialGradient id="mg-b" cx="34%" cy="30%" r="80%">
+                <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/>
+                <stop offset=".45" stop-color="#ffffff" stop-opacity="0"/>
+                <stop offset="1" stop-color="#000000" stop-opacity=".48"/>
+              </radialGradient>
+              <radialGradient id="mg-feld" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="#8ad7ff" stop-opacity=".16"/>
+                <stop offset="1" stop-color="#8ad7ff" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="320" height="180" fill="#05070f"/>
+            <g fill="#eaf0fb">
+              <rect x="24" y="22" width="2" height="2" opacity=".8"/><rect x="88" y="52" width="1" height="1" opacity=".6"/>
+              <rect x="140" y="18" width="2" height="2" opacity=".7"/><rect x="212" y="42" width="1" height="1" opacity=".5"/>
+              <rect x="268" y="20" width="2" height="2" opacity=".8"/><rect x="52" y="120" width="1" height="1" opacity=".6"/>
+              <rect x="180" y="140" width="2" height="2" opacity=".6"/><rect x="298" y="118" width="1" height="1" opacity=".7"/>
+              <rect x="118" y="94" width="1" height="1" opacity=".5"/><rect x="240" y="152" width="2" height="2" opacity=".6"/>
+            </g>
+            <!-- Schwerefelder -->
+            <circle cx="60" cy="126" r="66" fill="url(#mg-feld)"/>
+            <circle cx="168" cy="66" r="84" fill="url(#mg-feld)"/>
+            <!-- Planeten -->
+            <g><circle cx="60" cy="126" r="30" fill="#4f6b9e"/><circle cx="60" cy="126" r="30" fill="url(#mg-b)"/></g>
+            <g><circle cx="168" cy="66" r="42" fill="#8d6b4e"/><circle cx="168" cy="66" r="42" fill="url(#mg-b)"/>
+               <circle cx="156" cy="54" r="6" fill="#00000022"/><circle cx="182" cy="80" r="4" fill="#00000022"/></g>
+            <g><circle cx="272" cy="132" r="26" fill="#6a8f5e"/><circle cx="272" cy="132" r="26" fill="url(#mg-b)"/></g>
+            <!-- Mond auf Umlaufbahn -->
+            <circle cx="168" cy="66" r="66" fill="none" stroke="#ffffff14" stroke-width="1"/>
+            <g><circle cx="228" cy="42" r="10" fill="#c9d3e6"/><circle cx="228" cy="42" r="10" fill="url(#mg-b)"/></g>
+            <!-- Gekrümmte Bahn des Balls -->
+            <path d="M74 100 C 110 60, 140 20, 196 40 C 244 58, 232 108, 258 118"
+                  fill="none" stroke="#8ad7ff" stroke-width="2" stroke-dasharray="5 5" opacity=".8"/>
+            <circle cx="258" cy="118" r="5" fill="#f2f6ff"/>
+            <circle cx="258" cy="118" r="9" fill="#f2f6ff" opacity=".25"/>
+            <!-- Fahne -->
+            <g transform="translate(288,112) rotate(38)">
+              <rect x="-1" y="-26" width="2" height="26" fill="#e9edf5"/>
+              <path d="M1 -26 L15 -21 L1 -16 Z" fill="#ff6b5e"/>
+            </g>
+            <text x="12" y="170" font-family="'Pixelify Sans',monospace" font-size="13" fill="#5d6a82" letter-spacing="2">DIE SCHWERKRAFT SPIELT MIT</text>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Puzzle · Physik</p>
+          <h2>Mondgolf</h2>
+          <p class="desc">Achtzehn Bahnen zwischen Planeten. Der Ball fliegt keine Parabel — jede Kugel im Bild zieht an ihm, und ein knapper Vorbeiflug an einer schweren schleudert ihn weiter, als du je schlagen könntest. Sonnen verbrennen ihn, Monde ziehen vorbei. Jede Bahn ist per Suche über tausende Schläge als lösbar geprüft; das Par kommt aus dem Ergebnis.</p>
+          <div class="meta">
+            <span class="tag">Touch</span><span class="tag">Offline</span>
+            <span class="tag">18 Bahnen</span><span class="tag">Bestwert</span>
           </div>
           <span class="play">Spielen <span class="arrow">▶</span></span>
         </div>
