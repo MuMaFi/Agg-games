@@ -517,39 +517,72 @@ addEventListener('mousemove', e => {
   if(document.pointerLockElement === leinwand) setzeBlick(spieler.blick + e.movementX * .0026);
 });
 
+/* ── Steuerung mit dem Daumen ─────────────────────────────────────────
+   Die ganze Ebene nimmt Berührungen an: linke Bildhälfte ist ein Knüppel,
+   der dort entsteht, wo der Daumen aufsetzt, rechte Hälfte dreht den
+   Blick. Vorher lag unten links ein fester Kreis von 130 Pixeln, den man
+   treffen musste, und die Umsehfläche endete bei 78 % der Höhe — also
+   genau über dem Daumen. Wer danebengriff, stand still.               */
 const knueppel = {an:false, id:-1, mx:0, my:0, dx:0, dy:0};
-if(matchMedia('(pointer:coarse)').matches) $('#touch').classList.add('an');
-const stick = $('#stick');
-stick.addEventListener('pointerdown', e => {
-  knueppel.an = true; knueppel.id = e.pointerId;
-  const r = stick.getBoundingClientRect(); knueppel.mx = r.left+r.width/2; knueppel.my = r.top+r.height/2;
-  stick.setPointerCapture(e.pointerId); e.preventDefault();
-});
-stick.addEventListener('pointermove', e => {
-  if(!knueppel.an || e.pointerId !== knueppel.id) return;
-  const dx = e.clientX-knueppel.mx, dy = e.clientY-knueppel.my, d = Math.hypot(dx,dy)||1;
-  const k = Math.min(1, d/50);
-  knueppel.dx = dx/d*k; knueppel.dy = dy/d*k;
-  stick.querySelector('i').style.transform = `translate(${knueppel.dx*38}px,${knueppel.dy*38}px)`;
-});
-const stickAus = e => { if(e.pointerId!==knueppel.id) return;
-  knueppel.an=false; knueppel.dx=knueppel.dy=0; stick.querySelector('i').style.transform=''; };
-stick.addEventListener('pointerup', stickAus); stick.addEventListener('pointercancel', stickAus);
+const stick = $('#stick'), touchFeld = $('#touch');
 let blickId = -1, blickX = 0;
-const blickFeld = $('#blick');
-blickFeld.addEventListener('pointerdown', e => { blickId = e.pointerId; blickX = e.clientX;
-  blickFeld.setPointerCapture(e.pointerId); e.preventDefault(); });
-blickFeld.addEventListener('pointermove', e => {
-  if(e.pointerId !== blickId) return;
-  setzeBlick(spieler.blick + (e.clientX-blickX)*.0075); blickX = e.clientX;
+
+if(matchMedia('(pointer:coarse)').matches){
+  touchFeld.classList.add('an');
+  $('#griffTipp').classList.add('an');
+}
+function knueppelHin(x, y){
+  knueppel.an = true; knueppel.mx = x; knueppel.my = y;
+  stick.style.left = (x-65) + 'px'; stick.style.top = (y-65) + 'px';
+  stick.classList.add('an');
+}
+function knueppelWeg(){
+  knueppel.an = false; knueppel.id = -1; knueppel.dx = knueppel.dy = 0;
+  stick.classList.remove('an');
+  stick.querySelector('i').style.transform = '';
+}
+touchFeld.addEventListener('pointerdown', e => {
+  if(e.pointerType === 'mouse') return;
+  const links = e.clientX < innerWidth/2;
+  if(links){
+    if(knueppel.id >= 0) return;
+    knueppel.id = e.pointerId; knueppelHin(e.clientX, e.clientY);
+  } else {
+    if(blickId >= 0) return;
+    blickId = e.pointerId; blickX = e.clientX;
+  }
+  try{ touchFeld.setPointerCapture(e.pointerId); }catch(_){}
+  $('#griffTipp').classList.add('weg');
+  e.preventDefault();
 });
-blickFeld.addEventListener('pointerup', e => { if(e.pointerId===blickId) blickId=-1; });
+touchFeld.addEventListener('pointermove', e => {
+  if(e.pointerId === knueppel.id){
+    const dx = e.clientX-knueppel.mx, dy = e.clientY-knueppel.my, d = Math.hypot(dx,dy)||1;
+    const k = Math.min(1, d/50);
+    knueppel.dx = dx/d*k; knueppel.dy = dy/d*k;
+    stick.querySelector('i').style.transform = `translate(${knueppel.dx*38}px,${knueppel.dy*38}px)`;
+  } else if(e.pointerId === blickId){
+    setzeBlick(spieler.blick + (e.clientX-blickX)*.0075); blickX = e.clientX;
+  }
+});
+for(const art of ['pointerup','pointercancel']) touchFeld.addEventListener(art, e => {
+  if(e.pointerId === knueppel.id) knueppelWeg();
+  if(e.pointerId === blickId) blickId = -1;
+});
+
+/* Die Knöpfe liegen in der rechten Hälfte. Ohne stopPropagation würde ein
+   Druck auf sie gleichzeitig eine Drehung starten. */
 function tippKnopf(id, aktion, halten){
   const el = $(id);
-  el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('gedrueckt');
-    if(halten) taste[halten]=true; else aktion(); });
-  const aus = e => { e.preventDefault(); el.classList.remove('gedrueckt'); if(halten) taste[halten]=false; };
-  el.addEventListener('pointerup', aus); el.addEventListener('pointercancel', aus);
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    el.classList.add('gedrueckt');
+    if(halten) taste[halten] = true; else aktion();
+  });
+  const aus = e => { e.preventDefault(); e.stopPropagation();
+    el.classList.remove('gedrueckt'); if(halten) taste[halten] = false; };
+  el.addEventListener('pointerup', aus);
+  el.addEventListener('pointercancel', aus);
 }
 tippKnopf('#tRennen', null, 'rennen');
 tippKnopf('#tNutzen', () => { if(!nehmen()) benutze(spieler.gehalten.seife?'seife':spieler.gehalten.energie?'energie':'zonk'); });
@@ -1077,7 +1110,7 @@ async function starten(){
   laeuft = true;
   klang.roehreAn(); klang.anspannung(0);
   meldung('SIEBEN HEFTE', 'Die gelben Punkte auf der Karte');
-  leinwand.requestPointerLock();
+  if(!matchMedia('(pointer:coarse)').matches) leinwand.requestPointerLock();
 }
 (() => {
   const box = $('#schwere');

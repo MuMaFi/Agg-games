@@ -1489,7 +1489,7 @@ const R = {
     const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    this.cubeVAO = vao; this.cubeVB = vb; this.cubeCount = idx.length;
+    this.cubeVAO = vao; this.cubeVB = vb; this.cubeIB = ib; this.cubeCount = idx.length;
   },
 
   uploadChunk(mesh, buf){
@@ -1507,6 +1507,15 @@ const R = {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
       gl.bindVertexArray(null);
     }
+    /* Erst das gebundene VAO loslassen. Die Bindung des Indexpuffers
+       gehört zum VAO-Zustand, nicht zum globalen: der Bildaufbau endet mit
+       gebundenem cubeVAO (die Gegenstände werden zuletzt gezeichnet), und
+       ein Chunk, der danach neu hochgeladen wird — genau das passiert beim
+       Abbauen eines Blocks — hat dem Würfel-VAO seinen Indexpuffer
+       untergeschoben. Von da an las jede Kiste und jeder Mob die Indizes
+       des Chunks: verstreute Dreiecke, die nur aus bestimmten Richtungen
+       sichtbar waren. */
+    gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vb);
     gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(buf.buf, 0, buf.n*12), gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
@@ -3339,6 +3348,19 @@ function boot(){
   requestAnimationFrame(frame);
 }
 boot();
+
+/* Werkbank: von außen prüfbar, ob das Würfel-VAO seinen eigenen
+   Indexpuffer behält. Genau da lag der Fehler mit den zerrissenen
+   Gegenständen und Mobs. */
+window.__welt = {
+  R, Game, gl,
+  vaoHeil(){
+    gl.bindVertexArray(R.cubeVAO);
+    const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
+    gl.bindVertexArray(null);
+    return ib === R.cubeIB;
+  }
+};
 </script>
 
 </body>
