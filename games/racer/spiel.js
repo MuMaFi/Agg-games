@@ -265,10 +265,11 @@ if(matchMedia('(pointer:coarse)').matches) $('#touch').classList.add('an');
    ist das der Weg zurück, ohne über den halben Kurs zurückrollen zu müssen. */
 function zurueckAufDieStrecke(){
   setzeAuf(vollSuche(auto.pos.x, auto.pos.z), 0);
-  zeit.laeuft = false; zeit.aktuell = 0; auto.sauber = true; auto.schmutzUhr = 0;
-  geister.aufnahme = []; geister.zeiger = 0;
-  melde('AUF DER STRECKE', 'Zeitnahme startet an der Linie');
+  auto.sauber = true; auto.schmutzUhr = 0;
+  markeSetzen();
+  melde('AUF DER STRECKE', 'neue Runde ab hier');
 }
+$('#btnZurueck').addEventListener('click', e => { e.stopPropagation(); zurueckAufDieStrecke(); });
 function kameraWechsel(){
   kameraArt = (kameraArt+1) % 2;
   $('#btnKamera').textContent = 'KAMERA: ' + (kameraArt ? 'STOSSSTANGE' : 'VERFOLGEN');
@@ -364,8 +365,11 @@ function fahre(dt){
   const alphaV = Math.atan2(auto.vy + auto.gierRate*a, vRef) - auto.lenk*richtung;
   const alphaH = Math.atan2(auto.vy - auto.gierRate*b, vRef);
 
-  // Untergrund: neben der Bahn bricht der Grip weg
-  let griff = auto.aufBahn ? 1 : .60;
+  /* Neben der Bahn wird nicht mehr gebremst. Vorher fiel der Grip auf 60 %
+     und der Rollwiderstand stieg auf das 3,4-fache — wer einmal ins Gras
+     kam, kroch. Bei freier Fahrt über jeden Asphalt der Karte ist "neben
+     der Bahn" ohnehin der Normalfall. */
+  let griff = 1;
   if(auto.luft > 0) griff *= .12;
 
   const reifen = (al, steife, max) => klemm(-steife*al, -max, max);
@@ -386,7 +390,7 @@ function fahre(dt){
   }
   if(handbremse) Fx -= klemm(auto.vx, -6, 6) * 2.6;
   Fx -= p.luft * auto.vx * Math.abs(auto.vx) * (pulsAn ? .84 : 1);
-  Fx -= p.rollen * auto.vx * (auto.aufBahn ? 1 : 3.4);
+  Fx -= p.rollen * auto.vx;
 
   // Steigung zieht am Wagen
   const steigung = -auto.normalV.x*Math.sin(auto.gier) - auto.normalV.z*Math.cos(auto.gier);
@@ -481,38 +485,42 @@ function kanteNah(){
   return false;
 }
 
-/* ── Runden zählen ─────────────────────────────────────────────────── */
+/* ── Runden zählen ───────────────────────────────────────────────────
+   Die Runde hängt nicht mehr an der Ziellinie des Rundkurses, sondern an
+   dem Punkt, an dem man losgefahren ist. Wer über die Zufahrten oder die
+   Boxengasse fährt, kam sonst nie auf eine Zeit: die Linie erkannte nur
+   Wagen, die auch am Kurs entlangliefen. Jetzt gilt: einmal weit genug
+   weg (70 m), und beim nächsten Mal näher als 20 m ist die Runde voll.  */
+const marke = {x:0, z:0, scharf:false, gesetzt:false};
+function markeSetzen(){
+  marke.x = auto.pos.x; marke.z = auto.pos.z;
+  marke.scharf = false; marke.gesetzt = true;
+  zeit.laeuft = true; zeit.aktuell = 0;
+  geister.aufnahme = []; geister.zeiger = 0;
+}
+function rundeVoll(){
+  /* Unter drei Sekunden ist keine Runde, sondern ein Doppelauslöser am
+     Marker. Ohne diese Sperre wurde eine Nullrunde gewertet und der Geist
+     als leere Aufnahme gespeichert — der Geistzeichner las danach in jedem
+     Bild g[-1].t und warf. */
+  if(zeit.aktuell < 3) return;
+  zeit.letzte = zeit.aktuell;
+  if(!zeit.beste || zeit.letzte < zeit.beste){
+    zeit.beste = zeit.letzte;
+    // Nur eine Aufnahme mit Inhalt wird Geist; sonst liest der Zeichner ins Leere
+    if(geister.aufnahme.length > 8) geister.beste = geister.aufnahme.slice();
+    melde('BESTZEIT', fmt(zeit.letzte));
+  } else melde('RUNDE ' + (zeit.runden+1), fmt(zeit.letzte));
+  zeit.runden++;
+  zeit.aktuell = 0; zeit.laeuft = true;
+  geister.aufnahme = []; geister.zeiger = 0;
+}
 function rundenLogik(dt){
-  // Eine Runde zählt als Bestzeit nur, wenn sie auf der Bahn gefahren wurde.
-  // Bei freier Fahrt heißt das: wer abkürzt, bekommt die Zeit angezeigt,
-  // aber sie wird nicht zur Bestzeit.
-  if(zeit.laeuft && !auto.aufBahn){
-    auto.schmutzUhr += dt;
-    if(auto.schmutzUhr > .7) auto.sauber = false;
-  } else auto.schmutzUhr = Math.max(0, auto.schmutzUhr - dt*.5);
-
-  const i = auto.idx, vor = auto.letzterIdx;
-  const zielIdx = START;
-  // Überquerung der Ziellinie erkennen: Index läuft über START hinweg
-  const warVor = ((vor - zielIdx + N) % N) > N*0.5;
-  const istNach = ((i - zielIdx + N) % N) < N*0.5;
-  if(auto.amKurs && warVor && istNach && Math.abs(((i - vor + N + N/2) % N) - N/2) < 20){
-    if(zeit.laeuft){
-      zeit.letzte = zeit.aktuell;
-      if(!auto.sauber){
-        melde('RUNDE ABGEKÜRZT', fmt(zeit.letzte) + ' — zählt nicht');
-      } else if(!zeit.beste || zeit.letzte < zeit.beste){
-        zeit.beste = zeit.letzte;
-        geister.beste = geister.aufnahme.slice();
-        melde('BESTZEIT', fmt(zeit.letzte));
-      } else melde('RUNDE ' + (zeit.runden+1), fmt(zeit.letzte));
-      zeit.runden++;
-    }
-    zeit.laeuft = true; zeit.aktuell = 0;
-    auto.sauber = true; auto.schmutzUhr = 0;
-    geister.aufnahme = []; geister.zeiger = 0;
-  }
-  auto.letzterIdx = i;
+  if(!marke.gesetzt) return;
+  const d = Math.hypot(auto.pos.x - marke.x, auto.pos.z - marke.z);
+  if(d > 70) marke.scharf = true;
+  if(marke.scharf && d < 20){ marke.scharf = false; rundeVoll(); }
+  auto.letzterIdx = auto.idx;
 }
 
 /* ── PULS ──────────────────────────────────────────────────────────── */
@@ -556,6 +564,7 @@ function geistLogik(dt){
   geister.aufnahme.push({t:zeit.aktuell, x:auto.pos.x, y:auto.pos.y, z:auto.pos.z, g:auto.gier});
   if(!geister.beste || !geistObj) return;
   const g = geister.beste;
+  if(!g.length) return;
   while(geister.zeiger < g.length-1 && g[geister.zeiger+1].t < zeit.aktuell) geister.zeiger++;
   const a = g[geister.zeiger], b = g[Math.min(geister.zeiger+1, g.length-1)];
   const sp = b.t > a.t ? klemm((zeit.aktuell-a.t)/(b.t-a.t),0,1) : 0;
@@ -680,8 +689,8 @@ function anzeige(dt){
   $('#pulsbar').classList.toggle('voll', auto.puls > .85);
   $('#pulstext').textContent = modus==='spulen' ? 'Zurückspulen …'
     : auto.pulsAn ? 'Gezündet'
-    : !auto.amKurs ? 'Freie Fahrt · Enter setzt zurück auf den Kurs'
-    : !auto.sauber ? 'Runde abgekürzt — zählt nicht'
+    : !auto.amKurs ? 'Freie Fahrt · Enter oder der Knopf setzt zurück'
+    : marke.gesetzt && !marke.scharf ? 'Erst weg von hier, dann zählt die Rückkehr'
     : auto.puls>.15 ? 'Shift zündet · R spult zurück' : '';
   if(meldeUhr > 0){ meldeUhr -= dt; if(meldeUhr <= 0) $('#meldung').classList.remove('an'); }
   zeichneKarte();
@@ -745,8 +754,9 @@ function schleife(jetzt){
 window.__AUTOS = AUTOS;
 window.__probelauf = (sekunden = 120, dt = 1/60) => {
   setzeAuf(START, 0);
-  zeit.laeuft = false; zeit.aktuell = 0; zeit.runden = 0; zeit.beste = 0; zeit.letzte = 0;
-  geister.aufnahme = []; geister.beste = null;
+  zeit.runden = 0; zeit.beste = 0; zeit.letzte = 0;
+  geister.beste = null;
+  markeSetzen();
   const b = {schritte:0, neben:0, maxKmh:0, runden:[], maxQuer:0, wandTreffer:0, spur:[]};
   for(let k = 0; k < sekunden/dt; k++){
     fahrhilfe(dt);
@@ -997,12 +1007,11 @@ function zumMenue(){
 $('#start').addEventListener('click', () => {
   $('#menu').classList.remove('an'); $('#hud').classList.add('an');
   if(startPlatz === 'boxen') setzeInDieBoxen(); else setzeAuf(START, 0);
-  zeit.laeuft = false; zeit.aktuell = 0; zeit.runden = 0;
-  geister.aufnahme = []; geister.zeiger = 0;
+  zeit.runden = 0; zeit.beste = 0; zeit.letzte = 0;
+  markeSetzen();                                   // hier beginnt und endet die Runde
   modus = 'fahren';
   melde(startPlatz === 'boxen' ? 'BOXENGASSE' : 'LOS',
-        startPlatz === 'boxen' ? BG.laenge.toFixed(0) + ' m — raus auf die Gerade und rüber zum Kurs'
-                               : 'Erste Runde startet an der Linie');
+        'Die Runde ist voll, wenn du wieder hier bist');
 });
 
 /* ── Start ─────────────────────────────────────────────────────────── */

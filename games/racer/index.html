@@ -94,6 +94,17 @@ kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background
 #meldung.an{opacity:1}
 #meldung small{display:block;font-size:14px;letter-spacing:.24em;color:var(--dim);font-weight:400;margin-top:6px}
 
+/* Der Weg zurück lag nur auf der Eingabetaste — auf dem Handy gar nicht
+   erreichbar, am Rechner nicht auffindbar. Jetzt steht er im Bild. */
+#btnZurueck{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);pointer-events:auto;
+  font-family:var(--f);font-size:11px;letter-spacing:.16em;cursor:pointer;
+  border:1px solid #ffffff2e;background:#0e1219cc;backdrop-filter:blur(4px);
+  color:var(--ink);padding:9px 15px}
+#btnZurueck:hover{border-color:var(--puls);color:var(--puls)}
+#btnZurueck:active{background:var(--puls);color:#0a0d13}
+/* Auf dem Handy nach oben: unten liegen Gas, Bremse und Lenkung. */
+@media(max-width:900px){#btnZurueck{bottom:auto;top:10px;font-size:10px;padding:7px 11px}}
+
 /* ── Touch ──────────────────────────────────────────────── */
 #touch{position:fixed;inset:0;z-index:50;display:none;pointer-events:none}
 #touch.an{display:block}
@@ -132,7 +143,7 @@ kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background
     <b>Tastatur</b> &nbsp;<kbd>W</kbd>/<kbd>&uarr;</kbd> Gas &middot; <kbd>S</kbd>/<kbd>&darr;</kbd> Bremse &middot;
     <kbd>A</kbd><kbd>D</kbd> Lenken &middot; <kbd>Leer</kbd> Handbremse &middot;
     <kbd>Shift</kbd> Puls z&uuml;nden &middot; <kbd>R</kbd> Zur&uuml;ckspulen &middot; <kbd>C</kbd> Kamera &middot; <kbd>Enter</kbd> zur&uuml;ck auf den Kurs &middot; <kbd>Esc</kbd> Men&uuml;<br>
-    <b>Freie Fahrt:</b> keine Leitplanken. Gefahren wird &uuml;berall, wo Asphalt ist &mdash; auch auf Boxengasse und Zufahrten. Die helle Linie auf der Karte ist der gewertete Rundkurs, die t&uuml;rkise die <b>Boxengasse</b> &mdash; sie liegt jenseits der Br&uuml;cke und ist &uuml;ber den Schalter oben direkt anfahrbar. Wer den Kurs abk&uuml;rzt, bekommt die Zeit angezeigt, aber sie z&auml;hlt nicht als Bestzeit.<br><b>PULS</b> l&auml;dt sich, wenn du dicht an der Asphaltkante f&auml;hrst, quer stehst oder abhebst. Ein Einschlag setzt ihn auf null.
+    <b>Freie Fahrt:</b> keine Leitplanken. Gefahren wird &uuml;berall, wo Asphalt ist &mdash; auch auf Boxengasse und Zufahrten. Die helle Linie auf der Karte ist der Rundkurs, die t&uuml;rkise die <b>Boxengasse</b> &mdash; sie liegt jenseits der Br&uuml;cke und ist &uuml;ber den Schalter oben direkt anfahrbar. <b>Die Runde ist voll, wenn du wieder da bist, wo du losgefahren bist</b> &mdash; egal welchen Weg du nimmst. Neben der Bahn wirst du nicht langsamer.<br><b>PULS</b> l&auml;dt sich, wenn du dicht an der Asphaltkante f&auml;hrst, quer stehst oder abhebst. Ein Einschlag setzt ihn auf null.
   </p>
 </div></div>
 
@@ -155,6 +166,7 @@ kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background
     <div id="pulstext"></div>
   </div>
   <div id="karte"><canvas width="300" height="300"></canvas></div>
+  <button id="btnZurueck">&#8634; ZUR&Uuml;CK AUF DIE STRECKE</button>
   <div id="meldung"></div>
 </div>
 
