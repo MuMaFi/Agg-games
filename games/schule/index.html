@@ -40,6 +40,13 @@ h1{font-family:var(--titel);font-size:clamp(40px,10vw,84px);line-height:.95;marg
   text-transform:uppercase;color:var(--faint);margin-bottom:7px}
 .tafelbox div{font-size:13.5px;line-height:1.9;color:var(--dim)}
 kbd{display:inline-block;padding:0 6px;border:1px solid #3a5442;background:#0f1a13;color:var(--kreide);font-size:12.5px}
+#schwere{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+#schwere button{font-family:var(--f);font-size:14px;padding:9px 10px;cursor:pointer;text-align:left;
+  border:2px solid #3a5442;background:#0f1a13;color:var(--dim)}
+#schwere button small{display:block;font-size:11px;color:var(--faint);margin-top:3px}
+#schwere button:hover{border-color:#55765f}
+#schwere button.an{border-color:var(--gelb);background:#231e0c;color:var(--kreide)}
+#schwere button.an small{color:var(--gelb)}
 button.los{font-family:var(--titel);font-size:22px;letter-spacing:.04em;padding:13px 32px;border:0;cursor:pointer;
   color:#16241b;background:var(--gelb);box-shadow:0 5px 0 #a8801f}
 button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
@@ -129,6 +136,10 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
       <kbd>Maus</kbd> umsehen &middot; <kbd>Shift</kbd> rennen (laut!)<br>
       <kbd>E</kbd> Heft aufnehmen / Gegenstand benutzen &middot; <kbd>Esc</kbd> Maus freigeben
     </div>
+  </div>
+  <div class="tafelbox">
+    <u>Wie schwer soll gerechnet werden?</u>
+    <div id="schwere"></div>
   </div>
   <button class="los" id="losKnopf">SCHULHAUS BETRETEN</button>
 </div></div>

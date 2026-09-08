@@ -300,18 +300,54 @@ tippKnopf('#tNutzen', () => { if(!nehmen()) benutze(spieler.gehalten.seife?'seif
 
 /* ── Hefte und Mathe ───────────────────────────────────────────── */
 const heftLage = {aktiv:null, aufgabe:0, loesung:0, fehlerHier:0};
-function frageBauen(stufe){
-  const r = (a,b) => a + Math.floor(Math.random()*(b-a+1));
-  if(stufe <= 1){ const a=r(1,9), b=r(1,9); return {t:`${a} + ${b}`, l:a+b}; }
-  if(stufe <= 3){ const a=r(10,49), b=r(3,29); return Math.random()<.5
-      ? {t:`${a} + ${b}`, l:a+b} : {t:`${a+b} − ${b}`, l:a}; }
-  if(stufe <= 5){ const a=r(3,12), b=r(3,12); return Math.random()<.55
-      ? {t:`${a} × ${b}`, l:a*b} : {t:`${a*b} ÷ ${b}`, l:a}; }
-  if(stufe <= 7){ const a=r(6,15), b=r(6,15), c=r(2,9); return Math.random()<.5
-      ? {t:`${a} × ${b} − ${c}`, l:a*b-c} : {t:`${a*b} ÷ ${b} + ${c}`, l:a+c}; }
-  const a=r(11,19), b=r(11,19), c=r(3,12);
-  return {t:`${a} × ${b} + ${c}`, l:a*b+c};
+
+/* ── Rechenaufgaben ────────────────────────────────────────────────
+   Der Druck soll aus der Verfolgung kommen, nicht aus dem Kopfrechnen.
+   Nichts geht über das kleine Einmaleins hinaus, Minus wird nie
+   negativ, Geteilt geht immer glatt auf.                            */
+let schwere = localStorage.getItem('nachsitzen.schwere') || 'leicht';
+const r = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const w = (...v) => v[Math.floor(Math.random()*v.length)];
+
+/* Jede Stufe schaltet eine neue Art frei; gewürfelt wird aus allen bisher
+   freigeschalteten, mit Übergewicht auf der neuesten. Dadurch steigt es
+   spürbar an, ohne dass Heft 6 plötzlich leichter ist als Heft 3.        */
+const AUFGABEN = {
+  leicht: [
+    () => { const a=r(1,9), b=r(1,9);   return {t:`${a} + ${b}`, l:a+b}; },
+    () => { const a=r(6,18), b=r(1,6);  return {t:`${a} − ${b}`, l:a-b}; },
+    () => { const a=r(10,29), b=r(2,9); return {t:`${a} + ${b}`, l:a+b}; },
+    () => { const a=r(18,45), b=r(2,9); return {t:`${a} − ${b}`, l:a-b}; }
+  ],
+  normal: [
+    () => { const a=r(1,9), b=r(1,9);   return {t:`${a} + ${b}`, l:a+b}; },
+    () => { const a=r(12,49), b=r(2,9); return w(
+              {t:`${a} + ${b}`, l:a+b}, {t:`${a} − ${b}`, l:a-b}); },
+    () => { const a=r(2,9), b=r(2,5);   return {t:`${a} × ${b}`, l:a*b}; },
+    () => { const a=r(2,9), b=r(2,9);   return w(
+              {t:`${a} × ${b}`, l:a*b}, {t:`${a*b} ÷ ${b}`, l:a}); },
+    () => { const a=r(2,9), b=r(2,9), c=r(2,9); return {t:`${a} × ${b} + ${c}`, l:a*b+c}; }
+  ],
+  schwer: [
+    () => { const a=r(12,49), b=r(3,9);  return {t:`${a} + ${b}`, l:a+b}; },
+    () => { const a=r(2,10), b=r(2,10);  return {t:`${a} × ${b}`, l:a*b}; },
+    () => { const a=r(24,68), b=r(11,39);return w(
+              {t:`${a} + ${b}`, l:a+b}, {t:`${a} − ${b}`, l:a-b}); },
+    () => { const a=r(3,12), b=r(3,12);  return w(
+              {t:`${a} × ${b}`, l:a*b}, {t:`${a*b} ÷ ${b}`, l:a}); },
+    () => { const a=r(4,12), b=r(4,12), c=r(3,15); return w(
+              {t:`${a} × ${b} + ${c}`, l:a*b+c}, {t:`${a} × ${b} − ${c}`, l:a*b-c}); }
+  ]
+};
+function frageBauen(heftNr, aufgabeNr){
+  const liste = AUFGABEN[schwere] || AUFGABEN.normal;
+  const stufe = heftNr + (aufgabeNr === 2 ? 1 : 0);          // dritte zählt als ein Heft mehr
+  const offen = Math.min(liste.length, Math.max(1, Math.round(stufe * liste.length / 8)));
+  // Meist die zuletzt freigeschaltete Art, sonst eine der älteren
+  const i = (offen > 1 && Math.random() < .38) ? Math.floor(Math.random()*(offen-1)) : offen-1;
+  return liste[i]();
 }
+
 function heftOeffnen(h){
   heftLage.aktiv = h; heftLage.aufgabe = 0; heftLage.fehlerHier = 0;
   $('#heft').classList.add('an');
@@ -321,8 +357,7 @@ function heftOeffnen(h){
 }
 function naechsteAufgabe(){
   const h = heftLage.aktiv;
-  const stufe = h.nr + heftLage.aufgabe;                       // hinten wird es zäher
-  const f = frageBauen(stufe);
+  const f = frageBauen(h.nr, heftLage.aufgabe);
   heftLage.loesung = f.l;
   $('#heftName').textContent = 'Heft ' + h.nr;
   $('#heftFort').textContent = `Aufgabe ${heftLage.aufgabe+1} von 3`;
@@ -673,11 +708,29 @@ async function starten(){
   meldung('SIEBEN HEFTE', 'Die gelben Punkte auf der Karte');
   leinwand.requestPointerLock();
 }
+(() => {
+  const box = $('#schwere');
+  const zeichne = () => [...box.children].forEach(b =>
+    b.classList.toggle('an', b.dataset.s === schwere));
+  for(const [id, name, hinweis] of [
+      ['leicht','Leicht','Plus und Minus bis 50'],
+      ['normal','Normal','dazu das kleine Einmaleins'],
+      ['schwer','Schwer','bis 12 × 12 mit Zwischenschritt']]){
+    const b = document.createElement('button');
+    b.dataset.s = id; b.innerHTML = `${name}<small>${hinweis}</small>`;
+    b.addEventListener('click', () => {
+      schwere = id; localStorage.setItem('nachsitzen.schwere', id); zeichne();
+    });
+    box.appendChild(b);
+  }
+  zeichne();
+})();
 $('#losKnopf').addEventListener('click', starten);
 neueRunde(); laeuft = false;
 requestAnimationFrame(schleife);
 
 window.__schule = {
+  frageBauen, setSchwere:(v)=>{schwere=v},
   get eigeneGrafiken(){return eigeneGrafiken},
   get s(){return s}, get spieler(){return spieler}, get kreide(){return kreide},
   get direktor(){return direktor}, get hefte(){return hefte}, get dinge(){return dinge},

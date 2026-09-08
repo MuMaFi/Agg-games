@@ -72,10 +72,21 @@ Sekunden Pause. Kein Spielende — aber der Weg zum nächsten Heft ist hin.
 
 ## Die Aufgaben
 
-Drei je Heft, Schwierigkeit steigt mit `Heftnummer + Aufgabennummer`: erst
-einstellige Summen, dann zweistellig, dann Einmaleins und Division, zuletzt
-gemischt mit Zwischenschritt. Falsch heißt nicht verloren — es macht ihn nur
-schneller.
+Drei je Heft. Die Schwierigkeit wählst du im Startbildschirm, sie wird
+gespeichert. Jede Stufe schaltet eine neue Aufgabenart frei; gewürfelt wird aus
+allen bisher freigeschalteten, mit Übergewicht auf der neuesten — dadurch
+steigt es an, ohne dass Heft 6 plötzlich leichter ist als Heft 3. Die dritte
+Aufgabe eines Hefts zählt als ein Heft mehr.
+
+| Stufe | was vorkommt | größtes Ergebnis |
+|---|---|---|
+| **Leicht** (Voreinstellung) | Plus und Minus, ein- und zweistellig | 43 |
+| **Normal** | dazu das kleine Einmaleins und Division daraus | 88 |
+| **Schwer** | bis 12 × 12, zweistellig, mit Zwischenschritt | 159 |
+
+Minus wird nie negativ, Division geht immer glatt auf. Der Druck soll aus der
+Verfolgung kommen, nicht aus dem Kopfrechnen. Falsch heißt nicht verloren — es
+macht Herrn Kreide nur schneller.
 
 ## Eigene Grafiken
 
