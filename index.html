@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
 <title>AGG Games — Spiele direkt im Browser</title>
-<meta name="description" content="Zehn Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
+<meta name="description" content="Elf Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="AGG Games">
-<meta property="og:description" content="Zehn Spiele, die ohne Installation direkt im Browser laufen.">
+<meta property="og:description" content="Elf Spiele, die ohne Installation direkt im Browser laufen.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='5' width='12' height='7' fill='%23ffb648'/%3E%3Crect x='4' y='7' width='2' height='3' fill='%230b0d12'/%3E%3Crect x='3' y='8' width='4' height='1' fill='%230b0d12'/%3E%3Crect x='10' y='7' width='2' height='2' fill='%230b0d12'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -196,7 +196,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
   <section class="wrap hero">
     <span class="kicker">Direkt im Browser</span>
     <h1>Acht Spiele,<br>ein Regalbrett.</h1>
-    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, eine Leitung gegen die Uhr, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
+    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, eine Leitung gegen die Uhr, eine Arena ohne Ausgang, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
   </section>
 
   <div class="wrap">
@@ -797,6 +797,71 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
           <div class="meta">
             <span class="tag">Touch</span><span class="tag">Offline</span>
             <span class="tag">Bestwert</span><span class="tag">Abschnitte</span>
+          </div>
+          <span class="play">Spielen <span class="arrow">▶</span></span>
+        </div>
+      </a>
+
+      <!-- ── Kessel ───────────────────────────────────────────────── -->
+      <a class="card" href="games/kessel.html" data-cat="action" style="--accent:#ff8a3d">
+        <div class="cover">
+          <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Arena von oben: eine blaue Figur in der Mitte, rote und violette Gegner drumherum, Schüsse nach außen">
+            <defs>
+              <radialGradient id="ks-glut" cx="50%" cy="50%" r="60%">
+                <stop offset="0" stop-color="#1a2233"/><stop offset="1" stop-color="#0a0e16"/>
+              </radialGradient>
+            </defs>
+            <rect width="320" height="180" fill="url(#ks-glut)"/>
+            <g stroke="#141c2c" stroke-width="2">
+              <path d="M40 8v164M80 8v164M120 8v164M160 8v164M200 8v164M240 8v164M280 8v164"/>
+              <path d="M8 36h304M8 72h304M8 108h304M8 144h304"/>
+            </g>
+            <!-- Wand -->
+            <g fill="#2b3448">
+              <rect x="0" y="0" width="320" height="8"/><rect x="0" y="172" width="320" height="8"/>
+              <rect x="0" y="0" width="8" height="180"/><rect x="312" y="0" width="8" height="180"/>
+            </g>
+            <g fill="#3d4a63">
+              <rect x="20" y="8" width="16" height="3"/><rect x="60" y="8" width="16" height="3"/>
+              <rect x="120" y="8" width="16" height="3"/><rect x="200" y="8" width="16" height="3"/>
+              <rect x="260" y="8" width="16" height="3"/>
+              <rect x="40" y="169" width="16" height="3"/><rect x="150" y="169" width="16" height="3"/>
+              <rect x="240" y="169" width="16" height="3"/>
+            </g>
+            <!-- Gegner -->
+            <g><rect x="44" y="38" width="22" height="22" fill="#ff5b52"/>
+               <rect x="49" y="45" width="4" height="4" fill="#2a0b09"/><rect x="57" y="45" width="4" height="4" fill="#2a0b09"/></g>
+            <g><rect x="248" y="112" width="22" height="22" fill="#ff5b52"/>
+               <rect x="253" y="119" width="4" height="4" fill="#2a0b09"/><rect x="261" y="119" width="4" height="4" fill="#2a0b09"/></g>
+            <g><rect x="238" y="28" width="40" height="40" fill="#ffb648"/>
+               <rect x="248" y="42" width="8" height="8" fill="#20180a"/><rect x="262" y="42" width="8" height="8" fill="#20180a"/></g>
+            <g><circle cx="66" cy="140" r="12" fill="#c98cff"/>
+               <rect x="60" y="136" width="12" height="4" fill="#1a0f26"/></g>
+            <!-- Schüsse -->
+            <g fill="#ffd7a8">
+              <rect x="118" y="72" width="6" height="6"/><rect x="100" y="64" width="5" height="5"/>
+              <rect x="196" y="70" width="6" height="6"/><rect x="216" y="62" width="5" height="5"/>
+              <rect x="176" y="118" width="6" height="6"/><rect x="190" y="132" width="5" height="5"/>
+            </g>
+            <rect x="88" y="126" width="8" height="8" fill="#c98cff"/>
+            <!-- Spieler -->
+            <rect x="146" y="76" width="28" height="28" fill="#12202e"/>
+            <circle cx="160" cy="90" r="13" fill="#8ad7ff"/>
+            <circle cx="160" cy="90" r="6" fill="#0b1a26"/>
+            <rect x="170" y="86" width="9" height="9" fill="#e9edf5"/>
+            <rect x="182" y="88" width="6" height="6" fill="#e9edf5"/>
+            <!-- Herz -->
+            <g fill="#5be0b0"><rect x="102" y="150" width="16" height="6"/><rect x="107" y="145" width="6" height="16"/></g>
+            <text x="14" y="166" font-family="'Pixelify Sans',monospace" font-size="13" fill="#5f6b82" letter-spacing="2">VIER WÄNDE, KEIN AUSGANG</text>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="genre">Action · Arena</p>
+          <h2>Kessel</h2>
+          <p class="desc">Sie kommen von allen vier Seiten: Läufer rennen stur, Werfer halten Abstand und spucken, Klötze halten viel aus und zerfallen beim Sterben in drei Läufer. Geschossen wird von allein — du läufst und zielst. Nach jeder Welle suchst du dir aus, was du dazubekommst, und keine Gabe ist ein Prozentpünktchen.</p>
+          <div class="meta">
+            <span class="tag">Touch</span><span class="tag">Offline</span>
+            <span class="tag">Bestwert</span><span class="tag">Endlose Wellen</span>
           </div>
           <span class="play">Spielen <span class="arrow">▶</span></span>
         </div>

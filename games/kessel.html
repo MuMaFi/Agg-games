@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Kessel — AGG Games</title>
+<meta name="description" content="Eine Arena, vier Wände, kein Ausgang. Überleb die Wellen und such dir nach jeder aus, was du dazubekommst.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%23ff8a3d'/%3E%3Crect x='7' y='0' width='2' height='3' fill='%23ff8a3d'/%3E%3Crect x='7' y='13' width='2' height='3' fill='%23ff8a3d'/%3E%3Crect x='0' y='7' width='3' height='2' fill='%23ff8a3d'/%3E%3Crect x='13' y='7' width='3' height='2' fill='%23ff8a3d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141926; --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --dim:#98a3b6; --faint:#616d84;
+  --feuer:#ff8a3d; --rot:#ff5b52; --gruen:#5be0b0; --gold:#ffb648;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:var(--bg); color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; aspect-ratio:4/3; width:min(100vw, 133.34vh);
+  max-height:100vh; margin:auto}
+canvas{display:block; width:100%; height:100%; image-rendering:pixelated; background:#080b11}
+
+/* ── Anzeige ──────────────────────────────────────────────── */
+#hud{position:absolute; inset:0; pointer-events:none; padding:12px;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+.feld{background:#0d1119cc; border:2px solid var(--edge); padding:5px 9px; line-height:1.12}
+.feld b{display:block; font-size:20px; color:var(--gold)}
+.feld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
+#welle b{color:var(--feuer)}
+#leiste{position:absolute; left:12px; bottom:12px; width:min(240px,44%); height:16px;
+  background:#0d1119cc; border:2px solid var(--edge)}
+#leben{position:absolute; inset:2px; width:100%; background:var(--gruen); transform-origin:left}
+#waffen{position:absolute; right:12px; bottom:12px; display:flex; gap:4px; flex-wrap:wrap;
+  justify-content:flex-end; max-width:52%}
+.marke{background:#0d1119cc; border:2px solid var(--edge); color:var(--dim);
+  font-size:10px; letter-spacing:.08em; padding:3px 7px}
+
+/* ── Wahl zwischen den Wellen ─────────────────────────────── */
+#wahl{position:absolute; inset:0; display:none; place-items:center; background:#070a10e8; z-index:4}
+#wahl.an{display:grid}
+#wahl h2{font-size:clamp(24px,6vw,38px); margin-bottom:4px; color:var(--feuer)}
+#wahl p{color:var(--dim); font-size:14px; margin-bottom:16px}
+#karten{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; padding:0 14px}
+.gabe{width:min(190px,30vw); min-width:140px; background:var(--panel); border:2px solid var(--edge);
+  padding:14px 12px; cursor:pointer; text-align:left}
+.gabe:hover{border-color:var(--feuer); background:#1b2231}
+.gabe b{display:block; font-size:17px; color:var(--gold); margin-bottom:5px}
+.gabe span{font-size:12px; color:var(--dim); line-height:1.45}
+
+/* ── Überlagerungen ───────────────────────────────────────── */
+.blende{position:absolute; inset:0; display:grid; place-items:center; padding:20px;
+  background:#070a10ee; text-align:center; z-index:5; overflow:auto}
+.blende.weg{display:none}
+h1{font-size:clamp(38px,12vw,64px); line-height:.94}
+h1 span{color:var(--feuer)}
+.blende p{color:var(--dim); font-size:15px; line-height:1.5; margin:12px auto; max-width:34ch}
+.blende p b{color:var(--ink)}
+.tafel{border:2px solid var(--edge); background:#0d1119; padding:12px 14px; margin:8px auto;
+  font-size:13px; color:var(--dim); line-height:1.7; max-width:34ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--faint); font-size:10px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+kbd{border:1px solid var(--edge-hi); border-bottom-width:2px; padding:0 5px; color:var(--ink)}
+button.los{font-family:var(--pix); font-size:19px; letter-spacing:.06em; cursor:pointer;
+  background:var(--gold); color:#20180a; border:0; padding:13px 26px;
+  box-shadow:0 4px 0 #a8801f; margin-top:12px}
+button.los:active{transform:translateY(3px); box-shadow:0 1px 0 #a8801f}
+#endeZahl{font-size:56px; color:var(--gold); line-height:1}
+#endeBest{color:var(--faint); font-size:13px; letter-spacing:.1em}
+a.zurueck{display:inline-block; margin-top:14px; color:var(--faint);
+  font-size:12px; letter-spacing:.12em; text-decoration:none;
+  border:2px solid var(--edge); padding:6px 10px}
+a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+</style>
+</head>
+<body>
+<div id="buehne">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div class="feld" id="punkte"><b>0</b><small>Punkte</small></div>
+    <div class="feld" id="welle"><b>1</b><small>Welle</small></div>
+  </div>
+  <div id="leiste"><div id="leben"></div></div>
+  <div id="waffen"></div>
+
+  <div id="wahl">
+    <div style="text-align:center">
+      <h2 id="wahlTitel">WELLE 1 ÜBERSTANDEN</h2>
+      <p>Such dir eins aus.</p>
+      <div id="karten"></div>
+    </div>
+  </div>
+
+  <div class="blende" id="start">
+    <div>
+      <h1>KES<span>SEL</span></h1>
+      <p>Vier Wände, kein Ausgang. Sie kommen von allen Seiten, und nach jeder
+         Welle suchst du dir aus, <b>was du dazubekommst</b>.</p>
+      <div class="tafel">
+        <u>Steuerung</u>
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen &middot; <b>Maus</b> zielen<br>
+        Geschossen wird von allein, sobald etwas in Reichweite ist.<br>
+        Auf dem Handy: links laufen, rechts zielen.
+      </div>
+      <div class="tafel">
+        <u>Wer da kommt</u>
+        <b style="color:#ff5b52">Läufer</b> rennen stur auf dich zu<br>
+        <b style="color:#c98cff">Werfer</b> halten Abstand und spucken<br>
+        <b style="color:#ffb648">Klötze</b> halten viel aus und zerfallen in drei Läufer
+      </div>
+      <button class="los" id="losKnopf">IN DEN KESSEL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+
+  <div class="blende weg" id="ende">
+    <div>
+      <h1 id="endeTitel">GEFALLEN</h1>
+      <div id="endeZahl">0</div>
+      <p style="margin:6px 0 2px">Punkte</p>
+      <div id="endeBest"></div>
+      <p id="endeText"></p>
+      <button class="los" id="nochmal">NOCH EINMAL</button>
+      <div><a class="zurueck" href="../index.html">← ALLE SPIELE</a></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   KESSEL — eine Arena, vier Wände, kein Ausgang.
+
+   Alles spielt auf einem Bildschirm; es gibt keine Kamera, die etwas
+   verstecken könnte. Die Schwierigkeit steckt in der Zusammensetzung
+   der Welle, nicht in Trefferpunkten: ein Klotz allein ist harmlos,
+   ein Klotz mit vier Werfern im Rücken nicht.
+   ═══════════════════════════════════════════════════════════════════ */
+'use strict';
+const $ = s => document.querySelector(s);
+const klemm = (v,a,b) => v<a?a:v>b?b:v;
+const misch = (a,b,t) => a+(b-a)*t;
+const zuf = (a,b) => a + Math.random()*(b-a);
+
+const AB = 640, AH = 480;                        // Arena
+const RAND = 14;
+const cv = $('#c'), g = cv.getContext('2d');
+cv.width = AB; cv.height = AH;
+g.imageSmoothingEnabled = false;
+
+/* ── Zustand ──────────────────────────────────────────────────────── */
+let sp, feinde, kugeln, feindKugeln, funken, sachen, spiel;
+let bestwert = +(localStorage.getItem('kessel.best') || 0);
+let laeuft = false;
+
+function neuesSpiel(){
+  sp = {
+    x:AB/2, y:AH/2, r:9, tempo:186, leben:100, maxLeben:100,
+    ziel:0, feuerUhr:0,
+    takt:0.30,            // Sekunden zwischen zwei Schüssen
+    schaden:14, tempoK:430, streuung:0.06, salve:1, durchschlag:0, reichweite:330,
+    blink:0, unverwundbar:0
+  };
+  feinde = []; kugeln = []; feindKugeln = []; funken = []; sachen = [];
+  spiel = {punkte:0, welle:0, pause:0, aus:false, ruhe:0};
+  naechsteWelle();
+  zeigeMarken();
+}
+
+/* ── Wellen ───────────────────────────────────────────────────────────
+   Die Menge wächst langsam, die Mischung schnell: ab Welle 3 kommen
+   Werfer dazu, ab Welle 5 Klötze. Alles erscheint an den Rändern, nie
+   im Rücken auf zwei Schritt Entfernung. */
+function naechsteWelle(){
+  spiel.welle++;
+  const w = spiel.welle;
+  const zahl = Math.round(4 + w*1.7);
+  for(let i=0;i<zahl;i++){
+    const r = Math.random();
+    let art = 'laeufer';
+    if(w >= 5 && r < .16) art = 'klotz';
+    else if(w >= 3 && r < .42) art = 'werfer';
+    feinde.push(macheFeind(art, w));
+  }
+  $('#welle b').textContent = w;
+  spiel.ruhe = 1.1;                              // kurz Luft holen
+}
+function randPunkt(){
+  const s = Math.floor(Math.random()*4);
+  if(s===0) return {x: zuf(RAND, AB-RAND), y: RAND+6};
+  if(s===1) return {x: AB-RAND-6, y: zuf(RAND, AH-RAND)};
+  if(s===2) return {x: zuf(RAND, AB-RAND), y: AH-RAND-6};
+  return {x: RAND+6, y: zuf(RAND, AH-RAND)};
+}
+function macheFeind(art, w){
+  let p = randPunkt(), v = 0;
+  while(Math.hypot(p.x-sp.x, p.y-sp.y) < 150 && v++ < 40) p = randPunkt();
+  const stark = 1 + (w-1)*0.16;
+  if(art === 'werfer')
+    return {art, x:p.x, y:p.y, r:9,  hp:22*stark, maxHp:22*stark, tempo:64,
+            uhr: zuf(.6,1.8), blink:0, wert:22};
+  if(art === 'klotz')
+    return {art, x:p.x, y:p.y, r:17, hp:120*stark, maxHp:120*stark, tempo:38,
+            blink:0, wert:60};
+  return   {art, x:p.x, y:p.y, r:8,  hp:26*stark, maxHp:26*stark, tempo:zuf(78,104),
+            blink:0, wert:12};
+}
+
+/* ── Gaben ────────────────────────────────────────────────────────────
+   Jede ist ein spürbarer Sprung, keine drei Prozent. Lieber wenige
+   Stufen, die man merkt, als eine lange Liste, die nichts ändert. */
+const GABEN = [
+  {name:'Schnellfeuer',  text:'Ein Viertel kürzere Pause zwischen den Schüssen.',
+   tu:()=>{ sp.takt *= 0.75; }},
+  {name:'Schwerer Lauf', text:'Jeder Treffer macht die Hälfte mehr Schaden.',
+   tu:()=>{ sp.schaden *= 1.5; }},
+  {name:'Schrot',        text:'Ein Geschoss mehr je Schuss, dafür streut es.',
+   tu:()=>{ sp.salve++; sp.streuung += 0.09; }},
+  {name:'Stahlkern',     text:'Deine Geschosse gehen durch einen Gegner hindurch.',
+   tu:()=>{ sp.durchschlag++; }},
+  {name:'Laufschuhe',    text:'Ein Fünftel schneller unterwegs.',
+   tu:()=>{ sp.tempo *= 1.2; }},
+  {name:'Zäher Balg',    text:'Dreißig Leben mehr, und sie sind sofort voll.',
+   tu:()=>{ sp.maxLeben += 30; sp.leben = sp.maxLeben; }},
+  {name:'Langer Arm',    text:'Du triffst deutlich weiter.',
+   tu:()=>{ sp.reichweite += 110; sp.tempoK += 90; }}
+];
+function zeigeWahl(){
+  const rest = GABEN.slice();
+  const drei = [];
+  for(let i=0;i<3 && rest.length;i++) drei.push(rest.splice(Math.floor(Math.random()*rest.length),1)[0]);
+  $('#wahlTitel').textContent = 'WELLE ' + spiel.welle + ' ÜBERSTANDEN';
+  const box = $('#karten'); box.innerHTML = '';
+  for(const gabe of drei){
+    const el = document.createElement('button');
+    el.className = 'gabe';
+    el.innerHTML = '<b>' + gabe.name + '</b><span>' + gabe.text + '</span>';
+    el.addEventListener('click', () => {
+      gabe.tu(); zeigeMarken();
+      $('#wahl').classList.remove('an');
+      naechsteWelle();
+    });
+    box.appendChild(el);
+  }
+  $('#wahl').classList.add('an');
+}
+function zeigeMarken(){
+  const m = [];
+  m.push(Math.round(60/sp.takt) + '/min');
+  m.push(Math.round(sp.schaden) + ' Schaden');
+  if(sp.salve > 1) m.push(sp.salve + 'er Schrot');
+  if(sp.durchschlag) m.push('Durchschlag ' + sp.durchschlag);
+  $('#waffen').innerHTML = m.map(t => '<span class="marke">'+t+'</span>').join('');
+}
+
+/* ── Eingabe ──────────────────────────────────────────────────────── */
+const taste = {};
+addEventListener('keydown', e => {
+  taste[e.code] = true;
+  if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))
+    e.preventDefault();
+});
+addEventListener('keyup', e => { taste[e.code] = false; });
+addEventListener('blur', () => { for(const k in taste) taste[k] = false; knueppel.mx = knueppel.my = 0; });
+
+let maus = {x:AB/2, y:AH/2-60, da:false};
+function inArena(e){
+  const r = cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/r.width*AB, y:(e.clientY-r.top)/r.height*AH};
+}
+cv.addEventListener('mousemove', e => { const p = inArena(e); maus.x=p.x; maus.y=p.y; maus.da=true; });
+
+/* Zwei Daumen: links laufen, rechts zielen. Der Knüppel setzt sich dort
+   hin, wo der Finger aufsetzt — feste Knüppel trifft man auf einem
+   Telefon nie. */
+const knueppel = {id:-1, ox:0, oy:0, mx:0, my:0};
+const zielen   = {id:-1, x:0, y:0, an:false};
+cv.addEventListener('pointerdown', e => {
+  const p = inArena(e);
+  if(p.x < AB/2 && knueppel.id < 0){ knueppel.id = e.pointerId; knueppel.ox = p.x; knueppel.oy = p.y; }
+  else if(zielen.id < 0){ zielen.id = e.pointerId; zielen.x = p.x; zielen.y = p.y; zielen.an = true; }
+  cv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  const p = inArena(e);
+  if(e.pointerId === knueppel.id){
+    const dx = p.x-knueppel.ox, dy = p.y-knueppel.oy, l = Math.hypot(dx,dy) || 1;
+    const k = Math.min(l, 46)/46;
+    knueppel.mx = dx/l*k; knueppel.my = dy/l*k;
+  } else if(e.pointerId === zielen.id){ zielen.x = p.x; zielen.y = p.y; }
+});
+for(const t of ['pointerup','pointercancel']) cv.addEventListener(t, e => {
+  if(e.pointerId === knueppel.id){ knueppel.id = -1; knueppel.mx = knueppel.my = 0; }
+  if(e.pointerId === zielen.id){ zielen.id = -1; zielen.an = false; }
+});
+
+/* ── Schritt ──────────────────────────────────────────────────────── */
+function schritt(dt){
+  if(spiel.aus) return;
+  if(spiel.ruhe > 0) spiel.ruhe -= dt;
+
+  // Laufen
+  let mx = (taste.KeyD||taste.ArrowRight?1:0) - (taste.KeyA||taste.ArrowLeft?1:0);
+  let my = (taste.KeyS||taste.ArrowDown?1:0) - (taste.KeyW||taste.ArrowUp?1:0);
+  if(knueppel.mx || knueppel.my){ mx = knueppel.mx; my = knueppel.my; }
+  const l = Math.hypot(mx,my);
+  if(l > 1){ mx/=l; my/=l; }
+  sp.x = klemm(sp.x + mx*sp.tempo*dt, RAND+sp.r, AB-RAND-sp.r);
+  sp.y = klemm(sp.y + my*sp.tempo*dt, RAND+sp.r, AH-RAND-sp.r);
+
+  // Zielen: Finger, sonst Maus, sonst der nächste Gegner
+  if(zielen.an) sp.ziel = Math.atan2(zielen.y-sp.y, zielen.x-sp.x);
+  else if(maus.da) sp.ziel = Math.atan2(maus.y-sp.y, maus.x-sp.x);
+  else {
+    const n = naechsterFeind();
+    if(n) sp.ziel = Math.atan2(n.y-sp.y, n.x-sp.x);
+  }
+
+  // Von allein feuern, aber nur wenn auch etwas in Reichweite ist
+  sp.feuerUhr -= dt;
+  if(sp.feuerUhr <= 0){
+    const n = naechsterFeind();
+    if(n && Math.hypot(n.x-sp.x, n.y-sp.y) < sp.reichweite){
+      sp.feuerUhr = sp.takt;
+      for(let i=0;i<sp.salve;i++){
+        const a = sp.ziel + (sp.salve>1 ? (i-(sp.salve-1)/2)*sp.streuung*1.6 : 0)
+                          + zuf(-sp.streuung, sp.streuung);
+        kugeln.push({x:sp.x+Math.cos(a)*12, y:sp.y+Math.sin(a)*12,
+                     vx:Math.cos(a)*sp.tempoK, vy:Math.sin(a)*sp.tempoK,
+                     rest:sp.durchschlag, getroffen:[], leben:sp.reichweite/sp.tempoK});
+      }
+    }
+  }
+
+  bewegeKugeln(dt);
+  bewegeFeinde(dt);
+  bewegeSachen(dt);
+  for(const f of funken){ f.x+=f.vx*dt; f.y+=f.vy*dt; f.vx*=Math.pow(.02,dt); f.vy*=Math.pow(.02,dt); f.t-=dt; }
+  funken = funken.filter(f => f.t > 0);
+
+  if(sp.blink > 0) sp.blink -= dt;
+  if(sp.unverwundbar > 0) sp.unverwundbar -= dt;
+
+  if(feinde.length === 0 && spiel.ruhe <= 0 && !$('#wahl').classList.contains('an')){
+    spiel.punkte += 40 + spiel.welle*20;
+    zeigeWahl();
+  }
+  $('#punkte b').textContent = Math.round(spiel.punkte);
+  $('#leben').style.transform = 'scaleX(' + klemm(sp.leben/sp.maxLeben,0,1).toFixed(3) + ')';
+  $('#leben').style.background = sp.leben/sp.maxLeben < .3 ? 'var(--rot)' : 'var(--gruen)';
+}
+function naechsterFeind(){
+  let best = null, bd = 1e9;
+  for(const f of feinde){ const d = (f.x-sp.x)**2 + (f.y-sp.y)**2; if(d < bd){ bd = d; best = f; } }
+  return best;
+}
+
+function bewegeKugeln(dt){
+  for(const k of kugeln){
+    k.x += k.vx*dt; k.y += k.vy*dt; k.leben -= dt;
+    if(k.x<RAND||k.y<RAND||k.x>AB-RAND||k.y>AH-RAND) k.leben = 0;
+    for(const f of feinde){
+      if(k.getroffen.includes(f)) continue;
+      if((k.x-f.x)**2 + (k.y-f.y)**2 < (f.r+3)**2){
+        f.hp -= sp.schaden; f.blink = .09;
+        k.getroffen.push(f);
+        spritz(f.x, f.y, k.vx, k.vy, 5, '#ffd7a8');
+        if(k.rest-- <= 0) k.leben = 0;
+        break;
+      }
+    }
+  }
+  kugeln = kugeln.filter(k => k.leben > 0);
+
+  for(const k of feindKugeln){
+    k.x += k.vx*dt; k.y += k.vy*dt; k.leben -= dt;
+    if((k.x-sp.x)**2 + (k.y-sp.y)**2 < (sp.r+4)**2){ trifftSpieler(9); k.leben = 0; }
+  }
+  feindKugeln = feindKugeln.filter(k => k.leben > 0 &&
+    k.x>0 && k.y>0 && k.x<AB && k.y<AH);
+
+  // Tote einsammeln
+  for(let i=feinde.length-1;i>=0;i--){
+    const f = feinde[i];
+    if(f.hp > 0) continue;
+    feinde.splice(i,1);
+    spiel.punkte += f.wert;
+    spritz(f.x, f.y, 0, 0, 14, f.art==='klotz' ? '#ffb648' : '#ff8a3d');
+    if(f.art === 'klotz'){
+      for(let k=0;k<3;k++){
+        const n = macheFeind('laeufer', spiel.welle);
+        n.x = f.x + zuf(-16,16); n.y = f.y + zuf(-16,16);
+        feinde.push(n);
+      }
+    }
+    if(Math.random() < .13) sachen.push({x:f.x, y:f.y, art:'herz', t:14});
+  }
+}
+
+function bewegeFeinde(dt){
+  for(const f of feinde){
+    if(f.blink > 0) f.blink -= dt;
+    const dx = sp.x-f.x, dy = sp.y-f.y, d = Math.hypot(dx,dy) || 1;
+
+    if(f.art === 'werfer'){
+      /* Werfer halten Abstand: zu nah laufen sie weg, zu weit gehen sie
+         ran. Ohne das kleben sie auf einer Kreisbahn und man trifft sie
+         nie zufällig. */
+      const soll = 190;
+      const richt = d > soll+30 ? 1 : d < soll-30 ? -1 : 0;
+      f.x += dx/d*f.tempo*richt*dt; f.y += dy/d*f.tempo*richt*dt;
+      f.x += -dy/d*f.tempo*.45*dt;  f.y += dx/d*f.tempo*.45*dt;   // seitlich kreisen
+      f.uhr -= dt;
+      if(f.uhr <= 0 && d < 340){
+        f.uhr = 1.9;
+        const a = Math.atan2(dy, dx);
+        feindKugeln.push({x:f.x, y:f.y, vx:Math.cos(a)*168, vy:Math.sin(a)*168, leben:4});
+      }
+    } else {
+      f.x += dx/d*f.tempo*dt; f.y += dy/d*f.tempo*dt;
+    }
+    f.x = klemm(f.x, RAND+f.r, AB-RAND-f.r);
+    f.y = klemm(f.y, RAND+f.r, AH-RAND-f.r);
+
+    if(d < f.r + sp.r) trifftSpieler(f.art === 'klotz' ? 22 : 12);
+  }
+  // Feinde schieben sich auseinander, sonst stapeln sie sich zu einem Klumpen
+  for(let i=0;i<feinde.length;i++) for(let j=i+1;j<feinde.length;j++){
+    const a = feinde[i], b = feinde[j];
+    const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx,dy) || 1, soll = a.r+b.r;
+    if(d < soll){
+      const s = (soll-d)/2/d;
+      a.x -= dx*s; a.y -= dy*s; b.x += dx*s; b.y += dy*s;
+    }
+  }
+}
+function bewegeSachen(dt){
+  for(const s of sachen){
+    s.t -= dt;
+    if((s.x-sp.x)**2 + (s.y-sp.y)**2 < (sp.r+11)**2){
+      s.t = 0;
+      sp.leben = Math.min(sp.maxLeben, sp.leben + 25);
+      spritz(s.x, s.y, 0, 0, 8, '#5be0b0');
+    }
+  }
+  sachen = sachen.filter(s => s.t > 0);
+}
+function trifftSpieler(schaden){
+  if(sp.unverwundbar > 0) return;
+  sp.leben -= schaden; sp.unverwundbar = .45; sp.blink = .2;
+  spritz(sp.x, sp.y, 0, 0, 9, '#ff5b52');
+  if(sp.leben <= 0) ende();
+}
+function spritz(x, y, vx, vy, n, farbe){
+  for(let i=0;i<n;i++){
+    const a = Math.atan2(vy,vx) + zuf(-2.6,2.6), s = zuf(40,190);
+    funken.push({x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, t:zuf(.16,.42), farbe});
+  }
+}
+
+/* ── Zeichnen ─────────────────────────────────────────────────────── */
+function zeichne(){
+  g.fillStyle = '#080b11'; g.fillRect(0,0,AB,AH);
+  // Boden mit Raster, damit man das eigene Tempo sieht
+  g.fillStyle = '#0d121c'; g.fillRect(RAND, RAND, AB-RAND*2, AH-RAND*2);
+  g.strokeStyle = '#111828'; g.lineWidth = 2;
+  for(let x=RAND+32; x<AB-RAND; x+=32){ g.beginPath(); g.moveTo(x,RAND); g.lineTo(x,AH-RAND); g.stroke(); }
+  for(let y=RAND+32; y<AH-RAND; y+=32){ g.beginPath(); g.moveTo(RAND,y); g.lineTo(AB-RAND,y); g.stroke(); }
+  // Wand
+  g.fillStyle = '#2b3448';
+  g.fillRect(0,0,AB,RAND); g.fillRect(0,AH-RAND,AB,RAND);
+  g.fillRect(0,0,RAND,AH); g.fillRect(AB-RAND,0,RAND,AH);
+  g.fillStyle = '#3d4a63';
+  for(let x=0;x<AB;x+=28){ g.fillRect(x,RAND-4,14,4); g.fillRect(x+14,AH-RAND,14,4); }
+  for(let y=0;y<AH;y+=28){ g.fillRect(RAND-4,y,4,14); g.fillRect(AB-RAND,y+14,4,14); }
+
+  for(const s of sachen){
+    const p = 1 + Math.sin(s.t*7)*0.12;
+    g.fillStyle = '#5be0b0';
+    g.fillRect(s.x-5*p, s.y-2*p, 10*p, 4*p);
+    g.fillRect(s.x-2*p, s.y-5*p, 4*p, 10*p);
+  }
+  for(const f of funken){
+    g.fillStyle = f.farbe;
+    g.fillRect(Math.round(f.x)-1, Math.round(f.y)-1, 3, 3);
+  }
+  for(const f of feinde) malFeind(f);
+  for(const k of feindKugeln){
+    g.fillStyle = '#c98cff'; g.fillRect(Math.round(k.x)-3, Math.round(k.y)-3, 6, 6);
+    g.fillStyle = '#f0dcff'; g.fillRect(Math.round(k.x)-1, Math.round(k.y)-1, 2, 2);
+  }
+  for(const k of kugeln){
+    g.fillStyle = '#ffd7a8';
+    g.fillRect(Math.round(k.x)-2, Math.round(k.y)-2, 4, 4);
+  }
+  malSpieler();
+}
+function malFeind(f){
+  const x = Math.round(f.x), y = Math.round(f.y);
+  const grund = f.blink > 0 ? '#ffffff'
+              : f.art === 'werfer' ? '#c98cff'
+              : f.art === 'klotz'  ? '#ffb648' : '#ff5b52';
+  if(f.art === 'klotz'){
+    g.fillStyle = '#5a3f12'; g.fillRect(x-f.r-1, y-f.r-1, f.r*2+2, f.r*2+2);
+    g.fillStyle = grund;     g.fillRect(x-f.r, y-f.r, f.r*2, f.r*2);
+    g.fillStyle = '#20180a'; g.fillRect(x-7, y-4, 5, 5); g.fillRect(x+2, y-4, 5, 5);
+  } else if(f.art === 'werfer'){
+    g.fillStyle = '#3a1f52'; g.fillRect(x-f.r-1, y-f.r-1, f.r*2+2, f.r*2+2);
+    g.fillStyle = grund;
+    g.beginPath(); g.arc(x, y, f.r, 0, 6.284); g.fill();
+    g.fillStyle = '#1a0f26'; g.fillRect(x-4, y-3, 8, 3);
+  } else {
+    g.fillStyle = '#5a1a16'; g.fillRect(x-f.r-1, y-f.r-1, f.r*2+2, f.r*2+2);
+    g.fillStyle = grund;     g.fillRect(x-f.r, y-f.r, f.r*2, f.r*2);
+    g.fillStyle = '#2a0b09'; g.fillRect(x-5, y-3, 3, 3); g.fillRect(x+2, y-3, 3, 3);
+  }
+  // Lebensbalken nur, wenn schon etwas fehlt
+  if(f.hp < f.maxHp){
+    const b = f.r*2;
+    g.fillStyle = '#2a0b09'; g.fillRect(x-f.r, y-f.r-7, b, 3);
+    g.fillStyle = '#ff8a3d'; g.fillRect(x-f.r, y-f.r-7, b*klemm(f.hp/f.maxHp,0,1), 3);
+  }
+}
+function malSpieler(){
+  const x = Math.round(sp.x), y = Math.round(sp.y);
+  if(sp.blink > 0 && Math.floor(sp.blink*30)%2) return;   // Trefferblitz
+  g.fillStyle = '#12202e'; g.fillRect(x-sp.r-1, y-sp.r-1, sp.r*2+2, sp.r*2+2);
+  g.fillStyle = '#8ad7ff';
+  g.beginPath(); g.arc(x, y, sp.r, 0, 6.284); g.fill();
+  g.fillStyle = '#0b1a26';
+  g.beginPath(); g.arc(x, y, sp.r*.45, 0, 6.284); g.fill();
+  // Lauf zeigt in Zielrichtung
+  const c = Math.cos(sp.ziel), s = Math.sin(sp.ziel);
+  g.fillStyle = '#e9edf5';
+  g.fillRect(Math.round(x + c*9 - 3), Math.round(y + s*9 - 3), 6, 6);
+  g.fillRect(Math.round(x + c*14 - 2), Math.round(y + s*14 - 2), 4, 4);
+}
+
+/* ── Schleife ─────────────────────────────────────────────────────── */
+let vorher = 0;
+function schleife(jetzt){
+  requestAnimationFrame(schleife);
+  const dt = Math.min((jetzt-vorher)/1000, .05); vorher = jetzt;
+  if(!sp) return;
+  if(laeuft && !$('#wahl').classList.contains('an')) schritt(dt);
+  zeichne();
+}
+
+function starten(){
+  neuesSpiel(); laeuft = true;
+  $('#start').classList.add('weg'); $('#ende').classList.add('weg');
+  $('#wahl').classList.remove('an');
+}
+function ende(){
+  if(spiel.aus) return;
+  spiel.aus = true; laeuft = false;
+  const p = Math.round(spiel.punkte);
+  const rekord = p > bestwert;
+  if(rekord){ bestwert = p; localStorage.setItem('kessel.best', String(p)); }
+  $('#endeTitel').textContent = rekord ? 'REKORD' : 'GEFALLEN';
+  $('#endeTitel').style.color = rekord ? 'var(--gruen)' : 'var(--ink)';
+  $('#endeZahl').textContent = p;
+  $('#endeBest').textContent = rekord ? 'so weit warst du noch nie'
+                                      : 'bester Lauf: ' + bestwert + ' Punkte';
+  $('#endeText').textContent = 'Welle ' + spiel.welle + '.';
+  $('#ende').classList.remove('weg');
+}
+
+$('#losKnopf').addEventListener('click', starten);
+$('#nochmal').addEventListener('click', starten);
+neuesSpiel(); laeuft = false;
+requestAnimationFrame(t => { vorher = t; requestAnimationFrame(schleife); });
+
+window.__kessel = {
+  get sp(){return sp}, get feinde(){return feinde}, get spiel(){return spiel},
+  get kugeln(){return kugeln},
+  starten, naechsteWelle,
+  raeume: () => { feinde.length = 0; },
+  gib: n => { const gabe = GABEN.find(x => x.name === n); if(gabe) gabe.tu(); zeigeMarken(); }
+};
+</script>
+</body>
+</html>
