@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Taschenwelt</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230e1118'/%3E%3Crect x='2' y='4' width='12' height='3' fill='%2378a84e'/%3E%3Crect x='2' y='7' width='12' height='6' fill='%236b4b2f'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
@@ -83,6 +84,21 @@ canvas#gl{position:fixed; inset:0; width:100%; height:100%; display:block; backg
 .hintlist{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--ink-dim); font-size:13.5px}
 .hintlist b{color:var(--ink); font-weight:600}
 kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--edge-hi); padding:1px 6px; font-size:12px}
+
+/* Auf einem Telefon im Querformat ist die Karte höher als der Bildschirm:
+   die beiden Knöpfe standen unter der Kante und man musste erst in der
+   Karte scrollen, um überhaupt anfangen zu können. Kurz und knapp, wenn
+   wenig Höhe da ist. */
+@media (max-height:560px){
+  .menu-card{padding:16px 18px 14px}
+  .brand{font-size:clamp(26px,6.5vw,38px)}
+  .brand-sub{margin:4px 0 12px; font-size:12.5px}
+  .field{margin-bottom:10px}
+  .opts{margin:4px 0 12px; gap:8px}
+  .opt{padding:7px 9px}
+  .hintlist{display:none}
+  .sep{display:none}
+}
 
 /* ── HUD ───────────────────────────────────────────────────────────── */
 #hud{position:fixed; inset:0; z-index:20; pointer-events:none; display:none}
@@ -3363,5 +3379,6 @@ window.__welt = {
 };
 </script>
 
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

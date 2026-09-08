@@ -5,12 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#5c94fc">
   <title>Mario &ndash; Mini Jump &rsquo;n&rsquo; Run</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%235c94fc'/%3E%3Crect x='3' y='4' width='10' height='3' fill='%23e52521'/%3E%3Crect x='4' y='7' width='8' height='5' fill='%23ffcc9e'/%3E%3C/svg%3E">
   <style>
     *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d1220;font-family:Arial,sans-serif;touch-action:none;user-select:none}
     body{display:grid;place-items:center}
-    #wrap{position:relative;width:min(100vw,1280px);height:min(100vh,720px);aspect-ratio:16/9;overflow:hidden;background:#5c94fc;box-shadow:0 0 50px #0009}
+    /* Breite UND Höhe fest gesetzt hieß: das Seitenverhältnis wurde
+       ignoriert. Auf einem Telefon im Hochformat stand das Bild dann in
+       einem 390x720-Kasten und war quer zusammengequetscht. */
+    #wrap{position:relative;width:min(100vw,calc(100vh * 16 / 9));aspect-ratio:16/9;max-height:100vh;overflow:hidden;background:#5c94fc;box-shadow:0 0 50px #0009}
+    /* Hochkant bleibt über und unter dem Bild ein Streifen Himmel frei —
+       dort liegen dann Anzeige und Knöpfe, statt über dem Spielbild. */
+    @media (orientation:portrait){
+      #wrap{width:100vw;height:100vh;max-width:none;aspect-ratio:auto;background:#0d1220}
+      canvas{object-fit:contain;background:#5c94fc}
+    }
     canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
-    #hud{position:absolute;inset:0 0 auto;display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;color:#fff;font-weight:900;font-size:clamp(15px,2.2vw,25px);letter-spacing:1px;text-shadow:3px 3px #111;pointer-events:none}
+    #hud{position:absolute;inset:0 0 auto;display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px 0 58px;color:#fff;font-weight:900;font-size:clamp(15px,2.2vw,25px);letter-spacing:1px;text-shadow:3px 3px #111;pointer-events:none}
     #help{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:min(88%,520px);padding:28px 30px;text-align:center;color:#fff;background:#111d;border:4px solid #fff;border-radius:18px;box-shadow:0 12px 40px #0008}
     #help h1{margin:0 0 10px;color:#ffdf49;font-size:clamp(30px,6vw,58px);text-shadow:4px 4px #b91c1c}
     #help p{margin:8px 0;line-height:1.45}
@@ -18,7 +28,7 @@
     #help button:active{transform:translateY(3px);box-shadow:0 2px #8d1512}
     #touch{position:absolute;inset:auto 18px 18px;display:none;justify-content:space-between;align-items:end}
     .touch-group{display:flex;gap:12px}.touch-btn{width:66px;height:66px;border-radius:50%;border:3px solid #fff9;background:#1118;color:white;font-size:29px;font-weight:900;display:grid;place-items:center;-webkit-tap-highlight-color:transparent}.touch-btn.on{background:#e52521cc;transform:scale(.94)}
-    @media (pointer:coarse),(max-width:800px){#touch{display:flex}#hud{padding:10px 12px}.touch-btn{width:58px;height:58px}}
+    @media (pointer:coarse),(max-width:800px){#touch{display:flex}#hud{padding:10px 12px 0 50px}.touch-btn{width:58px;height:58px}}
   </style>
 </head>
 <body>
@@ -310,5 +320,6 @@
   resetWorld(true);requestAnimationFrame(loop);
 })();
 </script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

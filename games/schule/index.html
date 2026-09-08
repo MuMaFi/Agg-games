@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d0f0c">
 <title>NACHSITZEN</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d0f0c'/%3E%3Crect x='2' y='3' width='12' height='9' fill='%23213328'/%3E%3Crect x='4' y='6' width='6' height='1' fill='%23e8f0e4'/%3E%3Crect x='4' y='8' width='4' height='1' fill='%23e8f0e4'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Mono:wght@400;700&display=swap">
@@ -22,14 +23,22 @@ canvas{display:block}
 #buehne canvas{width:100%;height:100%;image-rendering:pixelated}
 
 /* ── Startbild ─────────────────────────────────────────── */
-#start{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;
+#start{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;overflow:auto;align-content:safe center;
   background:
     repeating-linear-gradient(0deg,#0000 0 3px,#ffffff08 3px 4px),
     radial-gradient(120% 90% at 50% 12%,#25402f 0%,#0d0f0c 70%)}
 #start.weg{display:none}
-.blatt{width:min(680px,100%);max-height:100%;overflow:auto;
+.blatt{width:min(680px,100%);max-height:100%;overflow:hidden;
+  display:flex;flex-direction:column;
   border:3px solid #3a5442;background:#16241b;padding:26px 26px 22px;
   box-shadow:0 14px 0 #00000055}
+/* Nur die Vorgeschichte rollt. Schwierigkeit und Startknopf bleiben unten
+   stehen — sonst standen sie auf einem Telefon unter der Kante und man
+   musste erst blind scrollen, um überhaupt anfangen zu können. */
+.rolle{overflow:auto;min-height:0;flex:0 1 auto;
+  scrollbar-width:thin;scrollbar-color:#55765f #16241b}
+.tafelbox.unten{flex:0 0 auto;margin-bottom:14px}
+.blatt > button.los{flex:0 0 auto;align-self:flex-start}
 h1{font-family:var(--titel);font-size:clamp(40px,10vw,84px);line-height:.95;margin:0 0 4px;
   color:var(--kreide);text-shadow:3px 3px 0 #0b140f}
 .unter{color:var(--gelb);font-size:13px;letter-spacing:.24em;text-transform:uppercase;margin:0 0 20px}
@@ -55,7 +64,7 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 #hud{position:fixed;inset:0;z-index:40;pointer-events:none;display:none}
 #hud.an{display:block}
 .feld{position:absolute;background:#0f1a13d9;border:2px solid #3a5442;padding:8px 12px}
-#hefte{top:14px;left:14px}
+#hefte{top:14px;left:60px}   /* 60 statt 14: der Heimknopf sitzt links davor */
 #hefte .zahl{font-family:var(--titel);font-size:28px;line-height:1;color:var(--gelb)}
 #hefte .txt{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-top:2px}
 #sachen{top:14px;right:14px;display:flex;gap:6px}
@@ -143,12 +152,36 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 #tRennen{right:22px;bottom:30px;width:84px;height:84px;border-radius:50%}
 #tNutzen{right:118px;bottom:104px;width:72px;height:72px;border-radius:50%;font-size:10px}
 @media(max-width:820px){#karte canvas{width:112px;height:112px}#sachen .s{width:38px;height:38px}}
+
+/* Startbildschirm auf kleinen Schirmen: er war höher als das Fenster, der
+   Knopf lag darunter. Kleiner setzen, Rest schiebbar. */
+@media (max-height:560px), (max-width:560px){
+  .blatt{padding:14px 16px 12px}
+  #start h1{font-size:clamp(26px,8vw,44px)}
+  #start .unter{margin-bottom:10px}
+  .blatt p{font-size:13px; margin:0 0 10px; line-height:1.45}
+  .tafelbox{padding:8px 10px; margin-bottom:10px}
+  .tafelbox div{font-size:12px; line-height:1.6}
+  #schwere button{font-size:13px; padding:7px 9px}
+  #start button.los{padding:10px 22px; font-size:17px}
+}
+
+/* Telefon quer: der Titel darf nicht die halbe Karte fressen. */
+@media (max-height:430px){
+  #start h1{font-size:clamp(24px,4vw,34px)}
+  #start .unter{font-size:11.5px;margin-bottom:8px}
+  .blatt{padding:12px 14px 10px}
+  .blatt p{font-size:12.5px;margin:0 0 8px}
+  .tafelbox{margin-bottom:8px}
+  #start button.los{padding:8px 20px;font-size:16px}
+}
 </style>
 </head>
 <body>
 <div id="buehne"></div>
 
 <div id="start"><div class="blatt">
+  <div class="rolle">
   <h1>NACH<br>SITZEN</h1>
   <p class="unter">Sieben Hefte. Ein Lehrer. Ein Schulhaus.</p>
   <p>Du bist nach Schulschluss noch im Gebäude, weil sieben Hefte fehlen. In jedem stehen
@@ -171,7 +204,8 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
       <kbd>Esc</kbd> Maus freigeben
     </div>
   </div>
-  <div class="tafelbox">
+  </div><!-- .rolle -->
+  <div class="tafelbox unten">
     <u>Wie schwer soll gerechnet werden?</u>
     <div id="schwere"></div>
   </div>
@@ -213,5 +247,6 @@ button.los:active{transform:translateY(3px);box-shadow:0 2px 0 #a8801f}
 </div>
 
 <script type="module" src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

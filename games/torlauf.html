@@ -24,11 +24,12 @@ body{
   background:var(--bg); color:var(--ink); font-family:var(--pix);
   display:grid; place-items:center; touch-action:none; user-select:none;
 }
-#buehne{position:relative; height:100%; aspect-ratio:9/16; max-width:100vw; background:#070a10}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite,0.5625)));
+  aspect-ratio:var(--seite,0.5625); max-height:100vh; margin:auto; background:#070a10}
 canvas{display:block; width:100%; height:100%; image-rendering:pixelated; touch-action:none}   /* nicht vererbt — sonst nimmt der Browser das Wischen als Scrollen */
 
 /* ── Anzeige ──────────────────────────────────────────────── */
-#hud{position:absolute; inset:0; pointer-events:none; padding:12px;
+#hud{position:absolute; inset:0; pointer-events:none; padding:12px 12px 12px 52px;
   display:flex; justify-content:space-between; align-items:flex-start; font-size:15px}
 .feld{background:#0d1119cc; border:2px solid var(--edge); padding:5px 9px; line-height:1.15}
 .feld b{display:block; font-size:22px; color:var(--gold)}
@@ -42,7 +43,8 @@ canvas{display:block; width:100%; height:100%; image-rendering:pixelated; touch-
 #ruf.an{opacity:1}
 
 /* ── Überlagerungen ───────────────────────────────────────── */
-.blende{position:absolute; inset:0; display:grid; place-items:center; padding:22px;
+.blende{position:fixed; inset:0; display:grid; place-items:center; padding:22px;
+  overflow:auto; align-content:safe center;
   background:#070a10ee; text-align:center; z-index:5}
 .blende.weg{display:none}
 h1{font-size:clamp(38px,13vw,68px); line-height:.92; letter-spacing:.02em}
@@ -64,6 +66,43 @@ a.zurueck{position:absolute; left:12px; bottom:12px; z-index:6; color:var(--fain
   font-size:12px; letter-spacing:.12em; text-decoration:none; background:#0d1119cc;
   border:2px solid var(--edge); padding:6px 10px}
 a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
+
+/* Kurzer Bildschirm — Telefon im Querformat: der Startbildschirm war höher
+   als das Fenster, der Knopf lag unter der Kante. Kleiner setzen, und was
+   dann immer noch nicht passt, lässt sich schieben. */
+@media (max-height:560px){
+  .blende{padding:10px 14px}
+  /* Untereinander passt der Startbildschirm quer nicht ins Fenster. Also
+     nebeneinander: Titel und Text über die ganze Breite, die Tafeln als
+     zwei Spalten daneben, der Knopf darunter. */
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center;
+    align-items:flex-start; gap:4px 10px; max-width:900px}
+  .blende > div > *{flex:1 0 100%}
+  h1{font-size:clamp(22px,4.4vw,32px)}
+  .blende p{margin:4px 0; font-size:12.5px; line-height:1.35}
+  .blende > div > .tafel,
+  .blende > div > p{flex:1 1 240px; max-width:340px; margin:2px 0}
+  .tafel{padding:8px 10px; font-size:11.5px; line-height:1.45}
+  button.los{margin-top:8px; padding:9px 20px; font-size:16px}
+  #endeZahl{font-size:40px}
+}
+
+/* Schmaler Bildschirm: derselbe Text bricht auf einem Telefon in doppelt
+   so viele Zeilen — der Startbildschirm wurde damit höher als das Fenster. */
+@media (max-width:560px){
+  h1{font-size:clamp(30px,10vw,48px)}
+  .blende p{font-size:14px; margin:10px 0}
+  .tafel{font-size:12.5px; padding:9px 11px; line-height:1.5}
+}
+
+/* Sehr flach (Telefon quer, 390 Punkte hoch): noch eine Stufe enger. */
+@media (max-height:430px){
+  .blende > div{gap:2px 8px}
+  h1{font-size:clamp(20px,3.4vw,27px)}
+  .blende p{font-size:11.5px; line-height:1.3}
+  .tafel{padding:6px 8px; font-size:11px; line-height:1.38}
+  button.los{margin-top:4px; padding:7px 18px; font-size:15px}
+}
 </style>
 </head>
 <body>
@@ -128,12 +167,23 @@ const $ = s => document.querySelector(s);
 const klemm = (v,a,b) => v<a?a:v>b?b:v;
 const misch = (a,b,t) => a+(b-a)*t;
 
-const B = 180, HH = 320;                 // Innenauflösung
+/* Die Bahn behält ihre Breite, das Bild nimmt die Form des Fensters an.
+   Fest auf 9:16 stand die Bahn im Querformat als handbreiter Streifen
+   mitten im Schwarzen — ein Viertel des Bildschirms. Jetzt wächst statt
+   der Bahn das Gelände daneben; die Höhe bleibt fest, damit ein Tor
+   überall gleich früh ins Bild kommt. */
+const SEITE = klemm(innerWidth/Math.max(innerHeight,1), .5, 2.0);
+const HH = 320, B = Math.round(klemm(HH*SEITE, 176, 660));
+$('#buehne').style.setProperty('--seite', (B/HH).toFixed(4));
 const cv = $('#c'), g = cv.getContext('2d');
 cv.width = B; cv.height = HH;
 g.imageSmoothingEnabled = false;
 
-const BAHN_L = 16, BAHN_R = B-16;        // Spielfeldrand
+/* Die Bahn wächst mit, aber nicht unbegrenzt: über gut dreihundert
+   Pixel wird die Menge zum Punkt und die Tore zu Toren einer Scheune. */
+const BAHN_BR = Math.round(klemm(B*0.52, 140, 300));
+const BAHN_L = Math.round((B-BAHN_BR)/2), BAHN_R = BAHN_L+BAHN_BR;
+const MITTE = (BAHN_L+BAHN_R)/2;         // trennt linkes von rechtem Tor
 const SPUR_Y = HH*0.74;                  // Höhe, auf der der Anführer läuft
 
 /* ── Zustand ──────────────────────────────────────────────────────── */
@@ -142,7 +192,7 @@ let bestwert = +(localStorage.getItem('torlauf.best') || 0);
 
 function neu(){
   spiel = {
-    x: B/2, zielX: B/2,
+    x: MITTE, zielX: MITTE,
     anzahl: 5, zeigeAnzahl: 5,
     strecke: 0, tempo: 46,               // Pixel pro Sekunde, wächst
     dinge: [], naechstesY: -80,
@@ -279,7 +329,7 @@ function dingeDenken(dt){
 
     if(d.art === 'tore' && !d.benutzt && d.y > SPUR_Y - 4){
       d.benutzt = true;
-      const t = spiel.x < B/2 ? d.links : d.rechts;
+      const t = spiel.x < MITTE ? d.links : d.rechts;
       wende(t);
     }
 
@@ -321,16 +371,17 @@ function ruf(text){
 /* ── Zeichnen ─────────────────────────────────────────────────────── */
 function zeichne(){
   // Grund: Bahn mit mitlaufenden Querstreifen, damit man das Tempo sieht
-  g.fillStyle = '#070a10'; g.fillRect(0,0,B,HH);
-  g.fillStyle = '#101725'; g.fillRect(BAHN_L, 0, BAHN_R-BAHN_L, HH);
   const versatz = (spiel.strecke*10) % 24;
+  g.fillStyle = '#070a10'; g.fillRect(0,0,B,HH);
+  malGelaende(versatz);
+  g.fillStyle = '#101725'; g.fillRect(BAHN_L, 0, BAHN_R-BAHN_L, HH);
   g.fillStyle = '#141d2e';
   for(let y = -24 + versatz; y < HH; y += 24) g.fillRect(BAHN_L, y, BAHN_R-BAHN_L, 12);
   g.fillStyle = '#243047';
   g.fillRect(BAHN_L-2, 0, 2, HH); g.fillRect(BAHN_R, 0, 2, HH);
   // Mittellinie: erinnert daran, dass die Seite über das Tor entscheidet
   g.fillStyle = '#1b2537';
-  for(let y = -8 + versatz; y < HH; y += 16) g.fillRect(B/2-1, y, 2, 8);
+  for(let y = -8 + versatz; y < HH; y += 16) g.fillRect(MITTE-1, y, 2, 8);
 
   for(const d of spiel.dinge){
     if(d.art === 'tore')  malTore(d);
@@ -345,8 +396,59 @@ function zeichne(){
   }
 }
 
+/* Neben der Bahn liegt Gelände: dunkler Grund, Masten und Zuschauer, die
+   mitlaufen. Das ist kein Spielfeld — es füllt nur den Platz, den ein
+   breites Fenster übrig lässt, und zeigt nebenbei das Tempo an. */
+function malGelaende(versatz){
+  const links = BAHN_L - 2, rechtsX = BAHN_R + 2, rechtsBr = B - rechtsX;
+  if(links < 6) return;
+  g.fillStyle = '#090d15';
+  g.fillRect(0, 0, links, HH); g.fillRect(rechtsX, 0, rechtsBr, HH);
+
+  // Grasnarbe: kurze Striche, die mit der Bahn nach unten wandern
+  g.fillStyle = '#111826';
+  for(let y = -32 + (versatz*2)%32; y < HH; y += 26){
+    const reihe = Math.round((y + spiel.strecke*10)/26);
+    for(let i=0;i<3;i++){
+      const t = kramX(reihe*7 + i);
+      const xl = 2 + t*(links-6), xr = rechtsX + 4 + t*(rechtsBr-8);
+      g.fillRect(xl|0, y, 2, 4); g.fillRect(xr|0, y, 2, 4);
+    }
+  }
+
+  // Zuschauer: kleine Gestalten am Rand, die den Läufern zusehen
+  for(let y = -24 + (versatz*3)%24; y < HH; y += 24){
+    const reihe = Math.round((y + spiel.strecke*10)/24);
+    for(const [x0, br, s2] of [[2, links-8, 1],[rechtsX+4, rechtsBr-8, -1]]){
+      if(br < 8) continue;
+      const t = kramX(reihe*13 + (s2>0?0:5));
+      if(t > .62) continue;                       // nicht überall steht jemand
+      const x = (x0 + t*br)|0;
+      const wippe = ((reihe + Math.floor(spiel.zeit*6)) & 1) ? 0 : 1;
+      g.fillStyle = '#1d2637'; g.fillRect(x, y+wippe, 3, 5);
+      g.fillStyle = '#2c3a52'; g.fillRect(x, y-2+wippe, 3, 2);
+    }
+  }
+
+  // Masten am Bahnrand, alle 72 Pixel, mit einem Licht obendrauf
+  for(let y = -72 + (versatz*3)%72; y < HH; y += 72){
+    for(const [x, s2] of [[links-4, -1],[rechtsX+4, 1]]){
+      if(x < 2 || x > B-4) continue;
+      g.fillStyle = '#1c2537'; g.fillRect(x, y, 2, 15);
+      g.fillStyle = '#2a3549'; g.fillRect(x + (s2<0?-3:2), y, 3, 2);
+      g.fillStyle = '#3d4c68'; g.fillRect(x + (s2<0?-3:4), y+2, 2, 2);
+    }
+  }
+}
+/* Ein billiger, aber gleichbleibender Zufall: dieselbe Reihe steht immer
+   an derselben Stelle, sonst flackert das Gelände beim Scrollen. */
+function kramX(n){
+  const x = Math.sin(n*127.1 + 11.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function malTore(d){
-  const mitte = B/2;
+  const mitte = MITTE;
   for(const [t, x0, x1] of [[d.links, BAHN_L, mitte-1],[d.rechts, mitte+1, BAHN_R]]){
     const gut = istGut(t);
     const f = gut ? '#5be0b0' : '#ff6b5e';
@@ -393,7 +495,7 @@ function malSperre(d){
   g.fillRect(BAHN_L, d.y, BAHN_R-BAHN_L, 2);
   g.fillRect(BAHN_L, d.y+d.hoehe-2, BAHN_R-BAHN_L, 2);
   for(let x = BAHN_L; x < BAHN_R; x += 10) g.fillRect(x, d.y+2, 4, d.hoehe-4);
-  schrift(String(d.zahl), B/2, d.y + d.hoehe/2, '#20180a', 15);
+  schrift(String(d.zahl), MITTE, d.y + d.hoehe/2, '#20180a', 15);
 }
 
 /* Eine Figur ist sieben Pixel hoch: Kopf, Rumpf, zwei Beine, die im
@@ -446,7 +548,7 @@ addEventListener('keyup', e => {
    setzen: sonst springt sie beim Antippen quer über die Bahn. */
 let zeiger = null;
 cv.addEventListener('pointerdown', e => {
-  zeiger = {id:e.pointerId, x:e.clientX, start:spiel ? spiel.zielX : B/2};
+  zeiger = {id:e.pointerId, x:e.clientX, start:spiel ? spiel.zielX : MITTE};
   try{ cv.setPointerCapture(e.pointerId); }catch(_){}   // manche Zeiger sind schon weg
 });
 cv.addEventListener('pointermove', e => {
@@ -515,5 +617,6 @@ window.__torlauf = {
   springe: m => { spiel.strecke = m; }
 };
 </script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#07090e">
 <title>NACHTSCHICHT</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='6' width='12' height='5' fill='%23252d3d'/%3E%3Crect x='3' y='8' width='3' height='1' fill='%23ffb648'/%3E%3Crect x='10' y='8' width='3' height='1' fill='%23ffb648'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap">
@@ -68,7 +69,7 @@ kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background
 #hud{position:fixed;inset:0;z-index:40;pointer-events:none;display:none}
 #hud.an{display:block}
 .ecke{position:absolute;background:var(--panel);border:1px solid var(--edge);padding:10px 13px;backdrop-filter:blur(6px)}
-#zeiten{top:14px;left:14px;min-width:186px}
+#zeiten{top:14px;left:60px;min-width:186px}   /* 60 statt 14: der Heimknopf sitzt links davor */
 #zeiten .z{display:flex;justify-content:space-between;gap:14px;font-size:13px;line-height:1.75}
 #zeiten .z u{text-decoration:none;color:var(--faint);letter-spacing:.14em;font-size:10.5px;text-transform:uppercase}
 #zeiten .gross{font-size:27px;font-weight:700;letter-spacing:.04em;line-height:1.1;margin-bottom:2px}
@@ -183,5 +184,6 @@ kbd{display:inline-block;padding:1px 6px;border:1px solid var(--edge);background
 {"imports":{"three":"./lib/three.module.js"}}
 </script>
 <script type="module" src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

@@ -39,7 +39,8 @@ canvas{display:block; width:100%; height:100%; image-rendering:pixelated;
   font-size:11px; letter-spacing:.3em; color:#ffffff70; text-transform:uppercase}
 
 /* ── Überlagerungen ───────────────────────────────────────── */
-.blende{position:absolute; inset:0; display:grid; place-items:center; padding:18px;
+.blende{position:fixed; inset:0; display:grid; place-items:center; padding:18px;
+  overflow:auto; align-content:safe center;
   background:linear-gradient(#070a10cc,#070a10ee); text-align:center; z-index:5; overflow:auto}
 .blende.weg{display:none}
 h1{font-size:clamp(36px,12vw,58px); line-height:.94; letter-spacing:.01em}
@@ -66,6 +67,43 @@ a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
 .zahlfeld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
 #orden{font-size:15px; letter-spacing:.14em; margin-top:10px; color:var(--falter)}
 #neuerBest{color:var(--gruen); font-size:13px; letter-spacing:.14em; height:1.2em}
+
+/* Kurzer Bildschirm — Telefon im Querformat: der Startbildschirm war höher
+   als das Fenster, der Knopf lag unter der Kante. Kleiner setzen, und was
+   dann immer noch nicht passt, lässt sich schieben. */
+@media (max-height:560px){
+  .blende{padding:10px 14px}
+  /* Untereinander passt der Startbildschirm quer nicht ins Fenster. Also
+     nebeneinander: Titel und Text über die ganze Breite, die Tafeln als
+     zwei Spalten daneben, der Knopf darunter. */
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center;
+    align-items:flex-start; gap:4px 10px; max-width:900px}
+  .blende > div > *{flex:1 0 100%}
+  h1{font-size:clamp(22px,4.4vw,32px)}
+  .blende p{margin:4px 0; font-size:12.5px; line-height:1.35}
+  .blende > div > .tafel,
+  .blende > div > p{flex:1 1 240px; max-width:340px; margin:2px 0}
+  .tafel{padding:8px 10px; font-size:11.5px; line-height:1.45}
+  button.los{margin-top:8px; padding:9px 20px; font-size:16px}
+  #endeZahl{font-size:40px}
+}
+
+/* Schmaler Bildschirm: derselbe Text bricht auf einem Telefon in doppelt
+   so viele Zeilen — der Startbildschirm wurde damit höher als das Fenster. */
+@media (max-width:560px){
+  h1{font-size:clamp(30px,10vw,48px)}
+  .blende p{font-size:14px; margin:10px 0}
+  .tafel{font-size:12.5px; padding:9px 11px; line-height:1.5}
+}
+
+/* Sehr flach (Telefon quer, 390 Punkte hoch): noch eine Stufe enger. */
+@media (max-height:430px){
+  .blende > div{gap:2px 8px}
+  h1{font-size:clamp(20px,3.4vw,27px)}
+  .blende p{font-size:11.5px; line-height:1.3}
+  .tafel{padding:6px 8px; font-size:11px; line-height:1.38}
+  button.los{margin-top:4px; padding:7px 18px; font-size:15px}
+}
 </style>
 </head>
 <body>
@@ -679,5 +717,6 @@ window.__nachtflug = {
   ABSCHNITTE, TOR_BR, FX, B, H, BODEN
 };
 </script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

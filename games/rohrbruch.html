@@ -23,11 +23,28 @@ html,body{height:100%; overflow:hidden; overscroll-behavior:none}
 body{background:var(--bg); color:var(--ink); font-family:var(--pix);
   display:grid; place-items:center; touch-action:manipulation; user-select:none}
 
-#huelle{position:relative; width:min(100vw,100vh*0.72); max-height:100vh;
+#huelle{position:relative; max-width:100vw; max-height:100vh;
   display:flex; flex-direction:column; gap:10px; padding:12px}
+/* Die Anzeige ist kein eigener Kasten, sondern liegt im Fluss der Hülle —
+   erst im Querformat wird sie zur Spalte neben dem Feld. */
+#seite{display:contents}
+#kopf{order:1} #feld{order:2} #unten{order:3} #hinweis{order:4}
+
+/* Querformat: Feld links, alles andere in einer schmalen Spalte daneben.
+   Untereinander stand das Feld sonst als Streifen in der Mitte und ließ
+   zwei Drittel des Bildschirms leer. */
+/* Links bleibt Platz für den Heimknopf, sonst liegt er auf der ersten Zelle. */
+body.quer #huelle{flex-direction:row; align-items:stretch; padding-left:46px}
+body.quer #seite{display:flex; flex-direction:column; gap:10px; order:2;
+  width:clamp(168px,24vw,240px)}
+body.quer #feld{order:1; flex:0 0 auto}
+body.quer #kopf{flex-direction:column; padding-left:0}
+body.quer #unten{flex-direction:column; align-items:stretch}
+body.quer #uhrleiste{flex:0 0 14px}
+body.quer #hinweis{margin-top:auto}
 
 /* ── Kopfzeile ────────────────────────────────────────────── */
-#kopf{display:flex; gap:8px; align-items:stretch}
+#kopf{display:flex; gap:8px; align-items:stretch; padding-left:44px}   /* Platz für den Heimknopf */
 .feld{flex:1; background:var(--panel); border:2px solid var(--edge); padding:6px 9px; line-height:1.1}
 .feld b{display:block; font-size:clamp(18px,5vw,26px); color:var(--gold)}
 .feld small{display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); text-transform:uppercase}
@@ -36,12 +53,14 @@ body{background:var(--bg); color:var(--ink); font-family:var(--pix);
 
 /* ── Spielfeld ────────────────────────────────────────────── */
 #feld{position:relative; background:#080b11; border:2px solid var(--edge)}
-canvas{display:block; width:100%; height:auto; image-rendering:pixelated; touch-action:none}   /* nicht vererbt — sonst nimmt der Browser das Wischen als Scrollen */
+canvas{display:block; width:100%; height:100%; image-rendering:pixelated; touch-action:none}   /* nicht vererbt — sonst nimmt der Browser das Wischen als Scrollen */
 
 /* ── Vorrat ───────────────────────────────────────────────── */
 #unten{display:flex; gap:10px; align-items:center}
-#vorrat{display:flex; gap:5px; background:var(--panel); border:2px solid var(--edge); padding:6px}
-#vorrat canvas{width:38px; height:38px; image-rendering:pixelated}
+#vorrat{display:flex; flex-wrap:wrap; justify-content:center; gap:5px;
+  background:var(--panel); border:2px solid var(--edge); padding:6px}
+#vorrat canvas{width:clamp(26px,6.4vh,38px); height:clamp(26px,6.4vh,38px);
+  image-rendering:pixelated}
 #vorrat canvas:first-child{outline:2px solid var(--gold); outline-offset:1px}
 #uhrleiste{flex:1; height:14px; background:#0d1119; border:2px solid var(--edge); position:relative}
 #uhrfuellung{position:absolute; inset:0; width:100%; background:var(--gold); transform-origin:left}
@@ -50,6 +69,7 @@ canvas{display:block; width:100%; height:auto; image-rendering:pixelated; touch-
 
 /* ── Überlagerungen ───────────────────────────────────────── */
 .blende{position:fixed; inset:0; display:grid; place-items:center; padding:22px;
+  overflow:auto; align-content:safe center;
   background:#070a10ee; text-align:center; z-index:5}
 .blende.weg{display:none}
 h1{font-size:clamp(36px,12vw,62px); line-height:.94}
@@ -70,24 +90,62 @@ a.zurueck{position:fixed; left:12px; bottom:12px; z-index:6; color:var(--faint);
   font-size:12px; letter-spacing:.12em; text-decoration:none; background:#0d1119cc;
   border:2px solid var(--edge); padding:6px 10px}
 a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
-@media(max-height:640px){ .tafel{display:none} }
+
+/* Kurzer Bildschirm — Telefon im Querformat: der Startbildschirm war höher
+   als das Fenster, der Knopf lag unter der Kante. Kleiner setzen, und was
+   dann immer noch nicht passt, lässt sich schieben. */
+@media (max-height:560px){
+  .blende{padding:10px 14px}
+  /* Untereinander passt der Startbildschirm quer nicht ins Fenster. Also
+     nebeneinander: Titel und Text über die ganze Breite, die Tafeln als
+     zwei Spalten daneben, der Knopf darunter. */
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center;
+    align-items:flex-start; gap:4px 10px; max-width:900px}
+  .blende > div > *{flex:1 0 100%}
+  h1{font-size:clamp(22px,4.4vw,32px)}
+  .blende p{margin:4px 0; font-size:12.5px; line-height:1.35}
+  .blende > div > .tafel,
+  .blende > div > p{flex:1 1 240px; max-width:340px; margin:2px 0}
+  .tafel{padding:8px 10px; font-size:11.5px; line-height:1.45}
+  button.los{margin-top:8px; padding:9px 20px; font-size:16px}
+  #endeZahl{font-size:40px}
+}
+
+/* Schmaler Bildschirm: derselbe Text bricht auf einem Telefon in doppelt
+   so viele Zeilen — der Startbildschirm wurde damit höher als das Fenster. */
+@media (max-width:560px){
+  h1{font-size:clamp(30px,10vw,48px)}
+  .blende p{font-size:14px; margin:10px 0}
+  .tafel{font-size:12.5px; padding:9px 11px; line-height:1.5}
+}
+
+/* Sehr flach (Telefon quer, 390 Punkte hoch): noch eine Stufe enger. */
+@media (max-height:430px){
+  .blende > div{gap:2px 8px}
+  h1{font-size:clamp(20px,3.4vw,27px)}
+  .blende p{font-size:11.5px; line-height:1.3}
+  .tafel{padding:6px 8px; font-size:11px; line-height:1.38}
+  button.los{margin-top:4px; padding:7px 18px; font-size:15px}
+}
 </style>
 </head>
 <body>
 <div id="huelle">
-  <div id="kopf">
-    <div class="feld" id="punkte"><b>0</b><small>Punkte</small></div>
-    <div class="feld" id="stufe"><b>1</b><small>Abschnitt</small></div>
-    <div class="feld" id="leben"><b>✚✚✚</b><small>Reserve</small></div>
-  </div>
-
   <div id="feld"><canvas id="c"></canvas></div>
 
-  <div id="unten">
-    <div id="vorrat"></div>
-    <div id="uhrleiste"><div id="uhrfuellung"></div></div>
+  <div id="seite">
+    <div id="kopf">
+      <div class="feld" id="punkte"><b>0</b><small>Punkte</small></div>
+      <div class="feld" id="stufe"><b>1</b><small>Abschnitt</small></div>
+      <div class="feld" id="leben"><b>✚✚✚</b><small>Reserve</small></div>
+    </div>
+
+    <div id="unten">
+      <div id="vorrat"></div>
+      <div id="uhrleiste"><div id="uhrfuellung"></div></div>
+    </div>
+    <div id="hinweis">Feld antippen — das oberste Stück wird gelegt</div>
   </div>
-  <div id="hinweis">Feld antippen — das oberste Stück wird gelegt</div>
 </div>
 
 <div class="blende" id="start">
@@ -149,10 +207,39 @@ function wuerfle(){
   return Math.random() < .08 ? KREUZ : STUECKE[Math.floor(Math.random()*STUECKE.length)];
 }
 
-const SP = 10, ZE = 8, Z = 26;                   // Spalten, Zeilen, Zellgröße
+/* Das Gitter nimmt die Form des Fensters an: hochkant elf Zeilen bei acht
+   Spalten, quer sieben bei zwölf. Die Zellzahl bleibt fast gleich, also
+   auch die Länge der Wege — nur der Zuschnitt passt zum Bildschirm. */
+const QUER = innerWidth >= innerHeight;
+const SP = QUER ? 12 : 8, ZE = QUER ? 7 : 11, Z = 26;
 const cv = $('#c'), g = cv.getContext('2d');
 cv.width = SP*Z; cv.height = ZE*Z;
 g.imageSmoothingEnabled = false;
+
+/* Das Feld bekommt seine Größe in Pixeln, nicht in Prozent: nur so passt
+   es in beiden Lagen genau zwischen Anzeige und Fensterrand. */
+const feldEl = $('#feld'), seiteEl = $('#seite');
+function baueLayout(){
+  const quer = innerWidth >= innerHeight;
+  document.body.classList.toggle('quer', quer);
+  feldEl.style.width = feldEl.style.height = '';
+  const rand = 24, luecke = 10;
+  let bVerf, hVerf;
+  if(quer){
+    bVerf = innerWidth - rand - 34 - luecke - seiteEl.getBoundingClientRect().width;
+    hVerf = innerHeight - rand;
+  } else {
+    bVerf = innerWidth - rand;
+    hVerf = innerHeight - rand - luecke*3
+          - $('#kopf').offsetHeight - $('#unten').offsetHeight - $('#hinweis').offsetHeight;
+  }
+  const s = Math.max(.2, Math.min(bVerf/(SP*Z), hVerf/(ZE*Z)));
+  feldEl.style.width  = Math.floor(SP*Z*s) + 'px';
+  feldEl.style.height = Math.floor(ZE*Z*s) + 'px';
+}
+baueLayout();
+addEventListener('resize', baueLayout);
+addEventListener('orientationchange', () => setTimeout(baueLayout, 120));
 
 /* ── Zustand ──────────────────────────────────────────────────────── */
 let gitter, quelle, abfluss, vorrat, wasser, spiel;
@@ -444,5 +531,6 @@ window.__rohrbruch = {
   losJetzt: () => { wasser.vorlauf = 0; }
 };
 </script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
 </body>
 </html>

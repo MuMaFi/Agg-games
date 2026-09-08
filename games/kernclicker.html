@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>KernClicker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23f4f9f4'/%3E%3Ccircle cx='8' cy='8' r='2.2' fill='%2300a844'/%3E%3Cellipse cx='8' cy='8' rx='6' ry='2.6' fill='none' stroke='%2300a844' stroke-width='1'/%3E%3C/svg%3E">
 <style>
 :root{
   --bg:#f4f9f4;--card:#fff;--border:#d4e8d4;
@@ -120,6 +121,18 @@ body.dark #tabs{background:rgba(10,15,10,.92);}
 .mbtn-load{background:var(--card);color:var(--text);border:1px solid var(--border);}
 .mbtn-settings{background:var(--card);color:var(--text);border:1px solid var(--border);}
 .mbtn-exit{background:transparent;color:var(--sub);border:1px solid var(--border);font-size:14px;padding:11px 0;}
+
+/* Auf einem Telefon im Querformat war das Menü höher als der Bildschirm:
+   "Beenden" lag unter der Kante, und gescrollt wird hier nicht. */
+@media (max-height:540px){
+  #menu{padding:14px 20px;}
+  .menu-logo{font-size:34px;margin-bottom:2px;}
+  .menu-title{font-size:22px;}
+  .menu-sub{font-size:12px;margin-bottom:14px;}
+  .menu-btns{gap:8px;max-width:320px;}
+  .menu-btn{padding:10px 0;font-size:14px;}
+  .mbtn-exit{padding:8px 0;font-size:13px;}
+}
 
 /* ── EINSTELLUNGEN (Fullscreen) ── */
 #settings-screen{position:fixed;inset:0;z-index:850;display:flex;flex-direction:column;
@@ -602,5 +615,6 @@ loop();
 // Start at menu
 show("menu");
 </script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ul" data-rand="8"></script>
 </body>
 </html>
