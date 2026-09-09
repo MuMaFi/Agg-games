@@ -5635,10 +5635,11 @@ zMove.addEventListener('pointermove', e => {
   elKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
   IN.mx = dx/STICK_R;
   IN.mz = dy/STICK_R;
-  /* Weit durchgedrückt = rennen. Vorher stand hier nur `if(...) IN.run = true`
-     — einmal ausgeschlagen, blieb das Rennen an, bis der Finger vom Glas ging.
-     Der Daumen zurück in die Mitte hat es nie wieder ausgemacht. */
-  IN.run = l > STICK_R*1.55 || bRun.classList.contains('held');
+  /* Rennen hängt allein am Knopf. Vorher löste auch ein weit
+     durchgedrückter Knüppel aus — beim Ausweichen in eine Ecke rannte man
+     dann ungewollt los, und das kostet in diesem Spiel Puste, macht Lärm
+     und zieht die Gestalt an. Wer rennen will, sagt es ausdrücklich. */
+  IN.run = bRun.classList.contains('held');
   e.preventDefault();
 });
 function endMove(e){
