@@ -371,7 +371,7 @@ class Kaempfer {
       this.leben = 0; this.lebt = false;
       if(this.traegtTopf) topfFallenLassen(this);
       meldeAbschuss(von, this);
-      if(this.istIch) sp.totUhr = 0;
+      if(this.istIch){ sp.totUhr = 0; sp.toeter = von ? von.name : null; }
     } else if(this.istIch){
       sp.wehUhr = 0.35;
     }
@@ -457,7 +457,7 @@ document.addEventListener('pointerlockchange', () => {
   zeigerFest = document.pointerLockElement === leinwand;
 });
 document.addEventListener('mousemove', e => {
-  if(!zeigerFest || !ich || !ich.lebt) return;
+  if(!zeigerFest || !ich) return;      // tot darf man weiterschauen
   ich.gier -= e.movementX * 0.0022;
   ich.nick = klemm(ich.nick - e.movementY * 0.0020, -1.35, 1.35);
 });
@@ -552,7 +552,7 @@ const daumen = {
         e.preventDefault();
         const dx = t.clientX - this.blick.x, dy = t.clientY - this.blick.y;
         this.blick.x = t.clientX; this.blick.y = t.clientY;
-        if(ich && ich.lebt){
+        if(ich){
           ich.gier -= dx * 0.0052;
           ich.nick = klemm(ich.nick - dy * 0.0044, -1.35, 1.35);
         }
@@ -862,7 +862,18 @@ function zeichneLauf(){
   el.lauf.innerHTML = lauffeld.map(z =>
     `<div class="${z.ich?'ich':''}">${z.wer} ▸ ${z.wen}</div>`).join('');
 }
+const elTot = {karte:$('#totKarte'), von:$('#totVon'), lage:$('#totLage')};
+function totAnzeige(){
+  if(ich.lebt || sp.phase === 'aus'){ elTot.karte.classList.remove('an'); return; }
+  elTot.karte.classList.add('an');
+  elTot.von.textContent = sp.toeter ? sp.toeter + ' hat dich erwischt' : 'du bist raus';
+  const kollegen = kaempfer.filter(k => k.team === 'koch' && k.lebt).length;
+  elTot.lage.textContent = kollegen
+    ? (kollegen === 1 ? 'Noch eine(r) von euch ist drin' : 'Noch ' + kollegen + ' von euch sind drin')
+    : 'Runde vorbei';
+}
 function anzeige(){
+  totAnzeige();
   el.lebenB.textContent = Math.max(0, Math.round(ich.leben));
   el.leben.classList.toggle('wenig', ich.leben <= 35);
   el.muniB.textContent = ich.ladeUhr > 0 ? '··' : ich.magazin;
@@ -913,6 +924,8 @@ function baueWaffe(){
 }
 function waffeStellen(dt){
   if(!waffenNetz) return;
+  waffenNetz.visible = ich.lebt;
+  if(!ich.lebt) return;
   const wippe = Math.sin(ich.takt*2) * 0.010 * ich.streuUhr;
   const seit = Math.cos(ich.takt) * 0.014 * ich.streuUhr;
   const zurueck = sp.ruecken * 0.5;
@@ -947,7 +960,37 @@ function koerperStellen(dt){
   }
 }
 function kameraStellen(){
-  kam.position.set(ich.x, ich.augeY + (ich.lebt ? 0 : -1.1), ich.z);
+  if(!ich.lebt){
+    /* Zuschauen: die Kamera hängt sich hinter einen lebenden Kollegen.
+       Vorher blieb sie am Sterbeort stehen, und wer allein starb, sah bis
+       zum Rundenende eine Wand an — das fühlte sich an wie ein Fehler,
+       obwohl die Regel (Rückkehr erst zur nächsten Runde) so gewollt ist. */
+    const kollege = kaempfer.find(k => k.team === ich.team && k.lebt);
+    const ziel = kollege || {x:ich.x, y:0, z:ich.z};
+    /* Die Kamera darf nicht durch die Wand rutschen — sonst schaut man
+       von außen auf die Halle. Also den Abstand so weit verkürzen, bis
+       die Sicht auf den Kollegen frei ist. */
+    let abstand = kollege ? 4.2 : 0.2;
+    if(kollege){
+      while(abstand > 0.6){
+        const px = ziel.x + Math.sin(ich.gier)*abstand;
+        const pz = ziel.z + Math.cos(ich.gier)*abstand;
+        if(Math.abs(px) < HALLE.x-0.6 && Math.abs(pz) < HALLE.z-0.6 &&
+           freieSicht({x:ziel.x, z:ziel.z}, {x:px, z:pz}, 1.8)) break;
+        abstand -= 0.5;
+      }
+    }
+    const p = {
+      x: ziel.x + Math.sin(ich.gier) * abstand,
+      y: ziel.y + (kollege ? 2.5 : AUGE - 0.9),
+      z: ziel.z + Math.cos(ich.gier) * abstand
+    };
+    kam.position.lerp(new T.Vector3(p.x, p.y, p.z), 0.12);
+    if(kollege) kam.lookAt(ziel.x, ziel.y + 1.2, ziel.z);
+    else kam.rotation.set(ich.nick, ich.gier, 0, 'YXZ');
+    return;
+  }
+  kam.position.set(ich.x, ich.augeY, ich.z);
   kam.rotation.set(ich.nick + sp.ruecken, ich.gier, 0, 'YXZ');
   if(sp.wehUhr > 0){
     kam.position.x += zuf(-0.04, 0.04);
@@ -1032,5 +1075,7 @@ window.__kueche = {
   get ich(){return ich}, get laeuft(){return laeuft},
   starten, feuern, schiessen, feldZu, freieSicht, rnd, T, daumen,
   get waffenNetz(){return waffenNetz}, get vorlagePistole(){return vorlagePistole},
+  kamera: () => ({x:+kam.position.x.toFixed(1), y:+kam.position.y.toFixed(1), z:+kam.position.z.toFixed(1),
+    drin: Math.abs(kam.position.x) < HALLE.x && Math.abs(kam.position.z) < HALLE.z}),
   get tasten(){return tasten}
 };
