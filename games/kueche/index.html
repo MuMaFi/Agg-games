@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1016">
+<title>Küchenschlacht — AGG Games</title>
+<meta name="description" content="Zwei Teams, eine Küche, ein Topf. Stell ihn auf den Herd und lass ihn durchkochen — oder nimm ihn den anderen wieder runter.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230d1016'/%3E%3Crect x='3' y='7' width='10' height='5' rx='1' fill='%23c8ccd4'/%3E%3Crect x='2' y='6' width='12' height='2' fill='%23e6e9ee'/%3E%3Cpath d='M5 5c0-1 1-1 1-2M8 5c0-1 1-1 1-2M11 5c0-1 1-1 1-2' stroke='%23ff8a3c' stroke-width='1.2' fill='none'/%3E%3C/svg%3E">
+<style>
+:root{
+  --grund:#0d1016; --platte:#161b24; --kante:#28303d; --kante-hell:#3d4859;
+  --tinte:#e8ecf3; --dim:#95a0b2; --blass:#5f6b7d;
+  --koch:#ffb648; --kontrolle:#4aa3e0; --rot:#e0503c; --gruen:#4fbf72;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none}
+body{background:var(--grund); color:var(--tinte); font-family:var(--ui)}
+canvas{display:block; width:100%; height:100%; touch-action:none}
+#buehne{position:fixed; inset:0}
+
+/* ── Fadenkreuz und Anzeige ────────────────────────────────────────── */
+#hud{position:fixed; inset:0; z-index:10; pointer-events:none; display:none}
+#hud.an{display:block}
+#kreuz{position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px}
+#kreuz i{position:absolute; background:#eef3ffcc; box-shadow:0 0 2px #000a}
+#kreuz i:nth-child(1){left:10px; top:0; width:2px; height:7px}
+#kreuz i:nth-child(2){left:10px; bottom:0; width:2px; height:7px}
+#kreuz i:nth-child(3){top:10px; left:0; height:2px; width:7px}
+#kreuz i:nth-child(4){top:10px; right:0; height:2px; width:7px}
+#kreuz.treffer i{background:#ff6a4dee}
+
+#oben{position:absolute; left:0; right:0; top:0; display:flex; justify-content:center;
+  gap:10px; padding:calc(8px + env(safe-area-inset-top,0px)) 10px 0}
+.karte{background:#0d1016c9; border:1px solid var(--kante); border-radius:8px;
+  padding:5px 11px; text-align:center; backdrop-filter:blur(4px)}
+.karte b{display:block; font-size:19px; line-height:1.1; font-variant-numeric:tabular-nums}
+.karte small{display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--blass)}
+#punkte b span:first-child{color:var(--koch)}
+#punkte b span:last-child{color:var(--kontrolle)}
+#uhrKarte b.knapp{color:var(--rot)}
+
+#unten{position:absolute; left:0; right:0; bottom:0; display:flex; align-items:flex-end;
+  justify-content:space-between; gap:10px;
+  padding:0 calc(12px + env(safe-area-inset-left,0px)) calc(10px + env(safe-area-inset-bottom,0px))}
+#leben{display:flex; align-items:baseline; gap:7px}
+#leben b{font-size:32px; line-height:1; font-variant-numeric:tabular-nums}
+#leben small{font-size:10px; letter-spacing:.16em; color:var(--blass); text-transform:uppercase}
+#leben.wenig b{color:var(--rot)}
+#munition{text-align:right}
+#munition b{font-size:28px; line-height:1; font-variant-numeric:tabular-nums}
+#munition small{font-size:11px; color:var(--blass)}
+#munition.leer b{color:var(--rot)}
+
+#ziel{position:absolute; left:50%; top:58%; transform:translateX(-50%); text-align:center;
+  font-size:13px; color:var(--tinte); background:#0d1016c9; border:1px solid var(--kante);
+  border-radius:8px; padding:7px 13px; display:none}
+#ziel.an{display:block}
+#ziel .balken{margin-top:5px; height:5px; background:#000a; border-radius:3px; overflow:hidden}
+#ziel .balken i{display:block; height:100%; width:0; background:var(--koch)}
+
+#meldung{position:absolute; left:50%; top:22%; transform:translateX(-50%); text-align:center;
+  opacity:0; transition:opacity .2s}
+#meldung.an{opacity:1}
+#meldung b{display:block; font-size:clamp(24px,5vw,40px); letter-spacing:.02em}
+#meldung small{font-size:13px; color:var(--dim)}
+
+#lauf{position:absolute; right:12px; top:64px; width:150px; text-align:right; font-size:11.5px;
+  line-height:1.7; color:var(--dim)}
+#lauf div{background:#0d1016b0; border-radius:5px; padding:1px 7px; margin-bottom:3px; display:inline-block}
+#lauf .ich{color:var(--koch)}
+
+#topfmarke{position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; display:none}
+#topfmarke.an{display:block}
+#topfmarke svg{width:100%; height:100%; filter:drop-shadow(0 1px 3px #000c)}
+
+/* ── Überlagerungen ────────────────────────────────────────────────── */
+.blende{position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:18px;
+  overflow:auto; align-content:safe center; background:#0a0d13ee; text-align:center}
+.blende.weg{display:none}
+h1{font-size:clamp(30px,7vw,54px); line-height:1; letter-spacing:-.01em; margin-bottom:6px}
+h1 span{color:var(--koch)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.55; margin:10px auto; max-width:52ch}
+.blende p b{color:var(--tinte)}
+.tafel{border:1px solid var(--kante); background:var(--platte); border-radius:10px;
+  padding:11px 14px; margin:8px auto; font-size:13px; color:var(--dim); line-height:1.6;
+  max-width:34ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--blass); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+.tafel b{color:var(--tinte)}
+kbd{border:1px solid var(--kante-hell); border-bottom-width:2px; border-radius:4px;
+  padding:0 5px; font-size:12px; color:var(--tinte)}
+button.los{font-family:inherit; font-size:17px; font-weight:700; cursor:pointer; color:#10160b;
+  background:var(--koch); border:0; border-radius:9px; padding:12px 26px; margin-top:12px}
+button.los:active{transform:translateY(2px)}
+a.zurueck{display:inline-block; margin-top:14px; color:var(--blass); font-size:12px;
+  letter-spacing:.1em; text-decoration:none; border-bottom:1px solid var(--kante-hell)}
+
+/* Der Kasten lag auf der Lebensanzeige. Er gehört zum Startbildschirm,
+   nicht ins Gefecht — im Spiel ist er weg. */
+body.spielt #quellen{display:none}
+#quellen{position:fixed; left:10px; bottom:10px; z-index:30; max-width:min(430px,80vw);
+  font-size:11px; line-height:1.5; color:var(--dim); background:#0d1016cc;
+  border:1px solid var(--kante); border-radius:8px; padding:6px 10px}
+#quellen summary{cursor:pointer; letter-spacing:.12em; text-transform:uppercase;
+  font-size:9.5px; color:var(--blass); list-style:none}
+#quellen summary::-webkit-details-marker{display:none}
+#quellen[open] summary{margin-bottom:5px}
+#quellen p{margin:0 0 4px}
+#quellen a{color:var(--koch)}
+
+@media (max-height:430px){
+  .tafel{font-size:12px; padding:8px 10px}
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+    gap:4px 10px; max-width:900px}
+  .blende > div > *{flex:1 0 100%}
+  .blende > div > .tafel, .blende > div > p{flex:1 1 240px; max-width:330px}
+  #quellen{font-size:10px; max-width:56vw}
+}
+</style>
+</head>
+<body>
+<div id="buehne"><canvas id="szene"></canvas></div>
+
+<div id="hud">
+  <div id="kreuz"><i></i><i></i><i></i><i></i></div>
+  <div id="oben">
+    <div class="karte" id="punkte"><b><span>0</span> : <span>0</span></b><small>Runden</small></div>
+    <div class="karte" id="uhrKarte"><b>1:40</b><small id="lage">Topf holen</small></div>
+  </div>
+  <div id="lauf"></div>
+  <div id="topfmarke"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#ffb648" opacity=".25"/><path d="M5 10h14v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" fill="#ffb648"/><rect x="3" y="8" width="18" height="2.4" rx="1" fill="#ffd08a"/></svg></div>
+  <div id="ziel"><span id="zielText">Halten</span><div class="balken"><i id="zielBalken"></i></div></div>
+  <div id="meldung"><b></b><small></small></div>
+  <div id="unten">
+    <div id="leben"><b>100</b><small>Leben</small></div>
+    <div id="munition"><b>12</b><small>/ 36</small></div>
+  </div>
+</div>
+
+<div class="blende" id="start">
+  <div>
+    <h1>KÜCHEN<span>SCHLACHT</span></h1>
+    <p>Zwei Teams, eine Küche, ein Topf. Du kochst — die anderen wollen es verhindern.
+       Sechs Runden, wer zuerst vier gewinnt, hat den Abend.</p>
+    <div class="tafel">
+      <u>Dein Auftrag</u>
+      Nimm den <b>Topf</b> (er liegt bei euch im Lager) und stell ihn auf <b>Herd A</b>
+      oder <b>Herd B</b>. Ist er drauf, muss er <b>35 Sekunden</b> durchkochen.
+      Die Kontrolle kann ihn wieder runternehmen — das dauert bei ihr länger.
+    </div>
+    <div class="tafel">
+      <u>Steuerung</u>
+      <kbd>WASD</kbd> laufen · <kbd>Maus</kbd> zielen · <kbd>Klick</kbd> schießen<br>
+      <kbd>R</kbd> nachladen · <kbd>E</kbd> Topf aufnehmen und abstellen · <kbd>Leer</kbd> springen<br>
+      Am Telefon: links laufen, rechts zielen, Knöpfe rechts unten.
+    </div>
+    <button class="los" id="losKnopf">SCHICHT BEGINNEN</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<div class="blende weg" id="ende">
+  <div>
+    <h1 id="endeTitel">FEIERABEND</h1>
+    <p id="endeText"></p>
+    <button class="los" id="nochmal">NOCH EINE SCHICHT</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<details id="quellen">
+  <summary>Quellen</summary>
+  <p><b>Figur:</b> „Male Character PS1-Style“ von vinrax ·
+     <b>Pistole:</b> „H&amp;K USP 9mm“ von Elisei — beide über
+     <a href="https://sketchfab.com/" target="_blank" rel="noopener">Sketchfab</a>,
+     Standard-Lizenz.</p>
+  <p><b>3D:</b> <a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a>, MIT.
+     Küche, Regeln und Bewegung: eigene Arbeit.</p>
+</details>
+
+<script type="importmap">
+{"imports":{"three":"../bloxrot/lib/three.module.js","three/examples/jsm/":"../bloxrot/lib/jsm/"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
