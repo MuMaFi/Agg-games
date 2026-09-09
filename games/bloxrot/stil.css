@@ -11,6 +11,20 @@ body {
   overflow: hidden;
   font-family: 'Segoe UI', Arial, sans-serif;
   background: #0b1020;
+  /* touch-action wird NICHT vererbt: ohne diese Zeilen an jedem einzelnen
+     Element verbucht der Browser das Wischen als Scrollen und bricht den
+     Zeigerstrom ab — pointerdown kommt noch an, pointermove nicht mehr.
+     Der Knüppel stand dann still und man konnte sich nicht bewegen. */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app,
+#app canvas,
+#app-hud {
+  touch-action: none;
 }
 
 #app canvas {

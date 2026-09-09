@@ -15,6 +15,10 @@ const STIL = `
 #daumen{position:fixed; inset:0; z-index:20; pointer-events:none; display:none;
   touch-action:none; -webkit-user-select:none; user-select:none}
 #daumen.an{display:block}
+/* Auf einem Gerät, das nur Finger kennt, steht die Steuerung von Anfang an
+   da: sonst schluckt die erste Berührung nur das Einblenden, und ein
+   Tippen auf SCHLAG geht beim ersten Mal ins Leere. */
+@media (hover:none) and (pointer:coarse){ #daumen{display:block} }
 #knueppel{position:absolute; width:124px; height:124px; margin:-62px 0 0 -62px;
   border-radius:50%; border:2px solid #ffffff38; background:#0b102055;
   display:none; touch-action:none}
