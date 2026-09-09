@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e15">
+<title>Spiegelkabinett — AGG Games</title>
+<meta name="description" content="Ein Strahl, ein paar drehbare Spiegel, und Farben, die sich mischen. Bring das Licht dorthin, wo es hin soll.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0e15'/%3E%3Cpath d='M2 8h6' stroke='%23ffd75e' stroke-width='2'/%3E%3Cpath d='M8 8v6' stroke='%23ff5e8a' stroke-width='2'/%3E%3Cpath d='M6 10 10 6' stroke='%23dbe4f0' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+:root{
+  --grund:#0b0e15; --platte:#141a26; --kante:#25304a; 
+  --kante-hell:#3a4a68;
+  --tinte:#e9eef8; --dim:#96a3bb; --blass:#5d6b85;
+  --gelb:#ffd75e; --rosa:#ff5e8a; --tuerkis:#4fd6c8; --gut:#5fd08a;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none}
+body{background:var(--grund); color:var(--tinte); font-family:var(--ui);
+  display:flex; flex-direction:column}
+canvas{display:block; touch-action:none; image-rendering:auto}
+
+#kopf{display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px 58px; flex:0 0 auto}
+.karte{background:var(--platte); border:1px solid var(--kante); border-radius:8px;
+  padding:4px 11px; text-align:center; min-width:64px}
+.karte b{display:block; font-size:17px; line-height:1.2; font-variant-numeric:tabular-nums}
+.karte small{display:block; font-size:8.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--blass)}
+#zielKarte b{color:var(--gut)}
+#kopf button{font-family:inherit; font-size:12px; cursor:pointer; color:var(--dim);
+  background:var(--platte); border:1px solid var(--kante); border-radius:8px; padding:8px 12px}
+#kopf button:hover{border-color:var(--kante-hell); color:var(--tinte)}
+
+#feld{flex:1 1 auto; display:grid; place-items:center; min-height:0; padding:4px 10px}
+#fuss{flex:0 0 auto; text-align:center; padding:6px 10px calc(10px + env(safe-area-inset-bottom,0px));
+  font-size:11.5px; color:var(--blass); min-height:26px}
+#fuss b{color:var(--tinte)}
+
+#stufen{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:12px auto; max-width:30ch}
+.stufe{font-family:inherit; cursor:pointer; width:38px; height:38px; border-radius:9px;
+  background:var(--platte); color:var(--dim); border:1px solid var(--kante); font-size:14px}
+.stufe.fertig{border-color:var(--gut); color:var(--gut)}
+.stufe.jetzt{border-color:var(--gelb); color:var(--gelb); background:#2a2411}
+
+.blende{position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:18px;
+  overflow:auto; align-content:safe center; background:#090c12ee; text-align:center}
+.blende.weg{display:none}
+h1{font-size:clamp(28px,6.5vw,50px); line-height:1; margin-bottom:6px}
+h1 span{color:var(--gelb)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.55; margin:10px auto; max-width:48ch}
+.blende p b{color:var(--tinte)}
+.tafel{border:1px solid var(--kante); background:var(--platte); border-radius:10px;
+  padding:11px 14px; margin:8px auto; font-size:13px; color:var(--dim); line-height:1.6;
+  max-width:32ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--blass); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+.tafel b{color:var(--tinte)}
+button.los{font-family:inherit; font-size:17px; font-weight:700; cursor:pointer; color:#241c06;
+  background:var(--gelb); border:0; border-radius:9px; padding:12px 26px; margin-top:10px}
+button.los:active{transform:translateY(2px)}
+a.zurueck{display:inline-block; margin-top:14px; color:var(--blass); font-size:12px;
+  letter-spacing:.1em; text-decoration:none; border-bottom:1px solid var(--kante-hell)}
+@media (max-height:430px){
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+    gap:4px 10px; max-width:860px}
+  .blende > div > *{flex:1 0 100%}
+  .blende > div > .tafel, .blende > div > p{flex:1 1 240px; max-width:320px}
+  .tafel{font-size:12px; padding:8px 10px}
+  #kopf{padding-top:4px; padding-bottom:4px}
+}
+</style>
+</head>
+<body>
+
+<div id="kopf">
+  <div class="karte" id="stufeKarte"><b>1</b><small>Aufgabe</small></div>
+  <div class="karte" id="zielKarte"><b>0 / 1</b><small>Leuchtet</small></div>
+  <div class="karte" id="zugKarte"><b>0</b><small>Drehungen</small></div>
+  <button type="button" id="zurueckKnopf">Zurücksetzen</button>
+  <button type="button" id="listeKnopf">Übersicht</button>
+</div>
+<div id="feld"><canvas id="brett"></canvas></div>
+<div id="fuss">Auf einen Spiegel tippen dreht ihn</div>
+
+<div class="blende" id="start">
+  <div>
+    <h1>SPIEGEL<span>KABINETT</span></h1>
+    <p>Aus der Lampe kommt Licht. Es läuft geradeaus, bis etwas im Weg steht —
+       und Spiegel stehen im Weg.</p>
+    <div class="tafel">
+      <u>Die Regeln</u>
+      <b>Tippen</b> dreht einen Spiegel um 90 Grad.<br>
+      <b>Teiler</b> lassen den Strahl durch <i>und</i> werfen ihn ab.<br>
+      <b>Filter</b> lassen nur ihre eigene Farbe durch.<br>
+      Treffen zwei Farben zusammen, <b>mischen sie sich</b>: Gelb und Rosa
+      ergeben Weiß, sobald auch Türkis dazukommt.
+    </div>
+    <div class="tafel">
+      <u>Das Ziel</u>
+      Jeder <b>Empfänger</b> muss leuchten — und zwar in genau der Farbe,
+      die auf ihm steht. Zwölf Aufgaben, jede mit einer Lösung, die der
+      Rechner selbst durchgerechnet hat.
+    </div>
+    <button class="los" id="losKnopf">LICHT AN</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<div class="blende weg" id="liste">
+  <div>
+    <h1>ÜBER<span>SICHT</span></h1>
+    <p>Grün heißt gelöst.</p>
+    <div id="stufen"></div>
+    <button class="los" id="listeZu">WEITER</button>
+  </div>
+</div>
+
+<div class="blende weg" id="ende">
+  <div>
+    <h1>ALLES <span>HELL</span></h1>
+    <p id="endeText"></p>
+    <button class="los" id="nochmal">VON VORN</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<script src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
