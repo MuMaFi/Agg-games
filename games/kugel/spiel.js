@@ -82,16 +82,22 @@ const BAHNEN = [
       {x:16,  y:0, z:-49, b:7,  t:8}],
     ringe:[{x:0,y:1,z:-21}], ziel:{x:16,y:1,z:-49} },
 
+  /* Die Feder war hier der einzige Weg nach oben — und sie wirft 31 bis
+     46 Einheiten weit, während die Platten zehn auseinanderstanden. Die
+     Kugel segelte über alles hinweg. Jetzt führen normale Sprünge die
+     Bahn, und die Feder steht am Ende auf einer breiten Platte, wo ein
+     Übersegeln nichts kostet: sie ist Zugabe, kein Nadelöhr. */
   { name:'Sprünge', platten:[
-      {x:0,  y:0, z:0,   b:8, t:8},
-      {x:0,  y:0, z:-11, b:4, t:5, art:'feder'},
-      {x:0,  y:6, z:-24, b:5, t:5},
-      {x:0,  y:6, z:-33, b:4, t:4},
-      {x:-8, y:6, z:-40, b:4, t:4, art:'tempo'},
-      {x:-8, y:6, z:-52, b:5, t:7},
-      {x:-8, y:0, z:-62, b:9, t:6},
-      {x:0,  y:0, z:-70, b:7, t:7}],
-    ringe:[{x:0,y:7,z:-24},{x:-8,y:7,z:-52}], ziel:{x:0,y:1,z:-70} },
+      {x:0,   y:0, z:0,   b:8, t:8},
+      {x:0,   y:0, z:-11, b:5, t:5},
+      {x:0,   y:2, z:-21, b:5, t:5},
+      {x:-7,  y:2, z:-29, b:5, t:5},
+      {x:-7,  y:4, z:-39, b:4, t:4, art:'tempo'},
+      {x:0,   y:4, z:-48, b:5, t:5},
+      {x:8,   y:4, z:-56, b:6, t:6},
+      {x:8,   y:4, z:-66, b:9, t:9, art:'feder'},
+      {x:8,   y:9, z:-98, b:16, t:16}],
+    ringe:[{x:-7,y:3,z:-29},{x:8,y:5,z:-56}], ziel:{x:8,y:10,z:-98} },
 
   { name:'Fahrt', platten:[
       {x:0,  y:0, z:0,   b:8, t:8},
@@ -171,9 +177,9 @@ function baueLicht(){
    näher als der Radius, entlang der Verbindung herausschieben und die
    Geschwindigkeit an dieser Richtung spiegeln. Reibung greift nur längs
    der Fläche, sonst klebt die Kugel an Wänden fest.                    */
-const R = 0.45, SCHWERE = 22, KRAFT = 30, LUFTKRAFT = 9,
-      REIBUNG = 2.4, TEMPO_MAX = 15, SPRUNG = 8.6, ABPRALL = 0.28,
-      FEDER = 14, TEMPOFELD = 26;
+const R = 0.45, SCHWERE = 22, KRAFT = 34, LUFTKRAFT = 8,
+      ROLLT = 0.62, BREMST = 0.045, TEMPO_MAX = 13, SPRUNG = 11.5, ABPRALL = 0.28,
+      FEDER = 21, TEMPOFELD = 26;
 const ku = {x:0, y:2, z:0, vx:0, vy:0, vz:0, boden:false, letzterBoden:0};
 
 function stossen(dt){
@@ -192,9 +198,15 @@ function stossen(dt){
     ku.x += ex*raus; ku.y += ey*raus; ku.z += ez*raus;
     const laengs = ku.vx*ex + ku.vy*ey + ku.vz*ez;
     if(laengs < 0){
-      ku.vx -= (1+ABPRALL)*laengs*ex;
-      ku.vy -= (1+ABPRALL)*laengs*ey;
-      ku.vz -= (1+ABPRALL)*laengs*ez;
+      /* Unter einer Schwelle wird nicht gefedert, sondern aufgelegt.
+         Sonst gibt die Schwerkraft der Kugel jedes Bild eine kleine
+         Aufwärtsgeschwindigkeit zurück, sie hüpft unsichtbar — und weil
+         Reibung nur bei Bodenkontakt greift, bekommt sie kaum welche ab.
+         Genau das hat sie rutschig gemacht. */
+      const federt = -laengs > 2.6 ? ABPRALL : 0;
+      ku.vx -= (1+federt)*laengs*ex;
+      ku.vy -= (1+federt)*laengs*ey;
+      ku.vz -= (1+federt)*laengs*ez;
     }
     if(ey > 0.55){
       ku.boden = true; ku.letzterBoden = zeit;
@@ -206,8 +218,14 @@ function stossen(dt){
         ku.vz += ku.vz/l * TEMPOFELD * dt;
       }
       if(p.art === 'feder' && ku.vy < FEDER*0.6){ ku.vy = FEDER; melde('SCHWUNG', ''); }
-      const daempf = Math.pow(0.0035, dt*(REIBUNG/2.4));
-      ku.vx *= daempf; ku.vz *= daempf;
+      /* Rollwiderstand und Bremse sind zwei verschiedene Dinge. Eine
+         einzige starke Dämpfung hielt die Kugel rechnerisch bei Tempo
+         4,2 fest, obwohl 13 erlaubt sind — sie wurde nie schnell und
+         stand beim Loslassen sofort. Jetzt rollt sie unter Druck fast
+         frei und bekommt nur ohne Druck eine echte Bremse. */
+      const roll = Math.pow(ROLLT, dt);
+      const bremse = eingabeStaerke < 0.05 ? Math.pow(BREMST, dt) : 1;
+      ku.vx *= roll * bremse; ku.vz *= roll * bremse;
     }
   }
 }
@@ -369,6 +387,27 @@ function zumRing(){
 }
 
 /* ── Ablauf ───────────────────────────────────────────────────────── */
+/* Sprungkraft 11,5 statt 8,6: die Steighöhe ist SPRUNG²/(2·SCHWERE), also
+   3,0 statt 1,68 Einheiten. Mit 1,68 war jede Stufe von zwei Einheiten
+   unmöglich — der Prüfer hat genau das gemeldet.
+   Ein Schritt reiner Physik: dieselbe Rechnung, die die Schleife fährt,
+   nur ohne Bild und Uhr. Der Prüfer unten benutzt genau diese Funktion —
+   sonst prüfte er eine zweite, erfundene Physik. */
+let eingabeStaerke = 0;
+function physik(dt, vor, quer, gier){
+  const l = Math.hypot(vor, quer);
+  eingabeStaerke = Math.min(1, l);
+  if(l > 1){ vor /= l; quer /= l; }
+  const sin = Math.sin(gier), cos = Math.cos(gier);
+  const kraft = (ku.boden ? KRAFT : LUFTKRAFT) * dt;
+  ku.vx += (-sin*vor + cos*quer) * kraft;
+  ku.vz += (-cos*vor - sin*quer) * kraft;
+  const waag = Math.hypot(ku.vx, ku.vz);
+  if(waag > TEMPO_MAX){ ku.vx *= TEMPO_MAX/waag; ku.vz *= TEMPO_MAX/waag; }
+  ku.vy -= SCHWERE*dt;
+  ku.x += ku.vx*dt; ku.y += ku.vy*dt; ku.z += ku.vz*dt;
+  stossen(dt);
+}
 function schritt(dt){
   zeit += dt;
   if(!imZiel) uhr += dt;
@@ -381,18 +420,7 @@ function schritt(dt){
   if(tasten.has('KeyA') || tasten.has('ArrowLeft'))  quer -= 1;
   if(tasten.has('KeyD') || tasten.has('ArrowRight')) quer += 1;
   if(daumen.knueppel.x || daumen.knueppel.y){ quer += daumen.knueppel.x; vor -= daumen.knueppel.y; }
-  const l = Math.hypot(vor, quer);
-  if(l > 1){ vor /= l; quer /= l; }
-  const sin = Math.sin(kamGier), cos = Math.cos(kamGier);
-  const kraft = (ku.boden ? KRAFT : LUFTKRAFT) * dt;
-  ku.vx += (-sin*vor + cos*quer) * kraft;
-  ku.vz += (-cos*vor - sin*quer) * kraft;
-  const waag = Math.hypot(ku.vx, ku.vz);
-  if(waag > TEMPO_MAX){ ku.vx *= TEMPO_MAX/waag; ku.vz *= TEMPO_MAX/waag; }
-
-  ku.vy -= SCHWERE*dt;
-  ku.x += ku.vx*dt; ku.y += ku.vy*dt; ku.z += ku.vz*dt;
-  stossen(dt);
+  physik(dt, vor, quer, kamGier);
 
   // Ringe einsammeln
   for(const r of ringNetze){
@@ -487,6 +515,7 @@ window.__kugel = {
   get ku(){return ku}, get zeit(){return uhr}, get laeuft(){return laeuft},
   get bahnNr(){return bahnNr}, get imZiel(){return imZiel}, get ringe(){return ringNetze},
   BAHNEN, platten: () => platten, starten, neu, zumStart, zumRing, springen,
+  physik, baueBahn, DICKE, R, FEDER, KRAFT, ROLLT, BREMST,
   setzeBahn: n => { gewaehlt = n; }, best,
   SPRUNG, SCHWERE, TEMPO_MAX
 };
