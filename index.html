@@ -3,169 +3,148 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#ffffff">
 <title>AGG Games — Spiele direkt im Browser</title>
 <meta name="description" content="Sechzehn Spiele, die ohne Installation direkt im Browser laufen: Voxel-Survival, Backrooms-Horror, ein Nachtrennen, ein Schulhaus-Schrecken, Farbgedächtnis, Jump ’n’ Run und mehr.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="AGG Games">
 <meta property="og:description" content="Sechzehn Spiele, die ohne Installation direkt im Browser laufen.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='5' width='12' height='7' fill='%23ffb648'/%3E%3Crect x='4' y='7' width='2' height='3' fill='%230b0d12'/%3E%3Crect x='3' y='8' width='4' height='1' fill='%230b0d12'/%3E%3Crect x='10' y='7' width='2' height='2' fill='%230b0d12'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<meta property="og:image" content="bilder/agg-logo.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23ffffff'/%3E%3Cpath d='M1 14h4v-3h4V8h6' fill='none' stroke='%23111111' stroke-width='2'/%3E%3Ccircle cx='12.5' cy='4.5' r='2.5' fill='%2312a04e'/%3E%3C/svg%3E">
 <style>
-/* ── AGG Games · Regalbrett ──────────────────────────────────────────
-   Dunkler Grund wie ein ausgeschalteter Bildschirm, harte 2px-Kanten,
-   und jede Karte leiht sich ihre Akzentfarbe aus dem eigenen Spiel.  */
+/* ── AGG Games ───────────────────────────────────────────────────────
+   Weiß, Schwarz, Grün — mehr Farben hat das Logo nicht, mehr braucht
+   die Seite auch nicht. Kein Webfont, keine Verläufe, keine Schatten
+   außer einem Hauch unter der Karte, die man gerade anfasst.        */
 :root{
-  --bg:#0b0d12; --bg-2:#0f131c;
-  --panel:#141926; --panel-2:#1b2231;
-  --edge:#252d3d; --edge-hi:#3a465c;
-  --ink:#e9edf5; --ink-dim:#98a3b6; --ink-faint:#616d84;
-  --amber:#ffb648;
-  --pix:"Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
-  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --accent:var(--amber);
-  color-scheme:dark;
+  --weiss:#ffffff;
+  --papier:#f7f8f7;          /* getönte Fläche für Fuß und Marken     */
+  --linie:#e2e5e2;
+  --tinte:#111111;
+  --tinte-dim:#5a615a;
+  --tinte-faint:#8b918b;
+  --gruen:#12a04e;           /* aus dem Logo gemessen                 */
+  --gruen-dunkel:#0c7a3b;
+  --gruen-hell:#eaf6ee;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+       "Helvetica Neue", Arial, sans-serif;
+  color-scheme:light;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
 body{
-  margin:0; background:var(--bg); color:var(--ink);
+  margin:0; background:var(--weiss); color:var(--tinte);
   font-family:var(--ui); font-size:16px; line-height:1.55;
   -webkit-font-smoothing:antialiased;
 }
-/* Ein feines Raster im Grund, damit die schwarze Fläche Tiefe bekommt. */
-body::before{
-  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-  background:
-    radial-gradient(120% 70% at 50% -10%, #1b2740 0%, transparent 60%),
-    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px) 0 0/100% 32px,
-    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px) 0 0/32px 100%;
-  mask-image:linear-gradient(#000 0%, #000 55%, transparent 100%);
-}
-.wrap{position:relative; z-index:1; width:min(1180px,100%); margin:0 auto; padding:0 20px}
+.wrap{width:min(1180px,100%); margin:0 auto; padding:0 20px}
 a{color:inherit}
 
-/* ── Kopfzeile ─────────────────────────────────────────────────────── */
-header.top{
-  position:sticky; top:0; z-index:30;
-  background:rgba(11,13,18,.82); backdrop-filter:blur(14px);
-  border-bottom:2px solid var(--edge);
-}
-.top-in{display:flex; align-items:center; justify-content:space-between; gap:16px; height:60px}
-.logo{display:flex; align-items:center; gap:10px; white-space:nowrap; font-family:var(--pix); font-size:22px; font-weight:700; letter-spacing:.04em; text-decoration:none}
-.logo .mark{width:26px; height:26px; flex:none}
-.logo b{color:var(--amber); font-weight:700}
-.top-count{font-family:var(--pix); font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap}
-@media (max-width:560px){ .top-count{font-size:11px; letter-spacing:.08em} .logo{font-size:19px} }
-@media (max-width:400px){ .top-count{display:none} }
-
-/* ── Aufschlag ─────────────────────────────────────────────────────── */
-.hero{padding:64px 0 40px; text-align:center}
-.hero h1{
-  font-family:var(--pix); font-weight:700; margin:0 0 14px;
-  font-size:clamp(40px,9vw,84px); line-height:.94; letter-spacing:.01em; text-wrap:balance;
-  background:linear-gradient(180deg,#fff2d4,#ffb648 55%,#b8792a);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter:drop-shadow(0 4px 0 #2a1c08);
-}
-.hero p{margin:0 auto; max-width:56ch; color:var(--ink-dim); font-size:clamp(15px,2.2vw,18px); text-wrap:pretty}
-.hero .kicker{
-  display:inline-block; margin-bottom:18px; padding:5px 12px;
-  font-family:var(--pix); font-size:12px; letter-spacing:.18em; text-transform:uppercase;
-  color:var(--amber); border:2px solid #3a2c10; background:#1a1408;
+/* ── Logo ──────────────────────────────────────────────────────────── */
+header.top{border-bottom:1px solid var(--linie); background:var(--weiss)}
+.top-in{display:flex; justify-content:center; padding:34px 0 30px}
+.logo{display:block; line-height:0}
+.logo img{display:block; width:168px; height:auto}
+@media (min-width:900px){ .logo img{width:190px} }
+@media (max-width:560px){
+  .top-in{padding:24px 0 22px}
+  .logo img{width:132px}
 }
 
 /* ── Filterreihe ───────────────────────────────────────────────────── */
 .bar{
   display:flex; flex-wrap:wrap; align-items:center; gap:8px;
-  padding:22px 0 26px; border-bottom:2px solid var(--edge); margin-bottom:34px;
+  padding:24px 0; margin-bottom:26px; border-bottom:1px solid var(--linie);
 }
 .chip{
-  font-family:var(--pix); font-size:15px; letter-spacing:.02em;
-  padding:7px 14px; cursor:pointer; color:var(--ink-dim);
-  background:var(--panel); border:2px solid var(--edge);
-  transition:color .12s, background .12s, border-color .12s;
+  font-family:inherit; font-size:14px; font-weight:600; line-height:1.2;
+  padding:8px 15px; cursor:pointer; color:var(--tinte);
+  background:var(--weiss); border:1px solid var(--linie); border-radius:999px;
+  transition:border-color .12s, background .12s, color .12s;
 }
-.chip:hover{background:var(--panel-2); border-color:var(--edge-hi); color:var(--ink)}
-.chip[aria-pressed="true"]{background:#2a2008; border-color:var(--amber); color:var(--amber)}
-.chip .n{font-size:12px; opacity:.65; margin-left:5px}
-.chip:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
-.bar .spacer{flex:1 1 auto; min-width:0}
-.chip.dice{color:var(--ink); border-color:var(--edge-hi)}
+.chip:hover{border-color:var(--tinte)}
+.chip[aria-pressed="true"]{background:var(--gruen); border-color:var(--gruen); color:#fff}
+.chip .n{font-size:12px; opacity:.6; margin-left:5px; font-weight:500}
+.chip:focus-visible{outline:2px solid var(--gruen); outline-offset:2px}
+.chip.dice{border-color:var(--tinte)}
+/* Auf dem Handy stünden neun Knöpfe in vier Zeilen und schöben die
+   Spiele aus dem Bild. Also eine Zeile, die man schiebt. */
+@media (max-width:620px){
+  .bar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding:16px 0; margin-bottom:20px}
+  .bar::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto}
+}
+.chip.dice:hover{background:var(--tinte); color:#fff}
 
 /* ── Karten ────────────────────────────────────────────────────────── */
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:22px; padding-bottom:16px}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:20px; padding-bottom:8px}
 .card{
-  --accent:var(--amber);
-  display:flex; flex-direction:column; text-decoration:none;
-  background:var(--panel); border:2px solid var(--edge);
-  box-shadow:0 8px 0 rgba(0,0,0,.4);
+  display:flex; flex-direction:column; text-decoration:none; overflow:hidden;
+  background:var(--weiss); border:1px solid var(--linie); border-radius:10px;
   transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease;
 }
 .card:hover,.card:focus-visible{
-  transform:translateY(-4px); border-color:var(--accent);
-  box-shadow:0 12px 0 rgba(0,0,0,.45), 0 0 0 1px var(--accent) inset;
+  transform:translateY(-3px); border-color:var(--gruen);
+  box-shadow:0 8px 22px rgba(17,17,17,.09);
   outline:none;
 }
-.card:focus-visible{outline:3px solid var(--accent); outline-offset:3px}
+.card:focus-visible{outline:2px solid var(--gruen); outline-offset:3px}
 .card.hide{display:none}
-.cover{position:relative; aspect-ratio:16/9; overflow:hidden; background:#05070b; border-bottom:2px solid var(--edge)}
+/* Die Bilder der Spiele sind bunt. Auf einer Seite aus drei Farben wären
+   sechzehn Paletten zu viel — also laufen sie in Graustufen mit und
+   kommen erst unter dem Zeiger etwas näher an ihre eigene Farbe. */
+.cover{
+  position:relative; aspect-ratio:16/9; overflow:hidden; background:#101310;
+  border-bottom:1px solid var(--linie);
+  filter:grayscale(1) contrast(.9) brightness(1.04);
+  transition:filter .2s ease;
+}
+.card:hover .cover{filter:grayscale(.82) contrast(.96) brightness(1.02)}
 .cover svg{display:block; width:100%; height:100%}
-.card:hover .cover{border-bottom-color:var(--accent)}
-.card-body{display:flex; flex-direction:column; gap:10px; padding:16px 17px 18px; flex:1}
-.card h2{
-  font-family:var(--pix); font-weight:600; margin:0; font-size:25px; line-height:1.1;
-  color:var(--ink); letter-spacing:.01em; text-wrap:balance;
-}
-.card:hover h2{color:var(--accent)}
+.card-body{display:flex; flex-direction:column; gap:9px; padding:16px 18px 18px; flex:1}
 .genre{
-  font-family:var(--pix); font-size:12px; letter-spacing:.15em; text-transform:uppercase;
-  color:var(--accent); margin:-4px 0 0;
+  margin:0; font-size:11.5px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--gruen);
 }
-.card p.desc{margin:0; color:var(--ink-dim); font-size:14.5px; line-height:1.5; text-wrap:pretty}
-.meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:4px}
+.card h2{margin:0; font-size:21px; font-weight:700; letter-spacing:-.012em; line-height:1.2; color:var(--tinte)}
+.card p.desc{margin:0; color:var(--tinte-dim); font-size:14px; line-height:1.55; text-wrap:pretty}
+.meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:6px}
 .tag{
-  font-size:11.5px; letter-spacing:.03em; padding:3px 8px; color:var(--ink-faint);
-  background:var(--bg-2); border:1px solid var(--edge);
+  font-size:11.5px; line-height:1.5; padding:2px 9px; border-radius:999px;
+  color:var(--tinte-faint); background:var(--papier); border:1px solid var(--linie);
 }
-.tag.warn{color:#e8b98a; border-color:#4a3520; background:#1d1409}
+.tag.warn{color:var(--tinte-dim); background:var(--weiss); border-color:#cfd4cf}
 .play{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  margin-top:12px; padding:11px 14px;
-  font-family:var(--pix); font-size:17px; color:var(--ink);
-  background:var(--panel-2); border:2px solid var(--edge); border-bottom-width:4px;
-  transition:background .12s, border-color .12s, color .12s;
+  display:inline-flex; align-items:center; gap:8px; margin-top:11px;
+  font-size:15px; font-weight:700; color:var(--gruen);
 }
-.card:hover .play{background:var(--accent); border-color:var(--accent); color:#0b0d12}
+.card:hover .play{color:var(--gruen-dunkel)}
 .play .arrow{transition:transform .14s ease}
 .card:hover .play .arrow{transform:translateX(4px)}
 
 /* Die erste Karte bekommt auf breiten Schirmen die volle Breite. */
 @media (min-width:920px){
   .card.feature{grid-column:1/-1; flex-direction:row}
-  .card.feature .cover{flex:0 0 52%; aspect-ratio:auto; border-bottom:0; border-right:2px solid var(--edge)}
-  .card:hover.feature .cover{border-right-color:var(--accent); border-bottom-color:transparent}
-  .card.feature .card-body{justify-content:center; padding:30px 32px; gap:12px}
-  .card.feature h2{font-size:40px}
-  .card.feature p.desc{font-size:16px; max-width:52ch}
-  .card.feature .play{align-self:flex-start; min-width:230px; margin-top:16px}
+  .card.feature .cover{flex:0 0 50%; aspect-ratio:auto; border-bottom:0; border-right:1px solid var(--linie)}
+  .card.feature .card-body{justify-content:center; padding:30px 34px; gap:11px}
+  .card.feature h2{font-size:32px}
+  .card.feature p.desc{font-size:15.5px; max-width:54ch}
+  .card.feature .play{margin-top:14px}
 }
 
 /* ── Leermeldung ───────────────────────────────────────────────────── */
-.empty{display:none; padding:50px 0; text-align:center; color:var(--ink-faint); font-family:var(--pix); font-size:18px}
+.empty{display:none; padding:52px 0; text-align:center; color:var(--tinte-faint); font-size:16px}
 .empty.show{display:block}
 
 /* ── Fuß ───────────────────────────────────────────────────────────── */
-footer{margin-top:56px; border-top:2px solid var(--edge); background:var(--bg-2)}
-.foot-in{display:flex; flex-wrap:wrap; gap:26px; justify-content:space-between; padding:32px 0 40px}
-footer h3{font-family:var(--pix); font-size:14px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 10px; font-weight:500}
-footer p{margin:0 0 8px; color:var(--ink-dim); font-size:14px; max-width:46ch}
+footer{margin-top:54px; border-top:1px solid var(--linie); background:var(--papier)}
+.foot-in{display:flex; flex-wrap:wrap; gap:28px; justify-content:space-between; padding:30px 0 38px}
+footer h3{margin:0 0 10px; font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--tinte-faint)}
+footer p{margin:0 0 8px; color:var(--tinte-dim); font-size:14px; max-width:46ch}
 footer ul{margin:0; padding:0; list-style:none; font-size:14px}
-footer li{margin-bottom:6px}
-footer a{color:var(--ink-dim); text-decoration:none; border-bottom:1px solid var(--edge-hi)}
-footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
+footer li{margin-bottom:6px; color:var(--tinte-dim)}
+footer a{color:var(--tinte); text-decoration:none; border-bottom:1px solid var(--gruen)}
+footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel)}
 
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -178,27 +157,13 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
 
 <header class="top">
   <div class="wrap top-in">
-    <a class="logo" href="#spiele">
-      <svg class="mark" viewBox="0 0 16 16" aria-hidden="true">
-        <rect width="16" height="16" fill="#141926" stroke="#3a465c" stroke-width="2"/>
-        <rect x="3.5" y="6.5" width="9" height="5" fill="#ffb648"/>
-        <rect x="5" y="8" width="1.5" height="2.5" fill="#0b0d12"/>
-        <rect x="4.2" y="8.8" width="3" height="1" fill="#0b0d12"/>
-        <rect x="9.5" y="8" width="1.6" height="1.6" fill="#0b0d12"/>
-      </svg>
-      <span>AGG <b>GAMES</b></span>
+    <a class="logo" href="./" aria-label="AGG Games — Startseite">
+      <img src="bilder/agg-logo.png" width="216" height="162" alt="AGG Games">
     </a>
-    <span class="top-count">8 Spiele · kein Download</span>
   </div>
 </header>
 
 <main>
-  <section class="wrap hero">
-    <span class="kicker">Direkt im Browser</span>
-    <h1>Acht Spiele,<br>ein Regalbrett.</h1>
-    <p>Voxel-Survival, ein Backrooms-Band, ein Nachtrennen auf echtem Kurs, ein Schulhaus nach Schulschluss, ein Torlauf für einen Daumen, eine Leitung gegen die Uhr, eine Arena ohne Ausgang, ein Nachtfalter an Laternen vorbei, Golf zwischen Planeten, eine Nachtschicht in der Pizzeria, ein Labyrinth aus Türmen, ein Kugelvorhang in zwei Farben, Farbgedächtnis, ein Level Jump ’n’ Run und ein Reaktor, der nie genug bekommt. Antippen und los.</p>
-  </section>
-
   <div class="wrap">
     <div class="bar" role="group" aria-label="Nach Art filtern">
       <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">8</span></button>
@@ -209,14 +174,13 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       <button class="chip" type="button" data-filter="puzzle" aria-pressed="false">Kopf &amp; Puzzle <span class="n">0</span></button>
       <button class="chip" type="button" data-filter="idle" aria-pressed="false">Idle &amp; Aufbau <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="horror" aria-pressed="false">Horror <span class="n">1</span></button>
-      <span class="spacer"></span>
-      <button class="chip dice" type="button" id="dice">🎲 Überrasch mich</button>
+      <button class="chip dice" type="button" id="dice">Überrasch mich</button>
     </div>
 
     <div class="grid" id="spiele">
 
       <!-- ── Taschenwelt ──────────────────────────────────────────── -->
-      <a class="card feature" href="games/taschenwelt.html" data-cat="3d" style="--accent:#78a84e">
+      <a class="card feature" href="games/taschenwelt.html" data-cat="3d">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Isometrische Voxel-Landschaft bei Nacht mit Baum und Fackel">
             <defs>
@@ -307,7 +271,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Nachtschicht ─────────────────────────────────────────── -->
-      <a class="card" href="games/racer/" data-cat="3d rennen" style="--accent:#ff9d2e">
+      <a class="card" href="games/racer/" data-cat="3d rennen">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Nächtliche Rennstrecke in Fluchtperspektive mit Scheinwerferkegel und Flutlichtmasten">
             <defs>
@@ -378,7 +342,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Found Tape ───────────────────────────────────────────── -->
-      <a class="card" href="games/foundtape.html" data-cat="3d horror" style="--accent:#c8b26a">
+      <a class="card" href="games/foundtape.html" data-cat="3d horror">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Gelber Backrooms-Flur in Fluchtperspektive, Camcorder-Bild mit REC-Anzeige">
             <defs>
@@ -450,7 +414,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Blechschaden ─────────────────────────────────────────── -->
-      <a class="card" href="games/blech/" data-cat="action rennen" style="--accent:#ffc233">
+      <a class="card" href="games/blech/" data-cat="action rennen">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Draufsicht auf eine Stadtkreuzung mit Autos, Zebrastreifen und Telefonzelle">
             <defs>
@@ -534,7 +498,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Nachsitzen ───────────────────────────────────────────── -->
-      <a class="card" href="games/schule/" data-cat="3d horror" style="--accent:#f2c14e">
+      <a class="card" href="games/schule/" data-cat="3d horror">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Schulflur in Fluchtperspektive mit Spinden und einer Figur am Ende des Gangs">
             <defs>
@@ -622,7 +586,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Snapshade ────────────────────────────────────────────── -->
-      <a class="card" href="games/snapshade.html" data-cat="arcade" style="--accent:#5ec8e8">
+      <a class="card" href="games/snapshade.html" data-cat="arcade">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Farbfeld über drei Reglern für Farbton, Sättigung und Helligkeit">
             <defs>
@@ -680,7 +644,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Torlauf ──────────────────────────────────────────────── -->
-      <a class="card" href="games/torlauf.html" data-cat="arcade" style="--accent:#5be0b0">
+      <a class="card" href="games/torlauf.html" data-cat="arcade">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Laufbahn mit einem grünen Mal-zwei-Tor links und einem roten Geteilt-zwei-Tor rechts, davor eine Menge kleiner Läufer">
             <defs>
@@ -743,7 +707,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Rohrbruch ────────────────────────────────────────────── -->
-      <a class="card" href="games/rohrbruch.html" data-cat="puzzle" style="--accent:#4aa3e0">
+      <a class="card" href="games/rohrbruch.html" data-cat="puzzle">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Gitter aus Rohrstücken, durch die blaues Wasser von einer Quelle links zu einem grünen Abfluss rechts läuft">
             <defs>
@@ -803,7 +767,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Kessel ───────────────────────────────────────────────── -->
-      <a class="card" href="games/kessel.html" data-cat="action" style="--accent:#ff8a3d">
+      <a class="card" href="games/kessel.html" data-cat="action">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Arena von oben: eine blaue Figur in der Mitte, rote und violette Gegner drumherum, Schüsse nach außen">
             <defs>
@@ -868,7 +832,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Nachtflug ────────────────────────────────────────────── -->
-      <a class="card" href="games/nachtflug.html" data-cat="arcade" style="--accent:#f0e0b8">
+      <a class="card" href="games/nachtflug.html" data-cat="arcade">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Nachtfalter fliegt zwischen zwei Holzpfeilern hindurch, an deren Kanten Laternen leuchten; dahinter Mond, Hügel und Tannen">
             <defs>
@@ -944,7 +908,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Mondgolf ─────────────────────────────────────────────── -->
-      <a class="card" href="games/mondgolf.html" data-cat="puzzle" style="--accent:#8ad7ff">
+      <a class="card" href="games/mondgolf.html" data-cat="puzzle">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Golfball fliegt in einer gekrümmten Bahn zwischen Planeten hindurch zu einer Fahne auf einem grünen Planeten">
             <defs>
@@ -1003,7 +967,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Bruzzo ───────────────────────────────────────────────── -->
-      <a class="card" href="games/bruzzo/" data-cat="horror 3d" style="--accent:#e8b44a">
+      <a class="card" href="games/bruzzo/" data-cat="horror 3d">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Blick aus einem dunklen Nachtwächterbüro: links steht ein Animatronic-Pizzabäcker in der beleuchteten Türnische, rechts ein geschlossener Rollladen, dazwischen ein Plakat">
             <defs>
@@ -1078,7 +1042,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Bollwerk ─────────────────────────────────────────────── -->
-      <a class="card" href="games/bollwerk.html" data-cat="puzzle action" style="--accent:#5e8fb8">
+      <a class="card" href="games/bollwerk.html" data-cat="puzzle action">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Rasterfeld von oben: Türme bilden ein Labyrinth, ein goldener Weg führt vom grünen Eingang links im Zickzack zum roten Kern rechts">
             <rect width="320" height="180" fill="#0b0f14"/>
@@ -1161,7 +1125,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Gegenfarbe ───────────────────────────────────────────── -->
-      <a class="card" href="games/gegenfarbe.html" data-cat="action arcade" style="--accent:#ff5570">
+      <a class="card" href="games/gegenfarbe.html" data-cat="action arcade">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Raumschiff zwischen weißen und roten Kugeln; die weißen haben einen hellen Kern und werden geschluckt, die roten einen dunklen">
             <rect width="320" height="180" fill="#06070d"/>
@@ -1209,7 +1173,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── Mario ────────────────────────────────────────────────── -->
-      <a class="card" href="games/mario.html" data-cat="arcade" style="--accent:#5c94fc">
+      <a class="card" href="games/mario.html" data-cat="arcade">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Jump-’n’-Run-Level mit Hügeln, Fragezeichenblock, Münze und Fahne">
             <defs>
@@ -1294,7 +1258,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
       </a>
 
       <!-- ── KernClicker ──────────────────────────────────────────── -->
-      <a class="card" href="games/kernclicker.html" data-cat="idle" style="--accent:#00c853">
+      <a class="card" href="games/kernclicker.html" data-cat="idle">
         <div class="cover">
           <svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Leuchtender Atomkern mit Elektronenbahnen vor Kühltürmen">
             <defs>
@@ -1359,8 +1323,8 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
 <footer>
   <div class="wrap foot-in">
     <div>
-      <h3>Über das Regal</h3>
-      <p>Alle fünf Spiele liegen als fertige Seiten in diesem Projekt und brauchen weder Server noch Installation. Auf dem Handy lassen sie sich über „Zum Startbildschirm hinzufügen“ wie eine App ablegen.</p>
+      <h3>Über die Seite</h3>
+      <p>Alle sechzehn Spiele liegen als fertige Seiten in diesem Projekt und brauchen weder Server noch Installation. Auf dem Handy lassen sie sich über „Zum Startbildschirm hinzufügen“ wie eine App ablegen.</p>
     </div>
     <div>
       <h3>Wo die Spiele herkommen</h3>
@@ -1368,7 +1332,7 @@ footer a:hover{color:var(--amber); border-bottom-color:var(--amber)}
         <li><a href="https://github.com/MuMaFi/SNAPSHADE">SNAPSHADE</a> — Found Tape &amp; Snapshade</li>
         <li><a href="https://github.com/MuMaFi/marioana">marioana</a> — Mini Jump ’n’ Run</li>
         <li><a href="https://github.com/MuMaFi/Kern-clicker">Kern-clicker</a> — KernClicker</li>
-        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite und vier Spiele</li>
+        <li><a href="https://github.com/MuMaFi/Agg-games">Agg-games</a> — diese Seite und zwölf Spiele</li>
       </ul>
     </div>
   </div>
