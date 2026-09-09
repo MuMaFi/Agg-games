@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>BloxRot — AGG Games</title>
+<meta name="description" content="Kauf sie vom Band, stell sie in deine Basis, klau sie den Nachbarn wieder weg — bevor die es bei dir tun.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b1020'/%3E%3Crect x='2' y='9' width='12' height='3' fill='%23c0392b'/%3E%3Crect x='4' y='4' width='3' height='5' fill='%23f1c40f'/%3E%3Crect x='9' y='6' width='3' height='3' fill='%232ecc71'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./stil.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="app-hud"></div>
+
+<!-- Quellenangabe: das Schlägermodell steht unter CC-BY, das verlangt die
+     Nennung von Autor, Titel, Quelle und Lizenz. -->
+<details id="quellen">
+  <summary>Quellen</summary>
+  <p><b>Spiel und Code:</b> MuMaFi. Figur, Daumensteuerung und Einbau für AGG Games
+     kamen hier dazu.</p>
+  <p><b>Schläger:</b> „Simple Bat“ von Blender3D, über
+     <a href="https://sketchfab.com/3d-models/simple-bat-5a82c01f6d284e3089b8c0069cb8773f"
+        target="_blank" rel="noopener">Sketchfab</a>, Lizenz
+     <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC-BY-4.0</a>.</p>
+  <p><b>3D:</b> <a href="https://threejs.org/" target="_blank" rel="noopener">three.js</a>, MIT.</p>
+</details>
+
+<script type="importmap">
+{"imports":{"three":"./lib/three.module.js","three/examples/jsm/":"./lib/jsm/"}}
+</script>
+<script type="module" src="./spiel/main.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
