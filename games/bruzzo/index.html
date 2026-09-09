@@ -47,6 +47,10 @@ canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch
 .kn.an{background:var(--teig); color:#20180a; border-color:var(--teig)}
 .kn.an small{color:#20180a99}
 #knKurbel.an{background:var(--blau); color:#08131c; border-color:var(--blau)}
+/* Gesperrt heißt: eine Tür ist zu. Der Knopf bleibt sichtbar, damit man
+   den Zusammenhang sieht, statt dass er einfach nicht reagiert. */
+#knKurbel.gesperrt{opacity:.4; text-decoration:line-through}
+#knKurbel.gesperrt small{text-decoration:none; color:var(--rot)}
 
 #raeume{position:absolute; left:6px; right:6px; bottom:62px; display:none; flex-wrap:wrap; gap:4px;
   justify-content:center; z-index:6}
@@ -156,7 +160,7 @@ a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
     <button class="kn" id="knLichtR">Licht ▶<small>rechts</small></button>
     <button class="kn" id="knLuke">Luke<small>Lüftung</small></button>
     <button class="kn" id="knTablet">Tablet<small>Kameras</small></button>
-    <button class="kn" id="knKurbel">Kurbel<small>laut!</small></button>
+    <button class="kn" id="knKurbel">Kurbel<small>nur bei offener Tür</small></button>
   </div>
 
   <div id="lade">SCHICHT WIRD VORBEREITET …</div>
@@ -179,8 +183,10 @@ a.zurueck:hover{color:var(--ink); border-color:var(--edge-hi)}
       <div class="tafel">
         <u>Strom</u>
         Alles kostet: Türen, Lichter, Luke, Tablet. Bei null geht alles auf.
-        Die <b>Handkurbel</b> holt Strom zurück — aber sie ist laut, und Lärm
-        macht sie schneller.
+        Die <b>Handkurbel</b> holt Strom zurück — aber sie sitzt draußen an der
+        Wand: <b>solange ein Rollladen unten ist, kommst du nicht dran</b>.
+        Verstecken und Nachladen geht also nicht gleichzeitig. Laut ist sie
+        obendrein, und Lärm macht sie schneller.
       </div>
       <div id="naechte"></div>
       <button class="los" id="losKnopf">SCHICHT BEGINNEN</button>

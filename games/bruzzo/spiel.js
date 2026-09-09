@@ -21,9 +21,15 @@ const zuf = (a,b) => a + Math.random()*(b-a);
 /* ── Aufbau ───────────────────────────────────────────────────────── */
 const leinwand = $('#szene');
 const rnd = new T.WebGLRenderer({canvas:leinwand, antialias:false, powerPreference:'high-performance'});
-rnd.setPixelRatio(Math.min(devicePixelRatio||1, 1.5));
-rnd.shadowMap.enabled = false;
+rnd.setPixelRatio(Math.min(devicePixelRatio||1, 1.75));
+/* Ein einziger Schattenwerfer: die Schreibtischlampe. Mehr braucht der
+   Raum nicht, und ein 512er Schattenbild kostet auch auf dem Telefon
+   nichts. Basic statt PCF, das passt zum harten Licht der Lampe. */
+rnd.shadowMap.enabled = true;
+rnd.shadowMap.type = T.BasicShadowMap;
 rnd.outputColorSpace = T.SRGBColorSpace;
+rnd.toneMapping = T.ACESFilmicToneMapping;
+rnd.toneMappingExposure = 1.32;
 
 const szene = new T.Scene();
 szene.background = new T.Color(0x050403);
@@ -54,22 +60,88 @@ function malTextur(br, ho, malen, wiederhol){
   t.magFilter = T.NearestFilter;
   return t;
 }
+/* Ein bisschen Dreck auf jede Fläche: gleichmäßige Farbfelder sehen aus
+   wie Papier, und eine Pizzeria um Mitternacht ist nicht sauber. */
+function schmutz(g, b, h, menge, farbe){
+  g.fillStyle = farbe;
+  for(let i=0;i<menge;i++){
+    const x = Math.random()*b, y = Math.random()*h, r = Math.random()*2.2 + 0.4;
+    g.globalAlpha = 0.05 + Math.random()*0.16;
+    g.fillRect(x, y, r, r);
+  }
+  g.globalAlpha = 1;
+}
 const texBoden = malTextur(64,64,(g,b,h)=>{
   for(let j=0;j<2;j++) for(let i=0;i<2;i++){
     g.fillStyle = (i+j)%2 ? '#2b211a' : '#241b15';
     g.fillRect(i*b/2, j*h/2, b/2, h/2);
   }
   g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(0,h/2-1,b,2); g.fillRect(b/2-1,0,2,h);
+  schmutz(g,b,h,90,'#000'); schmutz(g,b,h,26,'#6b5334');
 }, [1,1]);
 const texWand = malTextur(64,64,(g,b,h)=>{
+  // untere Hälfte Holzvertäfelung, oben Putz, dazwischen eine Leiste
   g.fillStyle='#241c14'; g.fillRect(0,0,b,h);
   g.fillStyle='#2c221a';
   for(let y=0;y<h;y+=16){ for(let x=(y/16%2)*16;x<b;x+=32) g.fillRect(x+1,y+1,30,14); }
+  g.fillStyle='#33261a'; g.fillRect(0,h*0.62,b,h*0.38);
+  for(let x=0;x<b;x+=8){ g.fillStyle='rgba(0,0,0,.22)'; g.fillRect(x,h*0.62,1,h*0.38); }
+  g.fillStyle='#4a3722'; g.fillRect(0,h*0.60,b,3);
+  g.fillStyle='#7a2a1c'; g.fillRect(0,h*0.575,b,2);
+  schmutz(g,b,h,70,'#000');
 }, [1,1]);
 const texFliese = malTextur(64,64,(g,b,h)=>{
-  g.fillStyle='#33291f'; g.fillRect(0,0,b,h);
-  g.fillStyle='#3d3126'; g.fillRect(2,2,b-4,h-4);
+  // Schachbrett wie in jeder Pizzeria, nur seit Jahren nicht gewischt
+  for(let j=0;j<4;j++) for(let i=0;i<4;i++){
+    g.fillStyle = (i+j)%2 ? '#3d3126' : '#20190f';
+    g.fillRect(i*b/4, j*h/4, b/4, h/4);
+  }
+  g.strokeStyle='rgba(0,0,0,.5)'; g.lineWidth=1;
+  for(let i=1;i<4;i++){
+    g.beginPath(); g.moveTo(i*b/4,0); g.lineTo(i*b/4,h); g.stroke();
+    g.beginPath(); g.moveTo(0,i*h/4); g.lineTo(b,i*h/4); g.stroke();
+  }
+  schmutz(g,b,h,110,'#000');
 }, [1,1]);
+/* Deckenplatten mit Rasterfuge */
+const texDecke = malTextur(64,64,(g,b,h)=>{
+  g.fillStyle='#191309'; g.fillRect(0,0,b,h);
+  g.fillStyle='#221a0e'; g.fillRect(2,2,b-4,h-4);
+  schmutz(g,b,h,50,'#000');
+}, [4,5]);
+/* Warnstreifen für die Rollläden */
+const texStreifen = malTextur(64,64,(g,b,h)=>{
+  g.fillStyle='#3d3323'; g.fillRect(0,0,b,h);
+  g.save(); g.translate(b/2,h/2); g.rotate(-0.7); g.translate(-b,-h);
+  for(let x=0;x<b*2.4;x+=22){ g.fillStyle='#c8a02e'; g.fillRect(x,0,11,h*2.4); }
+  g.restore();
+  g.fillStyle='rgba(0,0,0,.45)';
+  for(let y=6;y<h;y+=14) g.fillRect(0,y,b,3);          // Lamellen
+}, [1,1]);
+/* Wimpelkette und Uhr — zwei Handgriffe, die dem Raum ansehen lassen,
+   dass hier tagsüber Kindergeburtstage stattfinden. */
+const texWimpel = malTextur(128,32,(g,b,h)=>{
+  g.clearRect(0,0,b,h);
+  g.strokeStyle='#4a3722'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(0,3); g.lineTo(b,3); g.stroke();
+  const farben=['#c8402e','#e8b44a','#3f8ecc','#5aa34a'];
+  for(let i=0;i<8;i++){
+    g.fillStyle=farben[i%4];
+    g.beginPath(); g.moveTo(i*16+1,4); g.lineTo(i*16+15,4); g.lineTo(i*16+8,h-4); g.closePath(); g.fill();
+  }
+}, [3,1]);
+const texUhr = malTextur(64,64,(g,b,h)=>{
+  g.fillStyle='#1a140c'; g.fillRect(0,0,b,h);
+  g.fillStyle='#e6dcc4'; g.beginPath(); g.arc(b/2,h/2,26,0,6.284); g.fill();
+  g.strokeStyle='#20180a'; g.lineWidth=2;
+  for(let i=0;i<12;i++){
+    const a=i*0.5236; g.beginPath();
+    g.moveTo(b/2+Math.cos(a)*22, h/2+Math.sin(a)*22);
+    g.lineTo(b/2+Math.cos(a)*25, h/2+Math.sin(a)*25); g.stroke();
+  }
+  g.lineWidth=3; g.beginPath(); g.moveTo(b/2,h/2); g.lineTo(b/2, h/2-15); g.stroke();
+  g.lineWidth=2; g.beginPath(); g.moveTo(b/2,h/2); g.lineTo(b/2+12, h/2+6); g.stroke();
+});
 const texPlakat = malTextur(128,96,(g,b,h)=>{
   g.fillStyle='#e8b44a'; g.fillRect(0,0,b,h);
   g.fillStyle='#c8402e';
@@ -101,7 +173,17 @@ const M = {
   plakat:  new T.MeshBasicMaterial({map:texPlakat}),
   vorhang: new T.MeshLambertMaterial({map:texVorhang}),
   gitter:  new T.MeshLambertMaterial({map:texGitter}),
-  glas:    new T.MeshBasicMaterial({color:0xffdca0})
+  glas:    new T.MeshBasicMaterial({color:0xffdca0}),
+  deckePl: new T.MeshLambertMaterial({map:texDecke}),
+  streifen:new T.MeshLambertMaterial({map:texStreifen}),
+  wimpel:  new T.MeshBasicMaterial({map:texWimpel, transparent:true, side:T.DoubleSide}),
+  uhr:     new T.MeshLambertMaterial({map:texUhr}),
+  schirm:  new T.MeshBasicMaterial({color:0xffe6b8}),
+  papier:  new T.MeshLambertMaterial({color:0xcfc3a4}),
+  karton:  new T.MeshLambertMaterial({color:0xa87c47}),
+  leiste:  new T.MeshLambertMaterial({color:0x4a3722}),
+  warnAus: new T.MeshLambertMaterial({color:0x3a1512}),
+  warnAn:  new T.MeshBasicMaterial({color:0xff5a3c})
 };
 const kasten = (b,h,t,mat,x,y,z,ry=0) => {
   const m = new T.Mesh(new T.BoxGeometry(b,h,t), mat);
@@ -134,6 +216,8 @@ const BUERO = {bx:2.7, bz:3.4, h:3.0};
 const TUER  = {z0:-0.9, z1:1.1, h:2.35};
 const LUKE  = {x0:-2.2, x1:-1.1, y0:0.15, y1:1.0};
 let tuerL, tuerR, lukeKlappe, luefterFluegel;
+const warnLampen = {};
+let schattenFrisch = true;
 const lichter = {};
 
 function baueHaus(){
@@ -141,7 +225,7 @@ function baueHaus(){
   const bodenBuero = new T.Mesh(new T.PlaneGeometry(BUERO.bx*2, BUERO.bz*2), M.boden);
   bodenBuero.rotation.x = -Math.PI/2; szene.add(bodenBuero);
   texBoden.repeat.set(3,4);
-  kasten(BUERO.bx*2, 0.2, BUERO.bz*2, M.decke, 0, BUERO.h, 0);
+  kasten(BUERO.bx*2, 0.2, BUERO.bz*2, M.deckePl, 0, BUERO.h, 0);
   // Rückwand (hinter dem Spieler) und Frontwand
   kasten(BUERO.bx*2, BUERO.h, 0.2, M.wand, 0, BUERO.h/2,  BUERO.bz);
   wandMitTuer(M.wand, 'x', -BUERO.bz, -BUERO.bx, BUERO.bx, BUERO.h, LUKE.x0, LUKE.x1, LUKE.y1);
@@ -174,9 +258,84 @@ function baueHaus(){
   korb.position.set(0.62, 1.30, 1.72); szene.add(korb);
   kasten(0.075, 0.1, 0.075, M.rot, -0.5, 1.11, 1.62);
 
+  /* ── Kram, der den Raum bewohnt aussehen lässt ──────────────────────
+     Ein leerer Kasten mit Tisch wirkt wie ein Modell. Was hier steht,
+     hat keine Spielwirkung — es ist nur da, damit man glaubt, dass hier
+     jemand seit Stunden sitzt. */
+
+  // Schreibtischlampe: der einzige Schattenwerfer im Haus
+  kasten(0.16, 0.03, 0.16, M.metall, -1.62, 1.08, 1.74);
+  kasten(0.03, 0.30, 0.03, M.metall, -1.62, 1.23, 1.74);
+  const schirm = new T.Mesh(new T.ConeGeometry(0.17, 0.16, 10, 1, true), M.metall);
+  schirm.position.set(-1.55, 1.38, 1.72); schirm.rotation.z = -0.6; szene.add(schirm);
+  const gluehe = new T.Mesh(new T.SphereGeometry(0.045, 8, 6), M.schirm);
+  gluehe.position.set(-1.52, 1.33, 1.71); szene.add(gluehe);
+  const lampe = new T.PointLight(0xffcf92, 5.5, 6.5, 1.6);
+  lampe.position.set(-1.50, 1.30, 1.68);
+  lampe.castShadow = true;
+  lampe.shadow.mapSize.set(512, 512);
+  lampe.shadow.camera.near = 0.08; lampe.shadow.camera.far = 7;
+  lampe.shadow.bias = -0.006;
+  szene.add(lampe);
+
+  // Bildschirm mit Standfuß, das Bild leuchtet von selbst
+  /* Der Bildschirm stand erst mittig und groß auf dem Tisch — er hat das
+     halbe Bild und das Plakat verdeckt. Klein und schräg an den Rand:
+     die Sichtlinie zu den beiden Türöffnungen muss frei bleiben. */
+  const mon = new T.Group(); mon.position.set(-0.92, 1.06, 1.66); mon.rotation.y = 0.55;
+  const fuss = new T.Mesh(new T.BoxGeometry(0.16, 0.015, 0.11), M.dunkel);
+  fuss.position.y = 0.008; mon.add(fuss);
+  const hals = new T.Mesh(new T.BoxGeometry(0.03, 0.10, 0.03), M.dunkel);
+  hals.position.y = 0.06; mon.add(hals);
+  const geh = new T.Mesh(new T.BoxGeometry(0.34, 0.23, 0.035), M.dunkel);
+  geh.position.y = 0.22; geh.rotation.x = 0.09; mon.add(geh);
+  const bild = new T.Mesh(new T.PlaneGeometry(0.29, 0.18),
+                          new T.MeshBasicMaterial({color:0x1d3a2e}));
+  bild.position.set(0, 0.22, 0.022); bild.rotation.x = 0.09; mon.add(bild);
+  szene.add(mon);
+
+  // Pizzakarton, halb offen, mit einem Rest darin
+  const karton = new T.Group(); karton.position.set(1.42, 1.07, 1.68); karton.rotation.y = -0.4;
+  const unten = new T.Mesh(new T.BoxGeometry(0.42, 0.05, 0.42), M.karton);
+  unten.position.y = 0.025; karton.add(unten);
+  const deckel = new T.Mesh(new T.BoxGeometry(0.42, 0.04, 0.42), M.karton);
+  deckel.position.set(0, 0.20, -0.19); deckel.rotation.x = -0.95; karton.add(deckel);
+  const rest = new T.Mesh(new T.BoxGeometry(0.15, 0.02, 0.12), M.rot);
+  rest.position.y = 0.06; karton.add(rest);
+  szene.add(karton);
+
+  // Becher, Papierstapel, Stift
+  const becher = new T.Mesh(new T.CylinderGeometry(0.05, 0.042, 0.11, 8), M.papier);
+  becher.position.set(0.86, 1.12, 1.78); szene.add(becher);
+  for(let i=0;i<4;i++){
+    const bl = kasten(0.22, 0.006, 0.30, M.papier, -0.30 + i*0.012, 1.073 + i*0.007, 1.80);
+    bl.rotation.y = (i-1.5) * 0.06;
+  }
+  kasten(0.012, 0.012, 0.14, M.rot, -0.22, 1.083, 1.86, 0.4);
+
+  // Fußleiste rundum, damit Wand und Boden nicht stumpf aneinanderstoßen
+  for(const [b2,t2,x2,z2] of [[BUERO.bx*2,0.06,0,BUERO.bz-0.03],
+                              [BUERO.bx*2,0.06,0,-BUERO.bz+0.03]])
+    kasten(b2, 0.12, t2, M.leiste, x2, 0.06, z2);
+  for(const sx of [-1,1]){
+    kasten(0.06, 0.12, BUERO.bz*2, M.leiste, sx*(BUERO.bx-0.03), 0.06, 0);
+  }
+
+  // Wimpelkette unter der Decke und eine Uhr, die immer kurz vor zwölf steht
+  const kette = new T.Mesh(new T.PlaneGeometry(BUERO.bx*2 - 0.2, 0.3), M.wimpel);
+  kette.position.set(0, BUERO.h - 0.34, -BUERO.bz + 0.12); szene.add(kette);
+  const uhr = new T.Mesh(new T.PlaneGeometry(0.42, 0.42), M.uhr);
+  uhr.position.set(-1.55, 2.05, -BUERO.bz + 0.11); szene.add(uhr);
+
+  // Über jeder Türöffnung eine Warnleuchte — sie geht an, wenn zu ist
+  for(const sx of [-1, 1]){
+    const kap = kasten(0.1, 0.1, 0.22, M.warnAus, sx*(BUERO.bx-0.06), TUER.h + 0.22, 0.1);
+    warnLampen[sx < 0 ? 'L' : 'R'] = kap;
+  }
+
   // Rollläden in den Türöffnungen
   const tuerGeo = new T.BoxGeometry(0.14, TUER.h, TUER.z1-TUER.z0);
-  tuerL = new T.Mesh(tuerGeo, M.metall);
+  tuerL = new T.Mesh(tuerGeo, M.streifen);
   tuerL.position.set(-BUERO.bx, TUER.h/2 + TUER.h, (TUER.z0+TUER.z1)/2); szene.add(tuerL);
   tuerR = tuerL.clone(); tuerR.position.x = BUERO.bx; szene.add(tuerR);
   lukeKlappe = kasten(LUKE.x1-LUKE.x0+0.1, LUKE.y1-LUKE.y0+0.1, 0.06, M.metall,
@@ -237,7 +396,7 @@ function baueHaus(){
      war es schlicht schwarz — Punktlichter mit decay 1.6 und Reichweite 20
      kommen über zehn Meter nicht an. Jetzt lineare Abnahme (decay 1) und
      kräftigere Werte, dazu Grundlicht. */
-  szene.add(new T.AmbientLight(0x453626, 2.2));
+  szene.add(new T.AmbientLight(0x4d3d2a, 2.6));
   szene.add(new T.HemisphereLight(0x3a2e1e, 0x120c08, 0.9));
   const bueroLicht = new T.PointLight(0xffc98a, 9, 16, 1);
   bueroLicht.position.set(0, 2.7, 0.4); szene.add(bueroLicht);
@@ -512,6 +671,7 @@ function schalte(was){
   tonStart();
   if(was === 'tuerL'){ sp.tuerL = !sp.tuerL; klangTuer(sp.tuerL); larm(sp.tuerL?3:2); }
   if(was === 'tuerR'){ sp.tuerR = !sp.tuerR; klangTuer(sp.tuerR); larm(sp.tuerR?3:2); }
+  if(sp.kurbel && tuerZu()){ sp.kurbel = false; melde('KURBEL BLOCKIERT', 'der Rollladen ist im Weg'); }
   if(was === 'luke'){  sp.luke  = !sp.luke;  klangTuer(sp.luke);  larm(2); }
   if(was === 'lichtL'){ sp.lichtL = !sp.lichtL; sp.lichtR = false; klangKlick(); }
   if(was === 'lichtR'){ sp.lichtR = !sp.lichtR; sp.lichtL = false; klangKlick(); }
@@ -523,6 +683,10 @@ function schalte(was){
   knoepfe();
 }
 const larm = menge => { sp.laerm = Math.min(24, sp.laerm + menge); };
+/* Die Kurbel sitzt draußen an der Wand: wer sie dreht, muss den Arm durch
+   eine offene Tür strecken. Also lädt sie nur, solange kein Rollladen
+   unten ist — Verstecken und Nachladen geht nicht gleichzeitig. */
+const tuerZu = () => sp.tuerL || sp.tuerR;
 function raeumeBauen(){
   const box = $('#raeume'); box.innerHTML = '';
   RAEUME.forEach((r,i) => {
@@ -546,6 +710,7 @@ function knoepfe(){
   $('#knLichtR').classList.toggle('an', sp.lichtR);
   $('#knTablet').classList.toggle('an', sp.tablet);
   $('#knKurbel').classList.toggle('an', sp.kurbel);
+  $('#knKurbel').classList.toggle('gesperrt', tuerZu());
 }
 for(const [id, was] of [['#knTuerL','tuerL'],['#knTuerR','tuerR'],['#knLuke','luke'],
                         ['#knLichtL','lichtL'],['#knLichtR','lichtR'],['#knTablet','tablet']])
@@ -554,7 +719,9 @@ const kurbelKn = $('#knKurbel');
 kurbelKn.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
   if(!laeuft || sp.aus) return;
-  tonStart(); sp.kurbel = true; knoepfe();
+  tonStart();
+  if(tuerZu()){ klangKlick(); melde('GEHT NICHT', 'erst die Türen aufmachen'); return; }
+  sp.kurbel = true; knoepfe();
 });
 for(const t of ['pointerup','pointercancel','pointerleave'])
   kurbelKn.addEventListener(t, () => { if(sp){ sp.kurbel = false; knoepfe(); } });
@@ -583,7 +750,11 @@ addEventListener('keydown', e => {
   if(k){ schalte(k); e.preventDefault(); }
   if(e.code === 'ArrowLeft')  sp.gierZiel = klemm(sp.gierZiel + .16, -0.95, 0.95);
   if(e.code === 'ArrowRight') sp.gierZiel = klemm(sp.gierZiel - .16, -0.95, 0.95);
-  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight'){ sp.kurbel = true; knoepfe(); }
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight'){
+    if(tuerZu()){ if(!sp.kurbel) melde('GEHT NICHT', 'erst die Türen aufmachen'); }
+    else { sp.kurbel = true; }
+    knoepfe();
+  }
 });
 addEventListener('keyup', e => {
   if(sp && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')){ sp.kurbel = false; knoepfe(); }
@@ -603,6 +774,7 @@ function schritt(dt){
   if(sp.lichtL || sp.lichtR) ab += KOSTEN.licht;
   if(sp.tablet) ab += KOSTEN.tablet;
   sp.strom -= ab*dt;
+  if(sp.kurbel && tuerZu()) sp.kurbel = false;      // falls doch etwas durchrutscht
   if(sp.kurbel){
     sp.strom = Math.min(100, sp.strom + KURBEL*dt);
     larm(9*dt);
@@ -735,6 +907,11 @@ function zeichnen(dt){
   tuerR.position.y += (zielR - tuerR.position.y) * Math.min(dt*7, 1);
   const lukeY = (LUKE.y0+LUKE.y1)/2 - (sp.luke ? 0 : 2.4);
   lukeKlappe.position.y += (lukeY - lukeKlappe.position.y) * Math.min(dt*7, 1);
+  /* Die Warnleuchten über den Öffnungen zeigen dasselbe wie die Knöpfe,
+     nur im Raum: rot heißt zu — und rot heißt damit auch, dass die Kurbel
+     gerade nicht geht. */
+  if(warnLampen.L) warnLampen.L.material = sp.tuerL ? M.warnAn : M.warnAus;
+  if(warnLampen.R) warnLampen.R.material = sp.tuerR ? M.warnAn : M.warnAus;
 
   lichter.L.intensity += ((sp.lichtL ? 13 : 0) - lichter.L.intensity) * Math.min(dt*12,1);
   lichter.R.intensity += ((sp.lichtR ? 13 : 0) - lichter.R.intensity) * Math.min(dt*12,1);
@@ -753,6 +930,12 @@ function zeichnen(dt){
     kam = kamTablet;
   }
   rnd.render(szene, kam);
+  /* Der Schatten der Schreibtischlampe wird genau einmal gerechnet. Eine
+     Punktlampe wirft ihn als Würfelbild, also sechs zusätzliche Durchläufe
+     pro Bild — und dabei steht alles still, was sie beleuchtet: Tisch,
+     Lampe, Kram. Die Figuren laufen draußen im Gang, weit außerhalb ihrer
+     Reichweite. Einmal rechnen genügt. */
+  if(schattenFrisch){ schattenFrisch = false; rnd.shadowMap.autoUpdate = false; }
   malUeberlage();
 }
 /* Alles, was flach über dem Bild liegt: Kamerarauschen, der rote Blitz,
@@ -876,5 +1059,5 @@ window.__bruzzo = {
   setzeNacht: n => { gewaehlteNacht = n; },
   setzeFigur: (id, pos) => { const f = sp.figuren.find(x=>x.id===id); if(f){ f.pos = pos; koerperSetzen(); } },
   setzeKamera: n => { sp.kamera = n; raeumeBauen(); },
-  get laeuft(){return laeuft}, get szene(){return szene}, T
+  get laeuft(){return laeuft}, get szene(){return szene}, T, rnd
 };
