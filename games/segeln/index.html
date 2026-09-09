@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#8ec5e8">
+<title>Segelflug — AGG Games</title>
+<meta name="description" content="Ein Segler ohne Motor über einem Tal. Höhe ist dein einziger Treibstoff — Aufwinde geben sie zurück.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2374b7de'/%3E%3Cpath d='M1 9h14l-6 3z' fill='%23f4f7fb'/%3E%3Cpath d='M7 4h2v6H7z' fill='%23e2e8f0'/%3E%3Cpath d='M2 13h12v2H2z' fill='%234f7a46'/%3E%3C/svg%3E">
+<style>
+:root{
+  --himmel:#8ec5e8; --grund:#0f1722; --platte:#16202e; --kante:#28374a; --kante-hell:#3f5468;
+  --tinte:#eef4fa; --dim:#9db0c4; --blass:#63788c;
+  --sonne:#ffc861; --ring:#ff7a4d; --gut:#6fd08a;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none}
+body{background:var(--grund); color:var(--tinte); font-family:var(--ui)}
+canvas{display:block; width:100%; height:100%; touch-action:none}
+#buehne{position:fixed; inset:0}
+
+#hud{position:fixed; inset:0; z-index:10; pointer-events:none; display:none}
+#hud.an{display:block}
+#oben{position:absolute; left:0; right:0; top:0; display:flex; justify-content:center; gap:9px;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 10px 0}
+.karte{background:#0f1722c4; border:1px solid var(--kante); border-radius:9px;
+  padding:5px 12px; text-align:center; backdrop-filter:blur(4px)}
+.karte b{display:block; font-size:19px; line-height:1.15; font-variant-numeric:tabular-nums}
+.karte small{display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--blass)}
+#ringKarte b{color:var(--ring)}
+#hoeheKarte b.tief{color:#ff6a4d}
+
+/* Fahrtmesser und Höhenband links */
+#band{position:absolute; left:calc(12px + env(safe-area-inset-left,0px)); top:50%;
+  transform:translateY(-50%); width:54px}
+.mess{background:#0f1722c4; border:1px solid var(--kante); border-radius:8px;
+  padding:6px 4px; text-align:center; margin-bottom:7px}
+.mess b{display:block; font-size:17px; font-variant-numeric:tabular-nums}
+.mess small{display:block; font-size:8px; letter-spacing:.1em; color:var(--blass); text-transform:uppercase}
+#steig b.auf{color:var(--gut)} #steig b.ab{color:#ff9a7d}
+
+#horizont{position:absolute; left:50%; top:50%; width:150px; height:150px; margin:-75px 0 0 -75px;
+  opacity:.55}
+#horizont i{position:absolute; background:#ffffffcc}
+#horizont i:nth-child(1){left:0; top:74px; width:44px; height:2px}
+#horizont i:nth-child(2){right:0; top:74px; width:44px; height:2px}
+#horizont i:nth-child(3){left:74px; top:64px; width:2px; height:12px}
+
+#meldung{position:absolute; left:50%; top:22%; transform:translateX(-50%); text-align:center;
+  opacity:0; transition:opacity .2s}
+#meldung.an{opacity:1}
+#meldung b{display:block; font-size:clamp(22px,5vw,38px)}
+#meldung small{font-size:13px; color:var(--dim)}
+#tipp{position:absolute; left:50%; bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:#0f1722aa; text-align:center}
+
+.blende{position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:18px;
+  overflow:auto; align-content:safe center; background:#0c131cee; text-align:center}
+.blende.weg{display:none}
+h1{font-size:clamp(30px,7vw,54px); line-height:1; margin-bottom:6px}
+h1 span{color:var(--sonne)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.55; margin:10px auto; max-width:50ch}
+.blende p b{color:var(--tinte)}
+.tafel{border:1px solid var(--kante); background:var(--platte); border-radius:10px;
+  padding:11px 14px; margin:8px auto; font-size:13px; color:var(--dim); line-height:1.6;
+  max-width:33ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--blass); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+.tafel b{color:var(--tinte)}
+kbd{border:1px solid var(--kante-hell); border-bottom-width:2px; border-radius:4px;
+  padding:0 5px; font-size:12px; color:var(--tinte)}
+button.los{font-family:inherit; font-size:17px; font-weight:700; cursor:pointer; color:#241a06;
+  background:var(--sonne); border:0; border-radius:9px; padding:12px 26px; margin-top:10px}
+button.los:active{transform:translateY(2px)}
+a.zurueck{display:inline-block; margin-top:14px; color:var(--blass); font-size:12px;
+  letter-spacing:.1em; text-decoration:none; border-bottom:1px solid var(--kante-hell)}
+@media (max-height:430px){
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+    gap:4px 10px; max-width:880px}
+  .blende > div > *{flex:1 0 100%}
+  .blende > div > .tafel, .blende > div > p{flex:1 1 240px; max-width:320px}
+  .tafel{font-size:12px; padding:8px 10px}
+  #band{transform:translateY(-50%) scale(.85)}
+}
+</style>
+</head>
+<body>
+<div id="buehne"><canvas id="szene"></canvas></div>
+
+<div id="hud">
+  <div id="oben">
+    <div class="karte" id="ringKarte"><b>0 / 8</b><small>Ringe</small></div>
+    <div class="karte" id="zeitKarte"><b>0:00</b><small>Zeit</small></div>
+  </div>
+  <div id="band">
+    <div class="mess" id="tempo"><b>0</b><small>km/h</small></div>
+    <div class="mess" id="hoeheKarte"><b>0</b><small>Meter</small></div>
+    <div class="mess" id="steig"><b>0.0</b><small>Steigen</small></div>
+  </div>
+  <div id="horizont"><i></i><i></i><i></i></div>
+  <div id="meldung"><b></b><small></small></div>
+  <div id="tipp">Ziehen zum Steuern · Aufwinde suchen</div>
+</div>
+
+<div class="blende" id="start">
+  <div>
+    <h1>SEGEL<span>FLUG</span></h1>
+    <p>Ein Segler ohne Motor. Deine Höhe ist der einzige Treibstoff: Nase runter macht
+       schnell, Nase hoch macht langsam — und irgendwann fällst du.</p>
+    <div class="tafel">
+      <u>Der Trick</u>
+      Über den hellen Flecken am Boden steigt warme Luft. Kreise darin, dann
+      gewinnst du Höhe zurück. <b>Ohne Aufwind endet jeder Flug am Boden.</b>
+    </div>
+    <div class="tafel">
+      <u>Steuerung</u>
+      <kbd>Maus</kbd> ziehen oder <kbd>WASD</kbd> · hoch/runter zieht die Nase,
+      links/rechts legt ihn in die Kurve<br>
+      Am Telefon: Finger über den Bildschirm ziehen.
+    </div>
+    <p>Acht Ringe liegen über dem Tal. Hol sie, bevor dir die Höhe ausgeht.</p>
+    <button class="los" id="losKnopf">AUSKLINKEN</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<div class="blende weg" id="ende">
+  <div>
+    <h1 id="endeTitel">GELANDET</h1>
+    <p id="endeText"></p>
+    <button class="los" id="nochmal">NOCH EIN FLUG</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"../bloxrot/lib/three.module.js"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
