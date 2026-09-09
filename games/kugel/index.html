@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1220">
+<title>Kugelbahn — AGG Games</title>
+<meta name="description" content="Eine Kugel, vier Bahnen aus schwebenden Platten, kein Geländer. Rollen, springen, unten nicht ankommen.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230e1220'/%3E%3Crect x='2' y='11' width='12' height='2' fill='%233d4c6b'/%3E%3Ccircle cx='8' cy='7' r='3.4' fill='%23ffd75e'/%3E%3Ccircle cx='6.8' cy='5.8' r='1.1' fill='%23fff3c4'/%3E%3C/svg%3E">
+<style>
+:root{
+  --grund:#0e1220; --platte:#161d30; --kante:#26314b; --kante-hell:#3d4c6b;
+  --tinte:#eaeefb; --dim:#98a4c0; --blass:#5f6c8a;
+  --kugel:#ffd75e; --ziel:#4fd08a; --rot:#e0503c;
+  --ui:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none}
+body{background:var(--grund); color:var(--tinte); font-family:var(--ui)}
+canvas{display:block; width:100%; height:100%; touch-action:none}
+#buehne{position:fixed; inset:0}
+
+#hud{position:fixed; inset:0; z-index:10; pointer-events:none; display:none}
+#hud.an{display:block}
+#oben{position:absolute; left:0; right:0; top:0; display:flex; justify-content:center; gap:9px;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 10px 0}
+.karte{background:#0e1220c9; border:1px solid var(--kante); border-radius:9px;
+  padding:5px 12px; text-align:center; backdrop-filter:blur(4px)}
+.karte b{display:block; font-size:19px; line-height:1.15; font-variant-numeric:tabular-nums}
+.karte small{display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--blass)}
+#zeitKarte b{color:var(--kugel)}
+#bestKarte b{color:var(--dim); font-size:15px}
+
+#meldung{position:absolute; left:50%; top:24%; transform:translateX(-50%); text-align:center;
+  opacity:0; transition:opacity .2s}
+#meldung.an{opacity:1}
+#meldung b{display:block; font-size:clamp(22px,5vw,38px)}
+#meldung small{font-size:13px; color:var(--dim)}
+
+#tipp{position:absolute; left:50%; bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--blass); text-align:center}
+
+.blende{position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:18px;
+  overflow:auto; align-content:safe center; background:#0b0e18ee; text-align:center}
+.blende.weg{display:none}
+h1{font-size:clamp(30px,7vw,54px); line-height:1; margin-bottom:6px}
+h1 span{color:var(--kugel)}
+.blende p{color:var(--dim); font-size:14.5px; line-height:1.55; margin:10px auto; max-width:50ch}
+.blende p b{color:var(--tinte)}
+.tafel{border:1px solid var(--kante); background:var(--platte); border-radius:10px;
+  padding:11px 14px; margin:8px auto; font-size:13px; color:var(--dim); line-height:1.6;
+  max-width:32ch; text-align:left}
+.tafel u{display:block; text-decoration:none; color:var(--blass); font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px}
+.tafel b{color:var(--tinte)}
+kbd{border:1px solid var(--kante-hell); border-bottom-width:2px; border-radius:4px;
+  padding:0 5px; font-size:12px; color:var(--tinte)}
+#bahnen{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:14px auto; max-width:34ch}
+.bahn{font-family:inherit; cursor:pointer; background:var(--platte); color:var(--tinte);
+  border:1px solid var(--kante); border-radius:9px; padding:9px 14px; font-size:14px; min-width:88px}
+.bahn:hover{border-color:var(--kante-hell)}
+.bahn.gewaehlt{border-color:var(--kugel); background:#2a2411; color:var(--kugel)}
+.bahn small{display:block; font-size:10px; color:var(--blass); margin-top:2px}
+.bahn.gewaehlt small{color:var(--kugel)}
+button.los{font-family:inherit; font-size:17px; font-weight:700; cursor:pointer; color:#20180a;
+  background:var(--kugel); border:0; border-radius:9px; padding:12px 26px; margin-top:6px}
+button.los:active{transform:translateY(2px)}
+a.zurueck{display:inline-block; margin-top:14px; color:var(--blass); font-size:12px;
+  letter-spacing:.1em; text-decoration:none; border-bottom:1px solid var(--kante-hell)}
+@media (max-height:430px){
+  .blende > div{display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+    gap:4px 10px; max-width:880px}
+  .blende > div > *{flex:1 0 100%}
+  .blende > div > .tafel, .blende > div > p{flex:1 1 240px; max-width:320px}
+  .tafel{font-size:12px; padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div id="buehne"><canvas id="szene"></canvas></div>
+
+<div id="hud">
+  <div id="oben">
+    <div class="karte" id="zeitKarte"><b>0:00.0</b><small>Zeit</small></div>
+    <div class="karte" id="bahnKarte"><b>1</b><small>Bahn</small></div>
+    <div class="karte" id="bestKarte"><b>—</b><small>Bestzeit</small></div>
+  </div>
+  <div id="meldung"><b></b><small></small></div>
+  <div id="tipp">Ziehen zum Drehen · Leertaste springt</div>
+</div>
+
+<div class="blende" id="start">
+  <div>
+    <h1>KUGEL<span>BAHN</span></h1>
+    <p>Vier Bahnen aus schwebenden Platten, kein Geländer. Die Kugel rollt weiter,
+       auch wenn du aufhörst zu drücken — das ist der ganze Witz.</p>
+    <div class="tafel">
+      <u>Steuerung</u>
+      <kbd>WASD</kbd> rollen · <kbd>Leer</kbd> springen · <kbd>Maus</kbd> ziehen zum Drehen<br>
+      Am Telefon: links der Knüppel, rechts ziehen, Knopf zum Springen.
+    </div>
+    <div class="tafel">
+      <u>Was auf den Bahnen liegt</u>
+      <b style="color:var(--kugel)">Gelbe Felder</b> beschleunigen ·
+      <b style="color:#8f6ee0">violette</b> schleudern dich hoch<br>
+      Manche Platten fahren. Fällst du, geht es beim letzten Ring weiter.
+    </div>
+    <div id="bahnen"></div>
+    <button class="los" id="losKnopf">LOSROLLEN</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<div class="blende weg" id="ende">
+  <div>
+    <h1 id="endeTitel">IM ZIEL</h1>
+    <p id="endeText"></p>
+    <div id="bahnen2"></div>
+    <button class="los" id="nochmal">NOCH EINMAL</button>
+    <div><a class="zurueck" href="../../index.html">← ALLE SPIELE</a></div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"../bloxrot/lib/three.module.js"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
