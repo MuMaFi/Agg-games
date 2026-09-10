@@ -10,6 +10,11 @@
 <meta property="og:title" content="AGG Games">
 <meta property="og:description" content="Sechzehn Spiele, die ohne Installation direkt im Browser laufen.">
 <meta property="og:image" content="bilder/agg-logo.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="bilder/app/symbol-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23ffffff'/%3E%3Cpath d='M1 14h4v-3h4V8h6' fill='none' stroke='%23111111' stroke-width='2'/%3E%3Ccircle cx='12.5' cy='4.5' r='2.5' fill='%2312a04e'/%3E%3C/svg%3E">
 <style>
 /* ── AGG Games ───────────────────────────────────────────────────────
@@ -1645,6 +1650,11 @@ footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel
   for(const chip of chips){
     chip.addEventListener('click', () => apply(chip.dataset.filter));
   }
+
+  /* Einmal geladen, läuft die Seite offline weiter — und lässt sich auf
+     dem Handy als App auf den Startbildschirm legen. */
+  if('serviceWorker' in navigator && location.protocol.startsWith('http'))
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
   document.getElementById('dice').addEventListener('click', () => {
     const offen = cards.filter(c => !c.classList.contains('hide'));

@@ -1,0 +1,16 @@
+{
+  "name": "AGG Games",
+  "short_name": "AGG Games",
+  "description": "Spiele direkt im Browser — ohne Konto, ohne Werbung, offline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "bilder/app/symbol-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "bilder/app/symbol-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "bilder/app/symbol-maskierbar-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

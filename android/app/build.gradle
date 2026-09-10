@@ -1,0 +1,35 @@
+plugins { id 'com.android.application' }
+
+android {
+  namespace 'de.agg.spiele'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'de.agg.spiele'
+    minSdk 26
+    targetSdk 34
+    versionCode 1
+    versionName '1.0'
+  }
+
+  /* Die Spiele liegen als Beiwerk in der Anwendung und werden zur Laufzeit
+     unter einer eigenen Herkunft ausgeliefert — anders laufen ES-Module und
+     die Importkarte im WebView nicht. */
+  sourceSets { main { assets.srcDirs = ['src/main/assets'] } }
+
+  buildTypes {
+    debug { debuggable true }
+    release {
+      minifyEnabled false
+      /* Ohne eigenen Schlüssel wird hier mit dem Fehlerschlüssel signiert;
+         das reicht zum Selbstinstallieren, nicht für den Play Store. */
+      signingConfig signingConfigs.debug
+    }
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  packagingOptions { jniLibs { useLegacyPackaging false } }
+  lint { abortOnError false }
+}

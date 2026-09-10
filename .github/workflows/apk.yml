@@ -1,0 +1,67 @@
+# Baut das APK auf einem GitHub-Läufer. Hier in der Arbeitsumgebung geht
+# das nicht: das Android-SDK ist nicht installiert und Googles Auslieferung
+# ist per Netzwerkregel gesperrt. Auf ubuntu-latest ist das SDK vorhanden.
+#
+# Anstoßen: Actions -> "APK bauen" -> Run workflow.
+# Ergebnis: unter dem Lauf als Artefakt "agg-games-apk" zum Herunterladen.
+name: APK bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      startseite:
+        description: 'Startseite in der App'
+        required: false
+        default: 'index.html'
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Spiele als Beiwerk einlegen
+        run: |
+          set -eu
+          ziel=android/app/src/main/assets
+          mkdir -p "$ziel"
+          # Alles außer Werkzeugkram — die Seite ist statisch und läuft so,
+          # wie sie im Netz liegt, auch aus der Anwendung heraus.
+          rsync -a --delete \
+            --exclude '.git' --exclude '.github' --exclude 'android' \
+            --exclude 'node_modules' --exclude '*.md' \
+            ./ "$ziel/"
+          if [ "${{ inputs.startseite }}" != "index.html" ]; then
+            sed -i "s#index.html\";#${{ inputs.startseite }}\";#" \
+              android/app/src/main/java/de/agg/spiele/MainActivity.java
+          fi
+          du -sh "$ziel"
+
+      - name: Bauen
+        working-directory: android
+        run: gradle --no-daemon assembleDebug
+
+      - name: Umbenennen
+        run: |
+          set -eu
+          mkdir -p ausgabe
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "ausgabe/agg-games-$(date +%Y%m%d)-$(git rev-parse --short HEAD).apk"
+          ls -lh ausgabe
+
+      - name: Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: agg-games-apk
+          path: ausgabe/*.apk
+          if-no-files-found: error
+          retention-days: 30
