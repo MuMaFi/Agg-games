@@ -425,7 +425,6 @@ function spielerSchritt(dt){
   P.x = modW(P.x + dx); P.z = modW(P.z + dz);
   P.gelaufen += Math.hypot(dx, dz);
   P.y = hoeheBei(P.x, P.z);
-  zielNachfuehren();
 
   P.schrittWeg += gas * tempo * dt;
   const schrittLaenge = rennt ? 1.35 : 0.95;
@@ -453,35 +452,7 @@ function spielerSchritt(dt){
   camera.rotation.set(P.nick + wNick, P.gier + wGier, wRoll, 'YXZ');
 }
 
-/* ======================= 6  Die Fundstelle ======================= */
-/* Das einzige auf dieser Wiese, was kein Gras ist: ein niedergedrücktes,
-   ausgeblichenes Stück Boden. Da hat die Kamera gelegen. Man sieht es
-   erst, wenn man fast draufsteht — finden muss man es über das Ohr. */
-const ZIEL = { x: 0, z: 0, gefunden: false, netz: null };
-{
-  const g = new T.CircleGeometry(2.6, 34);
-  g.rotateX(-Math.PI/2);
-  const m = new T.MeshStandardMaterial({
-    color: 0xb9b169, roughness: 1.0, transparent: true, opacity: 0.92 });
-  ZIEL.netz = new T.Mesh(g, m);
-  ZIEL.netz.renderOrder = 2;
-  scene.add(ZIEL.netz);
-}
-function zielSetzen(){
-  const w = Math.random()*Math.PI*2, d = 150 + Math.random()*45;
-  ZIEL.x = modW(P.x + Math.sin(w)*d);
-  ZIEL.z = modW(P.z + Math.cos(w)*d);
-  ZIEL.gefunden = false;
-  zielNachfuehren();
-}
-function zielNachfuehren(){
-  /* Auf der Schleife gerendert: immer auf der Seite, auf der er näher ist. */
-  const x = P.x + dW(P.x, ZIEL.x), z = P.z + dW(P.z, ZIEL.z);
-  ZIEL.netz.position.set(x, hoeheBei(x,z) + 0.035, z);
-}
-const zielAbstand = () => abstandW(P.x, P.z, ZIEL.x, ZIEL.z);
-
-/* ======================= 7  Sie ======================= */
+/* ======================= 6  Sie ======================= */
 /* Sie gehen nicht. Sie stehen. Und wenn du nicht hinsiehst, stehen sie
    woanders — näher, ohne dass ein Schritt zu sehen war. Weglaufen ist
    deshalb keine Antwort: die Wiese ist rund, und jeder gelaufene Meter
@@ -489,8 +460,9 @@ const zielAbstand = () => abstandW(P.x, P.z, ZIEL.x, ZIEL.z);
 const HOEHE_SIE = 12.0;
 const SIE = [];
 let sieVorlage = null, sieGeladen = false;
-const MAX_SIE = 9;
-const METER_JE_GESTALT = 55;
+/* Vier Stück, von Anfang an, in vier Richtungen. Genau darin liegt das
+   ganze Spiel: du hast ein Paar Augen und vier Richtungen. */
+const ANZAHL_SIE = 4;
 
 new GLTFLoader().load('./modelle/sirene.glb', gltf => {
   const g = gltf.scene;
@@ -512,7 +484,7 @@ new GLTFLoader().load('./modelle/sirene.glb', gltf => {
    () => { sieGeladen = true; ladeStand = 1; });
 
 function neueGestalt(abstand){
-  if(!sieVorlage || SIE.length >= MAX_SIE) return null;
+  if(!sieVorlage) return null;
   const wurzel = sieVorlage.wurzel.clone(true);
   const halter = new T.Group(); halter.add(wurzel);
   scene.add(halter);
@@ -556,18 +528,8 @@ function wirdGesehen(g){
   return true;
 }
 
-let gelaufenMarke = 0;
 function sieSchritt(dt){
   if(!sieVorlage) return;
-  /* Jeder gelaufene Meter holt eine weitere dazu. Rennen geht schneller
-     — und macht es schneller schlimmer. */
-  while(P.gelaufen - gelaufenMarke > METER_JE_GESTALT && SIE.length < MAX_SIE){
-    gelaufenMarke += METER_JE_GESTALT;
-    const neu = neueGestalt(120 + Math.random()*40);
-    if(neu){ melde('NOCH EINE. SIE WERDEN MEHR, WENN DU LÄUFST.', 3.5); fernRuf(0.4); }
-    else break;
-  }
-
   let naechste = 999, irgendGesehen = false;
   STAND.luftAn = 0;
   for(const g of SIE){
@@ -635,32 +597,6 @@ function sieSchritt(dt){
     STAND.rufT = GR.ruf * (0.7 + Math.random()*0.6);
     rufTon(clamp(1 - naechste/190, 0.12, 1));
   }
-}
-
-/* ---------- Stillstehen und horchen ----------
-   Das Band nimmt auf. Wer steht, hört aus der Fundstelle ein Rauschen —
-   und je näher, desto lauter. Wer läuft, hört nur sich selbst. Damit ist
-   Weglaufen nicht nur nutzlos, sondern im Weg. */
-function horchen(dt){
-  const steht = P.tempo < 0.25;
-  STAND.horcht = steht ? Math.min(1.4, STAND.horcht + dt) : 0;
-  const an = STAND.horcht > 0.85;
-  const d = zielAbstand();
-  if(SND.ctx && SND.an){
-    const laut = an ? clamp(1 - d/210, 0.02, 1) : 0;
-    SND.peil.gain.setTargetAtTime(laut*laut*0.16, SND.ctx.currentTime, 0.25);
-    SND.peilFilter.frequency.setTargetAtTime(500 + (1 - clamp(d/210,0,1))*2600,
-      SND.ctx.currentTime, 0.3);
-  }
-  const el = $('peil');
-  if(an){
-    const w = (Math.atan2(dW(P.x, ZIEL.x), -dW(P.z, ZIEL.z)) * 180/Math.PI + 360) % 360;
-    const namen = ['NORD','NORDOST','OST','SÜDOST','SÜD','SÜDWEST','WEST','NORDWEST'];
-    $('peilRichtung').textContent = namen[Math.round(w/45) % 8] + ' · ' + Math.round(d) + ' m';
-    el.classList.add('an');
-  } else el.classList.remove('an');
-
-  if(d < 2.4 && STAND.phase === 'spiel' && !ZIEL.gefunden){ ZIEL.gefunden = true; gefunden(); }
 }
 
 /* ---------- Abdrücke ----------
@@ -780,13 +716,6 @@ function tonStart(){
   const nf = ac.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value = 110;
   SND.naehe = ac.createGain(); SND.naehe.gain.value = 0;
   n.connect(nf); nf.connect(SND.naehe); SND.naehe.connect(SND.master); n.start();
-
-  /* Das Rauschen aus der Fundstelle — nur zu hören, wenn man steht */
-  const pq = ac.createBufferSource(); pq.buffer = buf; pq.loop = true;
-  SND.peilFilter = ac.createBiquadFilter();
-  SND.peilFilter.type = 'bandpass'; SND.peilFilter.frequency.value = 700; SND.peilFilter.Q.value = 3.5;
-  SND.peil = ac.createGain(); SND.peil.gain.value = 0;
-  pq.connect(SND.peilFilter); SND.peilFilter.connect(SND.peil); SND.peil.connect(SND.master); pq.start();
 
   /* Bandrauschen, wenn das Bild kippt */
   const r = ac.createBufferSource(); r.buffer = buf; r.loop = true;
@@ -943,7 +872,7 @@ postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 /* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
 const STAND = { phase:'menu', t:0, rest:BANDLAENGE, endT:0, tode:0,
-                naechste:999, rufT:9, horcht:0, taeter:null,
+                naechste:999, rufT:9, taeter:null,
                 luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0 };
 let ladeStand = 0;
 
@@ -966,14 +895,6 @@ function bandStr(sek){
 }
 let meldT = 0;
 function melde(txt, sek){ const e=$('toast'); e.textContent=txt; e.classList.add('an'); meldT=sek||3; }
-function peilAnzeigen(){
-  const dx = SIE.x - P.x, dz = SIE.z - P.z;
-  const w = (Math.atan2(dx, -dz) * 180/Math.PI + 360) % 360;
-  const namen = ['NORD','NORDOST','OST','SÜDOST','SÜD','SÜDWEST','WEST','NORDWEST'];
-  $('peilRichtung').textContent = namen[Math.round(w/45) % 8];
-  $('peil').classList.add('an');
-  setTimeout(() => $('peil').classList.remove('an'), 4200);
-}
 let hudAcc = 0;
 function hudSchritt(dt){
   hudAcc += dt;
@@ -995,7 +916,7 @@ function neuStart(){
   P.y = hoeheBei(P.x, P.z); P.gier = Math.random()*Math.PI*2; P.nick = -0.03;
   P.kraft = 1; P.gelaufen = 0;
   STAND.t = 0; STAND.rest = BANDLAENGE; STAND.riss = 0;
-  STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.horcht = 0; STAND.taeter = null;
+  STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.taeter = null;
   for(const g of SIE) scene.remove(g.halter);
   SIE.length = 0;
   ABDRUCK.liste.length = 0; ABDRUCK.netz.count = 0;
@@ -1003,12 +924,19 @@ function neuStart(){
   DURCH.geplant = -1; DURCH.t = 0;
   if(DURCH.netz) DURCH.netz.visible = false;
   durchschlagVorbereiten();
-  gelaufenMarke = 0;
-  neueGestalt(115);
-  zielSetzen();
+  for(let i=0;i<ANZAHL_SIE;i++){
+    const g = neueGestalt(85 + Math.random()*45);
+    if(g){
+      /* gleichmäßig verteilt, damit von Anfang an keine Richtung sicher ist */
+      const w = (i + Math.random()*0.6) / ANZAHL_SIE * Math.PI*2;
+      const d = 85 + Math.random()*45;
+      g.x = modW(P.x + Math.sin(w)*d); g.z = modW(P.z + Math.cos(w)*d);
+      g.y = hoeheBei(g.x, g.z); g.abstand = d;
+    }
+  }
   bodenAnker = { x:1e9, z:1e9 };
   bodenSetzen(P.x, P.z);
-  melde('STEH STILL, DANN HÖRST DU, WO ES HINGEHT.', 5.5);
+  melde('VIER. UND DU HAST NUR EIN PAAR AUGEN.', 5);
 }
 function spielStart(){
   tonStart();
@@ -1026,10 +954,9 @@ function endBild(titel, text){
   $('endTitle').textContent = titel;
   $('endText').textContent = text;
   $('endStats').innerHTML =
-    'BAND ' + zeitStr(BANDLAENGE - STAND.rest) + ' VON ' + zeitStr(BANDLAENGE) +
-    ' &nbsp;·&nbsp; GELAUFEN ' + Math.round(P.gelaufen) + ' m' +
-    '<br>GESTALTEN ' + SIE.length + ' &nbsp;·&nbsp; FUNDSTELLE ' +
-    (ZIEL.gefunden ? 'GEFUNDEN' : Math.round(zielAbstand()) + ' m ENTFERNT');
+    'DURCHGEHALTEN ' + zeitStr(BANDLAENGE - STAND.rest) + ' VON ' + zeitStr(BANDLAENGE) +
+    '<br>GELAUFEN ' + Math.round(P.gelaufen) + ' m &nbsp;·&nbsp; SPRÜNGE ' +
+    SIE.reduce((n,g) => n + g.spruenge, 0);
   zeige(scEnd);
   if(document.pointerLockElement) document.exitPointerLock();
 }
@@ -1044,20 +971,10 @@ function erwischt(g){
   allesLos();
   if(document.pointerLockElement) document.exitPointerLock();
 }
-/* Das Band ist zu Ende, ohne dass du die Stelle gefunden hast. Kein
-   Zugriff, kein Schrei — nur Schluss. Die schlechtere von zwei Arten,
-   hier rauszukommen. */
 function ueberstanden(){
-  if(STAND.phase !== 'spiel') return;
-  STAND.phase = 'leer'; STAND.endT = 0;
-  allesLos();
-}
-function gefunden(){
   if(STAND.phase !== 'spiel') return;
   STAND.phase = 'fertig'; STAND.endT = 0;
   allesLos();
-  knall(1.6, 700, 0.24);
-  if(SND.ctx && SND.an) SND.peil.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.4);
 }
 
 /* ======================= 11  Steuerung ======================= */
@@ -1173,8 +1090,7 @@ function zeichnen(){
     clamp(1 - (STAND.naechste ?? 999)/45, 0, 1), 0.12);
   postMat.uniforms.uEnde.value =
     STAND.phase === 'tot'    ? clamp(STAND.endT*0.7, 0, 1) :
-    STAND.phase === 'fertig' ? clamp((STAND.endT-1.0)*0.9, 0, 1) :
-    STAND.phase === 'leer'   ? clamp((STAND.endT-1.2)*0.8, 0, 1) : 0;
+    STAND.phase === 'fertig' ? clamp((STAND.endT-1.2)*0.8, 0, 1) : 0;
   renderer.setRenderTarget(bildRT);
   renderer.clear();
   renderer.render(scene, camera);
@@ -1201,7 +1117,6 @@ function schritt(dt){
     STAND.rest -= dt;
     spielerSchritt(dt);
     sieSchritt(dt);
-    horchen(dt);
     STAND.riss = Math.max(0, STAND.riss - dt*1.4);
     durchschlagSchritt(dt);
     if(SND.ctx && SND.an){
@@ -1232,16 +1147,9 @@ function schritt(dt){
         'plötzlich näher, und dann war sie hier.');
   } else if(STAND.phase === 'fertig'){
     STAND.endT += dt;
-    if(STAND.endT > 2.2 && scEnd.classList.contains('hidden'))
-      endBild('FUNDSTELLE', 'Ein niedergedrücktes Stück Gras, ausgeblichen, ' +
-        'zwei Meter breit. Genau hier hat die Kamera gelegen. Wer sie abgelegt ' +
-        'hat, ist nicht mehr weggelaufen.');
-  } else if(STAND.phase === 'leer'){
-    STAND.endT += dt;
-    if(STAND.endT > 2.6 && scEnd.classList.contains('hidden'))
-      endBild('BAND ENDE', 'Sechs Minuten Gras. Das Band läuft aus, ohne dass du ' +
-        'die Stelle gefunden hast — und sie stehen immer noch da, genau so weit ' +
-        'weg wie vorhin.');
+    if(STAND.endT > 2.4 && scEnd.classList.contains('hidden'))
+      endBild('BAND ENDE', 'Sechs Minuten, kein Schnitt. Das Bild wird schwarz, ' +
+        'während sie noch dastehen. Keine ist einen Schritt gegangen.');
   }
 }
 function bild(){
@@ -1308,20 +1216,17 @@ window.WI = {
   stand(){ return {
     x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
     phase:STAND.phase, rest:+STAND.rest.toFixed(1), riss:+STAND.riss.toFixed(2),
-    gelaufen:+P.gelaufen.toFixed(1), horcht:+STAND.horcht.toFixed(2),
-    zielAbstand:+zielAbstand().toFixed(1), gefunden:ZIEL.gefunden,
-    anzahl:SIE.length, geladen:sieGeladen,
+    gelaufen:+P.gelaufen.toFixed(1), anzahl:SIE.length, geladen:sieGeladen,
     sie: SIE.map(g => ({ abstand:+g.abstand.toFixed(1), drang:+g.drang.toFixed(2),
                          gesehen:g.gesehen, spruenge:g.spruenge })) }; },
   hoehe:(x,z)=>hoeheBei(x,z),
   welt:WELT,
   setzSie(i,x,z){ const g=SIE[i]; if(!g) return; g.x=modW(x); g.z=modW(z); g.y=hoeheBei(g.x,g.z); },
-  setzZiel(x,z){ ZIEL.x=modW(x); ZIEL.z=modW(z); zielNachfuehren(); },
   blick(g,n){ P.gier=g; if(n!==undefined) P.nick=n; },
   setz(x,z){ P.x=modW(x); P.z=modW(z); P.y=hoeheBei(P.x,P.z); },
   mehr(d){ return neueGestalt(d||100); },
   himmelFarbe: () => '#' + himmelMat.uniforms.uOben.value.getHexString(),
-  P, SIE, STAND, IN, GR, ZIEL, ABDRUCK, DURCH,
+  P, SIE, STAND, IN, GR, ABDRUCK, DURCH,
 };
 
 bild();
