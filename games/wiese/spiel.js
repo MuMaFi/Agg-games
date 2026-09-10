@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as skelettKlon } from 'three/addons/utils/SkeletonUtils.js';
 
 /* ======================================================================
    FOUND TAPE · EBENE 2 — DIE WIESE
@@ -260,7 +261,6 @@ function bodenSetzen(px, pz){
   p.needsUpdate = true; uv.needsUpdate = true;
   bodenGeo.computeVertexNormals();
   boden.position.set(ax, 0, az);
-  if(BUESCHEL.netz) bueschelSetzen(ax, az);
 }
 
 /* Hinter dem Netz eine große Scheibe in Horizontfarbe: damit endet die
@@ -276,105 +276,13 @@ function bodenSetzen(px, pz){
   window.__scheibe = scheibe;
 }
 
-/* ---------- Büschel und Wind ----------
-   Aus der Ferne ist die Wiese eine Fläche, direkt vor den Füßen soll sie
-   aber Halme haben. Ein paar tausend Büschel im Umkreis, die mit dem
-   Netz mitwandern — und eine Böe, die sichtbar über das Feld zieht. */
-function halmTextur(){
-  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
-  const g = c.getContext('2d');
-  g.clearRect(0,0,64,64);
-  for(let i=0;i<7;i++){
-    const x = 6 + Math.random()*52;
-    const h = 26 + Math.random()*34;
-    const neig = (Math.random()-0.5)*16;
-    const gr = g.createLinearGradient(x, 64, x, 64-h);
-    gr.addColorStop(0, '#3c6c1e'); gr.addColorStop(1, '#7cb544');
-    g.strokeStyle = gr; g.lineWidth = 1.6 + Math.random()*1.5; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(x, 64);
-    g.quadraticCurveTo(x + neig*0.4, 64-h*0.6, x + neig, 64-h);
-    g.stroke();
-  }
-  const t = new T.CanvasTexture(c);
-  t.colorSpace = T.SRGBColorSpace;
-  return t;
-}
-const BUESCHEL = { netz: null, n: Q.netz >= 128 ? 4200 : 2200, weite: 34 };
-{
-  /* Drei gekreuzte Blätter je Büschel, Fußpunkt bei y = 0. */
-  const teile = [];
-  for(let k=0;k<3;k++){
-    const q = new T.PlaneGeometry(0.42, 0.46);
-    q.translate(0, 0.23, 0);
-    q.rotateY(k * Math.PI / 3);
-    teile.push(q);
-  }
-  const geo = new T.BufferGeometry();
-  {
-    let n = 0; for(const t of teile) n += t.attributes.position.count;
-    const pos = new Float32Array(n*3), nor = new Float32Array(n*3), uv = new Float32Array(n*2);
-    const idx = [];
-    let o=0, o2=0, base=0;
-    for(const t of teile){
-      pos.set(t.attributes.position.array, o); nor.set(t.attributes.normal.array, o);
-      uv.set(t.attributes.uv.array, o2);
-      for(const i of t.index.array) idx.push(base + i);
-      base += t.attributes.position.count; o += t.attributes.position.array.length;
-      o2 += t.attributes.uv.array.length;
-      t.dispose();
-    }
-    geo.setAttribute('position', new T.BufferAttribute(pos,3));
-    geo.setAttribute('normal', new T.BufferAttribute(nor,3));
-    geo.setAttribute('uv', new T.BufferAttribute(uv,2));
-    geo.setIndex(idx);
-  }
-  const mat = new T.MeshStandardMaterial({
-    map: halmTextur(), transparent: false, alphaTest: 0.42, side: T.DoubleSide,
-    roughness: 0.95, metalness: 0.0,
-  });
-  mat.onBeforeCompile = sh => {
-    sh.uniforms.uWind = WIND;
-    sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-       vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-       float wieg = sin(uWind*1.7 + ip.x*0.35 + ip.z*0.27)*0.5
-                  + sin(uWind*3.1 + ip.x*0.91 - ip.z*0.13)*0.22;
-       /* Eine Böe, die als Streifen über das Feld wandert */
-       float boe = smoothstep(0.25, 1.0, sin(uWind*0.42 - ip.x*0.045 - ip.z*0.033));
-       transformed.x += wieg * (0.16 + boe*0.34) * transformed.y;
-       transformed.z += wieg * (0.09 + boe*0.20) * transformed.y;`);
-  };
-  mat.customProgramCacheKey = () => 'wiWind';
-  BUESCHEL.netz = new T.InstancedMesh(geo, mat, BUESCHEL.n);
-  BUESCHEL.netz.frustumCulled = false;
-  BUESCHEL.netz.castShadow = false;
-  BUESCHEL.netz.receiveShadow = Q.schatten;
-  scene.add(BUESCHEL.netz);
-}
-const WIND = { value: 0 };
-const _bm = new T.Matrix4(), _bp = new T.Vector3(), _bq = new T.Quaternion(), _bs = new T.Vector3();
-function bueschelSetzen(ax, az){
-  const n = BUESCHEL.n, w = BUESCHEL.weite;
-  /* Feste, gestreute Muster relativ zum Anker: dadurch springt beim
-     Nachrücken nichts sichtbar herum. */
-  for(let i=0;i<n;i++){
-    const r = Math.sqrt(mische(i, 17)) * w;
-    const a = mische(i, 91) * Math.PI * 2;
-    const x = ax + Math.cos(a)*r, z = az + Math.sin(a)*r;
-    const y = hoeheBei(x, z);
-    /* Nach außen hin flacher auslaufen lassen — sonst steht das Feld
-       der Büschel als sichtbarer Ring um den Spieler. */
-    const rand = 1 - Math.pow(clamp(r/w, 0, 1), 2.2);
-    const gr = (0.55 + mische(i, 53)*0.62) * (0.25 + 0.75*rand);
-    _bp.set(x, y, z);
-    _bq.setFromAxisAngle(new T.Vector3(0,1,0), mische(i, 7)*6.283);
-    _bs.set(gr, gr*(0.8 + mische(i,29)*0.6), gr);
-    _bm.compose(_bp, _bq, _bs);
-    BUESCHEL.netz.setMatrixAt(i, _bm);
-  }
-  BUESCHEL.netz.instanceMatrix.needsUpdate = true;
-}
+/* ---------- Wind ----------
+   Es wachsen keine Halme. Eine Wiese mit ordentlichen Büscheln sieht aus
+   wie eine Wiese; diese hier soll aussehen wie das Bild einer Wiese —
+   gleichmäßig, sauber, falsch. Der Wind ist deshalb nur noch zu hören.
+   Das macht ihn als Vorzeichen sogar deutlicher: kurz vor einem Sprung
+   bricht er ab, und dann ist es vollkommen still. */
+const WIND = { value: 0, letzt: 0 };
 
 /* ======================= 4  Licht ======================= */
 /* Ein Tag ohne Sonne. Das Licht kommt von überall, wirft kaum Schatten
@@ -542,7 +450,11 @@ new GLTFLoader().load('./modelle/sirene.glb', gltf => {
 
 function neueGestalt(abstand){
   if(!sieVorlage) return null;
-  const wurzel = sieVorlage.wurzel.clone(true);
+  /* Object3D.clone() kopiert bei einem gerigten Modell das Skelett nicht
+     mit: die Kopien hängen dann am Skelett des Originals und werden
+     irgendwo hin verrechnet — sichtbar war davon nichts. SkeletonUtils
+     baut Knochen und Bindung richtig nach. */
+  const wurzel = skelettKlon(sieVorlage.wurzel);
   const halter = new T.Group(); halter.add(wurzel);
   scene.add(halter);
   let mixer = null, klipp = null;
@@ -573,7 +485,10 @@ function wirdGesehen(g){
   const kopf = hoeheBei(g.x, g.z) + HOEHE_SIE*0.72;
   _ndc.set(px, kopf, pz).project(camera);
   if(_ndc.z > 1 || Math.abs(_ndc.x) > 0.92 || Math.abs(_ndc.y) > 0.95) return false;
-  if(g.abstand > 175) return false;
+  /* Weiter als das trägt der Dunst nicht — und was man nicht sieht,
+     kann man auch nicht festhalten. Die Regel muss zu dem passen, was
+     im Bild ist, sonst hält man Gestalten fest, die gar nicht da sind. */
+  if(g.abstand > 140) return false;
   if(DURCH.t > 0) return false;
   const ax = camera.position.x, ay = camera.position.y, az = camera.position.z;
   const n = Math.min(42, Math.max(8, Math.round(g.abstand/4)));
@@ -740,7 +655,7 @@ function abdruckNachfuehren(){
 const DURCH = { netz:null, t:0, geplant:-1 };
 function durchschlagVorbereiten(){
   if(DURCH.netz || !sieVorlage) return;
-  const g = sieVorlage.wurzel.clone(true);
+  const g = skelettKlon(sieVorlage.wurzel);
   g.traverse(o => { if(o.isMesh){ o.castShadow = false; o.frustumCulled = false; } });
   DURCH.netz = new T.Group(); DURCH.netz.add(g);
   DURCH.netz.visible = false;
@@ -1015,11 +930,12 @@ function neuStart(){
   durchschlagVorbereiten();
   mastSetzen();
   for(let i=0;i<ANZAHL_SIE;i++){
-    const g = neueGestalt(85 + Math.random()*45);
+    const g = neueGestalt(60 + Math.random()*45);
     if(g){
-      /* gleichmäßig verteilt, damit von Anfang an keine Richtung sicher ist */
+      /* gleichmäßig verteilt, damit von Anfang an keine Richtung sicher ist —
+         und nah genug, dass man sie im Dunst auch findet. */
       const w = (i + Math.random()*0.6) / ANZAHL_SIE * Math.PI*2;
-      const d = 85 + Math.random()*45;
+      const d = 60 + Math.random()*45;
       g.x = modW(P.x + Math.sin(w)*d); g.z = modW(P.z + Math.cos(w)*d);
       g.y = hoeheBei(g.x, g.z); g.abstand = d;
     }
@@ -1219,7 +1135,11 @@ function schritt(dt){
       const nah = clamp(1 - (STAND.naechste ?? 999)/75, 0, 1);
       SND.naehe.gain.setTargetAtTime(Math.pow(nah, 1.4)*0.34, SND.ctx.currentTime, 0.3);
       SND.stoer.gain.setTargetAtTime(STAND.riss*0.16, SND.ctx.currentTime, 0.12);
-      SND.wind.gain.setTargetAtTime(0.05 + P.tempo*0.012, SND.ctx.currentTime, 0.4);
+      /* Genau hier liegt die einzige Vorwarnung: bricht der Wind ab,
+         setzt gleich eine zum Sprung an. */
+      const ruhe = 1 - clamp(STAND.windStill, 0, 1);
+      SND.wind.gain.setTargetAtTime((0.05 + P.tempo*0.012) * ruhe,
+        SND.ctx.currentTime, STAND.windStill > 0.3 ? 0.12 : 0.4);
     }
     hudSchritt(dt);
   } else if(STAND.phase === 'tot'){
