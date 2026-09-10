@@ -38,19 +38,8 @@ canvas{display:block; width:100%; height:100%; touch-action:none}
 #anzahl{display:inline-block; margin-top:3px; font-size:10px; letter-spacing:.16em; color:#e0a63c}
 #band.knapp b{color:var(--warn)}
 
-/* Störung: steigt, solange man sie ansieht */
-#stoer{position:absolute; left:50%; transform:translateX(-50%);
-  bottom:calc(150px + env(safe-area-inset-bottom,0px)); width:min(62vw,300px); opacity:0;
-  transition:opacity .3s}
-#stoer.an{opacity:1}
-#stoerBar{height:8px; border:1px solid #ffffff30; border-radius:5px; overflow:hidden; background:#0009}
-#stoerFuell{height:100%; width:0; background:linear-gradient(90deg,#8fc46a,#e0a63c); transition:width .12s linear}
-#stoer.voll #stoerFuell{background:linear-gradient(90deg,#e0a63c,var(--rot))}
-#stoer small{display:block; text-align:center; font-size:9px; letter-spacing:.22em;
-  color:var(--dim); margin-top:4px}
-
 #toast{position:absolute; left:50%; transform:translateX(-50%);
-  bottom:calc(196px + env(safe-area-inset-bottom,0px)); max-width:min(84vw,520px);
+  bottom:calc(150px + env(safe-area-inset-bottom,0px)); max-width:min(84vw,520px);
   text-align:center; font-size:12px; line-height:1.55; letter-spacing:.05em;
   background:#0b120c99; border:1px solid #ffffff1f; border-radius:7px; padding:7px 13px;
   opacity:0; transition:opacity .3s}
@@ -126,10 +115,6 @@ canvas{display:block; width:100%; height:100%; touch-action:none}
   <div id="band"><b id="restZeit">06:00</b>BAND LÄUFT AUS<br><span id="anzahl">1 GESTALT</span></div>
   <div id="peil">SIGNAL AUS RICHTUNG <span id="peilRichtung">—</span></div>
   <div id="fadenkreuz"></div>
-  <div id="stoer">
-    <div id="stoerBar"><div id="stoerFuell"></div></div>
-    <small>BILDSTÖRUNG</small>
-  </div>
   <div id="toast"></div>
 </div>
 
@@ -174,10 +159,8 @@ canvas{display:block; width:100%; height:100%; touch-action:none}
 
 <div class="screen hidden" id="scBrief">
   <h1><small>AUFTRAG</small>BIS DAS BAND ENDET</h1>
-  <div class="zeile"><b>01</b><span>Sie gehen nicht. Sie stehen. Aber wenn du wegsiehst, stehen sie plötzlich näher — ohne dass ein Schritt zu sehen war.</span></div>
-  <div class="zeile"><b>02</b><span>Hinsehen hält sie auf und kostet Band. Ist die Störung voll, siehst du ein paar Sekunden gar nichts.</span></div>
-  <div class="zeile"><b>03</b><span>Weglaufen hilft nicht: die Wiese ist rund, und jeder gelaufene Meter stellt noch eine auf den Horizont.</span></div>
-  <div class="zeile"><b>04</b><span>Irgendwo liegt die Fundstelle. Hörbar ist sie nur, wenn du stehen bleibst. Finde sie, bevor das Band ausläuft.</span></div>
+  <div class="zeile"><b>01</b><span>Sieh sie an, dann stehen sie still. Sieh weg, und sie sind plötzlich näher.</span></div>
+  <div class="zeile"><b>02</b><span>Steh still, dann hörst du, wo die Fundstelle liegt. Geh hin, bevor das Band ausläuft.</span></div>
   <p class="hint" style="margin-top:10px">TIPPEN ZUM STARTEN</p>
 </div>
 

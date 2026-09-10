@@ -24,12 +24,13 @@ let qKey = localStorage.getItem('wi_q') || (IS_TOUCH ? 'low' : 'high');
 if(!QUAL[qKey]) qKey = 'mid';
 const Q = QUAL[qKey];
 
-/* 'drang' ist, wie schnell eine unbeobachtete Gestalt zum Sprung
-   ansetzt — der Kern des Spiels. 'stoer', wie teuer das Hinsehen ist. */
+/* Es gibt genau eine Stellschraube: wie schnell eine unbeobachtete
+   Gestalt zum Sprung ansetzt. Alles andere ist Stimmung, nichts, was
+   der Spieler verwalten muss. */
 const GRADE = {
-  fern:   { drang:0.105, stoer:0.075, ruf:26, name:'Fern' },
-  normal: { drang:0.155, stoer:0.115, ruf:20, name:'Normal' },
-  nah:    { drang:0.225, stoer:0.165, ruf:15, name:'Nah' },
+  fern:   { drang:0.100, ruf:26, name:'Fern' },
+  normal: { drang:0.150, ruf:20, name:'Normal' },
+  nah:    { drang:0.215, ruf:15, name:'Nah' },
 };
 let gKey = localStorage.getItem('wi_diff') || 'normal';
 if(!GRADE[gKey]) gKey = 'normal';
@@ -544,7 +545,7 @@ function wirdGesehen(g){
   _ndc.set(px, kopf, pz).project(camera);
   if(_ndc.z > 1 || Math.abs(_ndc.x) > 0.92 || Math.abs(_ndc.y) > 0.95) return false;
   if(g.abstand > 175) return false;
-  if(STAND.stoerung > 0.995 || STAND.blind > 0) return false;
+  if(DURCH.t > 0) return false;
   const ax = camera.position.x, ay = camera.position.y, az = camera.position.z;
   const n = Math.min(42, Math.max(8, Math.round(g.abstand/4)));
   for(let i=1;i<n;i++){
@@ -576,10 +577,9 @@ function sieSchritt(dt){
     g.gesehen = gesehen;
     if(gesehen){
       irgendGesehen = true;
-      /* Hinsehen hält sie — und frisst Band. */
+      /* Hinsehen hält sie. Mehr passiert nicht — es kostet nichts außer
+         der Richtung, in die du gerade nicht schaust. */
       g.drang = Math.max(0, g.drang - dt*0.85);
-      const nah = clamp(1 - g.abstand/130, 0, 1);
-      STAND.stoerung = clamp(STAND.stoerung + GR.stoer*(0.30 + nah*1.25)*dt, 0, 1);
     } else {
       /* Unbeobachtet wächst der Drang. Nah dran wächst er schneller. */
       const nah = clamp(1 - g.abstand/120, 0, 1);
@@ -602,6 +602,9 @@ function sieSchritt(dt){
         g.z = modW(P.z - dz/l*neuD);
         g.abstand = neuD;
         sprungTon(clamp(1 - neuD/90, 0.15, 1));
+        /* Das Band verschluckt sich im Moment des Sprungs. */
+        STAND.riss = 0.55;
+        if(neuD < 18 && Math.random() < 0.35) durchschlagAusloesen();
         if(neuD <= 3.2 && STAND.phase === 'spiel'){ erwischt(g); return; }
       }
     }
@@ -616,7 +619,6 @@ function sieSchritt(dt){
     if(g.mixer) g.mixer.update(0);
   }
   abdruckNachfuehren();
-  if(!irgendGesehen) STAND.stoerung = clamp(STAND.stoerung - 0.095*dt, 0, 1);
   STAND.naechste = naechste;
 
   /* Ein Atem, der nicht der eigene ist. Nur wenn eine nah steht und man
@@ -940,9 +942,9 @@ postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 
 /* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
-const STAND = { phase:'menu', t:0, rest:BANDLAENGE, stoerung:0, blind:0, endT:0, tode:0,
+const STAND = { phase:'menu', t:0, rest:BANDLAENGE, endT:0, tode:0,
                 naechste:999, rufT:9, horcht:0, taeter:null,
-                luftAn:0, atemT:5, windStill:0, himmelKrank:0 };
+                luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0 };
 let ladeStand = 0;
 
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
@@ -985,10 +987,6 @@ function hudSchritt(dt){
   const luegt = Math.random() < 0.035 && SIE.length > 0;
   const n = SIE.length + (luegt ? 1 : 0);
   $('anzahl').textContent = n + (n === 1 ? ' GESTALT' : ' GESTALTEN');
-  const st = $('stoer');
-  st.classList.toggle('an', STAND.stoerung > 0.02);
-  st.classList.toggle('voll', STAND.stoerung > 0.7);
-  $('stoerFuell').style.width = (STAND.stoerung*100).toFixed(0) + '%';
   if(meldT > 0){ meldT -= dt; if(meldT <= 0) $('toast').classList.remove('an'); }
 }
 
@@ -996,7 +994,7 @@ function neuStart(){
   P.x = modW(Math.random()*WELT); P.z = modW(Math.random()*WELT);
   P.y = hoeheBei(P.x, P.z); P.gier = Math.random()*Math.PI*2; P.nick = -0.03;
   P.kraft = 1; P.gelaufen = 0;
-  STAND.t = 0; STAND.rest = BANDLAENGE; STAND.stoerung = 0; STAND.blind = 0;
+  STAND.t = 0; STAND.rest = BANDLAENGE; STAND.riss = 0;
   STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.horcht = 0; STAND.taeter = null;
   for(const g of SIE) scene.remove(g.halter);
   SIE.length = 0;
@@ -1010,7 +1008,7 @@ function neuStart(){
   zielSetzen();
   bodenAnker = { x:1e9, z:1e9 };
   bodenSetzen(P.x, P.z);
-  melde('STEH STILL UND HORCH. LAUFEN MACHT SIE MEHR.', 5.5);
+  melde('STEH STILL, DANN HÖRST DU, WO ES HINGEHT.', 5.5);
 }
 function spielStart(){
   tonStart();
@@ -1168,10 +1166,9 @@ function zeichnen(){
   scene.fog.color.copy(HORIZONT).lerp(FALSCH_UNTEN, krank*0.7);
   scene.fog.density = 0.0112 + krank*0.006;
   postMat.uniforms.uZeit.value = ZEIT.t;
-  /* Während des Durchschlags reißt das Rauschen kurz auf. */
-  const durch = DURCH.t > 0;
-  postMat.uniforms.uStoer.value = durch ? 0.30
-    : Math.max(STAND.stoerung, STAND.blind > 0 ? 1 : 0);
+  /* Kein Balken, keine Verwaltung: das Bild reagiert nur auf das, was
+     gerade passiert. */
+  postMat.uniforms.uStoer.value = DURCH.t > 0 ? 0.30 : clamp(STAND.riss, 0, 1);
   postMat.uniforms.uNah.value = lerp(postMat.uniforms.uNah.value,
     clamp(1 - (STAND.naechste ?? 999)/45, 0, 1), 0.12);
   postMat.uniforms.uEnde.value =
@@ -1205,26 +1202,12 @@ function schritt(dt){
     spielerSchritt(dt);
     sieSchritt(dt);
     horchen(dt);
-    /* Bei voller Störung sieht man ein paar Sekunden gar nichts — und sie
-       läuft weiter. Das ist der Preis fürs Hinsehen. */
-    if(STAND.blind > 0){
-      STAND.blind -= dt;
-      if(STAND.blind <= 0) STAND.stoerung = 0.34;
-    } else if(STAND.stoerung >= 1){
-      STAND.blind = 2.6;
-      DURCH.geplant = 1.5;                 // irgendwo mitten im Rauschen
-      melde('DAS BAND KIPPT.', 3);
-      knall(1.2, 6000, 0.3, 'highpass');
-    }
-    if(DURCH.geplant > 0){
-      DURCH.geplant -= dt;
-      if(DURCH.geplant <= 0) durchschlagAusloesen();
-    }
+    STAND.riss = Math.max(0, STAND.riss - dt*1.4);
     durchschlagSchritt(dt);
     if(SND.ctx && SND.an){
       const nah = clamp(1 - (STAND.naechste ?? 999)/70, 0, 1);
       SND.naehe.gain.setTargetAtTime(nah*nah*0.30, SND.ctx.currentTime, 0.3);
-      SND.stoer.gain.setTargetAtTime(STAND.stoerung*0.13, SND.ctx.currentTime, 0.2);
+      SND.stoer.gain.setTargetAtTime(STAND.riss*0.16, SND.ctx.currentTime, 0.12);
       SND.wind.gain.setTargetAtTime(0.05 + P.tempo*0.012, SND.ctx.currentTime, 0.4);
     }
     hudSchritt(dt);
@@ -1277,9 +1260,9 @@ camera.rotation.set(-0.02, 0.6, 0, 'YXZ');
 himmel.position.set(0,0,0);
 
 const DIFFTEXT = {
-  fern:   'Fern — unbeobachtet lässt sie sich rund zehn Sekunden Zeit bis zum Sprung, und Hinsehen kostet wenig Band.',
-  normal: 'Normal — unbeobachtet setzt sie in etwa sieben Sekunden zum Sprung an, und der Blick auf sie frisst das Band in mittlerem Tempo.',
-  nah:    'Nah — keine fünf Sekunden bis zum Sprung, sie ruft öfter, und Hinsehen frisst das Band in Sekunden.',
+  fern:   'Fern — unbeobachtet lässt sie sich rund zehn Sekunden Zeit bis zum Sprung.',
+  normal: 'Normal — unbeobachtet setzt sie nach etwa sieben Sekunden zum Sprung an.',
+  nah:    'Nah — keine fünf Sekunden. Sie ruft öfter, und du kommst kaum zum Horchen.',
 };
 document.querySelectorAll('.chip[data-diff]').forEach(el => {
   el.classList.toggle('sel', el.dataset.diff === gKey);
@@ -1324,7 +1307,7 @@ for(const id of ['bRaus','bRaus2'])
 window.WI = {
   stand(){ return {
     x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
-    phase:STAND.phase, rest:+STAND.rest.toFixed(1), stoer:+STAND.stoerung.toFixed(3),
+    phase:STAND.phase, rest:+STAND.rest.toFixed(1), riss:+STAND.riss.toFixed(2),
     gelaufen:+P.gelaufen.toFixed(1), horcht:+STAND.horcht.toFixed(2),
     zielAbstand:+zielAbstand().toFixed(1), gefunden:ZIEL.gefunden,
     anzahl:SIE.length, geladen:sieGeladen,
