@@ -15,8 +15,8 @@ import * as T from 'three';
 /* ======================= 1  Rahmen ======================= */
 
 const QUAL = {
-  low:  { spiegel:0,    brechung:0, kaustik:0, schatten:false, wellen:2, sicht:0.62 },
-  mid:  { spiegel:0.40, brechung:0, kaustik:1, schatten:true,  wellen:3, sicht:0.85 },
+  low:  { spiegel:0,    brechung:0, kaustik:1, schatten:false, wellen:2, sicht:0.80 },
+  mid:  { spiegel:0.40, brechung:0, kaustik:1, schatten:true,  wellen:3, sicht:0.92 },
   high: { spiegel:0.62, brechung:0.6, kaustik:1, schatten:true, wellen:4, sicht:1.0 },
 };
 const IS_TOUCH = matchMedia('(hover: none)').matches || 'ontouchstart' in window;
@@ -40,19 +40,21 @@ const smoothstep = (a,b,x) => { const t = clamp((x-a)/(b-a),0,1); return t*t*(3-
 
 const canvas = $('c');
 const renderer = new T.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance' });
-renderer.setClearColor(0x6f9a96, 1);
+renderer.setClearColor(0x172a2e, 1);
 renderer.outputColorSpace = T.SRGBColorSpace;
-renderer.toneMapping = T.ACESFilmicToneMapping;   // fängt die Spitzen, sonst läuft alles ins Weiße
-renderer.toneMappingExposure = 0.46;
+/* Neutral statt ACES: ACES zieht helle Flächen ins Orange, und in einem
+   Haus aus weißen Kacheln sieht man diesen Gelbstich sofort. */
+renderer.toneMapping = T.NeutralToneMapping;
+renderer.toneMappingExposure = 0.62;
 renderer.shadowMap.enabled = Q.schatten;
 renderer.shadowMap.type = T.PCFSoftShadowMap;
 
 const scene  = new T.Scene();
 const camera = new T.PerspectiveCamera(72, 16/9, 0.05, 260);
 
-const LUFT_NEBEL   = new T.Color(0x6f9a96);
-const WASSER_NEBEL = new T.Color(0x136e74);
-scene.fog = new T.FogExp2(LUFT_NEBEL.getHex(), 0.0088);
+const LUFT_NEBEL   = new T.Color(0x172a2e);
+const WASSER_NEBEL = new T.Color(0x0b383e);
+scene.fog = new T.FogExp2(LUFT_NEBEL.getHex(), 0.019);
 
 /* ======================= 2  Der Bau ======================= */
 /* Ein Hallenbad aus Rundformen: eine Rotunde mit einer Schale aus Stufen,
@@ -414,7 +416,7 @@ function nass(mat){
                                 clamp(prT*0.20, 0.0, 0.80));
          if(uKaustik > 0.5){
            float k = prKaustik(vPrW.xz + vec2(vPrW.y*0.12), uZeit);
-           diffuseColor.rgb += vec3(0.34,0.48,0.45) * k * exp(-prT*0.20) * 0.40;
+           diffuseColor.rgb += vec3(0.34,0.48,0.45) * k * exp(-prT*0.20) * 0.16;
          }
        }`);
   };
@@ -778,7 +780,7 @@ for(const z of [8.9, 10.6, 12.3, 14.0]){
 }
 
 /* ---------- Leuchtdecken: die Quelle des Lichts ist die Decke selbst ---------- */
-const leuchtMat = new T.MeshBasicMaterial({ color:0xb0c8c4 });
+const leuchtMat = new T.MeshBasicMaterial({ color:0x24322f });   // die Leuchtdecken sind tot
 function leuchtScheibe(cx,cz,r,y){
   const m = new T.Mesh(new T.CircleGeometry(r, 48), leuchtMat);
   m.rotation.x = Math.PI/2; m.position.set(cx, y, cz); welt.add(m);
@@ -952,26 +954,32 @@ for(const k in sammlung){
 }
 
 /* ---------- Licht: hell, quellenlos, ohne einen dunklen Winkel ---------- */
-scene.add(new T.HemisphereLight(0xd2e4e0, 0x6e8a86, 0.50));
-scene.add(new T.AmbientLight(0x94b0ad, 0.10));
+/* Der Boden dieses Hauses ist weiße Kachel — von unten kommt fast so viel
+   Licht zurück wie von oben. Mit einem dunklen Bodenton wurde jede nach
+   unten gerichtete Fläche schwarz: Decken, Stürze, die Unterseiten der
+   Bögen. */
+/* Der Strom in diesem Haus ist längst weg. Was übrig bleibt, ist ein
+   Rest Streulicht — und das, was du selbst mitbringst. */
+scene.add(new T.HemisphereLight(0x63807e, 0x2c3c3c, 0.16));
+scene.add(new T.AmbientLight(0x516a6a, 0.055));
 function lampe(x,y,z, farbe, staerke, weite){
   const l = new T.PointLight(farbe, staerke, weite, 1.4);
   l.position.set(x,y,z); scene.add(l);
   return l;
 }
-lampe(12.0, 6.6, 11.0, 0xf2fbfa, 62, 26);
+lampe(12.0, 6.6, 11.0, 0xdcefff, 16, 20);
 /* Die Lampen hängen weit oben unter der Decke. Tief gesetzt brennen sie
    die nächste Fläche weiß aus — das sah aus wie ein Loch in der Wand. */
-lampe(34.0, 9.4, 25.0, 0xf2fbfa, 88, 46);
-lampe(29.0, 8.6, 21.0, 0xeef8f7, 34, 30);
-lampe(29.0, 8.6, 29.0, 0xeef8f7, 34, 30);
-lampe(39.5, 8.6, 25.0, 0xeef8f7, 34, 30);
-lampe(34.8, 5.4, 11.0, 0xf0faf8, 46, 22);
-lampe(12.0, 6.0, 30.0, 0xf0faf8, 52, 22);
-lampe(25.0, 4.0, 11.0, 0xf0faf8,  18, 12);
-lampe(1.30, 1.90, 29.4, 0xffd79c,  10, 8);
+lampe(34.0, 9.4, 25.0, 0xdcefff, 26, 34);
+lampe(29.0, 8.6, 21.0, 0xdcefff, 9, 20);
+lampe(29.0, 8.6, 29.0, 0xdcefff, 9, 20);
+lampe(39.5, 8.6, 25.0, 0xdcefff, 9, 20);
+lampe(34.8, 5.4, 11.0, 0xdcefff, 12, 18);
+lampe(12.0, 6.0, 30.0, 0xdcefff, 13, 18);
+lampe(25.0, 4.0, 11.0, 0xdcefff,  6, 10);
+lampe(1.30, 1.90, 29.4, 0xffc98a,  5, 7);
 if(Q.schatten){
-  const s = new T.DirectionalLight(0xeef8f6, 0.26);
+  const s = new T.DirectionalLight(0xbcd2d6, 0.07);
   s.position.set(20, 26, 6); s.target.position.set(26, 0, 22);
   s.castShadow = true;
   s.shadow.mapSize.set(1024,1024);
@@ -1060,11 +1068,14 @@ function wasserMaterial(spiegelTex){
       uSpiegelM: { value: new T.Matrix4() },
       uRippel:   { value: rippel },
       uLagen:    { value: Q.wellen },
-      uTief:     { value: new T.Color(0x0d6a76) },
-      uFlach:    { value: new T.Color(0x6ed6cd) },
-      uHimmel:   { value: new T.Color(0xcfe6e1) },
+      uTief:     { value: new T.Color(0x073c44) },
+      uFlach:    { value: new T.Color(0x2e8f8a) },
+      uHimmel:   { value: new T.Color(0x2e4448) },
       uAusschnitt:{ value: new T.Vector4(0,0,-1,-1) },   // dieser Kasten wird ausgelassen
       uDeckel:   { value: 40.0 },
+      uBlick:    { value: new T.Vector3(0,0,-1) },
+      uLampe:    { value: 1 },
+      uKegel:    { value: 0.50 },
     },
     vertexShader: `
       uniform float uZeit, uWasser; uniform int uLagen;
@@ -1089,8 +1100,8 @@ function wasserMaterial(spiegelTex){
       uniform float uZeit, uWasser, uDeckel; uniform int uLagen;
       uniform sampler2D uHoehe, uSpiegel;
       uniform vec4 uKarte, uAusschnitt;
-      uniform vec3 uKamera, uTief, uFlach, uHimmel;
-      uniform float uSpiegelAn;
+      uniform vec3 uKamera, uTief, uFlach, uHimmel, uBlick;
+      uniform float uSpiegelAn, uLampe, uKegel;
       uniform vec3 uRippel[${RIPPEL_N}];
       varying vec3 vW; varying vec4 vSp; varying vec2 vGrad;
       ${WELLE_GLSL}
@@ -1139,6 +1150,21 @@ function wasserMaterial(spiegelTex){
           alpha = mix(0.97, 0.30, w);
           float glitzer = pow(max(0.0, 1.0 - length(g2)*3.0), 6.0) * w;
           farbe += vec3(0.20,0.30,0.30) * glitzer;
+        }
+        /* Der Kegel der Handlampe auf der Oberfläche: ein weiches Feld
+           und ein harter Glanzpunkt darin. Ohne den ist Wasser im Dunkeln
+           ein schwarzes Loch. */
+        if(uLampe > 0.01){
+          vec3 zum = vW - uKamera;
+          float dd = length(zum);
+          vec3 dir = zum / max(dd, 0.001);
+          float wink = acos(clamp(dot(dir, uBlick), -1.0, 1.0));
+          float kegel = 1.0 - smoothstep(uKegel*0.35, uKegel, wink);
+          float abfall = 1.0 / (1.0 + dd*dd*0.055);
+          float glanz = pow(max(dot(reflect(dir, N), -dir), 0.0), 60.0);
+          farbe += uLampe * kegel * abfall *
+                   (vec3(0.30,0.44,0.46)*0.55 + vec3(1.0,0.99,0.95)*glanz*2.2);
+          alpha = min(1.0, alpha + uLampe*kegel*abfall*0.25);
         }
         /* Schaumsaum, wo das Wasser die Kacheln trifft */
         float wellenSaum = saum * (0.55 + 0.45*sin(tiefe*26.0 - uZeit*2.4 + vGrad.x*10.0));
@@ -1198,56 +1224,130 @@ const postMat = new T.ShaderMaterial({
     uLuft:   { value: 1 },     // 1 = voll
     uNah:    { value: 0 },     // Gefahr
     uSpul:   { value: 0 },     // Bandrücklauf beim Tod
+    uVhs:    { value: 0.42 },  // dieselben Werte wie in Ebene 0
+    uLens:   { value: 0.34 },
     uPixel:  { value: new T.Vector2(1,1) },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
   fragmentShader: `
     precision highp float;
-    uniform sampler2D uBild; uniform float uZeit, uNass, uLuft, uNah, uSpul;
+    uniform sampler2D uBild;
+    uniform float uZeit, uNass, uLuft, uNah, uSpul, uVhs, uLens;
     uniform vec2 uPixel;
     varying vec2 vUv;
-    float lrm(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
+    float lrm(vec2 c){ return fract(sin(dot(c, vec2(12.9898,78.233))) * 43758.5453); }
+    vec3 hi(vec2 p){ return max(texture2D(uBild, clamp(p,0.002,0.998)).rgb - 0.80, 0.0); }
+    vec3 bloom(vec2 p){
+      vec2 r = vec2(0.008,0.011);
+      vec3 s = hi(p+vec2(r.x,0.))+hi(p-vec2(r.x,0.))+hi(p+vec2(0.,r.y))+hi(p-vec2(0.,r.y))
+            + hi(p+r*0.7)+hi(p-r*0.7)+hi(p+vec2(r.x,-r.y)*0.7)+hi(p+vec2(-r.x,r.y)*0.7);
+      vec2 w = r*2.8;
+      s += hi(p+vec2(w.x,0.))+hi(p-vec2(w.x,0.))+hi(p+vec2(0.,w.y))+hi(p-vec2(0.,w.y));
+      return s/12.0;
+    }
     void main(){
+      float V = uVhs;
       vec2 uv = vUv;
+      /* Linse: dieselbe Tonne wie in Ebene 0 */
+      vec2 cc = uv - 0.5;
+      float r2 = dot(cc,cc);
+      uv = 0.5 + cc*(1.0 + uLens*r2)/(1.0 + uLens*0.22);
       /* Unter Wasser schiebt sich das Bild in langsamen Wellen */
       if(uNass > 0.001){
         uv.x += sin(uv.y*11.0 + uZeit*1.7) * 0.0045 * uNass;
         uv.y += sin(uv.x*13.0 - uZeit*1.3) * 0.0035 * uNass;
       }
-      /* Bandrücklauf: gestauchte Zeilen, harter Versatz */
-      if(uSpul > 0.001){
-        float band = step(0.5, fract(uv.y*7.0 - uZeit*6.0));
-        uv.x += (lrm(vec2(floor(uv.y*90.0), floor(uZeit*40.0))) - 0.5) * 0.09 * uSpul * band;
+      /* Kopfspur, Bandlauf, Blockversatz */
+      uv.x += sin(uv.y*88.0 + uZeit*2.4)*0.0011*V*(1.0 + uSpul*3.0);
+      float bandPos = fract(uZeit*0.10);
+      float band = smoothstep(0.045, 0.0, abs(uv.y-bandPos))*V;
+      uv.x += band*(lrm(vec2(uv.y, floor(uZeit*30.0)))-0.5)*0.028*(0.3 + uSpul*1.4);
+      float row = floor(uv.y*48.0);
+      float blk = step(0.995 - uSpul*0.30, lrm(vec2(row, floor(uZeit*14.0))));
+      uv.x += blk*(lrm(vec2(row,uZeit))-0.5)*0.15*(0.06 + uSpul)*(0.35 + V);
+      uv = clamp(uv, 0.002, 0.998);
+      float ca = (0.0010 + uSpul*0.006 + band*0.002 + uNass*0.0015)*(0.4 + V*0.6);
+      vec3 col;
+      col.r = texture2D(uBild, uv + vec2(ca,0.0)).r;
+      col.g = texture2D(uBild, uv).g;
+      col.b = texture2D(uBild, uv - vec2(ca,0.0)).b;
+      col += bloom(uv) * vec3(1.0,0.98,0.94) * 1.0;
+      float lum = dot(col, vec3(0.299,0.587,0.114));
+      col = mix(col, vec3(lum), 0.10*V);
+      if(uNass > 0.001) col = mix(col, col * vec3(0.55,1.06,1.02) + vec3(0.0,0.03,0.04), uNass*0.85);
+      if(uNah > 0.001){
+        float grau = dot(col, vec3(0.33));
+        col = mix(col, vec3(grau)*vec3(1.10,0.86,0.84), uNah*0.34);
       }
-      float ver = (0.0013 + 0.0026*uNass + 0.004*uSpul);
-      vec3 c;
-      c.r = texture2D(uBild, uv + vec2( ver, 0.0)).r;
-      c.g = texture2D(uBild, uv).g;
-      c.b = texture2D(uBild, uv - vec2( ver, 0.0)).b;
-      if(uNass > 0.001) c = mix(c, c * vec3(0.55, 1.06, 1.02) + vec3(0.0,0.03,0.04), uNass*0.85);
-      /* Zeilen und Korn */
-      float zeile = 0.94 + 0.06*sin(uv.y * uPixel.y * 3.14159);
-      c *= zeile;
-      c += (lrm(uv*uPixel + fract(uZeit)*97.0) - 0.5) * (0.036 + 0.10*uSpul);
-      /* Rand */
-      vec2 d = uv - 0.5;
-      float vig = 1.0 - dot(d,d) * (0.60 + 1.7*(1.0-uLuft) + 0.7*uNah);
-      c *= clamp(vig, 0.0, 1.0);
+      /* Ab hier wird belichtet — Korn und Zeilen gehören auf das fertige Bild */
+      col = toneMapping(col);
+      col += 0.018*V;
+      col *= 1.0 - 0.07*V*(0.5 - 0.5*sin(uv.y*uPixel.y*3.14159));
+      col *= 1.0 - 0.018*V*lrm(vec2(floor(uv.y*uPixel.y), floor(uZeit*24.0)));
+      float lf = clamp(dot(col, vec3(0.299,0.587,0.114)), 0.0, 1.0);
+      float g1 = lrm(uv*uPixel + fract(uZeit)*91.7) - 0.5;
+      float g2 = lrm(floor(uv*uPixel*0.30) + fract(uZeit*0.83)*57.3) - 0.5;
+      float korn = (g1*0.020 + g2*0.014) * (0.55 + 0.45*(1.0 - lf));
+      col += korn * (0.75 + 0.5*V + uSpul*0.9);
+      /* Luft wird knapp: der Rand zieht sich zu und pocht */
       if(uLuft < 0.34){
         float puls = 0.5 + 0.5*sin(uZeit*(7.0 + (0.34-uLuft)*22.0));
         float k = (0.34 - uLuft)/0.34;
-        c = mix(c, vec3(0.26,0.02,0.02), k*k*0.45*puls);
+        col = mix(col, vec3(0.26,0.02,0.02), k*k*0.45*puls);
       }
-      if(uNah > 0.001){
-        float grau = dot(c, vec3(0.33));
-        c = mix(c, vec3(grau)*vec3(1.25,0.72,0.68), uNah*0.6);
-      }
-      gl_FragColor = vec4(c, 1.0);
-      #include <tonemapping_fragment>
+      float vig = dot(vUv-0.5, vUv-0.5);
+      col *= 1.0 - vig*(0.85 + 0.60*V + 1.5*(1.0-uLuft)*(1.0-uLuft));
+      col = mix(col, vec3(lrm(uv*uPixel*0.7 + uZeit*57.3)), uSpul*0.55);
+      gl_FragColor = vec4(col, 1.0);
       #include <colorspace_fragment>
     }`,
 });
 postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
+
+/* ---------- Die Lampe am Camcorder ---------- */
+/* Sie sitzt nicht in der Mitte, sondern etwas rechts unter der Linse —
+   deshalb wandert der Kegel beim Gehen ein Stück gegen die Blickrichtung.
+   Genau das macht eine Handlampe aus. */
+const LAMPE = new T.SpotLight(0xeaf2ff, 95, 34, 0.52, 0.42, 1.15);
+LAMPE.castShadow = Q.schatten;
+if(Q.schatten){
+  LAMPE.shadow.mapSize.set(1024,1024);
+  LAMPE.shadow.camera.near = 0.3; LAMPE.shadow.camera.far = 30;
+  LAMPE.shadow.bias = -0.0013;
+}
+scene.add(LAMPE); scene.add(LAMPE.target);
+const NAHLICHT = new T.PointLight(0xdfeaf6, 3.2, 6.0, 1.6);
+scene.add(NAHLICHT);
+const LAMPENZUSTAND = { flacker: 1, naechster: 6 + Math.random()*12, dauer: 0 };
+const _lampRicht = new T.Vector3(), _lampRechts = new T.Vector3(), _lampPos = new T.Vector3();
+function lampeSchritt(dt){
+  LAMPENZUSTAND.naechster -= dt;
+  if(LAMPENZUSTAND.dauer > 0){
+    LAMPENZUSTAND.dauer -= dt;
+    LAMPENZUSTAND.flacker = 0.18 + Math.random()*0.8;
+    if(LAMPENZUSTAND.dauer <= 0) LAMPENZUSTAND.flacker = 1;
+  } else if(LAMPENZUSTAND.naechster <= 0){
+    LAMPENZUSTAND.naechster = 9 + Math.random()*22;
+    LAMPENZUSTAND.dauer = 0.18 + Math.random()*0.5;
+  }
+  blickRichtung(_lampRicht);
+  _lampRechts.set(Math.cos(P.gier), 0, -Math.sin(P.gier));
+  _lampPos.copy(camera.position)
+    .addScaledVector(_lampRechts, 0.17)
+    .addScaledVector(_lampRicht, 0.10);
+  _lampPos.y -= 0.13;
+  LAMPE.position.copy(_lampPos);
+  LAMPE.target.position.copy(_lampPos).addScaledVector(_lampRicht, 12);
+  LAMPE.target.updateMatrixWorld();
+  NAHLICHT.position.copy(camera.position);
+  const nass = kopfNass();
+  /* Unter Wasser trägt der Kegel kaum, dafür streut er blau. */
+  LAMPE.distance = nass ? 12 : 34;
+  LAMPE.angle = nass ? 0.62 : 0.50;
+  LAMPE.color.setHex(nass ? 0xa8dcf0 : 0xeaf2ff);
+  LAMPE.intensity = (nass ? 48 : 95) * LAMPENZUSTAND.flacker;
+  NAHLICHT.intensity = (nass ? 2.0 : 3.2) * LAMPENZUSTAND.flacker;
+}
 
 /* ======================= 7  Die Figur ======================= */
 
@@ -1417,11 +1517,30 @@ function spielerSchritt(dt){
     P.halt.x = P.x; P.halt.z = P.z; P.halt.y = P.y;
   }
 
-  /* Kamera */
+  /* --- Kamera: sie liegt in einer Hand, nicht auf einem Stativ --- */
+  /* Drei Sinus mit unrunden Frequenzen überlagern sich nie sichtbar zu
+     einem Muster — das liest sich als Hand, nicht als Maschine. */
+  const t = ZEIT.t;
+  const stark = P.modus === 'schwimmen' ? 1.45
+              : P.modus === 'tauchen'   ? 1.15
+              : (0.55 + gas * (IN.run ? 1.85 : 1.0));
+  const wGier = (Math.sin(t*1.31) * 0.42 + Math.sin(t*0.57 + 1.7) * 0.30
+               + Math.sin(t*2.63 + 0.4) * 0.16) * 0.0125 * stark;
+  const wNick = (Math.sin(t*1.07 + 2.1) * 0.40 + Math.sin(t*2.21 + 0.9) * 0.22
+               + Math.sin(t*0.43) * 0.34) * 0.0105 * stark;
+  const wRoll = (Math.sin(t*0.83 + 1.2) * 0.55 + Math.sin(t*1.77 + 2.6) * 0.25)
+               * 0.016 * stark;
+  const schritt = P.modus === 'gehen'
+    ? Math.sin(P.schrittWeg * 6.4) * 0.012 * gas * (IN.run ? 1.8 : 1)
+    : 0;
   const ay = augenHoehe();
-  camera.position.set(P.x, ay + Math.sin(ZEIT.t*7.4)*P.bob
-    + (P.modus==='schwimmen' ? Math.sin(ZEIT.t*1.6)*0.035 : 0), P.z);
-  camera.rotation.set(P.nick, P.gier, 0, 'YXZ');
+  camera.position.set(
+    P.x + Math.sin(t*0.61)*0.012*stark,
+    ay + Math.sin(ZEIT.t*7.4)*P.bob + schritt
+       + Math.sin(t*0.94 + 0.3)*0.014*stark
+       + (P.modus==='schwimmen' ? Math.sin(t*1.6)*0.045 : 0),
+    P.z + Math.sin(t*0.73 + 2.2)*0.012*stark);
+  camera.rotation.set(P.nick + wNick, P.gier + wGier, wRoll, 'YXZ');
 }
 
 /* ======================= 8  Was im Wasser wohnt ======================= */
@@ -1494,33 +1613,159 @@ function navBfs(sx, sz){
   return true;
 }
 
+/* Es hat keinen Namen. Es ist blass wie die Kacheln, viel zu lang, und
+   es hat kein Gesicht. Meistens treibt es mit dem Gesicht nach unten an
+   der Oberfläche und rührt sich nicht. Wenn es dich gehört hat, richtet
+   es sich langsam auf — erst der Hinterkopf, dann die Schultern — und
+   dann geht es unter. Stehen kann es überall, wo du auch stehen könntest;
+   holen kann es dich nur, solange du schwimmst. Wenn du dich rettest,
+   kommt es bis an den Rand deines trockenen Flecks und bleibt dort
+   stehen und sieht dich an. */
 const MON = {
   x: 12.0, z: 11.0, y: 0.9, gier: 0,
   wach: false, jagt: 0, weissX: 12, weissZ: 11, weissT: -99,
-  abstand: 99, rippelT: 0, tempo: 0, sichtbar: false,
+  abstand: 99, rippelT: 0, tempo: 0,
+  lage: 0,            // 0 = treibt auf dem Bauch, 1 = aufgerichtet
+  zustand: 'treibt',  // treibt | richtet | jagt | steht
+  wartet: 0, atemT: 0, treibDrift: Math.random()*6.3,
 };
 {
+  const haut = new T.MeshStandardMaterial({ color:0xcdd2cb, roughness:0.34, metalness:0.02 });
+  const dunkel = new T.MeshStandardMaterial({ color:0x1a1f21, roughness:0.9 });
   const g = new T.Group();
-  const koerper = new T.Mesh(new T.SphereGeometry(1, 14, 10),
-    new T.MeshStandardMaterial({ color:0x1b2a26, roughness:0.55, metalness:0.1 }));
-  koerper.scale.set(0.52, 0.40, 1.45);
-  g.add(koerper);
-  const buckel = new T.Mesh(new T.SphereGeometry(1, 10, 8),
-    new T.MeshStandardMaterial({ color:0x223330, roughness:0.5 }));
-  buckel.scale.set(0.28, 0.30, 0.55); buckel.position.set(0, 0.2, -0.1);
-  g.add(buckel);
-  const flosse = new T.Mesh(new T.ConeGeometry(0.26, 0.62, 4),
-    new T.MeshStandardMaterial({ color:0x1b2a26, roughness:0.6 }));
-  flosse.position.set(0, 0.42, -0.15); flosse.rotation.x = -0.2;
-  g.add(flosse);
-  for(const s of [-0.18, 0.18]){
-    const auge = new T.Mesh(new T.SphereGeometry(0.055, 8, 6),
-      new T.MeshBasicMaterial({ color:0xe8f4c8 }));
-    auge.position.set(s, 0.12, 1.18); g.add(auge);
+  const koerper = new T.Group(); g.add(koerper);
+  const rumpf = new T.Mesh(new T.CapsuleGeometry(0.155, 0.66, 4, 10), haut);
+  rumpf.position.y = 0.86; koerper.add(rumpf);
+  const becken = new T.Mesh(new T.CapsuleGeometry(0.135, 0.14, 3, 8), haut);
+  becken.position.y = 0.50; koerper.add(becken);
+  const hals = new T.Mesh(new T.CapsuleGeometry(0.052, 0.14, 3, 6), haut);
+  hals.position.y = 1.29; koerper.add(hals);
+  const kopf = new T.Mesh(new T.SphereGeometry(0.125, 12, 10), haut);
+  kopf.scale.set(0.86, 1.12, 0.94); kopf.position.y = 1.45; koerper.add(kopf);
+  /* Kein Gesicht, nur zwei Höhlen — das reicht vollkommen. */
+  for(const sx of [-0.048, 0.048]){
+    const hoehle = new T.Mesh(new T.SphereGeometry(0.032, 8, 6), dunkel);
+    hoehle.position.set(sx, 1.47, 0.098); koerper.add(hoehle);
   }
-  MON.gruppe = g; MON.koerper = koerper;
+  const arme = [], beine = [];
+  for(const sx of [-1, 1]){
+    const schulter = new T.Group();
+    schulter.position.set(sx*0.17, 1.19, 0); koerper.add(schulter);
+    const oben = new T.Mesh(new T.CapsuleGeometry(0.048, 0.42, 3, 7), haut);
+    oben.position.y = -0.27; schulter.add(oben);
+    const ellbogen = new T.Group(); ellbogen.position.y = -0.50; schulter.add(ellbogen);
+    const unten = new T.Mesh(new T.CapsuleGeometry(0.042, 0.46, 3, 7), haut);
+    unten.position.y = -0.28; ellbogen.add(unten);
+    const hand = new T.Mesh(new T.CapsuleGeometry(0.04, 0.14, 3, 6), haut);
+    hand.position.y = -0.56; hand.scale.set(1, 1, 0.55); ellbogen.add(hand);
+    arme.push({ schulter, ellbogen, sx });
+
+    const huefte = new T.Group();
+    huefte.position.set(sx*0.085, 0.44, 0); koerper.add(huefte);
+    const ob = new T.Mesh(new T.CapsuleGeometry(0.062, 0.36, 3, 7), haut);
+    ob.position.y = -0.24; huefte.add(ob);
+    const knie = new T.Group(); knie.position.y = -0.46; huefte.add(knie);
+    const ub = new T.Mesh(new T.CapsuleGeometry(0.052, 0.40, 3, 7), haut);
+    ub.position.y = -0.25; knie.add(ub);
+    beine.push({ huefte, knie, sx });
+  }
+  MON.gruppe = g; MON.koerper = koerper; MON.arme = arme; MON.beine = beine;
+  MON.kopf = kopf; MON.hoehe = 1.58;
   g.visible = false;
   scene.add(g);
+}
+
+/* Eine zweite Gestalt, die es gar nicht gibt: sie steht weit weg am Ende
+   einer Halle und ist beim nächsten Hinsehen weg. Sie tut nichts. */
+const SPUK = { t: 26 + Math.random()*22, sicht: 0, gruppe: null };
+{
+  const g = MON.gruppe.clone(true);
+  g.traverse(o => { if(o.isMesh) o.material = new T.MeshStandardMaterial({
+    color:0xc6ccc5, roughness:0.5, transparent:true, opacity:0.9 }); });
+  g.visible = false;
+  SPUK.gruppe = g;
+  scene.add(g);
+}
+function spukTick(dt){
+  SPUK.t -= dt;
+  if(SPUK.sicht > 0){
+    SPUK.sicht -= dt;
+    /* Sie verschwindet, sobald man wegsieht — oder nach ein paar Sekunden. */
+    const dx = SPUK.gruppe.position.x - P.x, dz = SPUK.gruppe.position.z - P.z;
+    const d = Math.hypot(dx,dz);
+    blickRichtung(_blick);
+    const drauf = (dx*_blick.x + dz*_blick.z) / Math.max(d, 0.01);
+    if(SPUK.sicht <= 0 || drauf < 0.35){ SPUK.gruppe.visible = false; SPUK.sicht = 0; }
+    return;
+  }
+  if(SPUK.t > 0 || S.phase !== 'spiel') return;
+  SPUK.t = 34 + Math.random()*30;
+  /* Ein Platz im Blickfeld, weit genug weg, mit Boden knapp unter Wasser */
+  blickRichtung(_blick);
+  for(let v=0; v<24; v++){
+    const w = P.gier + (Math.random()-0.5)*1.1;
+    const d = 9 + Math.random()*11;
+    const x = P.x - Math.sin(w)*d, z = P.z - Math.cos(w)*d;
+    const b = bodenBei(x,z);
+    if(b === AUSSEN) continue;
+    const tief = WASSER.h - b;
+    if(tief < 0.1 || tief > 1.3) continue;
+    if(!losFrei(P.x, P.z, x, z)) continue;
+    SPUK.gruppe.position.set(x, b, z);
+    SPUK.gruppe.rotation.set(0, Math.atan2(P.x-x, P.z-z), 0);
+    SPUK.gruppe.visible = true;
+    SPUK.sicht = 4.5;
+    return;
+  }
+}
+/* Sichtlinie über das Wandraster — grob, aber es reicht, um die Gestalt
+   nicht in einer Wand aufzustellen. */
+function losFrei(ax, az, bx, bz){
+  const n = Math.ceil(Math.hypot(bx-ax, bz-az) / 0.4);
+  for(let i=1;i<n;i++){
+    const t = i/n, x = ax+(bx-ax)*t, z = az+(bz-az)*t;
+    if(bodenBei(x,z) === AUSSEN) return false;
+    if(wandTrifft(x, z, WASSER.h + 0.2, WASSER.h + 1.5)) return false;
+  }
+  return true;
+}
+
+/* Haltung: treibend flach auf dem Bauch, aufgerichtet senkrecht. */
+function monHaltung(dt){
+  const t = ZEIT.t;
+  const k = MON.koerper;
+  const treibt = MON.zustand === 'treibt';
+  const ziel = MON.zustand === 'treibt' ? 0 : (MON.zustand === 'jagt' ? 0.05 : 1);
+  MON.lage = lerp(MON.lage, ziel, 1 - Math.exp(-dt * (MON.zustand==='richtet' ? 1.1 : 2.4)));
+  /* 0 = waagerecht mit dem Gesicht nach unten, 1 = aufrecht */
+  k.rotation.x = lerp(Math.PI/2, 0, MON.lage);
+  /* Aufgerichtet steht sie auf den Füßen, treibend liegt sie flach. */
+  k.position.y = lerp(-0.16, 0.52, MON.lage);
+  const schwung = MON.zustand === 'jagt' ? 1 : 0.12;
+  for(const a of MON.arme){
+    if(treibt){
+      a.schulter.rotation.z = a.sx * (1.15 + Math.sin(t*0.6 + a.sx)*0.05);
+      a.schulter.rotation.x = 0.18;
+      a.ellbogen.rotation.x = 0.35;
+    } else if(MON.zustand === 'jagt'){
+      a.schulter.rotation.z = a.sx * 0.55;
+      a.schulter.rotation.x = Math.sin(t*3.1 + (a.sx>0?0:Math.PI)) * 1.25 - 0.4;
+      a.ellbogen.rotation.x = 0.5 + Math.sin(t*3.1 + a.sx)*0.3;
+    } else {
+      a.schulter.rotation.z = lerp(a.schulter.rotation.z, a.sx*0.06, dt*3);
+      a.schulter.rotation.x = lerp(a.schulter.rotation.x, 0.02, dt*3);
+      a.ellbogen.rotation.x = lerp(a.ellbogen.rotation.x, 0.04, dt*3);
+    }
+  }
+  for(const b of MON.beine){
+    if(MON.zustand === 'jagt'){
+      b.huefte.rotation.x = Math.sin(t*2.6 + (b.sx>0?0:Math.PI)) * 0.5;
+      b.knie.rotation.x = 0.3 + Math.sin(t*2.6 + b.sx)*0.25;
+    } else {
+      b.huefte.rotation.x = lerp(b.huefte.rotation.x, treibt ? 0.12 : 0.0, dt*3);
+      b.knie.rotation.x = lerp(b.knie.rotation.x, treibt ? 0.2 : 0.02, dt*3);
+    }
+  }
 }
 
 function monSchritt(dt){
@@ -1560,28 +1805,76 @@ function monSchritt(dt){
       if(d >= 0 && d < best){ best = d; bx = navX(ni); bz = navZ(nj); }
     }
   }
+  /* --- Zustände --- */
+  const imWasser = P.modus === 'schwimmen' || P.modus === 'tauchen';
+  const amZiel = best <= 1;
+  if(MON.jagt <= 0){
+    MON.zustand = 'treibt';
+  } else if(MON.zustand === 'treibt'){
+    MON.zustand = 'richtet'; MON.wartet = 2.2;
+    auftauchTon();
+  } else if(MON.zustand === 'richtet'){
+    MON.wartet -= dt;
+    if(MON.wartet <= 0) MON.zustand = 'jagt';
+  } else if(!imWasser && amZiel && MON.abstand < 12){
+    /* Du stehst. Dann steht es auch — am Rand, und sieht dich an. */
+    MON.zustand = 'steht';
+  } else if(MON.zustand === 'steht' && (imWasser || !amZiel)){
+    MON.zustand = 'jagt';
+  }
+
   const dx = bx - MON.x, dz = bz - MON.z, dl = Math.hypot(dx,dz);
-  const eile = MON.jagt > 0 ? GR.jagd : GR.jagd*0.42;
+  let eile = 0;
+  if(MON.zustand === 'jagt') eile = GR.jagd;
+  else if(MON.zustand === 'treibt') eile = 0.22;      // es treibt nur
   MON.tempo = lerp(MON.tempo, dl > 0.05 ? eile : 0, 1 - Math.exp(-dt*3));
-  if(dl > 0.001){
+  if(dl > 0.001 && MON.tempo > 0.001){
     MON.x += dx/dl * MON.tempo * dt;
     MON.z += dz/dl * MON.tempo * dt;
-    MON.gier = lerp(MON.gier, Math.atan2(dx, dz), 1 - Math.exp(-dt*4));
   }
-  /* Ganz nah geht der Rücken durch die Oberfläche */
-  const nahAuf = MON.jagt > 0 && MON.abstand < 9 ? 0.30 : 0.95;
-  MON.y = WASSER.h - nahAuf;
+  /* Im Treiben dreht es sich mit der Strömung, sonst sieht es dich an. */
+  const zielGier = MON.zustand === 'treibt'
+    ? MON.treibDrift + Math.sin(ZEIT.t*0.13)*0.5
+    : Math.atan2(P.x - MON.x, P.z - MON.z);
+  MON.gier = lerp(MON.gier, zielGier, 1 - Math.exp(-dt*(MON.zustand==='jagt'?4:1.2)));
+
+  /* Höhe: treibend liegt es in der Oberfläche, jagend knapp darunter,
+     stehend steht es auf dem Grund, wenn der nah genug ist. */
+  const grund = bodenBei(MON.x, MON.z);
+  let y;
+  if(MON.zustand === 'steht'){
+    /* Steht auf dem Grund, wo er trägt — sonst tritt sie Wasser, Kopf und
+       Schultern über der Oberfläche. */
+    y = (grund !== AUSSEN && WASSER.h - grund < 1.9) ? grund : WASSER.h - 1.78;
+  } else if(MON.zustand === 'jagt'){
+    /* Waagerecht knapp unter der Oberfläche: nur Rücken und Hinterkopf
+       schneiden durch. */
+    y = WASSER.h - (MON.abstand < 9 ? 0.10 : 0.30);
+  } else if(MON.zustand === 'richtet'){
+    y = lerp(WASSER.h - 0.12, WASSER.h - 1.78, MON.lage);
+  } else {
+    y = WASSER.h - 0.12 + Math.sin(ZEIT.t*0.7)*0.03;
+  }
+  MON.y = y;
   MON.gruppe.position.set(MON.x, MON.y, MON.z);
   MON.gruppe.rotation.y = MON.gier;
   MON.gruppe.visible = MON.wach;
+  monHaltung(dt);
+
   MON.rippelT -= dt;
-  if(MON.rippelT <= 0 && MON.tempo > 0.4){
-    MON.rippelT = 0.28;
+  if(MON.rippelT <= 0 && (MON.tempo > 0.4 || MON.zustand === 'richtet')){
+    MON.rippelT = MON.zustand === 'jagt' ? 0.24 : 0.6;
     rippeln(MON.x, MON.z);
   }
+  /* Atem, wenn es nah ist und du im Wasser bist */
+  MON.atemT -= dt;
+  if(MON.atemT <= 0 && MON.zustand === 'jagt' && MON.abstand < 11){
+    MON.atemT = 2.4;
+    atemTon(clamp((11-MON.abstand)/11, 0, 1));
+  }
   /* Zugriff — nur wer schwimmt, ist erreichbar */
-  const imWasser = P.modus === 'schwimmen' || P.modus === 'tauchen';
   if(imWasser && MON.abstand < 1.25 && S.phase === 'spiel') gefressen();
+  spukTick(dt);
 }
 
 /* ======================= 9  Ton ======================= */
@@ -1661,6 +1954,25 @@ function radTon(){
 function flutTon(){
   if(!SND.ctx || !SND.an) return;
   SND.flut.gain.setTargetAtTime(0.30, SND.ctx.currentTime, 0.5);
+}
+/* Kein Tiergebrüll. Ein Mensch, der nach Luft schnappt. */
+function auftauchTon(){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  knall(0.55, 2600, 0.16, 'bandpass');
+  const o = ac.createOscillator(); o.type='sawtooth';
+  o.frequency.setValueAtTime(150, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(420, ac.currentTime+0.5);
+  const f = ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=900; f.Q.value=1.4;
+  const g = ac.createGain(); g.gain.value = 0;
+  g.gain.setTargetAtTime(0.11, ac.currentTime+0.05, 0.09);
+  g.gain.setTargetAtTime(0, ac.currentTime+0.45, 0.2);
+  o.connect(f); f.connect(g); g.connect(SND.master);
+  o.start(); o.stop(ac.currentTime+1.1);
+}
+function atemTon(nah){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  knall(0.42, 700 + nah*500, 0.05 + nah*0.10, 'bandpass');
+  setTimeout(() => knall(0.5, 420, 0.04 + nah*0.08, 'bandpass'), 420);
 }
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
@@ -1967,9 +2279,17 @@ function zurueckspulen(grund){
   melde(grund, 3.0);
 }
 function gefressen(){
+  /* Der Blick springt auf sie, und sie ist sofort auf Armeslänge da.
+     Kein Suchen, kein Nachziehen — genau das macht den Schreck. */
+  P.gier = Math.atan2(MON.x - P.x, MON.z - P.z);
+  P.nick = -0.06;
+  MON.zustand = 'steht'; MON.lage = 1;
+  MON.gruppe.position.set(
+    P.x + Math.sin(P.gier)*0.85, WASSER.h - 1.25, P.z + Math.cos(P.gier)*0.85);
+  MON.gruppe.rotation.y = P.gier + Math.PI;
   schreckTon();
   if(navigator.vibrate) navigator.vibrate([0,80,50,200]);
-  zurueckspulen('ES HAT DICH IM WASSER ERWISCHT. BAND SPULT ZURÜCK.');
+  zurueckspulen('SIE HAT DICH IM WASSER ERWISCHT. BAND SPULT ZURÜCK.');
 }
 function ertrinken(){
   knall(1.6, 300, 0.34);
@@ -2053,16 +2373,20 @@ function zeichnen(){
   const kellerH = Math.min(WASSER.h, RAUM.P.luft);
   UNI.uZeit.value = ZEIT.t;
   UNI.uWasser.value = WASSER.h;
+  blickRichtung(_blick);
   for(const [m, h] of [[wasserMat, WASSER.h], [kellerMat, kellerH]]){
     m.uniforms.uZeit.value = ZEIT.t;
     m.uniforms.uWasser.value = h;
     m.uniforms.uKamera.value.copy(camera.position);
+    m.uniforms.uBlick.value.copy(_blick);
+    m.uniforms.uLampe.value = S.phase === 'menu' ? 0.6 : LAMPENZUSTAND.flacker;
+    m.uniforms.uKegel.value = LAMPE.angle;
   }
   kellerNetz.visible = kellerH > RAUM.P.boden + 0.05;
 
   scene.fog.color.copy(nass ? WASSER_NEBEL : LUFT_NEBEL);
-  scene.fog.density = nass ? 0.105 : 0.0088;
-  renderer.setClearColor(nass ? 0x136e74 : 0x6f9a96, 1);
+  scene.fog.density = nass ? 0.115 : 0.019;
+  renderer.setClearColor(nass ? 0x0b383e : 0x172a2e, 1);
 
   let sp = false;
   if(spiegelRT && !nass && S.phase !== 'menu' && !(window.PR && PR._spiegelAus)) sp = spiegelZeichnen();
@@ -2105,6 +2429,7 @@ function schritt(dt){
     S.t += dt;
     spielerSchritt(dt);
     schieberSchritt(dt);
+    lampeSchritt(dt);
     monSchritt(dt);
     herz(dt);
     if(SND.ctx && SND.an){
