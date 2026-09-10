@@ -2501,7 +2501,7 @@ $('bTon').addEventListener('click', () => tonSchalten(!SND.an));
 $('bNeu').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
 $('bNochmal').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
 for(const id of ['bRaus','bRaus2'])
-  $(id).addEventListener('click', () => location.href = '../../index.html');
+  $(id).addEventListener('click', () => location.href = '../foundtape.html');
 
 /* Ladeanzeige: hier wird nichts nachgeladen, aber der Bau der Netze und
    Texturen dauert einen Moment — den zeigen wir ehrlich an. */
