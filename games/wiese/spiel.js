@@ -36,7 +36,8 @@ let gKey = localStorage.getItem('wi_diff') || 'normal';
 if(!GRADE[gKey]) gKey = 'normal';
 let GR = GRADE[gKey];
 
-const BANDLAENGE = 360;          // sechs Minuten
+/* Kein Zeitlimit. Das Band läuft mit und endet nicht von allein —
+   was zählt, ist der Weg bis zum Mast. */
 
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => v<a?a:(v>b?b:v);
@@ -452,7 +453,58 @@ function spielerSchritt(dt){
   camera.rotation.set(P.nick + wNick, P.gier + wGier, wRoll, 'YXZ');
 }
 
-/* ======================= 6  Sie ======================= */
+/* ======================= 6  Der Mast ======================= */
+/* Das Einzige auf dieser Wiese, was kein Gras ist. Achtzehn Meter, ein
+   rotes Licht obendrauf, gut zweihundert Meter weit weg. Man sieht ihn vom
+   ersten Bild an — und jeder Schritt dorthin ist ein Schritt mit dem
+   Rücken zu ihnen. Mehr Spiel braucht es nicht. */
+const MAST = { x:0, z:0, gruppe:null, licht:null, erreicht:false, start:230 };
+{
+  const g = new T.Group();
+  const grau = new T.MeshStandardMaterial({ color:0x4a4f4a, roughness:0.85, metalness:0.25 });
+  const schaft = new T.Mesh(new T.CylinderGeometry(0.28, 0.42, 18, 10), grau);
+  schaft.position.y = 9; g.add(schaft);
+  for(const y of [12.4, 15.2]){
+    const arm = new T.Mesh(new T.BoxGeometry(3.4, 0.22, 0.22), grau);
+    arm.position.y = y; g.add(arm);
+    for(const sx of [-1.5, 1.5]){
+      const iso = new T.Mesh(new T.CylinderGeometry(0.13, 0.13, 0.5, 6), grau);
+      iso.position.set(sx, y+0.32, 0); g.add(iso);
+    }
+  }
+  const lampe = new T.Mesh(new T.SphereGeometry(0.34, 10, 8),
+    new T.MeshBasicMaterial({ color:0xd8352a }));
+  lampe.position.y = 18.3; g.add(lampe);
+  MAST.licht = lampe; MAST.gruppe = g;
+  scene.add(g);
+}
+function mastSetzen(){
+  /* Auf einer Schleife von 480 m ist der weiteste mögliche Weg 339 m —
+     alles darüber wickelt sich und kommt einem wieder entgegen. 230 m
+     liegen sicher darunter, also stimmt die Zahl im Sucher auch. */
+  MAST.start = 230;
+  const w = Math.random()*Math.PI*2;
+  MAST.x = modW(P.x + Math.sin(w)*MAST.start);
+  MAST.z = modW(P.z + Math.cos(w)*MAST.start);
+  MAST.erreicht = false;
+  mastNachfuehren();
+}
+function mastNachfuehren(){
+  const x = P.x + dW(P.x, MAST.x), z = P.z + dW(P.z, MAST.z);
+  MAST.gruppe.position.set(x, hoeheBei(x,z), z);
+}
+const mastAbstand = () => abstandW(P.x, P.z, MAST.x, MAST.z);
+function mastSchritt(dt){
+  mastNachfuehren();
+  /* Langsames rotes Blinken. Man sucht es unwillkürlich, sobald man
+     sich einmal umgedreht hat. */
+  MAST.licht.material.color.setHex((ZEIT.t % 2.4) < 0.7 ? 0xff5a44 : 0x5c1a14);
+  if(mastAbstand() < 4.5 && STAND.phase === 'spiel' && !MAST.erreicht){
+    MAST.erreicht = true; angekommen();
+  }
+}
+
+/* ======================= 7  Sie ======================= */
 /* Sie gehen nicht. Sie stehen. Und wenn du nicht hinsiehst, stehen sie
    woanders — näher, ohne dass ein Schritt zu sehen war. Weglaufen ist
    deshalb keine Antwort: die Wiese ist rund, und jeder gelaufene Meter
@@ -871,7 +923,7 @@ postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 
 /* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
-const STAND = { phase:'menu', t:0, rest:BANDLAENGE, endT:0, tode:0,
+const STAND = { phase:'menu', t:0, endT:0, tode:0,
                 naechste:999, rufT:9, taeter:null,
                 luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0 };
 let ladeStand = 0;
@@ -901,8 +953,9 @@ function hudSchritt(dt){
   if(hudAcc < 0.08) return;
   hudAcc = 0;
   $('tc').textContent = bandStr(STAND.t);
-  $('restZeit').textContent = zeitStr(STAND.rest);
-  $('band').classList.toggle('knapp', STAND.rest < 60);
+  const dm = mastAbstand();
+  $('restZeit').textContent = Math.round(dm) + ' m';
+  $('band').classList.toggle('knapp', dm < 60);
   /* Alle paar Sekunden zählt das Band eine zu viel. Es ist keine da.
      Man sieht trotzdem nach. */
   const luegt = Math.random() < 0.035 && SIE.length > 0;
@@ -915,7 +968,7 @@ function neuStart(){
   P.x = modW(Math.random()*WELT); P.z = modW(Math.random()*WELT);
   P.y = hoeheBei(P.x, P.z); P.gier = Math.random()*Math.PI*2; P.nick = -0.03;
   P.kraft = 1; P.gelaufen = 0;
-  STAND.t = 0; STAND.rest = BANDLAENGE; STAND.riss = 0;
+  STAND.t = 0; STAND.riss = 0;
   STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.taeter = null;
   for(const g of SIE) scene.remove(g.halter);
   SIE.length = 0;
@@ -924,6 +977,7 @@ function neuStart(){
   DURCH.geplant = -1; DURCH.t = 0;
   if(DURCH.netz) DURCH.netz.visible = false;
   durchschlagVorbereiten();
+  mastSetzen();
   for(let i=0;i<ANZAHL_SIE;i++){
     const g = neueGestalt(85 + Math.random()*45);
     if(g){
@@ -936,7 +990,7 @@ function neuStart(){
   }
   bodenAnker = { x:1e9, z:1e9 };
   bodenSetzen(P.x, P.z);
-  melde('VIER. UND DU HAST NUR EIN PAAR AUGEN.', 5);
+  melde('DER MAST STEHT 230 m WEIT. SIE STEHEN NÄHER.', 5);
 }
 function spielStart(){
   tonStart();
@@ -954,7 +1008,8 @@ function endBild(titel, text){
   $('endTitle').textContent = titel;
   $('endText').textContent = text;
   $('endStats').innerHTML =
-    'DURCHGEHALTEN ' + zeitStr(BANDLAENGE - STAND.rest) + ' VON ' + zeitStr(BANDLAENGE) +
+    'ZUM MAST ' + (MAST.erreicht ? 'ANGEKOMMEN' : Math.round(mastAbstand()) + ' m GEFEHLT') +
+    ' &nbsp;·&nbsp; ZEIT ' + zeitStr(STAND.t) +
     '<br>GELAUFEN ' + Math.round(P.gelaufen) + ' m &nbsp;·&nbsp; SPRÜNGE ' +
     SIE.reduce((n,g) => n + g.spruenge, 0);
   zeige(scEnd);
@@ -971,10 +1026,11 @@ function erwischt(g){
   allesLos();
   if(document.pointerLockElement) document.exitPointerLock();
 }
-function ueberstanden(){
+function angekommen(){
   if(STAND.phase !== 'spiel') return;
   STAND.phase = 'fertig'; STAND.endT = 0;
   allesLos();
+  knall(1.8, 800, 0.22);
 }
 
 /* ======================= 11  Steuerung ======================= */
@@ -1075,7 +1131,8 @@ function zeichnen(){
   himmelMat.uniforms.uZeit.value = ZEIT.t;
   /* Über das Band hinweg kippt die Farbe: erst zu blau, dann zu wenig
      davon. Langsam genug, dass man sich nicht sicher ist. */
-  const krank = STAND.phase === 'spiel' ? 1 - STAND.rest/BANDLAENGE : STAND.himmelKrank;
+  const krank = STAND.phase === 'spiel'
+    ? clamp(1 - mastAbstand()/MAST.start, 0, 1) : STAND.himmelKrank;
   STAND.himmelKrank = krank;
   himmelMat.uniforms.uOben.value.setHex(0x1e5fd6).lerp(FALSCH_OBEN, krank*0.85);
   himmelMat.uniforms.uMitte.value.setHex(0x4f8ee4).lerp(FALSCH_MITTE, krank*0.85);
@@ -1114,8 +1171,8 @@ function schritt(dt){
   ZEIT.t += dt;
   if(STAND.phase === 'spiel'){
     STAND.t += dt;
-    STAND.rest -= dt;
     spielerSchritt(dt);
+    mastSchritt(dt);
     sieSchritt(dt);
     STAND.riss = Math.max(0, STAND.riss - dt*1.4);
     durchschlagSchritt(dt);
@@ -1126,7 +1183,6 @@ function schritt(dt){
       SND.wind.gain.setTargetAtTime(0.05 + P.tempo*0.012, SND.ctx.currentTime, 0.4);
     }
     hudSchritt(dt);
-    if(STAND.rest <= 0){ STAND.rest = 0; ueberstanden(); }
   } else if(STAND.phase === 'tot'){
     STAND.endT += dt;
     /* Jetzt läuft die Animation — zum ersten und einzigen Mal sieht man
@@ -1148,8 +1204,9 @@ function schritt(dt){
   } else if(STAND.phase === 'fertig'){
     STAND.endT += dt;
     if(STAND.endT > 2.4 && scEnd.classList.contains('hidden'))
-      endBild('BAND ENDE', 'Sechs Minuten, kein Schnitt. Das Bild wird schwarz, ' +
-        'während sie noch dastehen. Keine ist einen Schritt gegangen.');
+      endBild('AM MAST', 'Ein Betonfuß, ein rotes Licht, sonst nichts. Von hier aus ' +
+        'sieht man in alle Richtungen dasselbe — und vier Stellen, an denen sie ' +
+        'stehen. Keine ist einen Schritt gegangen.');
   }
 }
 function bild(){
@@ -1215,7 +1272,8 @@ for(const id of ['bRaus','bRaus2'])
 window.WI = {
   stand(){ return {
     x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
-    phase:STAND.phase, rest:+STAND.rest.toFixed(1), riss:+STAND.riss.toFixed(2),
+    phase:STAND.phase, riss:+STAND.riss.toFixed(2),
+    mast:+mastAbstand().toFixed(1), erreicht:MAST.erreicht,
     gelaufen:+P.gelaufen.toFixed(1), anzahl:SIE.length, geladen:sieGeladen,
     sie: SIE.map(g => ({ abstand:+g.abstand.toFixed(1), drang:+g.drang.toFixed(2),
                          gesehen:g.gesehen, spruenge:g.spruenge })) }; },
@@ -1226,7 +1284,8 @@ window.WI = {
   setz(x,z){ P.x=modW(x); P.z=modW(z); P.y=hoeheBei(P.x,P.z); },
   mehr(d){ return neueGestalt(d||100); },
   himmelFarbe: () => '#' + himmelMat.uniforms.uOben.value.getHexString(),
-  P, SIE, STAND, IN, GR, ABDRUCK, DURCH,
+  setzMast(x,z){ MAST.x=modW(x); MAST.z=modW(z); mastNachfuehren(); },
+  P, SIE, STAND, IN, GR, ABDRUCK, DURCH, MAST,
 };
 
 bild();
