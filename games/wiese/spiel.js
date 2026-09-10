@@ -61,7 +61,9 @@ const HORIZONT = new T.Color(0x9dc6e8);
 const FALSCH_OBEN  = new T.Color(0x2a4a6e);
 const FALSCH_MITTE = new T.Color(0x5e7c86);
 const FALSCH_UNTEN = new T.Color(0x9aa88c);
-scene.fog = new T.FogExp2(HORIZONT.getHex(), 0.0112);
+/* Dichter Dunst: ab hundert Metern sind sie nur noch Umrisse. Genau
+   das fehlte — man konnte sich einmal drehen und wusste alles. */
+scene.fog = new T.FogExp2(HORIZONT.getHex(), 0.0145);
 
 /* ======================= 2  Der Himmel ======================= */
 /* Zu satt, zu gleichmäßig, ohne Sonne. Ein Himmel, den niemand
@@ -472,8 +474,11 @@ const MAST = { x:0, z:0, gruppe:null, licht:null, erreicht:false, start:230 };
       iso.position.set(sx, y+0.32, 0); g.add(iso);
     }
   }
-  const lampe = new T.Mesh(new T.SphereGeometry(0.34, 10, 8),
-    new T.MeshBasicMaterial({ color:0xd8352a }));
+  /* Das Warnlicht ist dafür gebaut, durch Dunst gesehen zu werden — es
+     bleibt der einzige Punkt im Grau, der nicht verschwindet. Erst nah
+     dran erkennt man, dass ein Mast darunter steht. */
+  const lampe = new T.Mesh(new T.SphereGeometry(0.44, 10, 8),
+    new T.MeshBasicMaterial({ color:0xd8352a, fog:false, toneMapped:false }));
   lampe.position.y = 18.3; g.add(lampe);
   MAST.licht = lampe; MAST.gruppe = g;
   scene.add(g);
@@ -582,6 +587,19 @@ function wirdGesehen(g){
 
 function sieSchritt(dt){
   if(!sieVorlage) return;
+  /* Das Lehrstück. Nach zwölf Sekunden springt die erste garantiert —
+     und zwar so, dass sie hinterher im Blickfeld steht. Wer den Sprung
+     nicht sieht, versteht die Regel nicht und stirbt beim ersten Mal an
+     etwas, das sich wie ein Fehler anfühlt statt wie ein Gegner. */
+  if(!STAND.gelehrt){
+    STAND.lehre -= dt;
+    if(STAND.lehre <= 0){
+      const frei = SIE.filter(g => !g.gesehen);
+      const g = (frei.length ? frei : SIE).sort((a,b) => a.abstand - b.abstand)[0];
+      if(g){ g.drang = 1.0; g.lehrsprung = true; STAND.gelehrt = true; }
+    }
+  }
+
   let naechste = 999, irgendGesehen = false;
   STAND.luftAn = 0;
   for(const g of SIE){
@@ -612,8 +630,17 @@ function sieSchritt(dt){
         const dx = dW(g.x, P.x), dz = dW(g.z, P.z);
         const l = Math.hypot(dx,dz) || 1;
         const neuD = Math.max(2.2, g.abstand * 0.52);
-        g.x = modW(P.x - dx/l*neuD);
-        g.z = modW(P.z - dz/l*neuD);
+        let rx = -dx/l, rz = -dz/l;
+        if(g.lehrsprung){
+          /* Sie landet vor dir, nicht hinter dir — sonst lernt niemand
+             etwas daraus. Ein Mal, und nie wieder. */
+          g.lehrsprung = false;
+          const w = P.gier + (Math.random()-0.5)*0.7;
+          rx = -Math.sin(w); rz = -Math.cos(w);
+          melde('SIE WAR EBEN NOCH WEITER WEG.', 4.5);
+        }
+        g.x = modW(P.x + rx*neuD);
+        g.z = modW(P.z + rz*neuD);
         g.abstand = neuD;
         sprungTon(clamp(1 - neuD/90, 0.15, 1));
         /* Das Band verschluckt sich im Moment des Sprungs. */
@@ -638,9 +665,11 @@ function sieSchritt(dt){
   /* Ein Atem, der nicht der eigene ist. Nur wenn eine nah steht und man
      gerade nicht hinsieht. */
   STAND.atemT -= dt;
-  if(STAND.atemT <= 0 && naechste < 24){
-    STAND.atemT = 3.4 + Math.random()*2.4;
-    atemTon(clamp(1 - naechste/24, 0.1, 1));
+  if(STAND.atemT <= 0 && naechste < 60){
+    /* Je näher, desto öfter und desto deutlicher. */
+    const nah = clamp(1 - naechste/60, 0, 1);
+    STAND.atemT = lerp(6.0, 2.2, nah) + Math.random()*1.6;
+    atemTon(Math.max(0.12, nah));
   }
 
   /* Der Ruf: man hört sie, bevor man sie sieht. */
@@ -824,8 +853,8 @@ function sprungTon(nah){
 function fernRuf(laut){ rufTon(laut); }
 /* Zwei Züge, gefiltert wie durch Stoff. Kein Knurren — Atem. */
 function atemTon(nah){
-  knall(0.55, 620 + nah*380, 0.030 + nah*0.075, 'bandpass');
-  setTimeout(() => knall(0.62, 420, 0.024 + nah*0.060, 'bandpass'), 620);
+  knall(0.55, 620 + nah*380, 0.045 + nah*0.090, 'bandpass');
+  setTimeout(() => knall(0.62, 420, 0.036 + nah*0.072, 'bandpass'), 620);
 }
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
@@ -924,7 +953,8 @@ postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 /* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
 const STAND = { phase:'menu', t:0, endT:0, tode:0,
-                naechste:999, rufT:9, taeter:null,
+                naechste:999, rufT:9, taeter:null, lehre:12, gelehrt:false,
+                luegeT:50, luegeBis:0,
                 luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0 };
 let ladeStand = 0;
 
@@ -956,10 +986,14 @@ function hudSchritt(dt){
   const dm = mastAbstand();
   $('restZeit').textContent = Math.round(dm) + ' m';
   $('band').classList.toggle('knapp', dm < 60);
-  /* Alle paar Sekunden zählt das Band eine zu viel. Es ist keine da.
-     Man sieht trotzdem nach. */
-  const luegt = Math.random() < 0.035 && SIE.length > 0;
-  const n = SIE.length + (luegt ? 1 : 0);
+  /* Selten — und dann lange genug, dass man es liest. Bei jedem Takt
+     gewürfelt flackerte die Zahl fast jede Sekunde und sah nach einem
+     Fehler aus statt nach einer Lüge. Jetzt einmal pro Minute, für
+     anderthalb Sekunden. */
+  STAND.luegeT -= 0.08;
+  if(STAND.luegeT <= 0){ STAND.luegeT = 45 + Math.random()*40; STAND.luegeBis = 1.5; }
+  if(STAND.luegeBis > 0) STAND.luegeBis -= 0.08;
+  const n = SIE.length + (STAND.luegeBis > 0 ? 1 : 0);
   $('anzahl').textContent = n + (n === 1 ? ' GESTALT' : ' GESTALTEN');
   if(meldT > 0){ meldT -= dt; if(meldT <= 0) $('toast').classList.remove('an'); }
 }
@@ -970,6 +1004,8 @@ function neuStart(){
   P.kraft = 1; P.gelaufen = 0;
   STAND.t = 0; STAND.riss = 0;
   STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.taeter = null;
+  STAND.lehre = 12; STAND.gelehrt = false;
+  STAND.luegeT = 50; STAND.luegeBis = 0;
   for(const g of SIE) scene.remove(g.halter);
   SIE.length = 0;
   ABDRUCK.liste.length = 0; ABDRUCK.netz.count = 0;
@@ -1138,7 +1174,7 @@ function zeichnen(){
   himmelMat.uniforms.uMitte.value.setHex(0x4f8ee4).lerp(FALSCH_MITTE, krank*0.85);
   himmelMat.uniforms.uUnten.value.setHex(0xa9d2ef).lerp(FALSCH_UNTEN, krank*0.85);
   scene.fog.color.copy(HORIZONT).lerp(FALSCH_UNTEN, krank*0.7);
-  scene.fog.density = 0.0112 + krank*0.006;
+  scene.fog.density = 0.0145 + krank*0.006;
   postMat.uniforms.uZeit.value = ZEIT.t;
   /* Kein Balken, keine Verwaltung: das Bild reagiert nur auf das, was
      gerade passiert. */
@@ -1177,8 +1213,11 @@ function schritt(dt){
     STAND.riss = Math.max(0, STAND.riss - dt*1.4);
     durchschlagSchritt(dt);
     if(SND.ctx && SND.an){
-      const nah = clamp(1 - (STAND.naechste ?? 999)/70, 0, 1);
-      SND.naehe.gain.setTargetAtTime(nah*nah*0.30, SND.ctx.currentTime, 0.3);
+      /* Vorher setzte das Brummen erst kurz vor dem Zugriff ein. Jetzt
+         beginnt es bei 75 m und wächst flach — man merkt, dass etwas
+         näher kommt, bevor man weiß, welche. */
+      const nah = clamp(1 - (STAND.naechste ?? 999)/75, 0, 1);
+      SND.naehe.gain.setTargetAtTime(Math.pow(nah, 1.4)*0.34, SND.ctx.currentTime, 0.3);
       SND.stoer.gain.setTargetAtTime(STAND.riss*0.16, SND.ctx.currentTime, 0.12);
       SND.wind.gain.setTargetAtTime(0.05 + P.tempo*0.012, SND.ctx.currentTime, 0.4);
     }
