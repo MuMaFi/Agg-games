@@ -54,6 +54,11 @@ const camera = new T.PerspectiveCamera(72, 16/9, 0.1, 900);
 /* Der Dunst hat genau die Farbe des Horizonts. Dadurch löst sich die
    Wiese am Rand auf, statt an einer Kante aufzuhören. */
 const HORIZONT = new T.Color(0x9dc6e8);
+/* Wohin der Himmel im Lauf des Bandes rutscht: die Sättigung geht raus,
+   ein Grünstich kommt rein. Niemand kann sagen, wann es angefangen hat. */
+const FALSCH_OBEN  = new T.Color(0x2a4a6e);
+const FALSCH_MITTE = new T.Color(0x5e7c86);
+const FALSCH_UNTEN = new T.Color(0x9aa88c);
 scene.fog = new T.FogExp2(HORIZONT.getHex(), 0.0112);
 
 /* ======================= 2  Der Himmel ======================= */
@@ -563,6 +568,7 @@ function sieSchritt(dt){
   }
 
   let naechste = 999, irgendGesehen = false;
+  STAND.luftAn = 0;
   for(const g of SIE){
     g.abstand = abstandW(P.x, P.z, g.x, g.z);
     naechste = Math.min(naechste, g.abstand);
@@ -578,8 +584,16 @@ function sieSchritt(dt){
       /* Unbeobachtet wächst der Drang. Nah dran wächst er schneller. */
       const nah = clamp(1 - g.abstand/120, 0, 1);
       g.drang += dt * GR.drang * (0.55 + nah*1.35);
+      /* Kurz vor dem Sprung steht die Luft still: der Wind fällt ab, die
+         Halme hören auf, sich zu wiegen. Wer das einmal bemerkt hat,
+         achtet für den Rest des Bandes auf das Gras. */
+      if(g.drang > 0.80) STAND.luftAn = Math.max(STAND.luftAn, (g.drang-0.80)/0.20);
       if(g.drang >= 1){
         g.drang = 0.28; g.spruenge++;
+        abdruckSetzen(g.x, g.z);
+        /* Sie steht danach ein bisschen schiefer. Nicht viel. */
+        g.halter.children[0].rotation.z = (Math.random()-0.5)*0.10;
+        g.halter.children[0].rotation.x = (Math.random()-0.5)*0.07;
         /* Kein Schritt. Sie ist einfach näher. */
         const dx = dW(g.x, P.x), dz = dW(g.z, P.z);
         const l = Math.hypot(dx,dz) || 1;
@@ -595,10 +609,23 @@ function sieSchritt(dt){
     const px = P.x + dW(P.x, g.x), pz = P.z + dW(P.z, g.z);
     g.halter.position.set(px, g.y, pz);
     g.halter.rotation.y = Math.atan2(dW(g.x, P.x), dW(g.z, P.z));
+    /* Je näher, desto größer — nicht wirklich, aber gerade so viel, dass
+       das Auge sich nicht traut, es zu behaupten. */
+    const wuchs = 1 + clamp(1 - g.abstand/55, 0, 1) * 0.14;
+    g.halter.scale.setScalar(wuchs);
     if(g.mixer) g.mixer.update(0);
   }
+  abdruckNachfuehren();
   if(!irgendGesehen) STAND.stoerung = clamp(STAND.stoerung - 0.095*dt, 0, 1);
   STAND.naechste = naechste;
+
+  /* Ein Atem, der nicht der eigene ist. Nur wenn eine nah steht und man
+     gerade nicht hinsieht. */
+  STAND.atemT -= dt;
+  if(STAND.atemT <= 0 && naechste < 24){
+    STAND.atemT = 3.4 + Math.random()*2.4;
+    atemTon(clamp(1 - naechste/24, 0.1, 1));
+  }
 
   /* Der Ruf: man hört sie, bevor man sie sieht. */
   STAND.rufT -= dt;
@@ -632,6 +659,93 @@ function horchen(dt){
   } else el.classList.remove('an');
 
   if(d < 2.4 && STAND.phase === 'spiel' && !ZIEL.gefunden){ ZIEL.gefunden = true; gefunden(); }
+}
+
+/* ---------- Abdrücke ----------
+   Wo eine gestanden hat, bleibt das Gras platt und ausgeblichen. Die
+   Wiese füllt sich im Lauf der sechs Minuten mit Stellen, an denen sie
+   schon einmal war — und man sieht daran, wie oft sie schon näher
+   gekommen ist, ohne dass man es bemerkt hat. */
+const ABDRUCK = { netz:null, n:48, liste:[] };
+{
+  const g = new T.CircleGeometry(2.1, 20);
+  g.rotateX(-Math.PI/2);
+  const m = new T.MeshStandardMaterial({
+    color: 0xa39a63, roughness: 1.0, transparent: true, opacity: 0.0,
+    depthWrite: false });
+  m.onBeforeCompile = sh => {
+    /* Der Rand soll ausfransen, keine gestanzte Scheibe sein. */
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+       float r = length(vUv - 0.5) * 2.0;
+       float rau = 0.80 + 0.20*sin(vUv.x*41.0)*sin(vUv.y*37.0);
+       diffuseColor.a *= (1.0 - smoothstep(0.55*rau, 1.0*rau, r)) * 0.85;`);
+    sh.fragmentShader = 'varying vec2 vUv;\n' + sh.fragmentShader;
+    sh.vertexShader = 'varying vec2 vUv;\n' + sh.vertexShader.replace(
+      '#include <begin_vertex>', '#include <begin_vertex>\n vUv = uv;');
+  };
+  m.customProgramCacheKey = () => 'wiAbdruck';
+  m.transparent = true; m.opacity = 1.0;
+  ABDRUCK.netz = new T.InstancedMesh(g, m, ABDRUCK.n);
+  ABDRUCK.netz.frustumCulled = false;
+  ABDRUCK.netz.count = 0;
+  ABDRUCK.netz.renderOrder = 1;
+  scene.add(ABDRUCK.netz);
+}
+const _am = new T.Matrix4(), _ap = new T.Vector3(), _aq = new T.Quaternion(), _as = new T.Vector3();
+function abdruckSetzen(x, z){
+  ABDRUCK.liste.push({ x: modW(x), z: modW(z), gr: 0.85 + Math.random()*0.5,
+                       dreh: Math.random()*6.283 });
+  if(ABDRUCK.liste.length > ABDRUCK.n) ABDRUCK.liste.shift();
+}
+function abdruckNachfuehren(){
+  const n = ABDRUCK.liste.length;
+  ABDRUCK.netz.count = n;
+  for(let i=0;i<n;i++){
+    const a = ABDRUCK.liste[i];
+    const x = P.x + dW(P.x, a.x), z = P.z + dW(P.z, a.z);
+    _ap.set(x, hoeheBei(x,z) + 0.03, z);
+    _aq.setFromAxisAngle(new T.Vector3(0,1,0), a.dreh);
+    _as.set(a.gr, 1, a.gr);
+    _am.compose(_ap, _aq, _as);
+    ABDRUCK.netz.setMatrixAt(i, _am);
+  }
+  if(n) ABDRUCK.netz.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------- Der Durchschlag ----------
+   Mitten im Rauschen, für ein Zehntel einer Sekunde, steht eine direkt
+   vor der Linse. Wer blinzelt, verpasst es — und ist sich hinterher
+   nicht sicher, ob es da war. */
+const DURCH = { netz:null, t:0, geplant:-1 };
+function durchschlagVorbereiten(){
+  if(DURCH.netz || !sieVorlage) return;
+  const g = sieVorlage.wurzel.clone(true);
+  g.traverse(o => { if(o.isMesh){ o.castShadow = false; o.frustumCulled = false; } });
+  DURCH.netz = new T.Group(); DURCH.netz.add(g);
+  DURCH.netz.visible = false;
+  scene.add(DURCH.netz);
+}
+function durchschlagSchritt(dt){
+  if(!DURCH.netz) return;
+  if(DURCH.t > 0){
+    DURCH.t -= dt;
+    if(DURCH.t <= 0) DURCH.netz.visible = false;
+    return;
+  }
+  DURCH.netz.visible = false;
+}
+function durchschlagAusloesen(){
+  durchschlagVorbereiten();
+  if(!DURCH.netz) return;
+  const v = new T.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  const x = camera.position.x + v.x*3.6, z = camera.position.z + v.z*3.6;
+  DURCH.netz.position.set(x, hoeheBei(x,z), z);
+  DURCH.netz.rotation.y = Math.atan2(camera.position.x - x, camera.position.z - z);
+  DURCH.netz.visible = true;
+  DURCH.t = 0.11;
+  knall(0.09, 7000, 0.34, 'highpass');
 }
 
 /* ======================= 8  Ton ======================= */
@@ -725,6 +839,11 @@ function sprungTon(nah){
   o.start(); o.stop(ac.currentTime + 1.0);
 }
 function fernRuf(laut){ rufTon(laut); }
+/* Zwei Züge, gefiltert wie durch Stoff. Kein Knurren — Atem. */
+function atemTon(nah){
+  knall(0.55, 620 + nah*380, 0.030 + nah*0.075, 'bandpass');
+  setTimeout(() => knall(0.62, 420, 0.024 + nah*0.060, 'bandpass'), 620);
+}
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
   knall(0.08, 9000, 0.55, 'highpass');
@@ -822,7 +941,8 @@ postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 /* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
 const STAND = { phase:'menu', t:0, rest:BANDLAENGE, stoerung:0, blind:0, endT:0, tode:0,
-                naechste:999, rufT:9, horcht:0, taeter:null };
+                naechste:999, rufT:9, horcht:0, taeter:null,
+                luftAn:0, atemT:5, windStill:0, himmelKrank:0 };
 let ladeStand = 0;
 
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
@@ -860,7 +980,11 @@ function hudSchritt(dt){
   $('tc').textContent = bandStr(STAND.t);
   $('restZeit').textContent = zeitStr(STAND.rest);
   $('band').classList.toggle('knapp', STAND.rest < 60);
-  $('anzahl').textContent = SIE.length + (SIE.length === 1 ? ' GESTALT' : ' GESTALTEN');
+  /* Alle paar Sekunden zählt das Band eine zu viel. Es ist keine da.
+     Man sieht trotzdem nach. */
+  const luegt = Math.random() < 0.035 && SIE.length > 0;
+  const n = SIE.length + (luegt ? 1 : 0);
+  $('anzahl').textContent = n + (n === 1 ? ' GESTALT' : ' GESTALTEN');
   const st = $('stoer');
   st.classList.toggle('an', STAND.stoerung > 0.02);
   st.classList.toggle('voll', STAND.stoerung > 0.7);
@@ -876,6 +1000,11 @@ function neuStart(){
   STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.horcht = 0; STAND.taeter = null;
   for(const g of SIE) scene.remove(g.halter);
   SIE.length = 0;
+  ABDRUCK.liste.length = 0; ABDRUCK.netz.count = 0;
+  STAND.luftAn = 0; STAND.windStill = 0; STAND.atemT = 6; STAND.himmelKrank = 0;
+  DURCH.geplant = -1; DURCH.t = 0;
+  if(DURCH.netz) DURCH.netz.visible = false;
+  durchschlagVorbereiten();
   gelaufenMarke = 0;
   neueGestalt(115);
   zielSetzen();
@@ -1023,10 +1152,26 @@ addEventListener('mousemove', e => {
 
 /* ======================= 12  Bild und Schleife ======================= */
 function zeichnen(){
-  WIND.value = ZEIT.t;
+  /* Die Uhr des Windes läuft langsamer, je näher ein Sprung ist — bei
+     eins bleibt sie stehen. Halme und Böe frieren mit. */
+  STAND.windStill = lerp(STAND.windStill, STAND.luftAn, 0.16);
+  WIND.value += Math.max(0, 1 - STAND.windStill) * (ZEIT.t - (WIND.letzt ?? ZEIT.t));
+  WIND.letzt = ZEIT.t;
   himmelMat.uniforms.uZeit.value = ZEIT.t;
+  /* Über das Band hinweg kippt die Farbe: erst zu blau, dann zu wenig
+     davon. Langsam genug, dass man sich nicht sicher ist. */
+  const krank = STAND.phase === 'spiel' ? 1 - STAND.rest/BANDLAENGE : STAND.himmelKrank;
+  STAND.himmelKrank = krank;
+  himmelMat.uniforms.uOben.value.setHex(0x1e5fd6).lerp(FALSCH_OBEN, krank*0.85);
+  himmelMat.uniforms.uMitte.value.setHex(0x4f8ee4).lerp(FALSCH_MITTE, krank*0.85);
+  himmelMat.uniforms.uUnten.value.setHex(0xa9d2ef).lerp(FALSCH_UNTEN, krank*0.85);
+  scene.fog.color.copy(HORIZONT).lerp(FALSCH_UNTEN, krank*0.7);
+  scene.fog.density = 0.0112 + krank*0.006;
   postMat.uniforms.uZeit.value = ZEIT.t;
-  postMat.uniforms.uStoer.value = Math.max(STAND.stoerung, STAND.blind > 0 ? 1 : 0);
+  /* Während des Durchschlags reißt das Rauschen kurz auf. */
+  const durch = DURCH.t > 0;
+  postMat.uniforms.uStoer.value = durch ? 0.30
+    : Math.max(STAND.stoerung, STAND.blind > 0 ? 1 : 0);
   postMat.uniforms.uNah.value = lerp(postMat.uniforms.uNah.value,
     clamp(1 - (STAND.naechste ?? 999)/45, 0, 1), 0.12);
   postMat.uniforms.uEnde.value =
@@ -1067,9 +1212,15 @@ function schritt(dt){
       if(STAND.blind <= 0) STAND.stoerung = 0.34;
     } else if(STAND.stoerung >= 1){
       STAND.blind = 2.6;
-      melde('DAS BAND KIPPT. NICHT STEHEN BLEIBEN.', 3);
+      DURCH.geplant = 1.5;                 // irgendwo mitten im Rauschen
+      melde('DAS BAND KIPPT.', 3);
       knall(1.2, 6000, 0.3, 'highpass');
     }
+    if(DURCH.geplant > 0){
+      DURCH.geplant -= dt;
+      if(DURCH.geplant <= 0) durchschlagAusloesen();
+    }
+    durchschlagSchritt(dt);
     if(SND.ctx && SND.an){
       const nah = clamp(1 - (STAND.naechste ?? 999)/70, 0, 1);
       SND.naehe.gain.setTargetAtTime(nah*nah*0.30, SND.ctx.currentTime, 0.3);
@@ -1186,7 +1337,8 @@ window.WI = {
   blick(g,n){ P.gier=g; if(n!==undefined) P.nick=n; },
   setz(x,z){ P.x=modW(x); P.z=modW(z); P.y=hoeheBei(P.x,P.z); },
   mehr(d){ return neueGestalt(d||100); },
-  P, SIE, STAND, IN, GR, ZIEL,
+  himmelFarbe: () => '#' + himmelMat.uniforms.uOben.value.getHexString(),
+  P, SIE, STAND, IN, GR, ZIEL, ABDRUCK, DURCH,
 };
 
 bild();
