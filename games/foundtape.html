@@ -354,6 +354,7 @@
   <div class="rule"></div>
   <p id="endText"></p>
   <p id="endStats"></p>
+  <button class="big" id="bWeiterPool" style="display:none">▶ BAND 2 · EBENE 1: POOLROOMS</button>
   <button class="big" id="bAgain">NOCHMAL ABSPIELEN</button>
   <button class="chip" id="bAgainSeed">NEUES BAND</button>
 </div>
@@ -6230,7 +6231,12 @@ function winStep(dt){
   if(S.endT > 2.0 && scEnd.classList.contains('hidden')){
     endScreen('AUSGESTIEGEN',
       'Die Tür fällt hinter dir zu.<br>' + CFG.tapes + ' Bänder, ein Foto und ein Treppenhaus ins Nichts.' +
-      (S.hasPhoto ? '' : '<br>Das Foto liegt noch da unten.'));
+      (S.hasPhoto ? '' : '<br>Das Foto liegt noch da unten.') +
+      '<br><br>Das Treppenhaus geht nur nach unten. Unten steht Wasser.');
+    /* Wer Ebene 0 geschafft hat, kommt hier weiter — der Knopf steht nur
+       nach einem Ausstieg da, nicht nach einem Tod. */
+    const weiter = $('bWeiterPool');
+    if(weiter) weiter.style.display = '';
   }
 }
 
@@ -6316,6 +6322,7 @@ $('bResume').addEventListener('click', resumeGame);
 }
 $('bQuit').addEventListener('click', () => location.reload());
 $('bNewSeed').addEventListener('click', () => { location.search = '?seed=' + (Math.random()*1e9|0); });
+$('bWeiterPool').addEventListener('click', () => location.href = './poolrooms/');
 $('bAgain').addEventListener('click', () => location.reload());
 $('bAgainSeed').addEventListener('click', () => { location.search = '?seed=' + (Math.random()*1e9|0); });
 document.addEventListener('visibilitychange', () => { if(document.hidden && S.phase === 'play') pauseGame(); });
