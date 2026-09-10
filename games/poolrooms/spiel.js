@@ -2350,6 +2350,9 @@ function endBild(titel, text){
 function gewonnen(){
   if(S.phase !== 'spiel') return;
   S.phase = 'gewonnen'; S.endT = 0;
+  localStorage.setItem('ft_ebene2', '1');     // Band 3 ist jetzt gelesen
+  const weiter = $('bWeiterWiese');
+  if(weiter) weiter.style.display = '';
   LUKE.offen = true;
   piep(520, 0.3, 0.1); setTimeout(()=>piep(780,0.5,0.09), 220);
   knall(1.8, 900, 0.3);
@@ -2535,6 +2538,7 @@ $('bWeiter').addEventListener('click', weiter);
 $('bTon').addEventListener('click', () => tonSchalten(!SND.an));
 $('bNeu').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
 $('bNochmal').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
+$('bWeiterWiese').addEventListener('click', () => location.href = '../wiese/');
 for(const id of ['bRaus','bRaus2'])
   $(id).addEventListener('click', () => location.href = '../foundtape.html');
 
