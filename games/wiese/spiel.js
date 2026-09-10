@@ -24,10 +24,12 @@ let qKey = localStorage.getItem('wi_q') || (IS_TOUCH ? 'low' : 'high');
 if(!QUAL[qKey]) qKey = 'mid';
 const Q = QUAL[qKey];
 
+/* 'drang' ist, wie schnell eine unbeobachtete Gestalt zum Sprung
+   ansetzt — der Kern des Spiels. 'stoer', wie teuer das Hinsehen ist. */
 const GRADE = {
-  fern:   { tempo:4.2, stoer:0.085, ruf:26, name:'Fern' },
-  normal: { tempo:5.6, stoer:0.135, ruf:20, name:'Normal' },
-  nah:    { tempo:7.2, stoer:0.195, ruf:15, name:'Nah' },
+  fern:   { drang:0.105, stoer:0.075, ruf:26, name:'Fern' },
+  normal: { drang:0.155, stoer:0.115, ruf:20, name:'Normal' },
+  nah:    { drang:0.225, stoer:0.165, ruf:15, name:'Nah' },
 };
 let gKey = localStorage.getItem('wi_diff') || 'normal';
 if(!GRADE[gKey]) gKey = 'normal';
@@ -99,19 +101,40 @@ function mische(i, j){
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
-function welle(x, z){
-  const i = Math.floor(x), j = Math.floor(z);
-  const fx = x - i, fz = z - j;
+/* ---------- Die Wiese wickelt sich ----------
+   Sie ist nicht unendlich, sie ist rund. Vierhundertachtzig Meter in
+   jede Richtung, dann bist du wieder da, wo du losgelaufen bist — ohne
+   Wand, ohne Naht, ohne dass es einem jemand sagt. Deshalb muss jede
+   Lage des Rauschens auf ein Gitter passen, das genau in die Welt
+   hineingeht: Kachelzahl mal Wellenlänge ergibt immer 480. */
+const WELT = 480;
+const modW = a => ((a % WELT) + WELT) % WELT;
+/* Kürzester Weg auf der Schleife — von hier bis dort geht es womöglich
+   rückwärts schneller. */
+function dW(von, nach){
+  let d = nach - von;
+  if(d >  WELT/2) d -= WELT;
+  if(d < -WELT/2) d += WELT;
+  return d;
+}
+const abstandW = (ax, az, bx, bz) => Math.hypot(dW(ax,bx), dW(az,bz));
+
+function welleP(x, z, n, ox, oz){
+  const w = WELT / n;
+  const px = x/w + ox, pz = z/w + oz;
+  const i = Math.floor(px), j = Math.floor(pz);
+  const fx = px - i, fz = pz - j;
   const sx = fx*fx*(3-2*fx), sz = fz*fz*(3-2*fz);
-  const a = mische(i, j),   b = mische(i+1, j);
-  const c = mische(i, j+1), d = mische(i+1, j+1);
+  const wi = k => ((k % n) + n) % n;
+  const a = mische(wi(i),   wi(j)),   b = mische(wi(i+1), wi(j));
+  const c = mische(wi(i),   wi(j+1)), d = mische(wi(i+1), wi(j+1));
   return lerp(lerp(a,b,sx), lerp(c,d,sx), sz);
 }
 function hoeheBei(x, z){
-  return 6.4*welle(x/108, z/108)
-       + 2.4*welle(x/43 + 31.7, z/43 - 12.3)
-       + 0.78*welle(x/16.5 - 7.1, z/16.5 + 4.9)
-       + 0.20*welle(x/6.2 + 55.3, z/6.2 + 18.1)
+  return 6.4*welleP(x, z,  4, 0.31, 0.77)
+       + 2.4*welleP(x, z, 12, 5.13, 2.09)
+       + 0.78*welleP(x, z, 30, 1.77, 9.41)
+       + 0.20*welleP(x, z, 78, 7.03, 3.55)
        - 4.8;
 }
 function normaleBei(x, z, out){
@@ -228,6 +251,7 @@ function bodenSetzen(px, pz){
   p.needsUpdate = true; uv.needsUpdate = true;
   bodenGeo.computeVertexNormals();
   boden.position.set(ax, 0, az);
+  if(BUESCHEL.netz) bueschelSetzen(ax, az);
 }
 
 /* Hinter dem Netz eine große Scheibe in Horizontfarbe: damit endet die
@@ -241,6 +265,106 @@ function bodenSetzen(px, pz){
   scene.add(scheibe);
   scheibe.renderOrder = -1;
   window.__scheibe = scheibe;
+}
+
+/* ---------- Büschel und Wind ----------
+   Aus der Ferne ist die Wiese eine Fläche, direkt vor den Füßen soll sie
+   aber Halme haben. Ein paar tausend Büschel im Umkreis, die mit dem
+   Netz mitwandern — und eine Böe, die sichtbar über das Feld zieht. */
+function halmTextur(){
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  g.clearRect(0,0,64,64);
+  for(let i=0;i<7;i++){
+    const x = 6 + Math.random()*52;
+    const h = 26 + Math.random()*34;
+    const neig = (Math.random()-0.5)*16;
+    const gr = g.createLinearGradient(x, 64, x, 64-h);
+    gr.addColorStop(0, '#3c6c1e'); gr.addColorStop(1, '#7cb544');
+    g.strokeStyle = gr; g.lineWidth = 1.6 + Math.random()*1.5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, 64);
+    g.quadraticCurveTo(x + neig*0.4, 64-h*0.6, x + neig, 64-h);
+    g.stroke();
+  }
+  const t = new T.CanvasTexture(c);
+  t.colorSpace = T.SRGBColorSpace;
+  return t;
+}
+const BUESCHEL = { netz: null, n: Q.netz >= 128 ? 4200 : 2200, weite: 34 };
+{
+  /* Drei gekreuzte Blätter je Büschel, Fußpunkt bei y = 0. */
+  const teile = [];
+  for(let k=0;k<3;k++){
+    const q = new T.PlaneGeometry(0.42, 0.46);
+    q.translate(0, 0.23, 0);
+    q.rotateY(k * Math.PI / 3);
+    teile.push(q);
+  }
+  const geo = new T.BufferGeometry();
+  {
+    let n = 0; for(const t of teile) n += t.attributes.position.count;
+    const pos = new Float32Array(n*3), nor = new Float32Array(n*3), uv = new Float32Array(n*2);
+    const idx = [];
+    let o=0, o2=0, base=0;
+    for(const t of teile){
+      pos.set(t.attributes.position.array, o); nor.set(t.attributes.normal.array, o);
+      uv.set(t.attributes.uv.array, o2);
+      for(const i of t.index.array) idx.push(base + i);
+      base += t.attributes.position.count; o += t.attributes.position.array.length;
+      o2 += t.attributes.uv.array.length;
+      t.dispose();
+    }
+    geo.setAttribute('position', new T.BufferAttribute(pos,3));
+    geo.setAttribute('normal', new T.BufferAttribute(nor,3));
+    geo.setAttribute('uv', new T.BufferAttribute(uv,2));
+    geo.setIndex(idx);
+  }
+  const mat = new T.MeshStandardMaterial({
+    map: halmTextur(), transparent: false, alphaTest: 0.42, side: T.DoubleSide,
+    roughness: 0.95, metalness: 0.0,
+  });
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uWind = WIND;
+    sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+       vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+       float wieg = sin(uWind*1.7 + ip.x*0.35 + ip.z*0.27)*0.5
+                  + sin(uWind*3.1 + ip.x*0.91 - ip.z*0.13)*0.22;
+       /* Eine Böe, die als Streifen über das Feld wandert */
+       float boe = smoothstep(0.25, 1.0, sin(uWind*0.42 - ip.x*0.045 - ip.z*0.033));
+       transformed.x += wieg * (0.16 + boe*0.34) * transformed.y;
+       transformed.z += wieg * (0.09 + boe*0.20) * transformed.y;`);
+  };
+  mat.customProgramCacheKey = () => 'wiWind';
+  BUESCHEL.netz = new T.InstancedMesh(geo, mat, BUESCHEL.n);
+  BUESCHEL.netz.frustumCulled = false;
+  BUESCHEL.netz.castShadow = false;
+  BUESCHEL.netz.receiveShadow = Q.schatten;
+  scene.add(BUESCHEL.netz);
+}
+const WIND = { value: 0 };
+const _bm = new T.Matrix4(), _bp = new T.Vector3(), _bq = new T.Quaternion(), _bs = new T.Vector3();
+function bueschelSetzen(ax, az){
+  const n = BUESCHEL.n, w = BUESCHEL.weite;
+  /* Feste, gestreute Muster relativ zum Anker: dadurch springt beim
+     Nachrücken nichts sichtbar herum. */
+  for(let i=0;i<n;i++){
+    const r = Math.sqrt(mische(i, 17)) * w;
+    const a = mische(i, 91) * Math.PI * 2;
+    const x = ax + Math.cos(a)*r, z = az + Math.sin(a)*r;
+    const y = hoeheBei(x, z);
+    /* Nach außen hin flacher auslaufen lassen — sonst steht das Feld
+       der Büschel als sichtbarer Ring um den Spieler. */
+    const rand = 1 - Math.pow(clamp(r/w, 0, 1), 2.2);
+    const gr = (0.55 + mische(i, 53)*0.62) * (0.25 + 0.75*rand);
+    _bp.set(x, y, z);
+    _bq.setFromAxisAngle(new T.Vector3(0,1,0), mische(i, 7)*6.283);
+    _bs.set(gr, gr*(0.8 + mische(i,29)*0.6), gr);
+    _bm.compose(_bp, _bq, _bs);
+    BUESCHEL.netz.setMatrixAt(i, _bm);
+  }
+  BUESCHEL.netz.instanceMatrix.needsUpdate = true;
 }
 
 /* ======================= 4  Licht ======================= */
@@ -292,9 +416,10 @@ function spielerSchritt(dt){
   const sin = Math.sin(P.gier), cos = Math.cos(P.gier);
   const dx = (-sin*vor + cos*quer) * tempo * dt;
   const dz = (-cos*vor - sin*quer) * tempo * dt;
-  P.x += dx; P.z += dz;
+  P.x = modW(P.x + dx); P.z = modW(P.z + dz);
   P.gelaufen += Math.hypot(dx, dz);
   P.y = hoeheBei(P.x, P.z);
+  zielNachfuehren();
 
   P.schrittWeg += gas * tempo * dt;
   const schrittLaenge = rennt ? 1.35 : 0.95;
@@ -322,125 +447,194 @@ function spielerSchritt(dt){
   camera.rotation.set(P.nick + wNick, P.gier + wGier, wRoll, 'YXZ');
 }
 
-/* ======================= 6  Sie ======================= */
-/* Steht still, solange man hinsieht. Sieht man weg, kommt sie — nicht
-   schleichend, sondern zügig. Das Ansehen ist deshalb die einzige
-   Bremse, die es gibt, und es kostet Band. */
-const SIE = {
-  gruppe: null, mixer: null, klipp: null,
-  x: 0, z: 0, y: 0, gier: 0,
-  hoehe: 12.0, abstand: 999, gesehen: false, gesehenT: 0,
-  rufT: 8, ruftJetzt: 0, geladen: false,
-};
-const _ndc = new T.Vector3();
+/* ======================= 6  Die Fundstelle ======================= */
+/* Das einzige auf dieser Wiese, was kein Gras ist: ein niedergedrücktes,
+   ausgeblichenes Stück Boden. Da hat die Kamera gelegen. Man sieht es
+   erst, wenn man fast draufsteht — finden muss man es über das Ohr. */
+const ZIEL = { x: 0, z: 0, gefunden: false, netz: null };
+{
+  const g = new T.CircleGeometry(2.6, 34);
+  g.rotateX(-Math.PI/2);
+  const m = new T.MeshStandardMaterial({
+    color: 0xb9b169, roughness: 1.0, transparent: true, opacity: 0.92 });
+  ZIEL.netz = new T.Mesh(g, m);
+  ZIEL.netz.renderOrder = 2;
+  scene.add(ZIEL.netz);
+}
+function zielSetzen(){
+  const w = Math.random()*Math.PI*2, d = 150 + Math.random()*45;
+  ZIEL.x = modW(P.x + Math.sin(w)*d);
+  ZIEL.z = modW(P.z + Math.cos(w)*d);
+  ZIEL.gefunden = false;
+  zielNachfuehren();
+}
+function zielNachfuehren(){
+  /* Auf der Schleife gerendert: immer auf der Seite, auf der er näher ist. */
+  const x = P.x + dW(P.x, ZIEL.x), z = P.z + dW(P.z, ZIEL.z);
+  ZIEL.netz.position.set(x, hoeheBei(x,z) + 0.035, z);
+}
+const zielAbstand = () => abstandW(P.x, P.z, ZIEL.x, ZIEL.z);
+
+/* ======================= 7  Sie ======================= */
+/* Sie gehen nicht. Sie stehen. Und wenn du nicht hinsiehst, stehen sie
+   woanders — näher, ohne dass ein Schritt zu sehen war. Weglaufen ist
+   deshalb keine Antwort: die Wiese ist rund, und jeder gelaufene Meter
+   stellt eine weitere von ihnen auf den Horizont. */
+const HOEHE_SIE = 12.0;
+const SIE = [];
+let sieVorlage = null, sieGeladen = false;
+const MAX_SIE = 9;
+const METER_JE_GESTALT = 55;
 
 new GLTFLoader().load('./modelle/sirene.glb', gltf => {
   const g = gltf.scene;
   const box = new T.Box3().setFromObject(g);
   const gr = new T.Vector3(); box.getSize(gr);
-  const skal = SIE.hoehe / Math.max(gr.y, 0.001);
-  g.scale.setScalar(skal);
-  /* Nach dem Skalieren die Füße auf null legen. */
+  g.scale.setScalar(HOEHE_SIE / Math.max(gr.y, 0.001));
   const box2 = new T.Box3().setFromObject(g);
   g.position.y -= box2.min.y;
   g.traverse(o => {
     if(o.isMesh){
-      o.castShadow = Q.schatten;
-      o.frustumCulled = false;
-      if(o.material){
-        o.material.roughness = 0.85;
-        o.material.metalness = 0.0;
-      }
+      o.castShadow = Q.schatten; o.frustumCulled = false;
+      if(o.material){ o.material.roughness = 0.85; o.material.metalness = 0.0; }
     }
   });
-  const halter = new T.Group();
-  halter.add(g);
-  scene.add(halter);
-  SIE.gruppe = halter;
-  if(gltf.animations && gltf.animations.length){
-    SIE.mixer = new T.AnimationMixer(g);
-    SIE.klipp = SIE.mixer.clipAction(gltf.animations[0]);
-    SIE.klipp.play();
-  }
-  SIE.geladen = true;
+  sieVorlage = { wurzel: g, klippe: gltf.animations || [] };
+  sieGeladen = true;
   ladeStand = 1;
-}, e => {
-  if(e.total) ladeStand = Math.min(0.95, e.loaded / e.total);
-}, () => { SIE.geladen = true; ladeStand = 1; });
+}, e => { if(e.total) ladeStand = Math.min(0.95, e.loaded / e.total); },
+   () => { sieGeladen = true; ladeStand = 1; });
 
-/* Sichtprüfung: im Bild, nicht zu weit, und kein Hügel dazwischen. */
-function siehtSie(){
-  if(!SIE.gruppe) return false;
-  const kopf = SIE.y + SIE.hoehe*0.72;
-  _ndc.set(SIE.x, kopf, SIE.z).project(camera);
+function neueGestalt(abstand){
+  if(!sieVorlage || SIE.length >= MAX_SIE) return null;
+  const wurzel = sieVorlage.wurzel.clone(true);
+  const halter = new T.Group(); halter.add(wurzel);
+  scene.add(halter);
+  let mixer = null, klipp = null;
+  if(sieVorlage.klippe.length){
+    mixer = new T.AnimationMixer(wurzel);
+    klipp = mixer.clipAction(sieVorlage.klippe[0]);
+    klipp.play(); klipp.paused = true;         // sie bewegt sich nie sichtbar
+    klipp.time = 0.6 + Math.random()*3.2;      // jede steht ein bisschen anders
+    mixer.update(0);
+  }
+  const w = Math.random()*Math.PI*2;
+  const g = {
+    halter, mixer, klipp,
+    x: modW(P.x + Math.sin(w)*abstand),
+    z: modW(P.z + Math.cos(w)*abstand),
+    y: 0, gier: 0, drang: 0, abstand: abstand, gesehen: false, spruenge: 0,
+  };
+  g.y = hoeheBei(g.x, g.z);
+  SIE.push(g);
+  return g;
+}
+
+const _ndc = new T.Vector3();
+/* Im Bild, nah genug, und keine Kuppe dazwischen. Der Blick über die
+   Höhenfunktion ist wichtig: hinter einer Erhebung nützt Hinsehen nichts. */
+function wirdGesehen(g){
+  const px = P.x + dW(P.x, g.x), pz = P.z + dW(P.z, g.z);
+  const kopf = hoeheBei(g.x, g.z) + HOEHE_SIE*0.72;
+  _ndc.set(px, kopf, pz).project(camera);
   if(_ndc.z > 1 || Math.abs(_ndc.x) > 0.92 || Math.abs(_ndc.y) > 0.95) return false;
-  if(SIE.abstand > 170) return false;
-  if(STAND.stoerung > 0.995) return false;         // im Rauschen sieht man nichts
-  /* Kuppen verdecken: die Sichtlinie gegen die Höhenfunktion prüfen. */
+  if(g.abstand > 175) return false;
+  if(STAND.stoerung > 0.995 || STAND.blind > 0) return false;
   const ax = camera.position.x, ay = camera.position.y, az = camera.position.z;
-  const n = Math.min(48, Math.max(8, Math.round(SIE.abstand/3)));
+  const n = Math.min(42, Math.max(8, Math.round(g.abstand/4)));
   for(let i=1;i<n;i++){
     const t = i/n;
-    const x = lerp(ax, SIE.x, t), z = lerp(az, SIE.z, t);
-    const y = lerp(ay, kopf, t);
-    if(hoeheBei(x,z) > y + 0.25) return false;
+    const x = lerp(ax, px, t), z = lerp(az, pz, t), y = lerp(ay, kopf, t);
+    if(hoeheBei(x,z) > y + 0.3) return false;
   }
   return true;
 }
 
-function sieSetzen(abstand){
-  const w = Math.random()*Math.PI*2;
-  SIE.x = P.x + Math.sin(w)*abstand;
-  SIE.z = P.z + Math.cos(w)*abstand;
-  SIE.y = hoeheBei(SIE.x, SIE.z);
-}
-
+let gelaufenMarke = 0;
 function sieSchritt(dt){
-  if(!SIE.gruppe) return;
-  SIE.abstand = Math.hypot(SIE.x - P.x, SIE.z - P.z);
-  const gesehen = siehtSie();
-  SIE.gesehen = gesehen;
-
-  if(gesehen){
-    SIE.gesehenT += dt;
-    /* Der Rundfunk stört das Band, und zwar heftiger, je näher sie steht. */
-    const nah = clamp(1 - SIE.abstand/120, 0, 1);
-    STAND.stoerung = clamp(STAND.stoerung + GR.stoer*(0.35 + nah*1.3)*dt, 0, 1);
-    if(SIE.klipp) SIE.klipp.paused = true;
-  } else {
-    SIE.gesehenT = 0;
-    STAND.stoerung = clamp(STAND.stoerung - 0.11*dt, 0, 1);
-    if(SIE.klipp) SIE.klipp.paused = false;
-    /* Gehen. Auf sehr kurze Entfernung wird sie schneller — das ist der
-       Moment, in dem Wegsehen teuer wird. */
-    const eile = GR.tempo * (SIE.abstand < 25 ? 1.25 : 1);
-    const dx = P.x - SIE.x, dz = P.z - SIE.z, dl = Math.hypot(dx,dz) || 1;
-    SIE.x += dx/dl * eile * dt;
-    SIE.z += dz/dl * eile * dt;
-    SIE.gier = Math.atan2(dx, dz);
-    /* Zu weit weg wird langweilig: dann steht sie beim nächsten Wegsehen
-       wieder am Rand des Dunstes. */
-    if(SIE.abstand > 200) sieSetzen(120);
+  if(!sieVorlage) return;
+  /* Jeder gelaufene Meter holt eine weitere dazu. Rennen geht schneller
+     — und macht es schneller schlimmer. */
+  while(P.gelaufen - gelaufenMarke > METER_JE_GESTALT && SIE.length < MAX_SIE){
+    gelaufenMarke += METER_JE_GESTALT;
+    const neu = neueGestalt(120 + Math.random()*40);
+    if(neu){ melde('NOCH EINE. SIE WERDEN MEHR, WENN DU LÄUFST.', 3.5); fernRuf(0.4); }
+    else break;
   }
-  SIE.y = hoeheBei(SIE.x, SIE.z);
-  SIE.gruppe.position.set(SIE.x, SIE.y, SIE.z);
-  SIE.gruppe.rotation.y = SIE.gier;
-  if(SIE.mixer) SIE.mixer.update(gesehen ? 0 : dt);
 
-  /* Der Ruf. Man hört ihn, bevor man sie sieht. */
-  SIE.rufT -= dt;
-  if(SIE.rufT <= 0){
-    SIE.rufT = GR.ruf * (0.7 + Math.random()*0.6);
-    SIE.ruftJetzt = 3.5;
-    rufTon(clamp(1 - SIE.abstand/180, 0.12, 1));
-    peilAnzeigen();
+  let naechste = 999, irgendGesehen = false;
+  for(const g of SIE){
+    g.abstand = abstandW(P.x, P.z, g.x, g.z);
+    naechste = Math.min(naechste, g.abstand);
+    const gesehen = wirdGesehen(g);
+    g.gesehen = gesehen;
+    if(gesehen){
+      irgendGesehen = true;
+      /* Hinsehen hält sie — und frisst Band. */
+      g.drang = Math.max(0, g.drang - dt*0.85);
+      const nah = clamp(1 - g.abstand/130, 0, 1);
+      STAND.stoerung = clamp(STAND.stoerung + GR.stoer*(0.30 + nah*1.25)*dt, 0, 1);
+    } else {
+      /* Unbeobachtet wächst der Drang. Nah dran wächst er schneller. */
+      const nah = clamp(1 - g.abstand/120, 0, 1);
+      g.drang += dt * GR.drang * (0.55 + nah*1.35);
+      if(g.drang >= 1){
+        g.drang = 0.28; g.spruenge++;
+        /* Kein Schritt. Sie ist einfach näher. */
+        const dx = dW(g.x, P.x), dz = dW(g.z, P.z);
+        const l = Math.hypot(dx,dz) || 1;
+        const neuD = Math.max(2.2, g.abstand * 0.52);
+        g.x = modW(P.x - dx/l*neuD);
+        g.z = modW(P.z - dz/l*neuD);
+        g.abstand = neuD;
+        sprungTon(clamp(1 - neuD/90, 0.15, 1));
+        if(neuD <= 3.2 && STAND.phase === 'spiel'){ erwischt(g); return; }
+      }
+    }
+    g.y = hoeheBei(g.x, g.z);
+    const px = P.x + dW(P.x, g.x), pz = P.z + dW(P.z, g.z);
+    g.halter.position.set(px, g.y, pz);
+    g.halter.rotation.y = Math.atan2(dW(g.x, P.x), dW(g.z, P.z));
+    if(g.mixer) g.mixer.update(0);
   }
-  if(SIE.ruftJetzt > 0) SIE.ruftJetzt -= dt;
+  if(!irgendGesehen) STAND.stoerung = clamp(STAND.stoerung - 0.095*dt, 0, 1);
+  STAND.naechste = naechste;
 
-  if(SIE.abstand < 3.4 && STAND.phase === 'spiel') erwischt();
+  /* Der Ruf: man hört sie, bevor man sie sieht. */
+  STAND.rufT -= dt;
+  if(STAND.rufT <= 0 && SIE.length){
+    STAND.rufT = GR.ruf * (0.7 + Math.random()*0.6);
+    rufTon(clamp(1 - naechste/190, 0.12, 1));
+  }
 }
 
-/* ======================= 7  Ton ======================= */
+/* ---------- Stillstehen und horchen ----------
+   Das Band nimmt auf. Wer steht, hört aus der Fundstelle ein Rauschen —
+   und je näher, desto lauter. Wer läuft, hört nur sich selbst. Damit ist
+   Weglaufen nicht nur nutzlos, sondern im Weg. */
+function horchen(dt){
+  const steht = P.tempo < 0.25;
+  STAND.horcht = steht ? Math.min(1.4, STAND.horcht + dt) : 0;
+  const an = STAND.horcht > 0.85;
+  const d = zielAbstand();
+  if(SND.ctx && SND.an){
+    const laut = an ? clamp(1 - d/210, 0.02, 1) : 0;
+    SND.peil.gain.setTargetAtTime(laut*laut*0.16, SND.ctx.currentTime, 0.25);
+    SND.peilFilter.frequency.setTargetAtTime(500 + (1 - clamp(d/210,0,1))*2600,
+      SND.ctx.currentTime, 0.3);
+  }
+  const el = $('peil');
+  if(an){
+    const w = (Math.atan2(dW(P.x, ZIEL.x), -dW(P.z, ZIEL.z)) * 180/Math.PI + 360) % 360;
+    const namen = ['NORD','NORDOST','OST','SÜDOST','SÜD','SÜDWEST','WEST','NORDWEST'];
+    $('peilRichtung').textContent = namen[Math.round(w/45) % 8] + ' · ' + Math.round(d) + ' m';
+    el.classList.add('an');
+  } else el.classList.remove('an');
+
+  if(d < 2.4 && STAND.phase === 'spiel' && !ZIEL.gefunden){ ZIEL.gefunden = true; gefunden(); }
+}
+
+/* ======================= 8  Ton ======================= */
 const SND = { an:true, ctx:null };
 function tonStart(){
   if(SND.ctx) return;
@@ -470,6 +664,13 @@ function tonStart(){
   const nf = ac.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value = 110;
   SND.naehe = ac.createGain(); SND.naehe.gain.value = 0;
   n.connect(nf); nf.connect(SND.naehe); SND.naehe.connect(SND.master); n.start();
+
+  /* Das Rauschen aus der Fundstelle — nur zu hören, wenn man steht */
+  const pq = ac.createBufferSource(); pq.buffer = buf; pq.loop = true;
+  SND.peilFilter = ac.createBiquadFilter();
+  SND.peilFilter.type = 'bandpass'; SND.peilFilter.frequency.value = 700; SND.peilFilter.Q.value = 3.5;
+  SND.peil = ac.createGain(); SND.peil.gain.value = 0;
+  pq.connect(SND.peilFilter); SND.peilFilter.connect(SND.peil); SND.peil.connect(SND.master); pq.start();
 
   /* Bandrauschen, wenn das Bild kippt */
   const r = ac.createBufferSource(); r.buffer = buf; r.loop = true;
@@ -509,6 +710,21 @@ function rufTon(laut){
   }
   knall(1.4, 900, 0.05*laut, 'bandpass');
 }
+/* Der Sprung: kein Schritt, ein Schnitt. Ein harter Anriss und ein
+   tiefer Schlag, der im Bauch landet. */
+function sprungTon(nah){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  knall(0.10, 5200, 0.10 + nah*0.30, 'highpass');
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(120, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(34, ac.currentTime + 0.45);
+  const g = ac.createGain(); g.gain.value = 0;
+  g.gain.setTargetAtTime(0.10 + nah*0.26, ac.currentTime, 0.006);
+  g.gain.setTargetAtTime(0, ac.currentTime + 0.22, 0.16);
+  o.connect(g); g.connect(SND.master);
+  o.start(); o.stop(ac.currentTime + 1.0);
+}
+function fernRuf(laut){ rufTon(laut); }
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
   knall(0.08, 9000, 0.55, 'highpass');
@@ -527,7 +743,7 @@ function tonSchalten(an){
   $('bTon').textContent = 'TON: ' + (an ? 'AN' : 'AUS');
 }
 
-/* ======================= 8  Bildnachbearbeitung ======================= */
+/* ======================= 9  Bildnachbearbeitung ======================= */
 /* Dasselbe Band wie in Ebene 0 und 1: Linsenverzug, Kopfspur, Bandlauf,
    Blockversatz, Korn, Zeilen. Neu ist nur, was ihr Rundfunk anrichtet. */
 const bildRT = new T.WebGLRenderTarget(16, 16, {
@@ -603,9 +819,10 @@ const postMat = new T.ShaderMaterial({
 });
 postScene.add(new T.Mesh(new T.PlaneGeometry(2,2), postMat));
 
-/* ======================= 9  Anzeige und Ablauf ======================= */
+/* ======================= 10  Anzeige und Ablauf ======================= */
 const ZEIT = { t: 0 };
-const STAND = { phase:'menu', t:0, rest:BANDLAENGE, stoerung:0, blind:0, endT:0, tode:0 };
+const STAND = { phase:'menu', t:0, rest:BANDLAENGE, stoerung:0, blind:0, endT:0, tode:0,
+                naechste:999, rufT:9, horcht:0, taeter:null };
 let ladeStand = 0;
 
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
@@ -643,6 +860,7 @@ function hudSchritt(dt){
   $('tc').textContent = bandStr(STAND.t);
   $('restZeit').textContent = zeitStr(STAND.rest);
   $('band').classList.toggle('knapp', STAND.rest < 60);
+  $('anzahl').textContent = SIE.length + (SIE.length === 1 ? ' GESTALT' : ' GESTALTEN');
   const st = $('stoer');
   st.classList.toggle('an', STAND.stoerung > 0.02);
   st.classList.toggle('voll', STAND.stoerung > 0.7);
@@ -651,14 +869,19 @@ function hudSchritt(dt){
 }
 
 function neuStart(){
-  P.x = 0; P.z = 0; P.y = hoeheBei(0,0); P.gier = Math.random()*Math.PI*2; P.nick = -0.03;
+  P.x = modW(Math.random()*WELT); P.z = modW(Math.random()*WELT);
+  P.y = hoeheBei(P.x, P.z); P.gier = Math.random()*Math.PI*2; P.nick = -0.03;
   P.kraft = 1; P.gelaufen = 0;
-  STAND.t = 0; STAND.rest = BANDLAENGE; STAND.stoerung = 0; STAND.blind = 0; STAND.endT = 0;
-  SIE.rufT = 7; SIE.gesehenT = 0;
-  sieSetzen(105);
+  STAND.t = 0; STAND.rest = BANDLAENGE; STAND.stoerung = 0; STAND.blind = 0;
+  STAND.endT = 0; STAND.naechste = 999; STAND.rufT = 9; STAND.horcht = 0; STAND.taeter = null;
+  for(const g of SIE) scene.remove(g.halter);
+  SIE.length = 0;
+  gelaufenMarke = 0;
+  neueGestalt(115);
+  zielSetzen();
   bodenAnker = { x:1e9, z:1e9 };
   bodenSetzen(P.x, P.z);
-  melde('SECHS MINUTEN. HIER IST NICHTS AUSSER IHR.', 5);
+  melde('STEH STILL UND HORCH. LAUFEN MACHT SIE MEHR.', 5.5);
 }
 function spielStart(){
   tonStart();
@@ -676,28 +899,41 @@ function endBild(titel, text){
   $('endTitle').textContent = titel;
   $('endText').textContent = text;
   $('endStats').innerHTML =
-    'DURCHGEHALTEN ' + zeitStr(BANDLAENGE - STAND.rest) + ' VON ' + zeitStr(BANDLAENGE) +
-    '<br>GELAUFEN ' + Math.round(P.gelaufen) + ' m';
+    'BAND ' + zeitStr(BANDLAENGE - STAND.rest) + ' VON ' + zeitStr(BANDLAENGE) +
+    ' &nbsp;·&nbsp; GELAUFEN ' + Math.round(P.gelaufen) + ' m' +
+    '<br>GESTALTEN ' + SIE.length + ' &nbsp;·&nbsp; FUNDSTELLE ' +
+    (ZIEL.gefunden ? 'GEFUNDEN' : Math.round(zielAbstand()) + ' m ENTFERNT');
   zeige(scEnd);
   if(document.pointerLockElement) document.exitPointerLock();
 }
-function erwischt(){
+function erwischt(g){
   if(STAND.phase !== 'spiel') return;
   STAND.phase = 'tot'; STAND.endT = 0; STAND.tode++;
-  P.gier = Math.atan2(SIE.x - P.x, SIE.z - P.z);
+  STAND.taeter = g;
+  P.gier = Math.atan2(dW(P.x, g.x), dW(P.z, g.z));
   P.nick = 0.42;                                   // der Blick geht hoch
   schreckTon();
   if(navigator.vibrate) navigator.vibrate([0,90,50,240]);
   allesLos();
   if(document.pointerLockElement) document.exitPointerLock();
 }
+/* Das Band ist zu Ende, ohne dass du die Stelle gefunden hast. Kein
+   Zugriff, kein Schrei — nur Schluss. Die schlechtere von zwei Arten,
+   hier rauszukommen. */
 function ueberstanden(){
+  if(STAND.phase !== 'spiel') return;
+  STAND.phase = 'leer'; STAND.endT = 0;
+  allesLos();
+}
+function gefunden(){
   if(STAND.phase !== 'spiel') return;
   STAND.phase = 'fertig'; STAND.endT = 0;
   allesLos();
+  knall(1.6, 700, 0.24);
+  if(SND.ctx && SND.an) SND.peil.gain.setTargetAtTime(0, SND.ctx.currentTime, 0.4);
 }
 
-/* ======================= 10  Steuerung ======================= */
+/* ======================= 11  Steuerung ======================= */
 const elStick = $('stick'), elKnob = $('knob');
 const zMove = $('zoneMove'), zLook = $('zoneLook');
 const bRun = $('bRun'), bMenu = $('bMenu');
@@ -785,16 +1021,18 @@ addEventListener('mousemove', e => {
   IN.dpitch -= e.movementY*0.0020;
 });
 
-/* ======================= 11  Bild und Schleife ======================= */
+/* ======================= 12  Bild und Schleife ======================= */
 function zeichnen(){
+  WIND.value = ZEIT.t;
   himmelMat.uniforms.uZeit.value = ZEIT.t;
   postMat.uniforms.uZeit.value = ZEIT.t;
   postMat.uniforms.uStoer.value = Math.max(STAND.stoerung, STAND.blind > 0 ? 1 : 0);
   postMat.uniforms.uNah.value = lerp(postMat.uniforms.uNah.value,
-    clamp(1 - SIE.abstand/45, 0, 1), 0.12);
+    clamp(1 - (STAND.naechste ?? 999)/45, 0, 1), 0.12);
   postMat.uniforms.uEnde.value =
     STAND.phase === 'tot'    ? clamp(STAND.endT*0.7, 0, 1) :
-    STAND.phase === 'fertig' ? clamp((STAND.endT-1.2)*0.8, 0, 1) : 0;
+    STAND.phase === 'fertig' ? clamp((STAND.endT-1.0)*0.9, 0, 1) :
+    STAND.phase === 'leer'   ? clamp((STAND.endT-1.2)*0.8, 0, 1) : 0;
   renderer.setRenderTarget(bildRT);
   renderer.clear();
   renderer.render(scene, camera);
@@ -821,6 +1059,7 @@ function schritt(dt){
     STAND.rest -= dt;
     spielerSchritt(dt);
     sieSchritt(dt);
+    horchen(dt);
     /* Bei voller Störung sieht man ein paar Sekunden gar nichts — und sie
        läuft weiter. Das ist der Preis fürs Hinsehen. */
     if(STAND.blind > 0){
@@ -832,7 +1071,7 @@ function schritt(dt){
       knall(1.2, 6000, 0.3, 'highpass');
     }
     if(SND.ctx && SND.an){
-      const nah = clamp(1 - SIE.abstand/70, 0, 1);
+      const nah = clamp(1 - (STAND.naechste ?? 999)/70, 0, 1);
       SND.naehe.gain.setTargetAtTime(nah*nah*0.30, SND.ctx.currentTime, 0.3);
       SND.stoer.gain.setTargetAtTime(STAND.stoerung*0.13, SND.ctx.currentTime, 0.2);
       SND.wind.gain.setTargetAtTime(0.05 + P.tempo*0.012, SND.ctx.currentTime, 0.4);
@@ -841,24 +1080,34 @@ function schritt(dt){
     if(STAND.rest <= 0){ STAND.rest = 0; ueberstanden(); }
   } else if(STAND.phase === 'tot'){
     STAND.endT += dt;
-    /* Sie füllt das Bild. Kein Schnitt, kein Umschauen. */
-    const dx = SIE.x - P.x, dz = SIE.z - P.z, dl = Math.hypot(dx,dz) || 1;
-    SIE.x = P.x + dx/dl*Math.max(1.6, dl - dt*5);
-    SIE.z = P.z + dz/dl*Math.max(1.6, dl - dt*5);
-    SIE.y = hoeheBei(SIE.x, SIE.z);
-    if(SIE.gruppe) SIE.gruppe.position.set(SIE.x, SIE.y, SIE.z);
-    if(SIE.mixer) SIE.mixer.update(dt);
+    /* Jetzt läuft die Animation — zum ersten und einzigen Mal sieht man
+       sie sich bewegen. */
+    const g = STAND.taeter;
+    if(g){
+      const dx = dW(g.x, P.x), dz = dW(g.z, P.z), dl = Math.hypot(dx,dz) || 1;
+      const neu = Math.max(1.5, dl - dt*4.5);
+      g.x = modW(P.x - dx/dl*neu); g.z = modW(P.z - dz/dl*neu);
+      g.y = hoeheBei(g.x, g.z);
+      g.halter.position.set(P.x + dW(P.x,g.x), g.y, P.z + dW(P.z,g.z));
+      if(g.klipp) g.klipp.paused = false;
+      if(g.mixer) g.mixer.update(dt);
+    }
     camera.rotation.set(P.nick, P.gier, Math.sin(ZEIT.t*9)*0.03, 'YXZ');
     if(STAND.endT > 2.4 && scEnd.classList.contains('hidden'))
-      endBild('BAND REISST', 'Der Rest des Bandes ist Rauschen. Wer die Kamera ' +
-        'gefunden hat, hat sie im Gras gefunden, mitten auf einer Wiese, auf der ' +
-        'sonst nichts war.');
+      endBild('BAND REISST', 'Sie hat keinen Schritt gemacht. Sie war nur ' +
+        'plötzlich näher, und dann war sie hier.');
   } else if(STAND.phase === 'fertig'){
     STAND.endT += dt;
+    if(STAND.endT > 2.2 && scEnd.classList.contains('hidden'))
+      endBild('FUNDSTELLE', 'Ein niedergedrücktes Stück Gras, ausgeblichen, ' +
+        'zwei Meter breit. Genau hier hat die Kamera gelegen. Wer sie abgelegt ' +
+        'hat, ist nicht mehr weggelaufen.');
+  } else if(STAND.phase === 'leer'){
+    STAND.endT += dt;
     if(STAND.endT > 2.6 && scEnd.classList.contains('hidden'))
-      endBild('BAND ENDE', 'Sechs Minuten, kein Schnitt. Das Bild wird schwarz, ' +
-        'während sie noch dasteht. Sie ist nicht nähergekommen — man hat ja ' +
-        'hingesehen.');
+      endBild('BAND ENDE', 'Sechs Minuten Gras. Das Band läuft aus, ohne dass du ' +
+        'die Stelle gefunden hast — und sie stehen immer noch da, genau so weit ' +
+        'weg wie vorhin.');
   }
 }
 function bild(){
@@ -868,7 +1117,7 @@ function bild(){
   zeichnen();
 }
 
-/* ======================= 12  Menü ======================= */
+/* ======================= 13  Menü ======================= */
 zeige(scTitle);
 P.y = hoeheBei(0,0);
 bodenSetzen(0,0);
@@ -877,9 +1126,9 @@ camera.rotation.set(-0.02, 0.6, 0, 'YXZ');
 himmel.position.set(0,0,0);
 
 const DIFFTEXT = {
-  fern:   'Fern — sie geht gemächlich, wenn du wegsiehst, und ihr Rundfunk stört das Band nur langsam.',
-  normal: 'Normal — sie geht zügig, wenn du wegsiehst, und der Blick auf sie stört das Band in mittlerem Tempo.',
-  nah:    'Nah — sie ist schnell, ruft öfter, und Hinsehen frisst das Band in wenigen Sekunden.',
+  fern:   'Fern — unbeobachtet lässt sie sich rund zehn Sekunden Zeit bis zum Sprung, und Hinsehen kostet wenig Band.',
+  normal: 'Normal — unbeobachtet setzt sie in etwa sieben Sekunden zum Sprung an, und der Blick auf sie frisst das Band in mittlerem Tempo.',
+  nah:    'Nah — keine fünf Sekunden bis zum Sprung, sie ruft öfter, und Hinsehen frisst das Band in Sekunden.',
 };
 document.querySelectorAll('.chip[data-diff]').forEach(el => {
   el.classList.toggle('sel', el.dataset.diff === gKey);
@@ -922,15 +1171,22 @@ for(const id of ['bRaus','bRaus2'])
 
 /* Prüfhaken für die Messung von außen. */
 window.WI = {
-  stand(){ return { x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
+  stand(){ return {
+    x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
     phase:STAND.phase, rest:+STAND.rest.toFixed(1), stoer:+STAND.stoerung.toFixed(3),
-    sie:{ x:+SIE.x.toFixed(2), z:+SIE.z.toFixed(2), abstand:+SIE.abstand.toFixed(1),
-          gesehen:SIE.gesehen, geladen:SIE.geladen, hoehe:SIE.hoehe } }; },
+    gelaufen:+P.gelaufen.toFixed(1), horcht:+STAND.horcht.toFixed(2),
+    zielAbstand:+zielAbstand().toFixed(1), gefunden:ZIEL.gefunden,
+    anzahl:SIE.length, geladen:sieGeladen,
+    sie: SIE.map(g => ({ abstand:+g.abstand.toFixed(1), drang:+g.drang.toFixed(2),
+                         gesehen:g.gesehen, spruenge:g.spruenge })) }; },
   hoehe:(x,z)=>hoeheBei(x,z),
-  setzSie(x,z){ SIE.x=x; SIE.z=z; SIE.y=hoeheBei(x,z); },
+  welt:WELT,
+  setzSie(i,x,z){ const g=SIE[i]; if(!g) return; g.x=modW(x); g.z=modW(z); g.y=hoeheBei(g.x,g.z); },
+  setzZiel(x,z){ ZIEL.x=modW(x); ZIEL.z=modW(z); zielNachfuehren(); },
   blick(g,n){ P.gier=g; if(n!==undefined) P.nick=n; },
-  setz(x,z){ P.x=x; P.z=z; P.y=hoeheBei(x,z); },
-  P, SIE, STAND, IN, GR,
+  setz(x,z){ P.x=modW(x); P.z=modW(z); P.y=hoeheBei(P.x,P.z); },
+  mehr(d){ return neueGestalt(d||100); },
+  P, SIE, STAND, IN, GR, ZIEL,
 };
 
 bild();
