@@ -189,6 +189,15 @@ const KB = KARTE.x1 - KARTE.x0, KT = KARTE.z1 - KARTE.z0;
 /* Jede Wand ist ein gedrehter Kasten. Runde Wände werden in Sehnen zerlegt;
    damit prüft die Kollision überall dasselbe. */
 const WAENDE = [];
+/* Sperren stehen im Weg, ohne selbst gezeichnet zu werden. Die Wände kommen
+   aus der Raumbeschreibung; alles, was danach in den Raum gestellt wird —
+   Säulen, Leitern — hatte bisher gar keinen Körper: man lief mitten
+   hindurch. */
+const SPERREN = [];
+function sperreKasten(cx, cz, hw, hd, y0, y1, winkel){
+  const w = winkel || 0;
+  SPERREN.push({ cx, cz, hw, hd, co:Math.cos(w), si:Math.sin(w), y0, y1 });
+}
 const DICKE = 0.30;
 function wandStueck(x0,z0, x1,z1, y0,y1, ry0,ry1){
   const dx = x1-x0, dz = z1-z0, l = Math.hypot(dx,dz);
@@ -689,6 +698,9 @@ for(const r of RAEUME){
 
 /* ---------- Säulen und Arkaden ---------- */
 function saeule(x, z, y0, y1, br){
+  // Der Schaft ist rund; als Sperre genügt ein Quadrat knapp darunter,
+  // sonst bleibt man an den Ecken hängen, die man gar nicht sieht.
+  sperreKasten(x, z, br*0.44, br*0.44, y0, y1);
   const g = entIndex(new T.CylinderGeometry(br*0.46, br*0.52, y1-y0, 14, 1, true));
   g.translate(x, (y0+y1)/2, z);
   const uv = g.attributes.uv, p = g.attributes.position;
@@ -824,6 +836,11 @@ function rohr(x0,y0,z0, x1,y1,z1, r){
 function leiter(cx, cz, winkel, oben, unten){
   const dx = Math.cos(winkel), dz = Math.sin(winkel);
   const qx = -dz, qz = dx;
+  /* Ein schmaler Körper über die ganze Neigung der Holme: Man soll nicht
+     mehr durch die Rohre hindurchlaufen. Schmal bleibt er trotzdem, damit
+     die Leiter am Becken nicht den Fuß der Rampe zumauert — die ist über
+     sieben Meter breit, man geht einfach daneben hinunter. */
+  sperreKasten(cx + dx*0.28, cz + dz*0.28, 0.33, 0.16, unten, oben + 0.95, winkel);
   for(const s of [-0.26, 0.26]){
     const x = cx + qx*s, z = cz + qz*s;
     rohr(x, oben+0.95, z, x, oben+0.05, z, 0.035);
@@ -835,7 +852,7 @@ function leiter(cx, cz, winkel, oben, unten){
 }
 leiter(12 + 6.9*Math.cos(3.6), 11 + 6.9*Math.sin(3.6), 3.6 + Math.PI, 0.35, -1.0);
 leiter(12 + 6.9*Math.cos(5.8), 11 + 6.9*Math.sin(5.8), 5.8 + Math.PI, 0.35, -1.0);
-leiter(33.3, 11.0, Math.PI, 0.6, -0.9);
+leiter(33.3, 11.0, Math.PI, 0.6, -0.9);          // am Fuß der Rampe ins Schwimmerbecken
 
 function schildTex(zeilen, grund, tinte){
   const c = cv(512, 256), g = c.getContext('2d');
@@ -880,6 +897,12 @@ function schieberBau(nr, x, y, z, gier){
   const rot = new T.Mesh(new T.SphereGeometry(0.055, 8, 6), new T.MeshBasicMaterial({ color:0xd8452e }));
   rot.position.set(0.36, 0.36, 0.44); gr.add(rot);
   welt.add(gr);
+  /* Das Rad ragt einen halben Meter in den Raum. Ohne Sperre läuft man
+     mitten hindurch. Der Kasten sitzt nur um das Rad herum, nicht um das
+     Fallrohr — der Pumpenkeller ist keine zwei Meter breit, ein tiefer
+     Kasten würde ihn zumauern. Zum Drehen reicht es (Reichweite 2,1 m). */
+  sperreKasten(x + Math.sin(gier)*0.22, z + Math.cos(gier)*0.22,
+               0.46, 0.24, y - 0.40, y + 0.55, -gier);
   const s = { nr, gruppe:gr, rad, lampe:rot, offen:false, dreht:0, pos:new T.Vector3(x,y,z), gier };
   SCHIEBER.push(s);
   return s;
@@ -1356,25 +1379,32 @@ const SCHWIMM_TIEFE = 1.35;        // ab hier trägt das Wasser — und ab hier 
 const SCHWIMM_UNTER = 0.55;        // so tief hängt der Körper beim Schwimmen
 
 const P = {
-  x: 3.4, z: 11.0, y: 1.8,         // y = Fußhöhe (an Land) bzw. Augenhöhe beim Tauchen
+  /* Der Startplatz liegt in der Lücke zwischen zwei Arkadensäulen. Genau
+     auf 11.0 stand eine davon — seit die Säulen sperren, hätte man dort
+     festgesteckt. */
+  x: 3.4, z: 12.7, y: 1.8,         // y = Fußhöhe (an Land) bzw. Augenhöhe beim Tauchen
   vy: 0,
   gier: -Math.PI/2, nick: 0,
+  gierZ: -Math.PI/2, nickZ: 0,      // wohin der Finger zeigt; die Kamera zieht nach
+  schwung: 0, kipp: 0,
   modus: 'gehen',
   taucht: false, tauchY: 0,
   luft: GR.luft, kraft: 1,
   bob: 0, schrittWeg: 0,
   laerm: 0,
-  halt: { x:3.4, z:11.0, y:1.8 },  // letzter trockener Stand
+  halt: { x:3.4, z:12.7, y:1.8 },  // letzter trockener Stand
   tot: 0, tode: 0,
 };
 
 function wandTrifft(x, z, fuss, kopf){
   if(bodenBei(x,z) === AUSSEN) return true;
-  for(const w of WAENDE){
-    if(kopf <= w.y0 || fuss >= w.y1) continue;
-    const dx = x-w.cx, dz = z-w.cz;
-    const laengs = dx*w.co + dz*w.si, quer = -dx*w.si + dz*w.co;
-    if(Math.abs(laengs) < w.hw+RADIUS && Math.abs(quer) < w.hd+RADIUS) return true;
+  for(const liste of [WAENDE, SPERREN]){
+    for(const w of liste){
+      if(kopf <= w.y0 || fuss >= w.y1) continue;
+      const dx = x-w.cx, dz = z-w.cz;
+      const laengs = dx*w.co + dz*w.si, quer = -dx*w.si + dz*w.co;
+      if(Math.abs(laengs) < w.hw+RADIUS && Math.abs(quer) < w.hd+RADIUS) return true;
+    }
   }
   return false;
 }
@@ -1424,8 +1454,17 @@ function augenHoehe(){
 function kopfNass(){ return augenHoehe() < pegelBei(P.x,P.z) - 0.02; }
 
 function spielerSchritt(dt){
-  P.gier += IN.dyaw; IN.dyaw = 0;
-  P.nick = clamp(P.nick + IN.dpitch, -1.35, 1.35); IN.dpitch = 0;
+  /* Der Finger bewegt das Ziel, die Kamera zieht weich nach und kippt beim
+     Schwenk leicht mit — dieselbe Handkamera wie im ersten Band. */
+  P.gierZ += IN.dyaw; IN.dyaw = 0;
+  P.nickZ = clamp(P.nickZ + IN.dpitch, -1.35, 1.35); IN.dpitch = 0;
+  const folge = 1 - Math.exp(-dt*11);
+  const dGier = (P.gierZ - P.gier) * folge;
+  P.gier += dGier;
+  P.nick += (P.nickZ - P.nick) * folge;
+  const schwenk = dGier / Math.max(dt, 0.0001);
+  P.schwung += (clamp(schwenk*0.030, -0.20, 0.20) - P.schwung) * Math.min(dt*5.0, 1);
+  P.kipp    += (clamp(schwenk*0.012, -0.09, 0.09) - P.kipp)    * Math.min(dt*3.5, 1);
 
   let vor = -IN.mz, quer = IN.mx;
   if(KEY.KeyW || KEY.ArrowUp)    vor += 1;
@@ -1540,7 +1579,7 @@ function spielerSchritt(dt){
        + Math.sin(t*0.94 + 0.3)*0.014*stark
        + (P.modus==='schwimmen' ? Math.sin(t*1.6)*0.045 : 0),
     P.z + Math.sin(t*0.73 + 2.2)*0.012*stark);
-  camera.rotation.set(P.nick + wNick, P.gier + wGier, wRoll, 'YXZ');
+  camera.rotation.set(P.nick + wNick + P.kipp, P.gier + wGier, wRoll - P.schwung, 'YXZ');
 }
 
 /* ======================= 8  Was im Wasser wohnt ======================= */
@@ -1799,10 +1838,15 @@ function monSchritt(dt){
   MON.abstand = Math.hypot(MON.x-px, MON.z-pz);
 
   /* Hören: der Lärm der Figur reicht so weit, wie sie ihn macht */
+  const jagteSchon = MON.jagt > 0;
   if(P.laerm > MON.abstand * (1/GR.wittert)){
     MON.weissX = px; MON.weissZ = pz; MON.weissT = ZEIT.t;
     MON.jagt = Math.max(MON.jagt, 7.0);
     if(!MON.wach){ MON.wach = true; }
+    /* Der Augenblick, in dem sie den Kopf hebt, geht in die Hand. Kein
+       Ton, keine Schrift — man soll es spüren und nicht wissen, warum.
+       Nur beim Umschlagen: solange sie ohnehin jagt, bleibt es still. */
+    if(!jagteSchon && navigator.vibrate) navigator.vibrate([0, 26, 45, 60]);
   }
   MON.jagt = Math.max(0, MON.jagt - dt);
 
@@ -1914,6 +1958,29 @@ function monSchritt(dt){
 
 /* ======================= 9  Ton ======================= */
 const SND = { an:true, ctx:null };
+/* Die Impulsantwort ist gerechnet, keine Datei: Rauschen, das über gut
+   zwei Sekunden abklingt, davor vier harte frühe Rückwürfe von den
+   gegenüberliegenden Kacheln. Beide Kanäle bekommen eigenes Rauschen,
+   sonst sitzt der Hall als Punkt in der Mitte statt im Raum. */
+function hallRaum(ac, sek){
+  const n = Math.max(1, Math.floor(ac.sampleRate * sek));
+  const ir = ac.createBuffer(2, n, ac.sampleRate);
+  for(let k=0; k<2; k++){
+    const d = ir.getChannelData(k);
+    for(let i=0; i<n; i++){
+      const t = i / ac.sampleRate;
+      /* Abklingen, und ein Anlauf: der Raum antwortet nicht im selben
+         Augenblick, in dem der Ton entsteht. */
+      const huelle = Math.pow(1 - i/n, 2.4) * (1 - Math.exp(-t*34));
+      d[i] = (Math.random()*2 - 1) * huelle;
+    }
+    for(const [ms, laut] of [[19,0.5],[31,0.38],[47,0.27],[73,0.19]]){
+      const i = Math.floor(ac.sampleRate * ms/1000) + k*11;
+      if(i < n) d[i] += laut * (Math.random() < 0.5 ? -1 : 1);
+    }
+  }
+  return ir;
+}
 function tonStart(){
   if(SND.ctx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -1923,6 +1990,28 @@ function tonStart(){
   SND.dumpf = ac.createBiquadFilter();          // unter Wasser klingt alles wie durch Watte
   SND.dumpf.type = 'lowpass'; SND.dumpf.frequency.value = 20000; SND.dumpf.Q.value = 0.4;
   SND.master.connect(SND.dumpf); SND.dumpf.connect(ac.destination);
+
+  /* Eine ausgeräumte Schwimmhalle ist vor allem eins: Hall. Ohne ihn
+     klingt jeder Schritt, als stünde man in einem Wohnzimmer statt in
+     einem Bad, aus dem alles herausgeholt wurde.
+     Nur die Einzelgeräusche gehen hinein — Schritte, Platschen, das Rad,
+     der Atem. Die Dauertöne (Brummen, Schwappen, Flut) bleiben trocken,
+     sonst wäscht der Hall den ganzen Grundklang zu Brei.
+     Alles läuft am Ende über den Hauptregler: TON: AUS macht auch den
+     Hall still, und unter Wasser dämpft der Filter ihn mit weg. */
+  SND.raum = ac.createGain(); SND.raum.gain.value = 1;
+  SND.raum.connect(SND.master);
+  try {
+    SND.hall = ac.createConvolver();
+    SND.hall.buffer = hallRaum(ac, 2.2);
+    /* Die Stärke ist gemessen, nicht geraten: der Grundklang der Halle
+       liegt bei etwa -30 dB, ein Schritt bei -29. Bei 3,0 steht die Fahne
+       200 ms nach dem Schritt bei -35 dB — hörbar unter dem Schritt,
+       knapp unter dem Grundklang, also Raum statt Kathedrale. Zu nass
+       oder zu trocken? Diese eine Zahl regelt es. */
+    SND.hallG = ac.createGain(); SND.hallG.gain.value = 3.0;
+    SND.raum.connect(SND.hall); SND.hall.connect(SND.hallG); SND.hallG.connect(SND.master);
+  } catch(e){ /* ohne Hall klingt es dünner, aber es klingt */ }
 
   const len = ac.sampleRate * 2;
   const buf = ac.createBuffer(1, len, ac.sampleRate);
@@ -1956,14 +2045,36 @@ function tonStart(){
   SND.flut = ac.createGain(); SND.flut.gain.value = 0;
   r.connect(rf); rf.connect(SND.flut); SND.flut.connect(SND.master); r.start();
 }
-function knall(dauer, cut, vol, typ){
+/* ---------- Richtungshören ----------
+   Sie ist im Wasser und meistens nicht zu sehen. Wo sie ist, sagt in
+   diesem Band nur der Atem — also muss er aus ihrer Richtung kommen.
+   Gerechnet wird im Kamerabild: der Hörer bleibt sitzen, der Ton wandert
+   um ihn herum. Die Lautstärke regeln weiter die Aufrufer, hier geht es
+   allein um die Richtung; deshalb liegt alles auf demselben Radius. */
+function ausRichtung(dx, dz){
+  const ac = SND.ctx; if(!ac) return null;
+  let p;
+  try { p = ac.createPanner(); } catch(e){ return null; }
+  p.panningModel = 'HRTF'; p.distanceModel = 'inverse';
+  p.refDistance = 2; p.rolloffFactor = 0; p.maxDistance = 40;
+  const co = Math.cos(P.gier), si = Math.sin(P.gier);
+  const rechts = dx*co - dz*si;
+  const vorn   = -dx*si - dz*co;
+  const l = Math.hypot(rechts, vorn) || 1;
+  const x = rechts/l*2, y = 0, z = -vorn/l*2;
+  if(p.positionX){ p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; }
+  else p.setPosition(x, y, z);
+  p.connect(SND.raum || SND.master);
+  return p;
+}
+function knall(dauer, cut, vol, typ, ziel){
   const ac = SND.ctx; if(!ac || !SND.an) return;
   const s = ac.createBufferSource(); s.buffer = SND.rausch;
   s.playbackRate.value = 0.7 + Math.random()*0.6;
   const f = ac.createBiquadFilter(); f.type = typ || 'lowpass'; f.frequency.value = cut;
   const g = ac.createGain(); g.gain.value = vol;
   g.gain.setTargetAtTime(0.0001, ac.currentTime + dauer*0.25, dauer*0.35);
-  s.connect(f); f.connect(g); g.connect(SND.master);
+  s.connect(f); f.connect(g); g.connect(ziel || SND.raum || SND.master);
   s.start(); s.stop(ac.currentTime + dauer + 0.1);
 }
 function piep(hz, dauer, vol, typ){
@@ -1972,7 +2083,7 @@ function piep(hz, dauer, vol, typ){
   const g = ac.createGain(); g.gain.value = 0;
   g.gain.setTargetAtTime(vol, ac.currentTime, 0.008);
   g.gain.setTargetAtTime(0, ac.currentTime + dauer*0.5, dauer*0.4);
-  o.connect(g); g.connect(SND.master);
+  o.connect(g); g.connect((SND.raum || SND.master));
   o.start(); o.stop(ac.currentTime + dauer + 0.2);
 }
 const schrittTon = nass => nass > 0.05 ? knall(0.22, 900+Math.random()*400, 0.16+nass*0.16)
@@ -2001,13 +2112,14 @@ function auftauchTon(){
   const g = ac.createGain(); g.gain.value = 0;
   g.gain.setTargetAtTime(0.11, ac.currentTime+0.05, 0.09);
   g.gain.setTargetAtTime(0, ac.currentTime+0.45, 0.2);
-  o.connect(f); f.connect(g); g.connect(SND.master);
+  o.connect(f); f.connect(g); g.connect((SND.raum || SND.master));
   o.start(); o.stop(ac.currentTime+1.1);
 }
 function atemTon(nah){
   const ac = SND.ctx; if(!ac || !SND.an) return;
-  knall(0.42, 700 + nah*500, 0.05 + nah*0.10, 'bandpass');
-  setTimeout(() => knall(0.5, 420, 0.04 + nah*0.08, 'bandpass'), 420);
+  const wo = () => ausRichtung(MON.x - P.x, MON.z - P.z);
+  knall(0.42, 700 + nah*500, 0.05 + nah*0.10, 'bandpass', wo());
+  setTimeout(() => knall(0.5, 420, 0.04 + nah*0.08, 'bandpass', wo()), 420);
 }
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
@@ -2018,7 +2130,7 @@ function schreckTon(){
   const g = ac.createGain(); g.gain.value = 0;
   g.gain.setTargetAtTime(0.34, ac.currentTime, 0.005);
   g.gain.setTargetAtTime(0, ac.currentTime+0.5, 0.25);
-  o.connect(g); g.connect(SND.master); o.start(); o.stop(ac.currentTime+1.6);
+  o.connect(g); g.connect((SND.raum || SND.master)); o.start(); o.stop(ac.currentTime+1.6);
 }
 let herzT = 0;
 function herz(dt){
@@ -2091,6 +2203,7 @@ function schieberSchritt(dt){
         s.lampe.material = new T.MeshBasicMaterial({ color:0x6fe08a });
         WASSER.ziel = wasserZiel();
         flutTon();
+        if(navigator.vibrate) navigator.vibrate(30);   // das Rad rastet ein
         const n = offenZahl();
         melde(n < 3
           ? 'SCHIEBER ' + ['I','II','III'][s.nr-1] + ' OFFEN · DAS WASSER STEIGT AUF ' + WASSER.ziel.toFixed(2) + ' m'
@@ -2137,6 +2250,11 @@ function zeit(sek){
 }
 let hudAcc = 0;
 function hudSchritt(dt){
+  /* Ausdauer sitzt im Knopf: der Ring leert sich, und wenn nichts mehr
+     da ist, wird er matt. Ohne das läuft man plötzlich langsamer und
+     hält es für einen Fehler. */
+  bRun.style.setProperty('--kraft', P.kraft.toFixed(3));
+  bRun.classList.toggle('leer', P.kraft < 0.25);
   hudAcc += dt;
   if(hudAcc < 0.08) return;
   hudAcc = 0;
@@ -2160,6 +2278,9 @@ function hudSchritt(dt){
 
 /* ======================= 12  Steuerung ======================= */
 const IN = { mx:0, mz:0, dyaw:0, dpitch:0, run:false, tauch:false };
+/* Empfindlichkeit des Umsehens. Wird über alle Bänder hinweg gemerkt und
+   im Pausenbild eingestellt. */
+let EMPF = clamp(parseFloat(localStorage.getItem('ft_empf')) || 1, 0.3, 2.5);
 const KEY = {};
 const elStick = $('stick'), elKnob = $('knob');
 const zMove = $('zoneMove'), zLook = $('zoneLook');
@@ -2204,8 +2325,8 @@ zLook.addEventListener('pointerdown', e => {
 });
 zLook.addEventListener('pointermove', e => {
   if(e.pointerId !== lookId) return;
-  IN.dyaw   -= (e.clientX-lookLx)*0.0042;
-  IN.dpitch -= (e.clientY-lookLy)*0.0034;
+  IN.dyaw   -= (e.clientX-lookLx)*0.0042*EMPF;
+  IN.dpitch -= (e.clientY-lookLy)*0.0034*EMPF;
   lookLx = e.clientX; lookLy = e.clientY; e.preventDefault();
 });
 function endLook(e){ if(e.pointerId === lookId) lookId = null; }
@@ -2260,8 +2381,8 @@ canvas.addEventListener('click', () => {
 });
 addEventListener('mousemove', e => {
   if(document.pointerLockElement !== canvas) return;
-  IN.dyaw   -= e.movementX*0.0022;
-  IN.dpitch -= e.movementY*0.0020;
+  IN.dyaw   -= e.movementX*0.0022*EMPF;
+  IN.dpitch -= e.movementY*0.0020*EMPF;
 });
 
 /* ======================= 13  Ablauf ======================= */
@@ -2276,10 +2397,10 @@ function zeige(el){
   $('steuer').classList.toggle('an', !el && IS_TOUCH);
 }
 function neuStart(){
-  P.x = 3.4; P.z = 11.0; P.y = 1.8; P.vy = 0;
-  P.gier = -Math.PI/2; P.nick = -0.04;
+  P.x = 3.4; P.z = 12.7; P.y = 1.8; P.vy = 0;
+  P.gier = P.gierZ = -Math.PI/2; P.nick = P.nickZ = -0.04; P.schwung = P.kipp = 0;
   P.modus = 'gehen'; P.luft = GR.luft; P.kraft = 1;
-  P.halt = { x:3.4, z:11.0, y:1.8 };
+  P.halt = { x:3.4, z:12.7, y:1.8 };
   for(const s of SCHIEBER){
     s.offen = false; s.dreht = 0; s.rad.rotation.z = 0;
     s.lampe.material = new T.MeshBasicMaterial({ color:0xd8452e });
@@ -2304,7 +2425,16 @@ function pause(){
   S.phase = 'pause'; allesLos(); zeige(scPause);
   if(document.pointerLockElement) document.exitPointerLock();
 }
-function weiter(){ if(S.phase === 'pause'){ S.phase = 'spiel'; zeige(null); } }
+function weiter(){ if(S.phase === 'pause'){ S.phase = 'spiel'; zeige(null); tonWecken(); } }
+/* Wer die App wechselt, soll nicht tot zurückkommen: das Band hält an.
+   Android hängt dabei den Tonzweig ab und weckt ihn nicht von selbst. */
+function tonWecken(){
+  if(SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume();
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ if(S.phase === 'spiel') pause(); }
+  else tonWecken();
+});
 
 function zurueckspulen(grund){
   if(S.phase !== 'spiel') return;
@@ -2317,7 +2447,7 @@ function gefressen(){
   /* Der Blick springt auf sie, und sie ist sofort auf Armeslänge da.
      Kein Suchen, kein Nachziehen — genau das macht den Schreck. */
   P.gier = Math.atan2(MON.x - P.x, MON.z - P.z);
-  P.nick = -0.06;
+  P.nick = P.nickZ = -0.06;
   MON.zustand = 'steht'; MON.lage = 1;
   MON.gruppe.position.set(
     P.x + Math.sin(P.gier)*0.85, WASSER.h - 1.25, P.z + Math.cos(P.gier)*0.85);
@@ -2356,6 +2486,7 @@ function gewonnen(){
   LUKE.offen = true;
   piep(520, 0.3, 0.1); setTimeout(()=>piep(780,0.5,0.09), 220);
   knall(1.8, 900, 0.3);
+  if(navigator.vibrate) navigator.vibrate([0, 70, 50, 150]);
 }
 
 /* ======================= 14  Bild ======================= */
@@ -2538,9 +2669,9 @@ $('bWeiter').addEventListener('click', weiter);
 $('bTon').addEventListener('click', () => tonSchalten(!SND.an));
 $('bNeu').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
 $('bNochmal').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
-$('bWeiterWiese').addEventListener('click', () => location.href = '../wiese/');
+$('bWeiterWiese').addEventListener('click', () => location.href = '#b2');
 for(const id of ['bRaus','bRaus2'])
-  $(id).addEventListener('click', () => location.href = '../foundtape.html');
+  $(id).addEventListener('click', () => location.href = '#b0');
 
 /* Ladeanzeige: hier wird nichts nachgeladen, aber der Bau der Netze und
    Texturen dauert einen Moment — den zeigen wir ehrlich an. */
@@ -2567,7 +2698,7 @@ window.PR = {
     auge:+augenHoehe().toFixed(2), tiefe:+tiefeHier().toFixed(2),
     mon:+MON.abstand.toFixed(1), tode:S.tode }; },
   setz(x,z,modus){ P.x=x; P.z=z; P.y=bodenBei(x,z); P.modus=modus||'gehen'; P.vy=0; },
-  blick(g,n){ P.gier=g; if(n!==undefined) P.nick=n; },
+  blick(g,n){ P.gier=P.gierZ=g; if(n!==undefined) P.nick=P.nickZ=n; },
   wasserAuf(h){ WASSER.h = WASSER.ziel = h; navBau(); },
   monWeg(){ MON.x = 12; MON.z = 11; MON.jagt = 0; MON.weissX=12; MON.weissZ=11; },
   boden:(x,z)=>bodenBei(x,z), decke:(x,z)=>deckeBei(x,z),
@@ -2588,6 +2719,27 @@ window.PR = {
   },
   monFelder(){ navBau(); let n = 0; for(const v of navFrei) n += v; return n; },
   monTempo(){ return GR.jagd; },
-  P, WASSER, MON, S, SCHIEBER, RAEUME, FLICKEN, WAENDE, IN,
+  P, WASSER, MON, S, SCHIEBER, RAEUME, FLICKEN, WAENDE, SPERREN, IN,
+  welt, T, SND,
 };
 bild();
+
+/* ---------- Empfindlichkeit des Umsehens ----------
+   Ein Regler im Pausenbild, über alle Bänder hinweg gemerkt. */
+{
+  const regler = document.getElementById('empfRegler');
+  const wert   = document.getElementById('empfWert');
+  if(regler){
+    const zeigen = () => { if(wert) wert.textContent = EMPF.toFixed(1).replace('.', ',') + '×'; };
+    regler.value = Math.round(EMPF * 100);
+    zeigen();
+    regler.addEventListener('input', () => {
+      EMPF = clamp(regler.value / 100, 0.3, 2.5);
+      localStorage.setItem('ft_empf', String(EMPF));
+      zeigen();
+    });
+    // Der Regler liegt im Pausenbild; ein Wisch darauf darf nicht umsehen
+    for(const art of ['pointerdown','pointermove','pointerup'])
+      regler.addEventListener(art, e => e.stopPropagation());
+  }
+}
