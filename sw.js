@@ -5,7 +5,7 @@
    gesehen. So ist man nie offline blockiert und trotzdem nie lange
    veraltet.
    Beim Wechsel der Fassung unten wird der alte Speicher verworfen. */
-const FASSUNG = 'agg-2026-09-10';
+const FASSUNG = 'agg-2026-09-11';
 const KERN = [
   './',
   './index.html',
