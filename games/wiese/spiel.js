@@ -311,7 +311,7 @@ const P = {
 };
 const TEMPO = { gehen: 2.55, rennen: 5.05 };
 
-const IN = { mx:0, mz:0, dyaw:0, dpitch:0, run:false };
+const IN = { mx:0, mz:0, dyaw:0, dpitch:0, run:false, senden:false };
 /* Empfindlichkeit des Umsehens. Wird über alle Bänder hinweg gemerkt und
    im Pausenbild eingestellt. */
 let EMPF = clamp(parseFloat(localStorage.getItem('ft_empf')) || 1, 0.3, 2.5);
@@ -335,6 +335,9 @@ function spielerSchritt(dt){
   if(KEY.KeyS || KEY.ArrowDown)  vor -= 1;
   if(KEY.KeyD || KEY.ArrowRight) quer += 1;
   if(KEY.KeyA || KEY.ArrowLeft)  quer -= 1;
+  /* Wer sendet, steht. Umsehen bleibt erlaubt — es ist das Einzige,
+     was einen hier am Leben hält. */
+  if(STAND.sendet){ vor = 0; quer = 0; }
   const l = Math.hypot(vor, quer);
   if(l > 1){ vor /= l; quer /= l; }
   const gas = Math.min(1, l);
@@ -421,14 +424,113 @@ function mastNachfuehren(){
   MAST.gruppe.position.set(x, hoeheBei(x,z), z);
 }
 const mastAbstand = () => abstandW(P.x, P.z, MAST.x, MAST.z);
+/* Wie lange der Ruf braucht, bis er draußen ist. Sieben Sekunden sind
+   lang genug, dass zwei von ihnen dazwischenkommen, und kurz genug,
+   dass man es mit einem ordentlichen Rundblick schafft. */
+const SENDEZEIT = 7.0;
 function mastSchritt(dt){
   mastNachfuehren();
   /* Langsames rotes Blinken. Man sucht es unwillkürlich, sobald man
      sich einmal umgedreht hat. */
   MAST.licht.material.color.setHex((ZEIT.t % 2.4) < 0.7 ? 0xff5a44 : 0x5c1a14);
-  if(mastAbstand() < 4.5 && STAND.phase === 'spiel' && !MAST.erreicht){
-    MAST.erreicht = true; angekommen();
+  const dran = mastAbstand() < 5.5 && STAND.phase === 'spiel';
+  STAND.amMast = dran;
+  if(dran && !MAST.erreicht){
+    MAST.erreicht = true;
+    /* Wer ohne Gerät ankommt, steht vor einem Betonfuß. Einmal sagen,
+       warum hier nichts passiert — und nicht bei jedem Schritt wieder. */
+    if(!FUNK.da) melde('EIN UMSETZER. ER GIBT WEITER, WAS MAN IHM GIBT — MEHR NICHT.', 5.5);
   }
+
+  /* ---------- Der Ruf ----------
+     Halten, stehenbleiben, sich umsehen dürfen. Das ist die ganze
+     Prüfung: sieben Sekunden auf einem Fleck, vier Richtungen, ein Paar
+     Augen. Loslassen bricht nicht alles ab — wer abbrechen muss, um eine
+     wegzusehen, soll nicht wieder bei null anfangen. */
+  const kann = dran && FUNK.da;
+  STAND.sendet = kann && IN.senden;
+  if(STAND.sendet){
+    sendeAn();
+    STAND.senden = Math.min(1, STAND.senden + dt/SENDEZEIT);
+    if(sendeOsz && SND.ctx)
+      sendeOsz.o.frequency.setTargetAtTime(620 + STAND.senden*340, SND.ctx.currentTime, 0.12);
+    if(STAND.senden >= 1) gesendet();
+  } else {
+    sendeAus();
+    if(STAND.senden > 0) STAND.senden = Math.max(0, STAND.senden - dt*0.18);
+  }
+}
+
+/* ======================= 6b  Das Funkgerät ======================= */
+/* Der Mast hilft allein nicht: er gibt weiter, er spricht nicht. Damit
+   überhaupt etwas hinausgeht, muss man erst das Gerät finden, das
+   irgendwo im Gras liegt und seit Wochen auf Empfang steht.
+   Gefunden wird es mit den Ohren. Einen Zeiger gibt es dafür nicht —
+   nur eine Zahl, die kleiner wird, und alle paar Sekunden ein Quäken
+   aus genau der Richtung, in der es liegt. Erst die letzten vierzig
+   Meter sieht man das Lämpchen im Grün. */
+const FUNK = { x:0, z:0, gruppe:null, lampe:null, da:false, start:0, pieps:0 };
+{
+  const g = new T.Group();
+  const gehaeuse = new T.MeshStandardMaterial({ color:0x3a4535, roughness:0.78, metalness:0.22 });
+  const kiste = new T.Mesh(new T.BoxGeometry(0.34, 0.21, 0.25), gehaeuse);
+  kiste.position.y = 0.105; kiste.castShadow = Q.schatten; g.add(kiste);
+  /* Der Bügel obendrauf — daran hat es jemand getragen und abgestellt. */
+  const buegel = new T.Mesh(new T.TorusGeometry(0.09, 0.014, 5, 10, Math.PI), gehaeuse);
+  buegel.position.set(-0.08, 0.21, 0); buegel.rotation.y = Math.PI/2; g.add(buegel);
+  const antenne = new T.Mesh(new T.CylinderGeometry(0.009, 0.017, 0.96, 5),
+    new T.MeshStandardMaterial({ color:0x1c201a, roughness:0.55, metalness:0.5 }));
+  antenne.position.set(0.13, 0.66, -0.07); antenne.rotation.z = -0.14; g.add(antenne);
+  /* Das Lämpchen blinkt, seit es niemand mehr abgestellt hat. Es sitzt
+     oben auf dem Gehäuse, damit es von jeder Seite zu sehen ist, und
+     hält sich aus dem Dunst heraus — das kostet nichts, denn bei
+     fünf Zentimetern ist es jenseits von vierzig Metern ohnehin
+     kleiner als ein Bildpunkt. Genau dort soll es auch auftauchen. */
+  const lampe = new T.Mesh(new T.SphereGeometry(0.055, 10, 8),
+    new T.MeshBasicMaterial({ color:0xffd479, fog:false, toneMapped:false }));
+  lampe.position.set(-0.02, 0.225, 0.07); g.add(lampe);
+  g.rotation.y = 0.7;
+  FUNK.lampe = lampe; FUNK.gruppe = g;
+  scene.add(g);
+}
+function funkSetzen(){
+  FUNK.start = 75 + Math.random()*45;
+  /* Seitlich vom Mast, nicht in seiner Richtung: sonst läuft man einmal
+     los und ist mit beidem gleichzeitig fertig, ohne je gesucht zu
+     haben. Zwischen fünfundfünfzig und fünfundneunzig Grad daneben —
+     weit genug für einen eigenen Weg, nah genug, dass der zweite
+     Abschnitt nicht quer über die halbe Schleife geht. */
+  const mw = Math.atan2(dW(P.x, MAST.x), dW(P.z, MAST.z));
+  const w = mw + (0.96 + Math.random()*0.70) * (Math.random() < 0.5 ? 1 : -1);
+  FUNK.x = modW(P.x + Math.sin(w)*FUNK.start);
+  FUNK.z = modW(P.z + Math.cos(w)*FUNK.start);
+  FUNK.da = false; FUNK.pieps = 1.4;
+  FUNK.gruppe.visible = true;
+  funkNachfuehren();
+}
+function funkNachfuehren(){
+  const x = P.x + dW(P.x, FUNK.x), z = P.z + dW(P.z, FUNK.z);
+  FUNK.gruppe.position.set(x, hoeheBei(x,z), z);
+}
+const funkAbstand = () => abstandW(P.x, P.z, FUNK.x, FUNK.z);
+function funkSchritt(dt){
+  if(FUNK.da) return;
+  funkNachfuehren();
+  FUNK.lampe.material.color.setHex((ZEIT.t % 1.7) < 0.55 ? 0xffd479 : 0x46370f);
+  const d = funkAbstand();
+  FUNK.pieps -= dt;
+  if(FUNK.pieps <= 0){
+    FUNK.pieps = 2.7 + Math.random()*1.3;
+    funkTon(clamp(1 - d/180, 0.12, 1));
+  }
+  if(d < 2.6 && STAND.phase === 'spiel') funkNehmen();
+}
+function funkNehmen(){
+  FUNK.da = true;
+  FUNK.gruppe.visible = false;
+  nehmTon();
+  if(navigator.vibrate) navigator.vibrate([0,25,45,70]);
+  melde('ES LÄUFT NOCH. ZUM MAST DAMIT — DER TRÄGT ES WEITER.', 5.5);
 }
 
 /* ======================= 7  Sie ======================= */
@@ -544,7 +646,12 @@ function sieSchritt(dt){
     } else {
       /* Unbeobachtet wächst der Drang. Nah dran wächst er schneller. */
       const nah = clamp(1 - g.abstand/120, 0, 1);
-      g.drang += dt * GR.drang * (0.55 + nah*1.35);
+      /* Das Gerät sendet, sobald man es trägt — und es ruft nicht nur
+         Hilfe. Getragen drängen sie ein Stück mehr, und während der Ruf
+         hinausgeht, drängen sie deutlich mehr. Das ist der ganze Grund,
+         warum das Finden noch nicht das Ende ist. */
+      const hetze = STAND.sendet ? 1.7 : (FUNK.da ? 1.2 : 1.0);
+      g.drang += dt * GR.drang * (0.55 + nah*1.35) * hetze;
       /* Kurz vor dem Sprung steht die Luft still: der Wind fällt ab, die
          Halme hören auf, sich zu wiegen. Wer das einmal bemerkt hat,
          achtet für den Rest des Bandes auf das Gras. */
@@ -731,6 +838,15 @@ function tonStart(){
   SND.naehe = ac.createGain(); SND.naehe.gain.value = 0;
   n.connect(nf); nf.connect(SND.naehe); SND.naehe.connect(SND.master); n.start();
 
+  /* Der Träger des Funkgeräts, sobald man es trägt: ein schmales
+     Zischen, das immer da ist. Es verstummt zusammen mit dem Wind —
+     die Vorwarnung vor einem Sprung ist damit zweistimmig statt
+     einstimmig, und beides hört man gleichzeitig aufhören. */
+  const tr = ac.createBufferSource(); tr.buffer = buf; tr.loop = true;
+  const tf = ac.createBiquadFilter(); tf.type='bandpass'; tf.frequency.value = 1500; tf.Q.value = 1.1;
+  SND.traeger = ac.createGain(); SND.traeger.gain.value = 0;
+  tr.connect(tf); tf.connect(SND.traeger); SND.traeger.connect(SND.master); tr.start();
+
   /* Bandrauschen, wenn das Bild kippt */
   const r = ac.createBufferSource(); r.buffer = buf; r.loop = true;
   const rf = ac.createBiquadFilter(); rf.type='highpass'; rf.frequency.value = 1800;
@@ -822,6 +938,69 @@ function atemTon(nah, wer){
   knall(0.55, 620 + nah*380, 0.045 + nah*0.090, 'bandpass', ziel);
   setTimeout(() => knall(0.62, 420, 0.036 + nah*0.072, 'bandpass',
                          ausRichtungZu(wer) || SND.master), 620);
+}
+/* ---------- Das Funkgerät ----------
+   Ein Gerät, das auf Empfang steht und niemanden findet: erst ein
+   Rauschstoß, dann zwei kurze Quäker. Es kommt aus der Richtung, in der
+   es liegt — mehr Auskunft gibt es nicht, und mehr braucht es nicht. */
+function funkTon(laut){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  const ziel = ausRichtung(dW(P.x, FUNK.x), dW(P.z, FUNK.z)) || SND.master;
+  knall(0.20, 3200, 0.055*laut, 'highpass', ziel);
+  const jetzt = ac.currentTime;
+  for(const [f, ver] of [[1180, 0.12], [860, 0.30]]){
+    const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = f;
+    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = f; bp.Q.value = 4.5;
+    const g = ac.createGain(); g.gain.value = 0;
+    g.gain.setValueAtTime(0, jetzt+ver);
+    g.gain.linearRampToValueAtTime(0.06*laut, jetzt+ver+0.02);
+    g.gain.setTargetAtTime(0, jetzt+ver+0.12, 0.045);
+    o.connect(bp); bp.connect(g); g.connect(ziel);
+    o.start(jetzt+ver); o.stop(jetzt+ver+0.6);
+  }
+}
+/* Aufgenommen: ein Klacken und ein Stück Rauschen, das kürzer wird. */
+function nehmTon(){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  knall(0.06, 5200, 0.16, 'highpass');
+  setTimeout(() => knall(0.5, 2200, 0.10, 'bandpass'), 90);
+}
+/* Während gesendet wird, liegt ein Träger auf dem Band, dessen Höhe mit
+   dem Fortschritt steigt. Man hört, wie weit man ist, ohne hinzusehen —
+   und das ist wichtig, denn hinsehen soll man woanders. */
+let sendeOsz = null;
+function sendeAn(){
+  const ac = SND.ctx; if(!ac || !SND.an || sendeOsz) return;
+  const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = 620;
+  const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = 900; bp.Q.value = 1.6;
+  const g = ac.createGain(); g.gain.value = 0;
+  g.gain.setTargetAtTime(0.05, ac.currentTime, 0.07);
+  o.connect(bp); bp.connect(g); g.connect(SND.master); o.start();
+  sendeOsz = { o, g };
+}
+function sendeAus(){
+  if(!sendeOsz) return;
+  const ac = SND.ctx, { o, g } = sendeOsz; sendeOsz = null;
+  if(!ac){ return; }
+  g.gain.setTargetAtTime(0, ac.currentTime, 0.05);
+  o.stop(ac.currentTime + 0.4);
+}
+/* Und dann antwortet etwas. Zu kurz für ein Wort. */
+function antwortTon(){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  setTimeout(() => {
+    knall(0.10, 4200, 0.18, 'highpass');
+    const jetzt = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(300, jetzt+0.10);
+    o.frequency.linearRampToValueAtTime(238, jetzt+0.55);
+    const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=520; bp.Q.value=3.0;
+    const g = ac.createGain(); g.gain.value = 0;
+    g.gain.setTargetAtTime(0.11, jetzt+0.10, 0.05);
+    g.gain.setTargetAtTime(0, jetzt+0.52, 0.10);
+    o.connect(bp); bp.connect(g); g.connect(SND.master);
+    o.start(jetzt+0.08); o.stop(jetzt+1.2);
+  }, 900);
 }
 function schreckTon(){
   const ac = SND.ctx; if(!ac || !SND.an) return;
@@ -922,7 +1101,9 @@ const ZEIT = { t: 0 };
 const STAND = { phase:'menu', t:0, endT:0, tode:0,
                 naechste:999, rufT:9, taeter:null, lehre:12, gelehrt:false,
                 luegeT:50, luegeBis:0,
-                luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0 };
+                luftAn:0, atemT:5, windStill:0, himmelKrank:0, riss:0,
+                /* Das Funkgerät und der Ruf: suchen, tragen, senden. */
+                amMast:false, sendet:false, senden:0 };
 let ladeStand = 0;
 
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
@@ -950,8 +1131,12 @@ function hudSchritt(dt){
   if(hudAcc < 0.08) return;
   hudAcc = 0;
   $('tc').textContent = bandStr(STAND.t);
-  const dm = mastAbstand();
+  /* Solange das Gerät fehlt, zählt nur der Weg dorthin. Danach der zum
+     Mast. Dieselbe Anzeige, zwei Abschnitte — mehr steht nie da. */
+  const suche = !FUNK.da;
+  const dm = suche ? funkAbstand() : mastAbstand();
   $('restZeit').textContent = Math.round(dm) + ' m';
+  $('zielName').textContent = suche ? 'ZUM FUNKGERÄT' : 'ZUM MAST';
 
   /* Wohin der Mast steht. Auf der Wiese sieht alles gleich aus; ohne
      Richtungsangabe läuft man an ihm vorbei, ohne es zu merken.
@@ -963,14 +1148,28 @@ function hudSchritt(dt){
   bRun.style.setProperty('--kraft', P.kraft.toFixed(3));
   bRun.classList.toggle('leer', P.kraft < 0.25);
 
+  /* Den Zeiger gibt es nur für den Mast. Das Funkgerät liegt im Gras
+     und zeigt nirgendwohin — dafür meldet es sich, und das Ohr sagt
+     genauer, wo es liegt, als ein Pfeil es dürfte. */
   const zg = $('mastZeiger');
-  if(MAST.gruppe && !MAST.erreicht && STAND.phase === 'spiel'){
+  if(MAST.gruppe && !suche && !STAND.amMast && STAND.phase === 'spiel'){
     const mx = dW(P.x, MAST.x), mz = dW(P.z, MAST.z);
     const winkel = Math.atan2(mx, -mz) + P.gier;
     $('mastNadel').style.transform = 'rotate(' + winkel.toFixed(3) + 'rad)';
     zg.classList.add('an');
   } else zg.classList.remove('an');
   $('band').classList.toggle('knapp', dm < 60);
+
+  /* Der Sendebalken steht nur am Mast, und nur mit Gerät. Ist der Ruf
+     draußen, hat er nichts mehr zu sagen — dann läuft schon das Ende. */
+  const bereit = STAND.amMast && FUNK.da && STAND.phase === 'spiel';
+  $('senden').classList.toggle('an', bereit || (STAND.senden > 0 && STAND.phase === 'spiel'));
+  $('sendFuell').style.width = Math.round(STAND.senden*100) + '%';
+  $('sendText').textContent = STAND.sendet
+    ? 'SENDET … ' + Math.round(STAND.senden*100) + '%'
+    : (STAND.senden > 0 ? 'UNTERBROCHEN · ' + Math.round(STAND.senden*100) + '%'
+                        : (IS_TOUCH ? 'SENDEN HALTEN' : 'E HALTEN'));
+  bSend.classList.toggle('an', bereit && IS_TOUCH);
   /* Selten — und dann lange genug, dass man es liest. Bei jedem Takt
      gewürfelt flackerte die Zahl fast jede Sekunde und sah nach einem
      Fehler aus statt nach einer Lüge. Jetzt einmal pro Minute, für
@@ -997,8 +1196,11 @@ function neuStart(){
   STAND.luftAn = 0; STAND.windStill = 0; STAND.atemT = 6; STAND.himmelKrank = 0;
   DURCH.geplant = -1; DURCH.t = 0;
   if(DURCH.netz) DURCH.netz.visible = false;
+  STAND.amMast = false; STAND.sendet = false; STAND.senden = 0;
+  sendeAus();
   durchschlagVorbereiten();
   mastSetzen();
+  funkSetzen();
   for(let i=0;i<ANZAHL_SIE;i++){
     const g = neueGestalt(60 + Math.random()*45);
     if(g){
@@ -1012,7 +1214,7 @@ function neuStart(){
   }
   bodenAnker = { x:1e9, z:1e9 };
   bodenSetzen(P.x, P.z);
-  melde('DER MAST STEHT 230 m WEIT. SIE STEHEN NÄHER.', 5);
+  melde('DAS FUNKGERÄT LIEGT IRGENDWO IM GRAS. DIE ZAHL SAGT, WIE WEIT.', 6);
 }
 function spielStart(){
   tonStart();
@@ -1030,7 +1232,9 @@ function endBild(titel, text){
   $('endTitle').textContent = titel;
   $('endText').textContent = text;
   $('endStats').innerHTML =
-    'ZUM MAST ' + (MAST.erreicht ? 'ANGEKOMMEN' : Math.round(mastAbstand()) + ' m GEFEHLT') +
+    'FUNKGERÄT ' + (FUNK.da ? 'GEFUNDEN' : Math.round(funkAbstand()) + ' m GEFEHLT') +
+    ' &nbsp;·&nbsp; RUF ' + Math.round(STAND.senden*100) + ' %' +
+    '<br>ZUM MAST ' + (MAST.erreicht ? 'ANGEKOMMEN' : Math.round(mastAbstand()) + ' m GEFEHLT') +
     ' &nbsp;·&nbsp; ZEIT ' + zeitStr(STAND.t) +
     '<br>GELAUFEN ' + Math.round(P.gelaufen) + ' m &nbsp;·&nbsp; SPRÜNGE ' +
     SIE.reduce((n,g) => n + g.spruenge, 0);
@@ -1048,18 +1252,20 @@ function erwischt(g){
   allesLos();
   if(document.pointerLockElement) document.exitPointerLock();
 }
-function angekommen(){
+function gesendet(){
   if(STAND.phase !== 'spiel') return;
-  STAND.phase = 'fertig'; STAND.endT = 0;
+  STAND.phase = 'fertig'; STAND.endT = 0; STAND.senden = 1; STAND.sendet = false;
+  sendeAus();
   allesLos();
   knall(1.8, 800, 0.22);
+  antwortTon();
   if(navigator.vibrate) navigator.vibrate([0, 70, 50, 150]);
 }
 
 /* ======================= 11  Steuerung ======================= */
 const elStick = $('stick'), elKnob = $('knob');
 const zMove = $('zoneMove'), zLook = $('zoneLook');
-const bRun = $('bRun'), bMenu = $('bMenu');
+const bRun = $('bRun'), bMenu = $('bMenu'), bSend = $('bSend');
 let moveId = null, moveOx = 0, moveOy = 0, lookId = null, lookLx = 0, lookLy = 0;
 const STICK_R = 52;
 
@@ -1113,12 +1319,14 @@ function haltKnopf(el, an, aus){
     el.addEventListener(t, () => { if(el.classList.contains('held')){ el.classList.remove('held'); aus(); } }));
 }
 haltKnopf(bRun, () => IN.run = true, () => IN.run = false);
+haltKnopf(bSend, () => IN.senden = true, () => IN.senden = false);
 bMenu.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); pause(); });
 
 function allesLos(){
   for(const k in KEY) KEY[k] = false;
-  IN.run = false; IN.mx = IN.mz = 0; IN.dyaw = IN.dpitch = 0;
-  bRun.classList.remove('held');
+  IN.run = false; IN.senden = false; IN.mx = IN.mz = 0; IN.dyaw = IN.dpitch = 0;
+  STAND.sendet = false; sendeAus();
+  bRun.classList.remove('held'); bSend.classList.remove('held');
   moveId = lookId = null;
   elKnob.style.transform = 'translate(0,0)'; elStick.classList.remove('on');
 }
@@ -1126,6 +1334,9 @@ addEventListener('blur', allesLos);
 addEventListener('keydown', e => {
   KEY[e.code] = true;
   if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') IN.run = true;
+  /* Senden liegt auf E, ersatzweise auf der Leertaste — gehalten, nicht
+     gedrückt. Beide sind sonst unbelegt. */
+  if(e.code === 'KeyE' || e.code === 'Space') IN.senden = true;
   if(e.key.toLowerCase() === 'm') tonSchalten(!SND.an);
   if(e.code === 'Escape' && STAND.phase === 'spiel') pause();
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
@@ -1133,6 +1344,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => {
   KEY[e.code] = false;
   if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') IN.run = false;
+  if(e.code === 'KeyE' || e.code === 'Space') IN.senden = false;
 });
 canvas.addEventListener('click', () => {
   if(STAND.phase === 'spiel' && !IS_TOUCH && document.pointerLockElement !== canvas)
@@ -1195,6 +1407,7 @@ function schritt(dt){
   if(STAND.phase === 'spiel'){
     STAND.t += dt;
     spielerSchritt(dt);
+    funkSchritt(dt);
     mastSchritt(dt);
     sieSchritt(dt);
     STAND.riss = Math.max(0, STAND.riss - dt*1.4);
@@ -1211,6 +1424,9 @@ function schritt(dt){
       const ruhe = 1 - clamp(STAND.windStill, 0, 1);
       SND.wind.gain.setTargetAtTime((0.05 + P.tempo*0.012) * ruhe,
         SND.ctx.currentTime, STAND.windStill > 0.3 ? 0.12 : 0.4);
+      /* Der Träger in der Hand hört mit dem Wind zusammen auf. */
+      if(SND.traeger) SND.traeger.gain.setTargetAtTime((FUNK.da ? 0.030 : 0) * ruhe,
+        SND.ctx.currentTime, STAND.windStill > 0.3 ? 0.10 : 0.35);
     }
     hudSchritt(dt);
   } else if(STAND.phase === 'tot'){
@@ -1234,9 +1450,10 @@ function schritt(dt){
   } else if(STAND.phase === 'fertig'){
     STAND.endT += dt;
     if(STAND.endT > 2.4 && scEnd.classList.contains('hidden'))
-      endBild('AM MAST', 'Ein Betonfuß, ein rotes Licht, sonst nichts. Von hier aus ' +
-        'sieht man in alle Richtungen dasselbe — und vier Stellen, an denen sie ' +
-        'stehen. Keine ist einen Schritt gegangen.');
+      endBild('DER RUF IST RAUS', 'Sieben Sekunden am Fuß des Masts, und dann hat ' +
+        'es im Lautsprecher geknackt. Kurz, und wie eine Antwort. Von hier aus sieht ' +
+        'man in alle Richtungen dasselbe — und vier Stellen, an denen sie stehen. ' +
+        'Keine ist einen Schritt gegangen.');
   }
 }
 function bild(){
@@ -1304,7 +1521,7 @@ for(const id of ['bRaus','bRaus2'])
       b.textContent = '▶ BAND ABSPIELEN';
     }
   }, 120);
-  if(IS_TOUCH) $('titelHint').textContent = 'LINKS LAUFEN · RECHTS UMSEHEN · KNOPF RENNEN';
+  if(IS_TOUCH) $('titelHint').textContent = 'LINKS LAUFEN · RECHTS UMSEHEN · KNÖPFE RENNEN UND SENDEN';
 }
 
 /* Prüfhaken für die Messung von außen. */
@@ -1313,6 +1530,8 @@ window.WI = {
     x:+P.x.toFixed(2), z:+P.z.toFixed(2), y:+P.y.toFixed(2),
     phase:STAND.phase, riss:+STAND.riss.toFixed(2),
     mast:+mastAbstand().toFixed(1), erreicht:MAST.erreicht,
+    funk:+funkAbstand().toFixed(1), hat:FUNK.da, amMast:STAND.amMast,
+    senden:+STAND.senden.toFixed(3), sendet:STAND.sendet,
     gelaufen:+P.gelaufen.toFixed(1), anzahl:SIE.length, geladen:sieGeladen,
     sie: SIE.map(g => ({ abstand:+g.abstand.toFixed(1), drang:+g.drang.toFixed(2),
                          gesehen:g.gesehen, spruenge:g.spruenge })) }; },
@@ -1324,7 +1543,8 @@ window.WI = {
   mehr(d){ return neueGestalt(d||100); },
   himmelFarbe: () => '#' + himmelMat.uniforms.uOben.value.getHexString(),
   setzMast(x,z){ MAST.x=modW(x); MAST.z=modW(z); mastNachfuehren(); },
-  P, SIE, STAND, IN, GR, ABDRUCK, DURCH, MAST,
+  setzFunk(x,z){ FUNK.x=modW(x); FUNK.z=modW(z); funkNachfuehren(); },
+  P, SIE, STAND, IN, GR, ABDRUCK, DURCH, MAST, FUNK,
 };
 
 bild();
