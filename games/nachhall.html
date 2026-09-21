@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04070a">
+<title>Nachhall — AGG Games</title>
+<meta name="description" content="Du siehst nichts. Du siehst nur, was ein Geräusch gerade berührt hat — und alles, was du hörbar machst, hört auch etwas anderes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2304070a'/%3E%3Ccircle cx='8' cy='8' r='2' fill='none' stroke='%23bfe3f2' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='5' fill='none' stroke='%236f9ab0' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='7.2' fill='none' stroke='%2333505e' stroke-width='1'/%3E%3C/svg%3E">
+<style>
+:root{
+  --tief:#04070a; --ink:#dbe9f2; --dim:#7e93a4; --blass:#4a5d6c;
+  --du:#bfe3f2; --hall:#8fc6de; --tropf:#5f93c8; --weg:#6ee3a2; --sie:#ff5347; --stein:#ffb648;
+  --ui: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --seite: 1.5;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{background:#000; color:var(--ink); font-family:var(--ui);
+  display:grid; place-items:center; touch-action:none; user-select:none}
+#buehne{position:relative; width:min(100vw, calc(100vh * var(--seite)));
+  aspect-ratio:var(--seite); max-height:100vh; overflow:hidden; background:var(--tief)}
+canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; display:block}
+
+/* ── Anzeige ───────────────────────────────────────────────────────── */
+#kopf{position:absolute; inset:0 0 auto 0; z-index:3; pointer-events:none;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 11px 0 50px;
+  font-size:10px; letter-spacing:.2em; color:var(--blass)}
+#kopf b{color:var(--ink); font-weight:600}
+#steine{text-align:right; color:var(--stein)}
+#steine.leer{color:var(--blass)}
+#tipp{position:absolute; left:50%; transform:translateX(-50%); z-index:3; pointer-events:none;
+  bottom:calc(14px + env(safe-area-inset-bottom,0px)); max-width:min(82vw,520px); text-align:center;
+  font-size:11px; line-height:1.6; letter-spacing:.06em; color:#9fb4c4;
+  opacity:0; transition:opacity .4s}
+#tipp.an{opacity:.85}
+#puls{position:absolute; inset:0; z-index:2; pointer-events:none; opacity:0;
+  box-shadow:inset 0 0 90px 20px #ff534740; transition:opacity .25s}
+
+/* ── Fingersteuerung ───────────────────────────────────────────────── */
+#steuer{position:absolute; inset:0; z-index:4; display:none; touch-action:none}
+#steuer.an{display:block}
+#zoneGeh{position:absolute; left:0; top:0; bottom:0; width:52%; touch-action:none}
+#stick{position:fixed; width:116px; height:116px; margin:-58px 0 0 -58px; border-radius:50%;
+  border:1px solid #ffffff20; background:#0b141a99; opacity:0; transition:opacity .12s;
+  pointer-events:none}
+#stick.on{opacity:.8}
+#knob{position:absolute; left:50%; top:50%; width:48px; height:48px; margin:-24px 0 0 -24px;
+  border-radius:50%; background:#bfe3f255; border:1px solid #ffffff3a}
+.knopf{position:absolute; border-radius:50%; border:1px solid #ffffff28; background:#0b141ab8;
+  color:var(--ink); font:600 9.5px/1.15 var(--ui); letter-spacing:.11em; text-align:center;
+  display:flex; align-items:center; justify-content:center; touch-action:none;
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px)}
+.knopf.held{background:#1d3a48d8; border-color:#7fc6e0}
+#bSchleich{right:calc(20px + env(safe-area-inset-right,0px));
+  bottom:calc(30px + env(safe-area-inset-bottom,0px)); width:82px; height:82px}
+#bKlatsch{right:calc(112px + env(safe-area-inset-right,0px));
+  bottom:calc(44px + env(safe-area-inset-bottom,0px)); width:64px; height:64px}
+#bStein{right:calc(30px + env(safe-area-inset-right,0px));
+  bottom:calc(122px + env(safe-area-inset-bottom,0px)); width:60px; height:60px;
+  color:var(--stein); display:none}
+#bStein.da{display:flex}
+
+/* ── Blenden ───────────────────────────────────────────────────────── */
+.blende{position:absolute; inset:0; z-index:9; display:grid; place-items:center;
+  padding:22px 18px; text-align:center; overflow:auto; align-content:safe center;
+  background:radial-gradient(60% 70% at 50% 45%, #0a1016f2, #04070afa)}
+.blende.weg{display:none}
+.mitte{display:flex; flex-direction:column; align-items:center; gap:13px; max-width:44ch}
+h1{font-size:clamp(30px,8vw,52px); letter-spacing:.24em; font-weight:400; color:var(--du);
+  text-shadow:0 0 26px #8fc6de55}
+h1 small{display:block; font-size:9.5px; letter-spacing:.42em; color:var(--blass);
+  margin-bottom:9px; text-shadow:none}
+.blende p{font-size:12.5px; line-height:1.85; color:#a9bdcc; letter-spacing:.03em}
+.blende p b{color:var(--ink); font-weight:600}
+.zeile{display:flex; gap:11px; align-items:baseline; text-align:left; max-width:40ch}
+.zeile i{font-style:normal; color:var(--hall); font-size:10px; letter-spacing:.2em; min-width:2.2em}
+.reihe{display:flex; gap:7px; flex-wrap:wrap; justify-content:center}
+button{font-family:var(--ui); cursor:pointer}
+.gross{font-size:13px; letter-spacing:.22em; padding:14px 30px; border-radius:8px;
+  border:1px solid var(--du); background:#0c1a2199; color:var(--du)}
+.gross:hover{background:#12303c}
+.marke{font-size:10px; letter-spacing:.14em; padding:9px 12px; border-radius:6px;
+  border:1px solid #ffffff2e; background:#0a1219; color:var(--dim); min-width:2.6em}
+.marke.frei{color:var(--ink); border-color:#ffffff55}
+.marke.jetzt{border-color:var(--du); color:var(--du); background:#0f2731}
+.marke:disabled{opacity:.3; cursor:default}
+.hinweis{font-size:9.5px; letter-spacing:.2em; color:var(--blass)}
+</style>
+</head>
+<body>
+
+<div id="buehne">
+  <canvas id="c" width="960" height="640"></canvas>
+  <div id="puls"></div>
+
+  <div id="kopf">
+    <div><b id="ebName">—</b><br><span id="ebNr">EBENE 1 VON 8</span></div>
+    <div id="steine" class="leer">STEINE 0</div>
+  </div>
+  <div id="tipp"></div>
+
+  <div id="steuer">
+    <div id="zoneGeh"></div>
+    <div id="stick"><div id="knob"></div></div>
+    <div class="knopf" id="bSchleich">SCHLEI&shy;CHEN</div>
+    <div class="knopf" id="bKlatsch">KLATSCH</div>
+    <div class="knopf" id="bStein">STEIN</div>
+  </div>
+
+  <div class="blende" id="scTitel">
+    <div class="mitte">
+      <h1><small>AGG GAMES</small>NACHHALL</h1>
+      <p>Hier unten ist es vollkommen dunkel. Du siehst nur, was ein
+         Geräusch gerade berührt hat — und alles, was du hörbar machst,
+         hört auch etwas anderes.</p>
+      <div class="zeile"><i>01</i><span>Gehen malt die Wände um dich herum. <b>Klatschen</b> malt den ganzen Raum — und ruft jeden herbei, der es hört.</span></div>
+      <div class="zeile"><i>02</i><span><b>Schleichen</b> macht dich lautlos. Dann siehst du allerdings auch nichts mehr.</span></div>
+      <div class="zeile"><i>03</i><span>Was rot aufleuchtet, sucht dich. Was nicht leuchtet, steht still und wartet.</span></div>
+      <p class="hinweis" id="titelHint">WASD · UMSCHALT SCHLEICHEN · LEERTASTE KLATSCHEN · E STEIN</p>
+      <div class="reihe" id="marken"></div>
+      <button class="gross" id="bLos">HINEIN</button>
+    </div>
+  </div>
+
+  <div class="blende weg" id="scTod">
+    <div class="mitte">
+      <h1 style="color:var(--sie); text-shadow:0 0 26px #ff534755"><small>ZU LAUT</small>GEHÖRT</h1>
+      <p id="todText">Es stand schon da, als du losgelaufen bist.</p>
+      <button class="gross" id="bNochmal">NOCH EINMAL</button>
+      <button class="marke" id="bRaus">ZURÜCK</button>
+    </div>
+  </div>
+
+  <div class="blende weg" id="scSieg">
+    <div class="mitte">
+      <h1 style="color:var(--weg); text-shadow:0 0 26px #6ee3a255"><small id="siegOben">EBENE GESCHAFFT</small><span id="siegTitel">WEITER</span></h1>
+      <p id="siegText"></p>
+      <p class="hinweis" id="siegZahlen"></p>
+      <button class="gross" id="bWeiter">WEITER</button>
+      <button class="marke" id="bRaus2">ZURÜCK</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* ======================================================================
+   NACHHALL
+
+   Ein Spiel über eine einzige Regel: sichtbar ist nur, was ein Geräusch
+   gerade berührt hat. Jeder Schall geht als Ring von Strahlen los, läuft
+   bis er auf eine Wand trifft, hinterlässt dort einen Abdruck und wird
+   zurückgeworfen. Der Abdruck verblasst in wenigen Sekunden.
+
+   Daraus ergibt sich das ganze Spiel von selbst: Gehen zeigt dir die
+   nächste Umgebung, Klatschen den halben Saal — und beides hören die
+   Horcher. Schleichen macht dich lautlos und damit blind.
+
+   Aufbau
+     1  Rahmen, Ebenen, Raster
+     2  Strahlen und Wellen
+     3  Der Spieler
+     4  Die Horcher
+     5  Steine, Tropfen, Ausgang
+     6  Ton
+     7  Bild
+     8  Ablauf, Anzeige, Steuerung
+   ====================================================================== */
+
+/* ======================= 1  Rahmen, Ebenen, Raster ======================= */
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const lerp  = (a,b,t) => a+(b-a)*t;
+const IS_TOUCH = matchMedia('(hover: none)').matches || 'ontouchstart' in window;
+
+const KACHEL = 32;                 // Bildpunkte je Feld
+const C      = 16.5;               // Schallgeschwindigkeit in Feldern je Sekunde
+const cv = $('c'), ctx = cv.getContext('2d', { alpha:false });
+const BREIT = cv.width, HOCH = cv.height;
+
+/* Die Karten stehen als Zeichenketten da, weil man sie so lesen kann.
+   Gebaut und geprüft wurden sie mit werkzeug/nachhall-karten.py: jede
+   Ebene ist ringsum zu, der Ausgang erreichbar, und an jedem Horcher
+   muss man auf sieben Schritte heran — sonst stünde er nur herum.
+     #  Wand      .  Boden     @  Start     X  Ausgang
+     h  Horcher (ruht)         p  Horcher (wandert)
+     o  Tropfstelle            s  Stein     */
+const EBENEN = [
+  { name:'ERSTE SCHRITTE', karte:[
+    '##################################',
+    '##################################',
+    '##@..........#####################',
+    '##...........#####################',
+    '###########..#####################',
+    '###########..#####################',
+    '###########..#####################',
+    '###########o.#####################',
+    '###########..#####################',
+    '###########..#####################',
+    '###########..#####################',
+    '###########....................###',
+    '###########...................X###',
+    '##################################',
+    '##################################',
+    '##################################',
+  ] },
+  { name:'ENGE', karte:[
+    '##################################',
+    '##################################',
+    '##@.............................##',
+    '##.######.#####################.##',
+    '##.######.######.##############.##',
+    '##.######.######.##############.##',
+    '##.######.######.............##.##',
+    '##.######.######.###########.##.##',
+    '##.######.######.###########o##.##',
+    '##.######................###.##.##',
+    '##.#############.#######.######.##',
+    '##.#############.#######.######.##',
+    '##.#############o#######.######.##',
+    '##.#############.#######.######.##',
+    '##.#############.#######.######.##',
+    '##.............................X##',
+    '##################################',
+    '##################################',
+  ] },
+  { name:'DER ERSTE', karte:[
+    '####################################',
+    '####################################',
+    '####################################',
+    '##@.........#####...........########',
+    '##..........#####...........########',
+    '########....#####.........h.########',
+    '########....#####...........########',
+    '########....#####...######..########',
+    '########....#####...######..#####..#',
+    '########....#####...######..#####X.#',
+    '########....#####...######..#####..#',
+    '########............######..#####..#',
+    '########............######..#####..#',
+    '########..o.........######..#####..#',
+    '########............######.........#',
+    '###########################.......##',
+    '####################################',
+    '####################################',
+  ] },
+  { name:'TROPFEN', karte:[
+    '######################################',
+    '######################################',
+    '##@.........................######..##',
+    '##................o.........######..##',
+    '##..#########.####################..##',
+    '##..#########.####################..##',
+    '##..######.......####.......######..##',
+    '##..######.......####.......######..##',
+    '##..######.......####.......######..##',
+    '##.o######...p..........h...######.o##',
+    '##..######.......####.......######..##',
+    '##..######.......####.......######..##',
+    '##..######.......####.......######..##',
+    '##..####################.#########..##',
+    '##..####################.#########..##',
+    '##..####################.#########..##',
+    '##########..........................##',
+    '##########.........................X##',
+    '######################################',
+    '######################################',
+  ] },
+  { name:'STEINE', karte:[
+    '########################################',
+    '########################################',
+    '##@....................................#',
+    '##..ss.................................#',
+    '#########.##################.########..#',
+    '######.........#########..........###..#',
+    '######.........#########..........###..#',
+    '######.........#########..........###..#',
+    '######....h.........o.......h.....###..#',
+    '######.........#########..........###..#',
+    '######.........#########..........###..#',
+    '######.........#########..........###..#',
+    '##############################.........#',
+    '##############################.......X.#',
+    '########################################',
+    '########################################',
+  ] },
+  { name:'KREUZUNG', karte:[
+    '######################################',
+    '######################################',
+    '##################..##################',
+    '####......########..########.......###',
+    '####......########o.########.......###',
+    '####..h...########..########...p...###',
+    '####......########..########.......###',
+    '####......########..########.......###',
+    '####......########..########.......###',
+    '######.###########..###########.######',
+    '##@................s................##',
+    '##.s................................##',
+    '########.#########..##########.#######',
+    '####.........#####..######.........###',
+    '####.........#####..######.........###',
+    '####.........#####..######.........###',
+    '####....h....#####..######.........###',
+    '####.........#####o.######.........###',
+    '####.........#####..######.........###',
+    '####.........#####..######........X###',
+    '######################################',
+    '######################################',
+  ] },
+  { name:'STILLE', karte:[
+    '########################################',
+    '########################################',
+    '##....................................##',
+    '##.@..................................##',
+    '##....................................##',
+    '##......###.....###.....###.....###...##',
+    '##.s....###.....###.....###.....###...##',
+    '##.s....###.h...###.....###.h...###...##',
+    '##.s....###.....###.....###.....###...##',
+    '##......###.....###.....###.....###...##',
+    '##....................................##',
+    '##....................................##',
+    '##....###.....###.....###.....###.....##',
+    '##....###.....###.....###.....###.....##',
+    '##....###.....###...h.###.....###.....##',
+    '##....###.....###.....###.....###.....##',
+    '##....###.....###.....###.....###.....##',
+    '##....................................##',
+    '##............p.......................##',
+    '##...................................X##',
+    '########################################',
+    '########################################',
+  ] },
+  { name:'NACHHALL', karte:[
+    '##########################################',
+    '##########################################',
+    '##@...................................####',
+    '##..sss...............................####',
+    '##..########.###############.#############',
+    '##..########.###############.#############',
+    '##..####.........#######..........########',
+    '##..####.........#######..........########',
+    '##..####.........#######..........########',
+    '##..####....h.......p.......p.....########',
+    '##..####.........#######..........########',
+    '##..####.........#######..........########',
+    '##..####.........#######..........########',
+    '##..##########.############.##############',
+    '##..##########.############.##########..##',
+    '##..######......................######..##',
+    '##..######......h...............######..##',
+    '##..######................h.....######..##',
+    '##..######......................######..##',
+    '##..################o#################..##',
+    '##########..............................##',
+    '##########.............................X##',
+    '##########################################',
+    '##########################################',
+  ] },
+];
+
+/* Eine Zeile je Ebene, beim Betreten kurz eingeblendet. Mehr Erklärung
+   gibt es nicht — der Rest steht im Dunkeln und muss gehört werden. */
+const TEXTE = [
+  'Geh los. Deine Schritte malen die Wände. Der Ausgang ruft alle paar Sekunden grün.',
+  'Abzweige. Ein Klatschen zeigt dir den halben Gang auf einmal — hier kostet das noch nichts.',
+  'Im Saal steht etwas. Es hört dein Gehen, aber nicht dein Schleichen.',
+  'Wasser tropft. Das leuchtet umsonst — und eines der beiden da drin läuft herum.',
+  'Steine liegen neben dir. Wirf einen, und sie gehen dorthin statt zu dir.',
+  'Vier Arme, drei Horcher. Zwei Steine sind wenig, wenn man sie falsch wirft.',
+  'Kein Tropfen, kein Gang, keine Deckung. Nur eine Halle und vier, die warten.',
+  'Alles zusammen. Von hier aus gibt es keinen zweiten Weg.',
+];
+
+/* Das Raster der laufenden Ebene. */
+const L = { b:0, h:0, feld:null, nr:0, name:'', sx:0, sy:0, ax:0, ay:0 };
+const wand = (cx, cy) =>
+  cx < 0 || cy < 0 || cx >= L.b || cy >= L.h || L.feld[cy*L.b + cx] === 1;
+
+/* ======================= 2  Strahlen und Wellen ======================= */
+/* Ein Strahl läuft auf einer Geraden, bis eine Wand kommt. Wo er auftrifft,
+   bleibt ein Abdruck, und er wird zurückgeworfen — mit weniger Kraft und
+   einer Spur Streuung, sonst spielt er in Ecken ewig Pingpong. */
+
+/* Gitterdurchlauf nach Amanatides und Woo: von Feldgrenze zu Feldgrenze,
+   nie in Schritten. Liefert Entfernung und Flächennormale. */
+function strahlBis(x, y, dx, dy, maxD){
+  let cx = Math.floor(x), cy = Math.floor(y);
+  const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+  const tdx = Math.abs(1/dx), tdy = Math.abs(1/dy);
+  let tmx = (dx > 0 ? cx + 1 - x : x - cx) * tdx;
+  let tmy = (dy > 0 ? cy + 1 - y : y - cy) * tdy;
+  let d = 0, quer = 0, schutz = 0;
+  while(d < maxD && schutz++ < 512){
+    if(tmx < tmy){ d = tmx; tmx += tdx; cx += sx; quer = 0; }
+    else         { d = tmy; tmy += tdy; cy += sy; quer = 1; }
+    if(d > maxD) break;
+    if(wand(cx, cy))
+      return { d, nx: quer === 0 ? -sx : 0, ny: quer === 1 ? -sy : 0 };
+  }
+  return null;
+}
+
+const ARTEN = {
+  du:      { farbe:'#bfe3f2', wand:'#a9d6ea' },
+  klatsch: { farbe:'#eaf7ff', wand:'#cfe9f5' },
+  tropf:   { farbe:'#5f93c8', wand:'#4d7ba8' },
+  weg:     { farbe:'#6ee3a2', wand:'#5cc48c' },
+  sie:     { farbe:'#ff5347', wand:'#e0463c' },
+  stein:   { farbe:'#ffb648', wand:'#dc9a35' },
+};
+const MAX_STRAHLEN = 4600;
+let STRAHLEN = [];
+const ABDRUECKE = [];              // wird jedes Bild vom Zeichner geleert
+
+function neuerStrahl(x, y, dx, dy, kraft, rest, art){
+  if(STRAHLEN.length >= MAX_STRAHLEN) return;
+  const t = strahlBis(x, y, dx, dy, rest);
+  STRAHLEN.push({ ox:x, oy:y, dx, dy, t:0, art, kraft, rest,
+                  segL: t ? t.d : rest, nx: t ? t.nx : null, ny: t ? t.ny : 0 });
+}
+
+function welleAus(x, y, o){
+  const n = o.n | 0, w0 = Math.random()*Math.PI*2;
+  for(let i = 0; i < n; i++){
+    const w = w0 + i/n*Math.PI*2;
+    neuerStrahl(x, y, Math.cos(w), Math.sin(w), o.kraft, o.weite, o.art);
+  }
+  if(o.laut) laerm(x, y, o.weite*0.82);
+}
+
+function strahlenSchritt(dt){
+  const adv = C*dt;
+  let n = 0;
+  for(let i = 0; i < STRAHLEN.length; i++){
+    const s = STRAHLEN[i];
+    s.t += adv; s.rest -= adv;
+    /* Mehrere Wände in einem Bild sind möglich, wenn es eng zugeht. */
+    let schutz = 0;
+    while(s.rest > 0 && s.t >= s.segL && s.nx !== null && schutz++ < 4){
+      const hx = s.ox + s.dx*s.segL, hy = s.oy + s.dy*s.segL;
+      ABDRUECKE.push({ x:hx, y:hy, nx:s.nx, ny:s.ny, kraft:s.kraft, art:s.art });
+      s.kraft *= 0.52;
+      if(s.kraft < 0.05){ s.rest = 0; break; }
+      /* Zurückwerfen, mit etwas Streuung — eine Wand ist kein Spiegel. */
+      const p = s.dx*s.nx + s.dy*s.ny;
+      let rx = s.dx - 2*p*s.nx, ry = s.dy - 2*p*s.ny;
+      const a = (Math.random()-0.5)*0.36, co = Math.cos(a), si = Math.sin(a);
+      const qx = rx*co - ry*si, qy = rx*si + ry*co;
+      const l = Math.hypot(qx, qy) || 1;
+      s.dx = qx/l; s.dy = qy/l;
+      const ueber = s.t - s.segL;
+      s.ox = hx + s.nx*0.002; s.oy = hy + s.ny*0.002;
+      const t = strahlBis(s.ox, s.oy, s.dx, s.dy, s.rest);
+      s.segL = t ? t.d : s.rest; s.nx = t ? t.nx : null; s.ny = t ? t.ny : 0;
+      s.t = ueber;
+    }
+    if(s.rest > 0) STRAHLEN[n++] = s;
+  }
+  STRAHLEN.length = n;
+}
+
+/* ---------- Wer hört das? ----------
+   Nicht Luftlinie, sondern der Weg durch die Gänge: Schall geht um Ecken,
+   aber nicht durch Mauern. Eine Breitensuche vom Ursprung reicht dafür,
+   und sie liefert gleich die Verzögerung mit — der Horcher zuckt erst,
+   wenn der Schall auch wirklich bei ihm angekommen ist. */
+let hfeld = null;
+function laerm(x, y, reichweite){
+  if(!SIE.length) return;
+  const b = L.b, h = L.h;
+  if(!hfeld || hfeld.length !== b*h) hfeld = new Int16Array(b*h);
+  hfeld.fill(-1);
+  const start = (Math.floor(y)|0)*b + (Math.floor(x)|0);
+  if(L.feld[start] === 1) return;
+  const q = new Int32Array(b*h); let kopf = 0, ende = 0;
+  hfeld[start] = 0; q[ende++] = start;
+  const max = Math.ceil(reichweite);
+  while(kopf < ende){
+    const i = q[kopf++], d = hfeld[i];
+    if(d >= max) continue;
+    const cx = i % b, cy = (i / b) | 0;
+    for(let k = 0; k < 4; k++){
+      const nx = cx + (k===0?1:k===1?-1:0), ny = cy + (k===2?1:k===3?-1:0);
+      if(nx < 0 || ny < 0 || nx >= b || ny >= h) continue;
+      const j = ny*b + nx;
+      if(L.feld[j] === 1 || hfeld[j] >= 0) continue;
+      hfeld[j] = d+1; q[ende++] = j;
+    }
+  }
+  for(const g of SIE){
+    const d = hfeld[(g.y|0)*b + (g.x|0)];
+    if(d < 0 || d > reichweite) continue;
+    /* Der Schall braucht seine Zeit. Wer weit weg steht, zuckt später —
+       und man sieht am roten Aufleuchten, wann es bei wem angekommen ist. */
+    const t = d / C;
+    if(g.hoerT < 0 || t < g.hoerT){ g.hoerT = t; g.hzx = x; g.hzy = y; }
+  }
+}
+
+/* ======================= 3  Der Spieler ======================= */
+const TEMPO = { gehen: 3.55, schleichen: 1.65 };
+const R_SPIELER = 0.27;            // Halbmesser für die Wandprüfung
+
+const P = { x:0, y:0, rx:0, ry:-1, weg:0, schleicht:false, steine:0, lebt:true };
+const IN = { gx:0, gy:0, schleich:false };
+
+/* Achsenweise schieben: so rutscht man an einer Wand entlang, statt in
+   ihr kleben zu bleiben. */
+function frei(x, y){
+  const r = R_SPIELER;
+  return !wand(Math.floor(x-r), Math.floor(y-r)) && !wand(Math.floor(x+r), Math.floor(y-r))
+      && !wand(Math.floor(x-r), Math.floor(y+r)) && !wand(Math.floor(x+r), Math.floor(y+r));
+}
+function spielerSchritt(dt){
+  let gx = IN.gx, gy = IN.gy;
+  const l = Math.hypot(gx, gy);
+  if(l > 1){ gx /= l; gy /= l; }
+  const gas = Math.min(1, l);
+  P.schleicht = IN.schleich;
+  const tempo = (P.schleicht ? TEMPO.schleichen : TEMPO.gehen) * gas;
+
+  const dx = gx*tempo*dt, dy = gy*tempo*dt;
+  if(dx && frei(P.x + dx, P.y)) P.x += dx;
+  if(dy && frei(P.x, P.y + dy)) P.y += dy;
+  if(gas > 0.08){ const m = Math.hypot(gx,gy)||1; P.rx = gx/m; P.ry = gy/m; }
+
+  /* Schritte. Gehen ist ein Geräusch mit Reichweite, Schleichen nur ein
+     Hauch — gerade genug, dass man die eigenen Füsse sieht. */
+  P.weg += Math.hypot(dx, dy);
+  const laenge = P.schleicht ? 0.78 : 0.46;
+  if(P.weg >= laenge){
+    P.weg = 0;
+    if(P.schleicht) welleAus(P.x, P.y, { n:34, kraft:0.30, weite:2.6, art:'du', laut:false });
+    else            welleAus(P.x, P.y, { n:96, kraft:0.95, weite:9.5, art:'du', laut:true });
+    schrittTon(P.schleicht);
+  }
+}
+function klatschen(){
+  if(STAND.phase !== 'spiel') return;
+  STAND.klatscher++;
+  welleAus(P.x, P.y, { n:320, kraft:1.0, weite:27, art:'klatsch', laut:true });
+  klatschTon();
+}
+
+/* ======================= 4  Die Horcher ======================= */
+/* Sie gehen nicht auf dich los, sie gehen auf das Geräusch los. Solange
+   sie ruhen, sind sie still und damit unsichtbar — das ist der eigentliche
+   Schrecken an ihnen. Wer läuft, malt sich selbst rot an. */
+const SIE = [];
+const H_TEMPO = 1.92;              // langsamer als Gehen, schneller als Schleichen
+const H_GRIFF = 0.55;
+
+function horcherNeu(x, y, wandert){
+  SIE.push({ x:x+0.5, y:y+0.5, hx:x+0.5, hy:y+0.5, wandert,
+             zustand:'ruht', zx:0, zy:0, weg:0, warte:0, pause: wandert ? 1+Math.random()*3 : 0,
+             hoerT:-1, hzx:0, hzy:0, feld:null, fx:-1, fy:-1 });
+}
+
+/* Entfernungsfeld zum Ziel. Daraus läuft sich der Weg bergab von selbst,
+   und es muss nur neu gebaut werden, wenn sich das Ziel ändert. */
+function feldZu(tx, ty){
+  const b = L.b, h = L.h, f = new Int16Array(b*h).fill(-1);
+  const s = (ty|0)*b + (tx|0);
+  if(L.feld[s] === 1) return f;
+  const q = new Int32Array(b*h); let kopf = 0, ende = 0;
+  f[s] = 0; q[ende++] = s;
+  while(kopf < ende){
+    const i = q[kopf++], d = f[i], cx = i % b, cy = (i/b)|0;
+    for(let k = 0; k < 4; k++){
+      const nx = cx + (k===0?1:k===1?-1:0), ny = cy + (k===2?1:k===3?-1:0);
+      if(nx < 0 || ny < 0 || nx >= b || ny >= h) continue;
+      const j = ny*b + nx;
+      if(L.feld[j] === 1 || f[j] >= 0) continue;
+      f[j] = d+1; q[ende++] = j;
+    }
+  }
+  return f;
+}
+function zielSetzen(g, tx, ty){
+  const zx = clamp(tx, 0.5, L.b-0.5), zy = clamp(ty, 0.5, L.h-0.5);
+  if(g.fx === (zx|0) && g.fy === (zy|0) && g.feld) { g.zx = zx; g.zy = zy; return; }
+  g.zx = zx; g.zy = zy; g.fx = zx|0; g.fy = zy|0; g.feld = feldZu(g.fx, g.fy);
+}
+/* Bergab: das benachbarte Feld mit der kleinsten Entfernung. */
+function naechsterSchritt(g){
+  const b = L.b, cx = g.x|0, cy = g.y|0, f = g.feld;
+  if(!f) return null;
+  let beste = f[cy*b + cx], bx = -1, by = -1;
+  if(beste <= 0) return null;
+  for(let k = 0; k < 4; k++){
+    const nx = cx + (k===0?1:k===1?-1:0), ny = cy + (k===2?1:k===3?-1:0);
+    if(nx < 0 || ny < 0 || nx >= L.b || ny >= L.h) continue;
+    const d = f[ny*b + nx];
+    if(d >= 0 && d < beste){ beste = d; bx = nx; by = ny; }
+  }
+  return bx < 0 ? null : { x:bx+0.5, y:by+0.5 };
+}
+function zufallsZiel(g, weite){
+  for(let v = 0; v < 24; v++){
+    const w = Math.random()*Math.PI*2, d = 3 + Math.random()*weite;
+    const tx = (g.hx + Math.cos(w)*d)|0, ty = (g.hy + Math.sin(w)*d)|0;
+    if(!wand(tx, ty)) return { x:tx+0.5, y:ty+0.5 };
+  }
+  return null;
+}
+
+function sieSchritt(dt){
+  for(const g of SIE){
+    /* Angekommener Schall weckt. */
+    if(g.hoerT >= 0){
+      g.hoerT -= dt;
+      if(g.hoerT <= 0){
+        g.hoerT = -1;
+        const neu = g.zustand === 'ruht';
+        g.zustand = 'jagt'; g.warte = 0;
+        zielSetzen(g, g.hzx, g.hzy);
+        /* Aufwachen ist ein Geräusch: es dreht sich, und dabei malt es
+           sich selbst an. Ohne das wüsste man nie, ob man gehört wurde —
+           und genau diese Auskunft hat man sich mit dem Lärm erkauft. */
+        if(neu){
+          merkTon(g);
+          welleAus(g.x, g.y, { n:80, kraft:0.95, weite:6, art:'sie', laut:false });
+        }
+      }
+    }
+
+    if(g.zustand === 'ruht'){
+      if(g.wandert){
+        g.pause -= dt;
+        if(g.pause <= 0){
+          const z = zufallsZiel(g, 7);
+          if(z){ zielSetzen(g, z.x, z.y); g.zustand = 'wandert'; }
+          else g.pause = 2;
+        }
+      }
+      continue;
+    }
+    if(g.zustand === 'lauscht'){
+      g.warte -= dt;
+      if(g.warte <= 0){ g.zustand = 'ruht'; g.pause = 1.5 + Math.random()*3.5; }
+      continue;
+    }
+
+    const ziel = naechsterSchritt(g);
+    const tempo = g.zustand === 'jagt' ? H_TEMPO : H_TEMPO*0.62;
+    if(!ziel){
+      /* Am Ziel angekommen und nichts gefunden: stehen und horchen. */
+      g.warte = g.zustand === 'jagt' ? 3.0 : 1.4;
+      g.zustand = 'lauscht';
+      continue;
+    }
+    const dx = ziel.x - g.x, dy = ziel.y - g.y, l = Math.hypot(dx, dy) || 1;
+    const s = Math.min(tempo*dt, l);
+    g.x += dx/l*s; g.y += dy/l*s;
+
+    /* Ihre eigenen Schritte. Das ist die einzige Art, wie man sie sieht. */
+    g.weg += s;
+    if(g.weg >= 0.62){
+      g.weg = 0;
+      welleAus(g.x, g.y, { n:60, kraft:0.85, weite:7.5, art:'sie', laut:false });
+      trittTon(g);
+    }
+    if(g.zustand === 'jagt' && Math.hypot(g.x-P.x, g.y-P.y) < H_GRIFF) erwischt(g);
+  }
+}
+
+/* ======================= 5  Steine, Tropfen, Ausgang ======================= */
+/* Der einzige Gegenstand im Spiel, und er macht genau eine Sache: er
+   erzeugt ein lautes Geräusch dort, wo du nicht bist. */
+const STEINE = [];                 // liegen herum
+const FLUG = [];                   // sind unterwegs
+function steinWerfen(){
+  if(STAND.phase !== 'spiel' || P.steine <= 0) return;
+  P.steine--; anzeigeSteine();
+  FLUG.push({ x:P.x, y:P.y, dx:P.rx, dy:P.ry, rest:7.5 });
+  wurfTon();
+}
+function flugSchritt(dt){
+  for(let i = FLUG.length-1; i >= 0; i--){
+    const f = FLUG[i];
+    const s = Math.min(12.5*dt, f.rest);
+    const t = strahlBis(f.x, f.y, f.dx, f.dy, s);
+    const d = t ? Math.max(0, t.d - 0.05) : s;
+    f.x += f.dx*d; f.y += f.dy*d; f.rest -= s;
+    if(t || f.rest <= 0){
+      welleAus(f.x, f.y, { n:220, kraft:1.0, weite:19, art:'stein', laut:true });
+      aufschlagTon(f.x, f.y);
+      FLUG.splice(i, 1);
+    }
+  }
+}
+
+/* Tropfstellen und der Ausgang rufen von selbst. Sie sind das einzige
+   Licht, das nichts kostet: kein Horcher reagiert darauf. */
+const TROPFEN = [];
+const AUSGANG = { x:0, y:0, t:1.2 };
+function quellenSchritt(dt){
+  for(const q of TROPFEN){
+    q.t -= dt;
+    if(q.t <= 0){
+      q.t = 3.4 + Math.random()*2.6;
+      welleAus(q.x, q.y, { n:74, kraft:0.62, weite:12, art:'tropf', laut:false });
+      tropfTon(q);
+    }
+  }
+  AUSGANG.t -= dt;
+  if(AUSGANG.t <= 0){
+    AUSGANG.t = 3.9;
+    welleAus(AUSGANG.x, AUSGANG.y, { n:150, kraft:0.7, weite:30, art:'weg', laut:false });
+    wegTon();
+  }
+}
+
+/* ======================= 6  Ton ======================= */
+/* Das Bild ist fast leer, also trägt der Ton. Alles, was von einem Ort
+   kommt, wird nach links oder rechts gelegt und mit der Entfernung leiser
+   — sonst weiss man nie, aus welcher Richtung gerade etwas kam. */
+const SND = { an:true, ctx:null };
+function tonStart(){
+  if(SND.ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  const ac = new AC(); SND.ctx = ac;
+  SND.master = ac.createGain(); SND.master.gain.value = SND.an ? 0.85 : 0;
+  SND.master.connect(ac.destination);
+  const len = ac.sampleRate*2, buf = ac.createBuffer(1, len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i = 0; i < len; i++) d[i] = Math.random()*2-1;
+  SND.rausch = buf;
+  /* Ein Grundton, der nur da ist, damit die Stille eine Farbe hat. */
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = 41;
+  const g = ac.createGain(); g.gain.value = 0.045;
+  o.connect(g); g.connect(SND.master); o.start();
+  SND.grund = g;
+  SND.herz = ac.createGain(); SND.herz.gain.value = 0; SND.herz.connect(SND.master);
+}
+function ort(x, y){
+  const ac = SND.ctx; if(!ac) return null;
+  const dx = x - P.x, dy = y - P.y, d = Math.hypot(dx, dy);
+  const g = ac.createGain();
+  g.gain.value = clamp(1 - d/22, 0.04, 1);
+  if(ac.createStereoPanner){
+    const p = ac.createStereoPanner();
+    p.pan.value = clamp(dx/9, -0.85, 0.85);
+    g.connect(p); p.connect(SND.master);
+  } else g.connect(SND.master);
+  return g;
+}
+function stoss(dauer, cut, vol, typ, ziel, rate){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  const s = ac.createBufferSource(); s.buffer = SND.rausch;
+  s.playbackRate.value = rate || (0.7 + Math.random()*0.6);
+  const f = ac.createBiquadFilter(); f.type = typ || 'lowpass'; f.frequency.value = cut;
+  const g = ac.createGain(); g.gain.value = vol;
+  g.gain.setTargetAtTime(0.0001, ac.currentTime + dauer*0.2, dauer*0.34);
+  s.connect(f); f.connect(g); g.connect(ziel || SND.master);
+  s.start(); s.stop(ac.currentTime + dauer + 0.1);
+}
+const schrittTon = leise => stoss(leise ? 0.10 : 0.15, leise ? 1100 : 2400,
+                                  leise ? 0.035 : 0.10, 'bandpass');
+function klatschTon(){
+  stoss(0.06, 7000, 0.36, 'highpass');
+  stoss(0.9, 1500, 0.16, 'bandpass');
+}
+function trittTon(g){ stoss(0.17, 520, 0.16, 'lowpass', ort(g.x, g.y)); }
+function merkTon(g){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  const ziel = ort(g.x, g.y) || SND.master;
+  const o = ac.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(190, ac.currentTime);
+  o.frequency.linearRampToValueAtTime(96, ac.currentTime + 0.7);
+  const bp = ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = 260; bp.Q.value = 2.4;
+  const g2 = ac.createGain(); g2.gain.value = 0;
+  g2.gain.setTargetAtTime(0.16, ac.currentTime, 0.04);
+  g2.gain.setTargetAtTime(0, ac.currentTime + 0.4, 0.22);
+  o.connect(bp); bp.connect(g2); g2.connect(ziel);
+  o.start(); o.stop(ac.currentTime + 1.4);
+}
+function tonPing(x, y, f0, f1, vol, dauer){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  const ziel = ort(x, y) || SND.master;
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dauer);
+  const g = ac.createGain(); g.gain.value = 0;
+  g.gain.setTargetAtTime(vol, ac.currentTime, 0.005);
+  g.gain.setTargetAtTime(0, ac.currentTime + dauer*0.25, dauer*0.4);
+  o.connect(g); g.connect(ziel);
+  o.start(); o.stop(ac.currentTime + dauer + 0.6);
+}
+const tropfTon = q => tonPing(q.x, q.y, 1250, 620, 0.10, 0.16);
+const wegTon   = () => tonPing(AUSGANG.x, AUSGANG.y, 470, 700, 0.055, 0.5);
+const wurfTon  = () => stoss(0.1, 3000, 0.08, 'highpass');
+const aufschlagTon = (x,y) => { stoss(0.13, 2600, 0.30, 'bandpass', ort(x,y));
+                                tonPing(x, y, 300, 150, 0.09, 0.2); };
+function schreckTon(){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  stoss(0.07, 9000, 0.5, 'highpass');
+  stoss(1.4, 900, 0.34);
+  const o = ac.createOscillator(); o.type = 'square';
+  o.frequency.setValueAtTime(420, ac.currentTime);
+  o.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 1.0);
+  const g = ac.createGain(); g.gain.value = 0;
+  g.gain.setTargetAtTime(0.3, ac.currentTime, 0.004);
+  g.gain.setTargetAtTime(0, ac.currentTime + 0.5, 0.3);
+  o.connect(g); g.connect(SND.master); o.start(); o.stop(ac.currentTime + 2);
+}
+function siegTon(){
+  const ac = SND.ctx; if(!ac || !SND.an) return;
+  [523, 659, 784].forEach((f, i) => setTimeout(() => tonPing(P.x, P.y, f, f, 0.09, 0.4), i*130));
+}
+function tonSchalten(an){
+  SND.an = an;
+  if(SND.ctx) SND.master.gain.setTargetAtTime(an ? 0.85 : 0, SND.ctx.currentTime, 0.05);
+}
+
+/* ======================= 7  Bild ======================= */
+/* Zwei Schichten. Die Erinnerung ist eine Leinwand in Weltgrösse: dort
+   bleiben die Abdrücke an den Wänden stehen und verblassen langsam. Weil
+   sie in Weltkoordinaten liegt, verschmiert beim Scrollen nichts.
+   Darüber liegen die Wellenfronten selbst — die gibt es nur für ein Bild. */
+const merk = document.createElement('canvas');
+let mctx = null;
+const KAM = { x:0, y:0 };
+function merkNeu(){
+  merk.width = L.b*KACHEL; merk.height = L.h*KACHEL;
+  mctx = merk.getContext('2d');
+  mctx.fillStyle = '#000'; mctx.fillRect(0, 0, merk.width, merk.height);
+}
+const EIMER = {};
+for(const k in ARTEN) EIMER[k] = [];
+
+function zeichnen(dt){
+  /* Verblassen. */
+  mctx.globalCompositeOperation = 'source-over';
+  mctx.globalAlpha = 1;
+  mctx.fillStyle = 'rgba(0,0,0,' + (1 - Math.exp(-dt/1.9)).toFixed(4) + ')';
+  mctx.fillRect(0, 0, merk.width, merk.height);
+
+  /* Neue Abdrücke einbrennen: ein Stück Wandfläche, kein Punkt. */
+  mctx.globalCompositeOperation = 'lighter';
+  mctx.lineCap = 'round';
+  for(const a of ABDRUECKE){
+    const px = a.x*KACHEL, py = a.y*KACHEL;
+    const tx = -a.ny, ty = a.nx, lg = 5 + a.kraft*8;
+    mctx.strokeStyle = ARTEN[a.art].wand;
+    mctx.globalAlpha = clamp(a.kraft*0.9, 0, 1);
+    mctx.lineWidth = 2.1;
+    mctx.beginPath();
+    mctx.moveTo(px - tx*lg, py - ty*lg);
+    mctx.lineTo(px + tx*lg, py + ty*lg);
+    mctx.stroke();
+  }
+  ABDRUECKE.length = 0;
+  mctx.globalAlpha = 1;
+
+  /* Kamera: auf den Spieler, aber nie über den Rand hinaus. Die
+     Sichtfläche ist fest — auf einem breiten Bildschirm sieht man sonst
+     mehr, und in einem Spiel über fehlende Information wäre das unfair. */
+  KAM.x = clamp(P.x*KACHEL - BREIT/2, 0, Math.max(0, merk.width  - BREIT));
+  KAM.y = clamp(P.y*KACHEL - HOCH/2,  0, Math.max(0, merk.height - HOCH));
+  const ox = -KAM.x + Math.max(0, (BREIT - merk.width )/2);
+  const oy = -KAM.y + Math.max(0, (HOCH  - merk.height)/2);
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#04070a';
+  ctx.fillRect(0, 0, BREIT, HOCH);
+  ctx.drawImage(merk, ox, oy);
+
+  /* Die Wellenfronten. */
+  ctx.globalCompositeOperation = 'lighter';
+  for(const k in EIMER) EIMER[k].length = 0;
+  for(const s of STRAHLEN) EIMER[s.art].push(s);
+  for(const k in EIMER){
+    const liste = EIMER[k];
+    if(!liste.length) continue;
+    ctx.fillStyle = ARTEN[k].farbe;
+    for(const s of liste){
+      const x = (s.ox + s.dx*s.t)*KACHEL + ox, y = (s.oy + s.dy*s.t)*KACHEL + oy;
+      if(x < -8 || y < -8 || x > BREIT+8 || y > HOCH+8) continue;
+      ctx.globalAlpha = clamp(s.kraft*0.85, 0, 1);
+      ctx.fillRect(x-1.2, y-1.2, 2.4, 2.4);
+    }
+  }
+
+  /* Die Steine, die noch herumliegen: ein schwacher warmer Punkt. */
+  ctx.fillStyle = ARTEN.stein.farbe;
+  for(const st of STEINE){
+    ctx.globalAlpha = 0.22 + Math.sin(ZEIT*2.2 + st.x)*0.07;
+    ctx.fillRect(st.x*KACHEL + ox - 2, st.y*KACHEL + oy - 2, 4, 4);
+  }
+  /* Fliegende Steine. */
+  ctx.globalAlpha = 0.6;
+  for(const f of FLUG) ctx.fillRect(f.x*KACHEL + ox - 2, f.y*KACHEL + oy - 2, 4, 4);
+
+  /* Du selbst. Ein schwacher Schein um die Füsse, damit man sich im
+     vollkommen Dunklen nicht verliert — sehen tut man damit nichts. */
+  const px = P.x*KACHEL + ox, py = P.y*KACHEL + oy;
+  const g = ctx.createRadialGradient(px, py, 0, px, py, P.schleicht ? 26 : 46);
+  g.addColorStop(0, P.schleicht ? '#2b4a5a' : '#4d7f95');
+  g.addColorStop(1, '#00000000');
+  ctx.fillStyle = g; ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(px, py, P.schleicht ? 26 : 46, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#dff1fb';
+  ctx.globalAlpha = P.schleicht ? 0.35 : 0.72;
+  ctx.fillRect(px-1.6, py-1.6, 3.2, 3.2);
+
+  /* Rahmen: nach aussen dunkler, damit der Blick in der Mitte bleibt. */
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = SCHATTEN;
+  ctx.fillRect(0, 0, BREIT, HOCH);
+}
+/* Der Rahmen ist immer derselbe — einmal bauen reicht. */
+const SCHATTEN = (() => {
+  const g = ctx.createRadialGradient(BREIT/2, HOCH/2, HOCH*0.30, BREIT/2, HOCH/2, HOCH*0.80);
+  g.addColorStop(0, '#00000000'); g.addColorStop(1, '#04070acc');
+  return g;
+})();
+
+/* ======================= 8  Ablauf, Anzeige, Steuerung ======================= */
+const STAND = { phase:'menu', ebene:0, zeit:0, endT:0, klatscher:0, tode:0, naeh:0 };
+let ZEIT = 0;
+const FREI = () => clamp(parseInt(localStorage.getItem('nh_frei') || '1', 10) || 1, 1, EBENEN.length);
+
+const scTitel = $('scTitel'), scTod = $('scTod'), scSieg = $('scSieg');
+const BLENDEN = [scTitel, scTod, scSieg];
+function zeige(el){
+  for(const b of BLENDEN) b.classList.toggle('weg', b !== el);
+  $('steuer').classList.toggle('an', !el && IS_TOUCH);
+}
+
+function ebeneLaden(i){
+  const E = EBENEN[i];
+  L.nr = i; L.name = E.name;
+  L.b = E.karte[0].length; L.h = E.karte.length;
+  L.feld = new Uint8Array(L.b*L.h);
+  SIE.length = 0; TROPFEN.length = 0; STEINE.length = 0; FLUG.length = 0;
+  STRAHLEN.length = 0; ABDRUECKE.length = 0;
+  P.steine = 0;
+  for(let y = 0; y < L.h; y++){
+    for(let x = 0; x < L.b; x++){
+      const z = E.karte[y][x];
+      L.feld[y*L.b + x] = z === '#' ? 1 : 0;
+      if(z === '@'){ P.x = x+0.5; P.y = y+0.5; }
+      else if(z === 'X'){ AUSGANG.x = x+0.5; AUSGANG.y = y+0.5; }
+      else if(z === 'h') horcherNeu(x, y, false);
+      else if(z === 'p') horcherNeu(x, y, true);
+      else if(z === 'o') TROPFEN.push({ x:x+0.5, y:y+0.5, t:0.6 + Math.random()*2.4 });
+      else if(z === 's') STEINE.push({ x:x+0.5, y:y+0.5 });
+    }
+  }
+  AUSGANG.t = 1.0;
+  P.rx = 0; P.ry = -1; P.weg = 0; P.schleicht = false;
+  IN.gx = IN.gy = 0; IN.schleich = false;
+  STAND.zeit = 0; STAND.klatscher = 0; STAND.naeh = 0;
+  merkNeu();
+  anzeigeKopf(); anzeigeSteine();
+  melde(TEXTE[i], 7);
+  /* Ein Anfangsklatschen, damit man nicht in völliger Schwärze startet. */
+  welleAus(P.x, P.y, { n:200, kraft:0.8, weite:15, art:'du', laut:false });
+}
+
+function erwischt(g){
+  if(STAND.phase !== 'spiel') return;
+  STAND.phase = 'gefasst'; STAND.tode++; STAND.endT = 0;
+  schreckTon();
+  if(navigator.vibrate) navigator.vibrate([0, 70, 60, 220]);
+  /* Es steht jetzt auf dir — und malt sich dabei selbst an. */
+  welleAus(g.x, g.y, { n:300, kraft:1.0, weite:14, art:'sie', laut:false });
+}
+function geschafft(){
+  if(STAND.phase !== 'spiel') return;
+  STAND.phase = 'geschafft'; STAND.endT = 0;
+  siegTon();
+  welleAus(AUSGANG.x, AUSGANG.y, { n:320, kraft:1.0, weite:26, art:'weg', laut:false });
+  const frei = Math.max(FREI(), Math.min(EBENEN.length, L.nr + 2));
+  localStorage.setItem('nh_frei', String(frei));
+}
+
+let meldT = 0;
+function melde(txt, sek){ $('tipp').textContent = txt; $('tipp').classList.add('an'); meldT = sek || 4; }
+function anzeigeKopf(){
+  $('ebName').textContent = L.name;
+  $('ebNr').textContent = 'EBENE ' + (L.nr+1) + ' VON ' + EBENEN.length;
+}
+function anzeigeSteine(){
+  $('steine').textContent = 'STEINE ' + P.steine;
+  $('steine').classList.toggle('leer', P.steine === 0);
+  $('bStein').classList.toggle('da', P.steine > 0 && IS_TOUCH);
+}
+
+function schritt(dt){
+  ZEIT += dt;
+  if(meldT > 0){ meldT -= dt; if(meldT <= 0) $('tipp').classList.remove('an'); }
+
+  if(STAND.phase === 'spiel'){
+    STAND.zeit += dt;
+    spielerSchritt(dt);
+    flugSchritt(dt);
+    sieSchritt(dt);
+    quellenSchritt(dt);
+
+    /* Steine aufheben, einfach durch Darüberlaufen. */
+    for(let i = STEINE.length-1; i >= 0; i--){
+      if(Math.hypot(STEINE[i].x-P.x, STEINE[i].y-P.y) < 0.55){
+        STEINE.splice(i, 1); P.steine++; anzeigeSteine();
+        stoss(0.09, 4200, 0.12, 'highpass');
+        if(P.steine === 1) melde(IS_TOUCH ? 'Ein Stein. Der Knopf wirft ihn dorthin, wo du zuletzt hingelaufen bist.'
+                                          : 'Ein Stein. E wirft ihn dorthin, wo du zuletzt hingelaufen bist.', 6);
+      }
+    }
+    if(Math.hypot(P.x-AUSGANG.x, P.y-AUSGANG.y) < 0.65) geschafft();
+
+    /* Wie nah ist die nächste, die gerade jagt? Das sieht man nicht, das
+       spürt man: der Rand wird rot und das Herz geht mit. */
+    let naeh = 99;
+    for(const g of SIE) if(g.zustand === 'jagt') naeh = Math.min(naeh, Math.hypot(g.x-P.x, g.y-P.y));
+    STAND.naeh = lerp(STAND.naeh, clamp(1 - naeh/11, 0, 1), 0.10);
+    $('puls').style.opacity = (STAND.naeh*0.9).toFixed(3);
+  } else if(STAND.phase === 'gefasst'){
+    STAND.endT += dt;
+    if(STAND.endT > 1.5 && scTod.classList.contains('weg')){
+      $('todText').textContent = TOD_TEXTE[(Math.random()*TOD_TEXTE.length)|0];
+      zeige(scTod);
+    }
+  } else if(STAND.phase === 'geschafft'){
+    STAND.endT += dt;
+    if(STAND.endT > 1.4 && scSieg.classList.contains('weg')) siegBild();
+  }
+  strahlenSchritt(dt);
+}
+const TOD_TEXTE = [
+  'Es stand schon da, als du losgelaufen bist.',
+  'Es hat dich nicht gesucht. Es ist einfach dorthin gegangen, wo du laut warst.',
+  'Zwischen dem letzten Schritt und dem Griff lag nichts.',
+  'Du hast es gehört. Eine Sekunde zu spät.',
+];
+function siegBild(){
+  const letzte = L.nr + 1 >= EBENEN.length;
+  $('siegOben').textContent = letzte ? 'ALLE ACHT' : 'EBENE ' + (L.nr+1) + ' GESCHAFFT';
+  $('siegTitel').textContent = letzte ? 'DRAUSSEN' : L.name;
+  $('siegText').textContent = letzte
+    ? 'Acht Ebenen, und oben ist es hell genug, dass du die Augen zumachen musst. Von unten hörst du nichts mehr.'
+    : 'Die Tür fällt hinter dir zu. Dahinter ist es genauso dunkel.';
+  $('siegZahlen').textContent =
+    'ZEIT ' + STAND.zeit.toFixed(1).replace('.', ',') + ' s  ·  GEKLATSCHT ' + STAND.klatscher +
+    '  ·  VERSUCHE ' + (STAND.tode + 1);
+  $('bWeiter').textContent = letzte ? 'VON VORN' : 'WEITER';
+  zeige(scSieg);
+}
+
+/* ---------- Steuerung ---------- */
+const KEY = {};
+addEventListener('keydown', e => {
+  KEY[e.code] = true;
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') IN.schleich = true;
+  if(e.code === 'Space'){ e.preventDefault(); klatschen(); }
+  if(e.code === 'KeyE') steinWerfen();
+  if(e.key && e.key.toLowerCase() === 'm') tonSchalten(!SND.an);
+  if(e.code === 'Escape' && STAND.phase !== 'menu') zumMenue();
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => {
+  KEY[e.code] = false;
+  if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') IN.schleich = false;
+});
+function tastenLesen(){
+  if(IS_TOUCH) return;
+  let gx = 0, gy = 0;
+  if(KEY.KeyW || KEY.ArrowUp)    gy -= 1;
+  if(KEY.KeyS || KEY.ArrowDown)  gy += 1;
+  if(KEY.KeyA || KEY.ArrowLeft)  gx -= 1;
+  if(KEY.KeyD || KEY.ArrowRight) gx += 1;
+  IN.gx = gx; IN.gy = gy;
+}
+function allesLos(){
+  for(const k in KEY) KEY[k] = false;
+  IN.gx = IN.gy = 0; IN.schleich = false;
+  gehId = null; elStick.classList.remove('on');
+  elKnob.style.transform = 'translate(0,0)';
+  for(const id of ['bSchleich','bKlatsch','bStein']) $(id).classList.remove('held');
+}
+addEventListener('blur', allesLos);
+
+const elStick = $('stick'), elKnob = $('knob'), zGeh = $('zoneGeh');
+let gehId = null, gehOx = 0, gehOy = 0;
+const STICK_R = 52;
+zGeh.addEventListener('pointerdown', e => {
+  if(gehId !== null) return;
+  gehId = e.pointerId; gehOx = e.clientX; gehOy = e.clientY;
+  elStick.style.left = e.clientX+'px'; elStick.style.top = e.clientY+'px';
+  elStick.classList.add('on');
+  zGeh.setPointerCapture(e.pointerId); e.preventDefault();
+});
+zGeh.addEventListener('pointermove', e => {
+  if(e.pointerId !== gehId) return;
+  let dx = e.clientX - gehOx, dy = e.clientY - gehOy;
+  const l = Math.hypot(dx, dy);
+  if(l > STICK_R){ dx = dx/l*STICK_R; dy = dy/l*STICK_R; }
+  elKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  IN.gx = dx/STICK_R; IN.gy = dy/STICK_R;
+  e.preventDefault();
+});
+function gehEnde(e){
+  if(e.pointerId !== gehId) return;
+  gehId = null; IN.gx = IN.gy = 0;
+  elKnob.style.transform = 'translate(0,0)'; elStick.classList.remove('on');
+}
+zGeh.addEventListener('pointerup', gehEnde);
+zGeh.addEventListener('pointercancel', gehEnde);
+
+function haltKnopf(el, an, aus){
+  el.addEventListener('pointerdown', e => { el.classList.add('held'); an(); e.preventDefault(); e.stopPropagation(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(t =>
+    el.addEventListener(t, () => { if(el.classList.contains('held')){ el.classList.remove('held'); aus(); } }));
+}
+haltKnopf($('bSchleich'), () => IN.schleich = true, () => IN.schleich = false);
+$('bKlatsch').addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  klatschen();
+});
+$('bStein').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); steinWerfen(); });
+
+/* ---------- Blenden ---------- */
+function marken(){
+  const box = $('marken'); box.innerHTML = '';
+  const frei = FREI();
+  for(let i = 0; i < EBENEN.length; i++){
+    const b = document.createElement('button');
+    b.className = 'marke' + (i < frei ? ' frei' : '') + (i === STAND.ebene ? ' jetzt' : '');
+    b.textContent = String(i+1);
+    b.disabled = i >= frei;
+    b.title = i < frei ? EBENEN[i].name : 'noch zu';
+    b.addEventListener('click', () => { STAND.ebene = i; marken(); });
+    box.appendChild(b);
+  }
+  $('bLos').textContent = STAND.ebene === 0 ? 'HINEIN' : 'EBENE ' + (STAND.ebene+1);
+}
+function starten(i){
+  tonStart();
+  if(SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume();
+  STAND.ebene = i; STAND.tode = 0;
+  ebeneLaden(i);
+  STAND.phase = 'spiel';
+  zeige(null);
+}
+function zumMenue(){
+  STAND.phase = 'menu'; allesLos(); marken(); zeige(scTitel);
+}
+$('bLos').addEventListener('click', () => starten(STAND.ebene));
+$('bNochmal').addEventListener('click', () => { const t = STAND.tode; starten(STAND.ebene); STAND.tode = t; });
+$('bWeiter').addEventListener('click', () => {
+  const n = L.nr + 1;
+  if(n >= EBENEN.length){ STAND.ebene = 0; zumMenue(); }
+  else starten(n);
+});
+$('bRaus').addEventListener('click', zumMenue);
+$('bRaus2').addEventListener('click', zumMenue);
+document.addEventListener('visibilitychange', () => { if(document.hidden) allesLos(); });
+
+/* ---------- Schleife ---------- */
+let letzte = performance.now();
+function bild(jetzt){
+  requestAnimationFrame(bild);
+  const dt = Math.min(0.05, (jetzt - letzte)/1000);
+  letzte = jetzt;
+  tastenLesen();
+  schritt(dt);
+  if(mctx) zeichnen(dt);
+}
+/* Vor dem ersten Start steht die Leinwand schon, damit hinter der
+   Titelblende nicht nur Schwarz liegt. */
+STAND.ebene = 0;
+ebeneLaden(0);
+STAND.phase = 'menu';
+marken();
+if(IS_TOUCH) $('titelHint').textContent = 'LINKS LAUFEN · KNÖPFE SCHLEICHEN, KLATSCHEN, STEIN';
+requestAnimationFrame(bild);
+
+/* Prüfhaken für die Messung von aussen. */
+window.NH = {
+  stand: () => ({ phase:STAND.phase, ebene:L.nr, name:L.name,
+                  x:+P.x.toFixed(2), y:+P.y.toFixed(2), schleicht:P.schleicht,
+                  steine:P.steine, strahlen:STRAHLEN.length, zeit:+STAND.zeit.toFixed(1),
+                  ausgang:+Math.hypot(P.x-AUSGANG.x, P.y-AUSGANG.y).toFixed(2),
+                  sie: SIE.map(g => ({ x:+g.x.toFixed(1), y:+g.y.toFixed(1),
+                                       zustand:g.zustand, ab:+Math.hypot(g.x-P.x, g.y-P.y).toFixed(1) })) }),
+  setz(x, y){ P.x = x; P.y = y; },
+  /* Laufen lässt sich von aussen nur über echte Tasten steuern: die
+     Tastaturabfrage schreibt IN.gx/gy in jedem Bild neu. */
+  schleich(b){ IN.schleich = !!b; },
+  frei: (x,y) => frei(x,y),
+  klatsch: klatschen,
+  wirf: steinWerfen,
+  start: starten,
+  karte: () => EBENEN[L.nr].karte,
+  offen: () => FREI(),
+  P, SIE, L, STAND, AUSGANG, STEINE,
+};
+</script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
