@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Ping Pong — AGG Games</title>
+<meta name="description" content="Tischtennis im Browser: gegen den Computer in drei Stufen oder zu zweit an einem Gerät. Bis 11, mit zwei Punkten Vorsprung.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2316447a'/%3E%3Crect x='1' y='4' width='2' height='8' fill='%23e8413a'/%3E%3Crect x='13' y='4' width='2' height='8' fill='%23f2f4f8'/%3E%3Ccircle cx='8' cy='8' r='1.6' fill='%23ffb648'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#0b0d12; --panel:#141926; --edge:#252d3d; --edge-hi:#3a465c;
+  --ink:#e9edf5; --dim:#98a3b6; --faint:#616d84;
+  --rot:#e8413a; --gold:#ffb648;
+  --pix:"Pixelify Sans", ui-monospace, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--pix);
+  display:grid; place-items:center; touch-action:none; user-select:none; -webkit-user-select:none;
+}
+canvas{display:block; touch-action:none}
+
+.schicht{position:fixed; inset:0; display:grid; place-items:center; padding:16px;
+  background:rgba(7,9,14,.72); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px)}
+.schicht[hidden]{display:none}
+.tafel{background:var(--panel); border:2px solid var(--edge); padding:22px 22px 18px;
+  width:min(360px, 100%); text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.tafel h1, .tafel h2{font-size:34px; line-height:1; color:var(--gold); letter-spacing:.02em}
+.tafel h2{font-size:28px}
+.tafel p{color:var(--dim); font-size:14px; margin-top:8px; line-height:1.35}
+.tafel small{display:block; font-size:10px; letter-spacing:.16em; color:var(--faint);
+  text-transform:uppercase; margin:18px 0 8px}
+.reihe{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+button{font:inherit; font-size:16px; color:var(--ink); background:#0d1119; cursor:pointer;
+  border:2px solid var(--edge-hi); padding:10px 8px; touch-action:manipulation}
+button:hover, button:focus-visible{border-color:var(--gold); color:var(--gold); outline:none}
+button:active{transform:scale(.96)}
+button.breit{width:100%}
+button.haupt{background:var(--gold); color:#1a1206; border-color:var(--gold)}
+button.haupt:hover, button.haupt:focus-visible{background:#ffc873; color:#1a1206}
+.tafel .hilfe{font-size:12px; color:var(--faint); margin-top:16px}
+.knopfreihe{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:18px}
+
+#pauseKnopf{position:fixed; top:8px; right:8px; width:34px; height:34px; padding:0;
+  display:grid; place-items:center; border-radius:9px; font-size:14px;
+  background:rgba(10,12,16,.72); border:2px solid rgba(255,255,255,.22); opacity:.5; z-index:5}
+#pauseKnopf:hover{opacity:1}
+#pauseKnopf[hidden]{display:none}
+@media (hover:none){ #pauseKnopf{opacity:.62; width:38px; height:38px} }
+</style>
+</head>
+<body>
+<canvas id="tisch" aria-label="Tischtennisplatte"></canvas>
+<button id="pauseKnopf" type="button" aria-label="Pause" hidden>❚❚</button>
+
+<div id="menue" class="schicht">
+  <div class="tafel">
+    <h1>Ping Pong</h1>
+    <p>Bis 11 Punkte, mit zwei Punkten Vorsprung. Wo du den Ball triffst, bestimmt den Winkel — die Kante schickt ihn steil weg.</p>
+    <small>Gegen den Computer</small>
+    <div class="reihe">
+      <button type="button" data-modus="1" data-stufe="0">Leicht</button>
+      <button type="button" data-modus="1" data-stufe="1" class="haupt">Mittel</button>
+      <button type="button" data-modus="1" data-stufe="2">Schwer</button>
+    </div>
+    <small>Ein Gerät, zwei Leute</small>
+    <button type="button" data-modus="2" class="breit">Zu zweit</button>
+    <p class="hilfe">Finger oder Maus auf deiner Seite ziehen · W/S und ↑/↓ · Leertaste: Pause</p>
+  </div>
+</div>
+
+<div id="pause" class="schicht" hidden>
+  <div class="tafel">
+    <h2>Pause</h2>
+    <div class="knopfreihe">
+      <button type="button" id="weiter" class="haupt">Weiter</button>
+      <button type="button" class="zumMenue">Menü</button>
+    </div>
+  </div>
+</div>
+
+<div id="ende" class="schicht" hidden>
+  <div class="tafel">
+    <h2 id="endeTitel">Gewonnen</h2>
+    <p id="endeText"></p>
+    <div class="knopfreihe">
+      <button type="button" id="nochmal" class="haupt">Nochmal</button>
+      <button type="button" class="zumMenue">Menü</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ── Maße der Platte, in Spieleinheiten ───────────────────────────
+   Gerechnet wird immer quer: links gegen rechts. Steht das Handy
+   hochkant, wird nur die Zeichnung gedreht — links landet unten. */
+const W = 960, H = 540;
+const SB = 14, SH = 96;          // Schläger: Breite, Höhe
+const BR = 8;                    // Ballradius
+const RAND = 40;                 // Abstand der Schlägermitte zur Kante
+const TEMPO_START = 430, TEMPO_MAX = 1150;
+const ZIEL_PUNKTE = 11;
+const TASTEN_TEMPO = 560, ZEIGER_TEMPO = 2000;
+
+const STUFEN = [
+  { name:'Leicht', tempo:330, fehler:74, blick:.28 },
+  { name:'Mittel', tempo:480, fehler:40, blick:.15 },
+  { name:'Schwer', tempo:700, fehler:17, blick:.07 },
+];
+
+const leinwand = document.getElementById('tisch');
+const ctx = leinwand.getContext('2d');
+const $ = id => document.getElementById(id);
+
+let hoch = false, mass = 1, dpr = 1, sw = W, sh = H;   // sw/sh: Bildschirmmaße in Einheiten
+let modus = 1, stufe = 1;
+let zustand = 'menue';           // menue | spiel | pause | ende
+let aufschlagZeit = 0, aufschlagRichtung = 1;
+let meldung = '', meldungZeit = 0;
+
+const schlaeger = [
+  { x:RAND,     y:H/2, vy:0, ziel:null, punkte:0, blitz:0 },
+  { x:W - RAND, y:H/2, vy:0, ziel:null, punkte:0, blitz:0 },
+];
+const ball = { x:W/2, y:H/2, vx:0, vy:0, tempo:TEMPO_START, spur:[] };
+const kopf = { ziel:H/2, uhr:0, versatz:0 };   // der Computer
+
+/* ── Ton ─────────────────────────────────────────────────────────── */
+let ac = null;
+function tonAn(){
+  if(ac) { if(ac.state === 'suspended') ac.resume(); return; }
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+}
+function ton(f, dauer = .06, art = 'square', laut = .07){
+  if(!ac) return;
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = art; o.frequency.setValueAtTime(f, t);
+  g.gain.setValueAtTime(laut, t);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dauer);
+  o.connect(g).connect(ac.destination);
+  o.start(t); o.stop(t + dauer + .02);
+}
+
+/* ── Größe ───────────────────────────────────────────────────────── */
+function groesse(){
+  const vw = innerWidth, vh = innerHeight;
+  hoch = vh > vw * 1.05;
+  sw = hoch ? H : W; sh = hoch ? W : H;
+  mass = Math.min(vw / sw, vh / sh);
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  leinwand.style.width  = Math.floor(sw * mass) + 'px';
+  leinwand.style.height = Math.floor(sh * mass) + 'px';
+  leinwand.width  = Math.floor(sw * mass * dpr);
+  leinwand.height = Math.floor(sh * mass * dpr);
+}
+addEventListener('resize', groesse);
+
+/* Spielkoordinaten → Bildschirm, für Text, der nicht mitgedreht wird */
+function aufSchirm(x, y){ return hoch ? [y, W - x] : [x, y]; }
+
+/* ── Eingabe ─────────────────────────────────────────────────────── */
+function spielPunkt(e){
+  const r = leinwand.getBoundingClientRect();
+  const sx = (e.clientX - r.left) / r.width * sw;
+  const sy = (e.clientY - r.top) / r.height * sh;
+  return hoch ? { x: W - sy, y: sx } : { x: sx, y: sy };
+}
+const zeiger = new Map();   // pointerId → Seite
+function seiteFuer(p){ return modus === 1 ? 0 : (p.x < W/2 ? 0 : 1); }
+
+leinwand.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  tonAn();
+  try { leinwand.setPointerCapture(e.pointerId); } catch(_) {}
+  const p = spielPunkt(e), s = seiteFuer(p);
+  zeiger.set(e.pointerId, s);
+  schlaeger[s].ziel = p.y;
+});
+leinwand.addEventListener('pointermove', e => {
+  const p = spielPunkt(e);
+  if(zeiger.has(e.pointerId)) schlaeger[zeiger.get(e.pointerId)].ziel = p.y;
+  else if(e.pointerType === 'mouse' && modus === 1) schlaeger[0].ziel = p.y;
+});
+const loslassen = e => zeiger.delete(e.pointerId);
+leinwand.addEventListener('pointerup', loslassen);
+leinwand.addEventListener('pointercancel', loslassen);
+
+const tasten = new Set();
+addEventListener('keydown', e => {
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code) && zustand === 'spiel') e.preventDefault();
+  if(e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyP'){
+    if(zustand === 'spiel') { e.preventDefault(); pausieren(); return; }
+    if(zustand === 'pause') { e.preventDefault(); fortsetzen(); return; }
+  }
+  tasten.add(e.code);
+});
+addEventListener('keyup', e => tasten.delete(e.code));
+addEventListener('blur', () => { tasten.clear(); if(zustand === 'spiel') pausieren(); });
+document.addEventListener('visibilitychange', () => { if(document.hidden && zustand === 'spiel') pausieren(); });
+
+function richtung(minus, plus){
+  let d = 0;
+  for(const k of plus)  if(tasten.has(k)) d += 1;
+  for(const k of minus) if(tasten.has(k)) d -= 1;
+  return Math.sign(d);
+}
+
+/* ── Ablauf ──────────────────────────────────────────────────────── */
+function zeige(id){ for(const s of ['menue','pause','ende']) $(s).hidden = s !== id; }
+
+function start(m, s){
+  modus = m; stufe = s ?? stufe;
+  for(const p of schlaeger){ p.punkte = 0; p.y = H/2; p.ziel = null; p.vy = 0; p.blitz = 0; }
+  zeiger.clear();
+  aufschlag(Math.random() < .5 ? -1 : 1);
+  zustand = 'spiel';
+  zeige(null);
+  $('pauseKnopf').hidden = false;
+  tonAn();
+}
+
+function aufschlag(richt){
+  ball.x = W/2; ball.y = H/2; ball.vx = ball.vy = 0; ball.spur.length = 0;
+  ball.tempo = TEMPO_START;
+  aufschlagRichtung = richt;
+  aufschlagZeit = .9;
+  kopf.versatz = (Math.random()*2 - 1) * STUFEN[stufe].fehler;
+}
+
+function abschlagen(){
+  const w = (Math.random()*2 - 1) * .45;
+  ball.vx = Math.cos(w) * ball.tempo * aufschlagRichtung;
+  ball.vy = Math.sin(w) * ball.tempo;
+  ton(520, .05, 'triangle', .06);
+}
+
+function pausieren(){ zustand = 'pause'; zeige('pause'); $('weiter').focus(); }
+function fortsetzen(){ zustand = 'spiel'; zeige(null); tasten.clear(); }
+
+function name(i){
+  if(modus === 1) return i === 0 ? 'Du' : 'Computer';
+  if(hoch) return i === 0 ? 'Unten' : 'Oben';
+  return i === 0 ? 'Links' : 'Rechts';
+}
+
+function punkt(sieger){
+  const p = schlaeger[sieger], q = schlaeger[1 - sieger];
+  p.punkte++;
+  ton(sieger === 0 || modus === 2 ? 880 : 220, .18, 'square', .06);
+  if(p.punkte >= ZIEL_PUNKTE && p.punkte - q.punkte >= 2){ ende(sieger); return; }
+  const satzball = Math.max(p.punkte, q.punkte) >= ZIEL_PUNKTE - 1 && p.punkte !== q.punkte;
+  meldung = p.punkte >= ZIEL_PUNKTE - 1 && q.punkte >= ZIEL_PUNKTE - 1 && p.punkte === q.punkte ? 'Einstand'
+          : satzball ? 'Satzball' : '';
+  meldungZeit = meldung ? 1.4 : 0;
+  aufschlag(sieger === 0 ? 1 : -1);   // wer den Punkt verloren hat, bekommt den Ball
+}
+
+function ende(sieger){
+  zustand = 'ende';
+  $('pauseKnopf').hidden = true;
+  const a = schlaeger[0].punkte, b = schlaeger[1].punkte;
+  if(modus === 1){
+    $('endeTitel').textContent = sieger === 0 ? 'Gewonnen!' : 'Verloren';
+    $('endeText').textContent = `${a} : ${b} gegen den Computer (${STUFEN[stufe].name}).`;
+  } else {
+    $('endeTitel').textContent = `${name(sieger)} gewinnt!`;
+    $('endeText').textContent = `${Math.max(a,b)} : ${Math.min(a,b)}`;
+  }
+  zeige('ende');
+  $('nochmal').focus();
+  if(sieger === 0 || modus === 2){ ton(660,.12,'square',.06); setTimeout(() => ton(990,.2,'square',.06), 120); }
+  else ton(160, .35, 'sawtooth', .05);
+}
+
+/* ── Der Computer: schätzt, wo der Ball ankommt, mit Bande ─────────── */
+function vorhersage(){
+  const zielX = schlaeger[1].x - SB/2 - BR;
+  if(ball.vx <= 0) return H/2 + (ball.y - H/2) * .3;
+  const t = (zielX - ball.x) / ball.vx;
+  const roh = ball.y + ball.vy * t;
+  const lo = BR, spanne = H - 2*BR;
+  const m = (((roh - lo) % (2*spanne)) + 2*spanne) % (2*spanne);
+  return lo + (m > spanne ? 2*spanne - m : m);
+}
+
+/* ── Schritt ─────────────────────────────────────────────────────── */
+const klemme = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function schlaegerBewegen(dt){
+  const d0 = richtung(['KeyW','KeyA'], ['KeyS','KeyD']);
+  const d1 = richtung(['ArrowUp','ArrowLeft'], ['ArrowDown','ArrowRight']);
+  const tastRicht = modus === 1 ? [d0 || d1, 0] : [d0, d1];
+
+  schlaeger.forEach((p, i) => {
+    const vorher = p.y;
+    if(modus === 1 && i === 1){
+      const st = STUFEN[stufe];
+      kopf.uhr -= dt;
+      if(kopf.uhr <= 0){ kopf.uhr = st.blick; kopf.ziel = vorhersage() + (ball.vx > 0 ? kopf.versatz : 0); }
+      const warten = aufschlagZeit > 0 ? H/2 : kopf.ziel;
+      p.y += klemme(warten - p.y, -st.tempo*dt, st.tempo*dt);
+    } else if(tastRicht[i]){
+      p.ziel = null;
+      p.y += tastRicht[i] * TASTEN_TEMPO * dt;
+    } else if(p.ziel !== null){
+      p.y += klemme(p.ziel - p.y, -ZEIGER_TEMPO*dt, ZEIGER_TEMPO*dt);
+    }
+    p.y = klemme(p.y, SH/2, H - SH/2);
+    p.vy = (p.y - vorher) / Math.max(dt, 1e-4);
+    p.blitz = Math.max(0, p.blitz - dt*4);
+  });
+}
+
+function treffer(p, richt){
+  const rel = klemme((ball.y - p.y) / (SH/2 + BR), -1, 1);
+  const winkel = rel * 1.0;                       // Kante: bis gut 57°
+  ball.tempo = Math.min(ball.tempo * 1.05 + 6, TEMPO_MAX);
+  ball.vx = richt * Math.cos(winkel) * ball.tempo;
+  ball.vy = Math.sin(winkel) * ball.tempo + p.vy * .12;
+  ball.x = p.x + richt * (SB/2 + BR);
+  p.blitz = 1;
+  kopf.versatz = (Math.random()*2 - 1) * STUFEN[stufe].fehler;
+  kopf.uhr = 0;
+  ton(richt > 0 ? 440 : 330, .05, 'square', .07);
+}
+
+function ballBewegen(dt){
+  if(aufschlagZeit > 0){
+    aufschlagZeit -= dt;
+    if(aufschlagZeit <= 0) abschlagen();
+    return;
+  }
+  const weg = Math.hypot(ball.vx, ball.vy) * dt;
+  const schritte = Math.max(1, Math.ceil(weg / 5));
+  const h = dt / schritte;
+  const [L, R] = schlaeger;
+  for(let n = 0; n < schritte; n++){
+    ball.x += ball.vx * h; ball.y += ball.vy * h;
+    if(ball.y < BR){ ball.y = BR; ball.vy = Math.abs(ball.vy); ton(260,.03,'triangle',.04); }
+    if(ball.y > H - BR){ ball.y = H - BR; ball.vy = -Math.abs(ball.vy); ton(260,.03,'triangle',.04); }
+
+    if(ball.vx < 0 && ball.x - BR <= L.x + SB/2 && ball.x - BR >= L.x - SB/2 - 12
+       && Math.abs(ball.y - L.y) <= SH/2 + BR) treffer(L, 1);
+    if(ball.vx > 0 && ball.x + BR >= R.x - SB/2 && ball.x + BR <= R.x + SB/2 + 12
+       && Math.abs(ball.y - R.y) <= SH/2 + BR) treffer(R, -1);
+
+    if(ball.x < -BR*3){ punkt(1); return; }
+    if(ball.x > W + BR*3){ punkt(0); return; }
+  }
+  ball.spur.push(ball.x, ball.y);
+  if(ball.spur.length > 16) ball.spur.splice(0, 2);
+}
+
+/* ── Zeichnen ────────────────────────────────────────────────────── */
+function rundRechteck(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function zeichnen(){
+  const k = mass * dpr;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  if(hoch){ ctx.translate(0, W); ctx.rotate(-Math.PI/2); }
+
+  // Platte
+  ctx.fillStyle = '#16447a'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#f2f4f8'; ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, W - 6, H - 6);
+  ctx.lineWidth = 2; ctx.globalAlpha = .55;
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // Netz
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(W/2 + 2, 0, 6, H);
+  ctx.fillStyle = '#d9dee8'; ctx.fillRect(W/2 - 3, 0, 6, H);
+  ctx.fillStyle = '#8c96a8';
+  for(let y = 6; y < H; y += 12) ctx.fillRect(W/2 - 3, y, 6, 2);
+
+  // Spur und Ball
+  for(let i = 0; i < ball.spur.length; i += 2){
+    ctx.globalAlpha = (i / ball.spur.length) * .35;
+    ctx.fillStyle = '#ffb648';
+    ctx.beginPath(); ctx.arc(ball.spur[i], ball.spur[i+1], BR * (.4 + .6 * i / ball.spur.length), 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const blinkt = aufschlagZeit > 0 && Math.floor(aufschlagZeit * 6) % 2 === 1;
+  if(!blinkt){
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.beginPath(); ctx.ellipse(ball.x + 4, ball.y + 5, BR, BR*.8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffb648';
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, BR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff3dc';
+    ctx.beginPath(); ctx.arc(ball.x - 2.5, ball.y - 2.5, BR*.35, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Schläger: rot gegen schwarz, wie echte Beläge
+  schlaeger.forEach((p, i) => {
+    const x = p.x - SB/2, y = p.y - SH/2;
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; rundRechteck(x + 4, y + 5, SB, SH, 5); ctx.fill();
+    ctx.fillStyle = i === 0 ? '#e8413a' : '#15171c';
+    rundRechteck(x, y, SB, SH, 5); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = i === 0 ? '#ff8a80' : '#cfd6e4'; ctx.stroke();
+    if(p.blitz > 0){
+      ctx.globalAlpha = p.blitz * .6; ctx.fillStyle = '#fff';
+      rundRechteck(x, y, SB, SH, 5); ctx.fill(); ctx.globalAlpha = 1;
+    }
+  });
+
+  // Stand und Meldungen — ungedreht, damit man sie lesen kann
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 64px "Pixelify Sans", ui-monospace, monospace';
+  ctx.fillStyle = 'rgba(242,244,248,.28)';
+  const [ax, ay] = aufSchirm(W/2 - 110, 80);
+  const [bx, by] = aufSchirm(W/2 + 110, 80);
+  ctx.fillText(schlaeger[0].punkte, ax, ay);
+  ctx.fillText(schlaeger[1].punkte, bx, by);
+
+  if(zustand === 'spiel' && (meldungZeit > 0 || aufschlagZeit > 0)){
+    const text = meldungZeit > 0 ? meldung : '';
+    if(text){
+      ctx.font = '700 34px "Pixelify Sans", ui-monospace, monospace';
+      ctx.fillStyle = '#ffb648';
+      ctx.fillText(text, sw/2, sh/2 + (hoch ? -150 : -110));
+    }
+  }
+}
+
+/* ── Schleife ────────────────────────────────────────────────────── */
+let zuletzt = performance.now();
+function takt(jetzt){
+  const dt = Math.min(.033, (jetzt - zuletzt) / 1000);
+  zuletzt = jetzt;
+  if(zustand === 'spiel'){
+    schlaegerBewegen(dt);
+    ballBewegen(dt);
+    meldungZeit = Math.max(0, meldungZeit - dt);
+  }
+  zeichnen();
+  requestAnimationFrame(takt);
+}
+
+/* ── Knöpfe ──────────────────────────────────────────────────────── */
+document.querySelectorAll('#menue button[data-modus]').forEach(b =>
+  b.addEventListener('click', () => start(+b.dataset.modus, b.dataset.stufe != null ? +b.dataset.stufe : stufe)));
+$('weiter').addEventListener('click', fortsetzen);
+$('nochmal').addEventListener('click', () => start(modus, stufe));
+$('pauseKnopf').addEventListener('click', () => { if(zustand === 'spiel') pausieren(); });
+document.querySelectorAll('.zumMenue').forEach(b => b.addEventListener('click', () => {
+  zustand = 'menue';
+  $('pauseKnopf').hidden = true;
+  for(const p of schlaeger){ p.punkte = 0; p.y = H/2; }
+  aufschlag(1);
+  zeige('menue');
+}));
+
+groesse();
+requestAnimationFrame(takt);
+document.fonts && document.fonts.ready.then(zeichnen);
+})();
+</script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
