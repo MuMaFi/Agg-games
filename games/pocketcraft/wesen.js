@@ -208,8 +208,26 @@ class Mob{
     this.jumpCd = 0; this.age = 0; this.headYaw = 0;
     this.schussCd = 1 + Math.random()*1.5; this.seite = Math.random() < .5 ? 1 : -1; this.seiteT = 0;
     if(type === 'sheep'){ this.wolle = wollfarbe(); this.geschoren = false; this.wolleT = 0; }
+    this.nid = ++Mob.zaehler;            // Nummer, unter der Mitspieler das Wesen kennen
   }
 }
+Mob.zaehler = 0;
+
+/* ── Mitspieler ────────────────────────────────────────────────────────
+   Ein Mensch aus Kästen wie die Wesen. Das Hemd trägt die Farbe, die sich
+   der Spieler ausgesucht hat. Kopf und Arme bewegt drawSpieler selbst:
+   der Kopf folgt dem Blick, der rechte Arm schlägt beim Abbauen. */
+const SPIELER_MODELL = {
+  w:0.6, h:1.8,
+  parts:[
+    { n:'head', box:[-0.25,1.36,-0.25, 0.5,0.5,0.5], tex:'m_sp_haar', face:'m_sp_gesicht', anim:'head' },
+    { n:'body', box:[-0.25,0.68,-0.125, 0.5,0.68,0.25], tex:'m_sp_hemd', hemd:true },
+    { n:'arm0', box:[-0.375,0.68,-0.125, 0.125,0.68,0.25], tex:'m_sp_arm', anim:'arm', ph:0 },
+    { n:'arm1', box:[ 0.25,0.68,-0.125, 0.125,0.68,0.25], tex:'m_sp_arm', anim:'arm', ph:1 },
+    { n:'leg0', box:[-0.25,0.0,-0.125, 0.25,0.68,0.25], tex:'m_sp_hose', anim:'leg', ph:0 },
+    { n:'leg1', box:[ 0.0, 0.0,-0.125, 0.25,0.68,0.25], tex:'m_sp_hose', anim:'leg', ph:1 },
+  ]
+};
 
 /* ── Pfeile ─────────────────────────────────────────────────────────
    Fliegen mit Schwerkraft, prüfen unterwegs Blöcke und Wesen. Pfeile des

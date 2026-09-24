@@ -2,10 +2,12 @@
    Aufgebaut wie der Startbildschirm des großen Vorbilds: hinten dreht sich
    eine echte Welt langsam im Kreis, vorn das Logo aus Steinblöcken, ein
    gelber Spruch, drei Knöpfe. »Einzelspieler« führt zur Weltenliste, von
-   dort zu »Neue Welt erstellen«, »Bearbeiten«, »Löschen«, »Kopieren«. */
+   dort zu »Neue Welt erstellen«, »Bearbeiten«, »Löschen«, »Kopieren«.
+   »Mitspieler« führt zur Serverliste: gemerkte Codes von Freunden, die
+   ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 2.2';
+const VERSION = 'Pocketcraft 2.3';
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '57 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -13,7 +15,8 @@ const SPRUECHE = [
   'Diamanten sind selten!', 'Nachts wird es laut!', 'Jetzt mit Rüstung!', 'Äxte auch gespiegelt!',
   'Grab nie senkrecht nach unten!', 'Fackeln helfen!', 'Pixelig und stolz drauf!', 'Frisch gebacken: Brot!',
   'Mehrere Welten!', 'Passt in die Tasche!', 'Schweine grunzen!', 'Voll auf Holz!',
-  'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!'
+  'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!',
+  'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {
@@ -101,6 +104,7 @@ function logoZeichnen(cv, wort, maxBreite){
 const Menue = {
   aktiv: null, vonPause: false,
   welten: [], gewaehlt: null, neuModus: 'ueberleben', bearbeiteId: null, loeschId: null,
+  serverGewaehlt: null, serverStatus: {}, formModus: null, formIndex: -1,
   _letzterTipp: { id: null, t: 0 },
 
   init(){
@@ -110,7 +114,7 @@ const Menue = {
     const knopf = (id, fn) => $(id).addEventListener('click', e => { Sfx.play('klick'); fn(e); });
     knopf('#tEinzel', () => this.zuWelten());
     knopf('#tOptionen', () => this.zeige('optionen'));
-    knopf('#tHeim', () => { location.href = '../../index.html'; });
+    knopf('#tMehr', () => this.zuMitspieler());
     knopf('#wSpielen', () => this.spielen(this.gewaehlt));
     knopf('#wNeu', () => this.zuNeu());
     knopf('#wBearb', () => this.zuBearbeiten());
@@ -140,6 +144,30 @@ const Menue = {
     $('#oRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     $('#oSens').addEventListener('input', e => { Game.settings.sens = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     // Pause und Tod im selben Stil
+    // Mitspieler
+    knopf('#msBeitreten', () => this.serverBeitreten());
+    knopf('#msDirekt', () => { this.nameSichern(); this.serverForm('direkt', -1); });
+    knopf('#msNeu', () => { this.nameSichern(); this.serverForm('neu', -1); });
+    knopf('#msBearb', () => { const i = Netz.serverListe().findIndex(q => q.code === this.serverGewaehlt); if(i >= 0){ this.nameSichern(); this.serverForm('bearbeiten', i); } });
+    knopf('#msLoeschen', () => this.serverLoeschen());
+    knopf('#msAuffrischen', () => this.serverAuffrischen());
+    knopf('#msZurueck', () => { this.nameSichern(); this.zeige('titel'); });
+    knopf('#msFarbe', () => { Netz.ich.farbe = (Netz.ich.farbe + 1) % SPIELER_FARBEN.length; Netz.ichSichern(); this.farbeZeigen(); });
+    $('#msName').addEventListener('change', () => this.nameSichern());
+    knopf('#sfOk', () => this.serverFormOk());
+    knopf('#sfAbbruch', () => this.zuMitspieler());
+    for(const id of ['#sfName', '#sfCode']) $(id).addEventListener('keydown', e => { if(e.key === 'Enter') this.serverFormOk(); });
+    knopf('#vbZurueck', () => this.vbZurueck());
+    knopf('#pOeffnen', () => this.zuOeffnen());
+    knopf('#oeLos', () => this.oeffnenUmschalten());
+    knopf('#oeAuto', () => this.oeffnenAuto());
+    knopf('#oeKopie', () => this.codeKopieren());
+    knopf('#oeTeilen', () => this.codeTeilen());
+    knopf('#oeZurueck', () => this.optionenZu());
+    $('#oeName').addEventListener('change', () => {
+      const n = ($('#oeName').value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
+      if(n){ Netz.ich.name = n; Netz.ichSichern(); }
+    });
     knopf('#resume', () => Screens.hide());
     knopf('#pOptionen', () => { this.vonPause = true; this.zeige('optionen'); });
     knopf('#toMenu', () => this.speichernUndTitel());
@@ -159,7 +187,7 @@ const Menue = {
   },
 
   zeige(name){
-    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen'])
+    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen'])
       $('#' + id).classList.toggle('on', id === name);
     this.aktiv = name;
     document.body.classList.toggle('imMenue', !!name && !Game.running);
@@ -170,8 +198,10 @@ const Menue = {
   alleZu(){ this.zeige(null); this.aktiv = null; document.body.classList.remove('imMenue', 'mcOffen'); },
   /** Escape und Zurück-Taste */
   zurueck(){
-    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null };
-    if(this.aktiv === 'optionen'){ this.optionenZu(); return; }
+    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler' };
+    if(this.aktiv === 'optionen' || this.aktiv === 'oeffnen'){ this.optionenZu(); return; }
+    if(this.aktiv === 'verbinden'){ this.vbZurueck(); return; }
+    if(this.aktiv === 'mitspieler'){ this.nameSichern(); this.zeige('titel'); return; }
     if(this.aktiv && z[this.aktiv]) this.zeige(z[this.aktiv]);
   },
   spruch(){
@@ -280,9 +310,18 @@ const Menue = {
     this.gewaehlt = id;
     Game.start(meta, daten);
     hint('Willkommen zurück in „' + meta.name + '“', 2400);
+    // »Immer öffnen«: die Welt ist gleich wieder für Freunde da
+    if(meta.netzAuto) Netz.oeffnen().then(ok => { if(ok) hint('Für Freunde geöffnet · Code ' + netzCodeZeigen(Netz.code), 3200); });
   },
   async speichernUndTitel(){
+    if(Netz.istGast){
+      Netz.verlassen();
+      Game.zumTitel();
+      this.zuMitspieler();
+      return;
+    }
     $('#toMenu').disabled = true;
+    if(Netz.istHost) Netz.schliessen('Der Host hat die Welt verlassen.');
     await Game.save();
     $('#toMenu').disabled = false;
     Speicher.notfallLoeschen();
@@ -353,6 +392,211 @@ const Menue = {
       hint('„' + name + '“ eingelesen', 2200);
     }catch(e){ hint('Das ist keine Pocketcraft-Sicherung', 2600); }
     $('#wDatei').value = '';
+  },
+
+  /* — Mitspieler: die Serverliste — */
+  zuMitspieler(){
+    $('#msName').value = Netz.ich.name;
+    this.farbeZeigen();
+    this.zeige('mitspieler');
+    this.serverZeichnen();
+    this.serverAuffrischen();
+  },
+  nameSichern(){
+    const n = ($('#msName').value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
+    if(n && n !== Netz.ich.name){ Netz.ich.name = n; Netz.ichSichern(); }
+  },
+  farbeZeigen(){
+    const f = SPIELER_FARBEN[Netz.ich.farbe];
+    $('#msFarbe span').textContent = f.name;
+    const k = f.rgb.map(v => Math.round(Math.min(1, v*0.8)*255));
+    $('#msFarbe i').style.background = 'rgb(' + k.join(',') + ')';
+  },
+  serverZeichnen(){
+    const box = $('#msListe'); box.innerHTML = '';
+    const liste = Netz.serverListe();
+    if(this.serverGewaehlt && !liste.some(q => q.code === this.serverGewaehlt)) this.serverGewaehlt = null;
+    if(!this.serverGewaehlt && liste.length) this.serverGewaehlt = liste[0].code;
+    for(const sv of liste){
+      const e = el('div', 'welt' + (sv.code === this.serverGewaehlt ? ' gewaehlt' : ''));
+      const bild = el('div', 'weltBild ohne');
+      bild.style.backgroundImage = 'url(' + isoIconURL('grass_top', 'grass_side', 'grass_side') + ')';
+      const los = el('button', 'weltLos'); los.setAttribute('aria-label', sv.name + ' beitreten'); los.innerHTML = '<i></i>';
+      bild.appendChild(los);
+      e.appendChild(bild);
+      const t = el('div', 'weltText');
+      const n = el('b'); n.textContent = sv.name; t.appendChild(n);
+      const c = el('span'); c.textContent = 'Code ' + netzCodeZeigen(sv.code); t.appendChild(c);
+      const st = el('span', 'serverStatus'), z = this.serverStatus[sv.code];
+      if(!z || z.lade){ st.textContent = 'Wird gesucht …'; }
+      else if(z.online){
+        const i = z.info;
+        st.textContent = '● Offen · „' + i.name + '“ · ' + i.spieler + '/' + i.max + ' Spieler · ' +
+          (i.modus === 'kreativ' ? 'Kreativ' : 'Überleben') + ' · Tag ' + i.tag + ' · Host ' + i.host;
+        st.classList.add('an');
+      } else if(z.fehler){ st.textContent = z.fehler; st.classList.add('fehler'); }
+      else st.textContent = '○ Gerade niemand da';
+      t.appendChild(st);
+      e.appendChild(t);
+      e.addEventListener('click', ev => {
+        const jetzt = performance.now(), L = this._letzterTipp;
+        if(ev.target.closest('.weltLos') || (L.id === sv.code && jetzt - L.t < 400)){ this.serverBeitreten(sv.code); return; }
+        this._letzterTipp = { id: sv.code, t: jetzt };
+        this.serverGewaehlt = sv.code; Sfx.play('klick'); this.serverZeichnen();
+      });
+      box.appendChild(e);
+    }
+    if(!liste.length){
+      const p = el('p', 'weltLeer');
+      p.textContent = 'Noch keine Server. Wer seine Welt im Spielmenü mit „Für Freunde öffnen“ freigibt, bekommt einen Code — ' +
+        'den hier mit „Server hinzufügen“ merken oder mit „Direkt verbinden“ gleich beitreten.';
+      box.appendChild(p);
+    }
+    const hat = !!this.serverGewaehlt;
+    for(const id of ['#msBeitreten', '#msBearb', '#msLoeschen']) $(id).disabled = !hat;
+    $('#msAuffrischen').disabled = !liste.length;
+  },
+  async serverAuffrischen(){
+    const liste = Netz.serverListe();
+    if(!liste.length) return;
+    for(const sv of liste) this.serverStatus[sv.code] = { lade: true };
+    this.serverZeichnen();
+    await Promise.all(liste.map(async sv => {
+      const r = await Netz.ping(sv.code);
+      if(r.abgeloest) return;
+      this.serverStatus[sv.code] = r;
+      if(this.aktiv === 'mitspieler') this.serverZeichnen();
+    }));
+  },
+  serverForm(modus, idx){
+    this.formModus = modus; this.formIndex = idx;
+    const sv = idx >= 0 ? Netz.serverListe()[idx] : null;
+    $('#sfTitel').textContent = modus === 'direkt' ? 'Direkt verbinden' : (modus === 'neu' ? 'Server hinzufügen' : 'Server bearbeiten');
+    $('#sfNameZeile').style.display = modus === 'direkt' ? 'none' : '';
+    $('#sfName').value = sv ? sv.name : 'Pocketcraft-Server';
+    $('#sfCode').value = sv ? netzCodeZeigen(sv.code) : (modus === 'direkt' ? (this._letzterCode || '') : '');
+    $('#sfOk').textContent = modus === 'direkt' ? 'Beitreten' : 'Fertig';
+    $('#sfFehler').textContent = '';
+    this.zeige('serverForm');
+  },
+  serverFormOk(){
+    const code = netzCodeLesen($('#sfCode').value);
+    if(!code){ $('#sfFehler').textContent = 'Ein Code hat sechs Zeichen, zum Beispiel KUH-4X7.'; return; }
+    if(this.formModus === 'direkt'){ this._letzterCode = netzCodeZeigen(code); this.serverBeitreten(code); return; }
+    const name = ($('#sfName').value || '').trim().slice(0, 32) || 'Pocketcraft-Server';
+    const l = Netz.serverListe();
+    if(this.formModus === 'bearbeiten' && l[this.formIndex]) l[this.formIndex] = { name, code };
+    else { const i = l.findIndex(q => q.code === code); if(i >= 0) l[i].name = name; else l.push({ name, code }); }
+    Netz.serverSichern(l);
+    this.serverGewaehlt = code;
+    this.zuMitspieler();
+  },
+  /** nach dem Beitreten: der Server kommt in die Liste, falls er fehlt */
+  serverMerken(code, weltName){
+    const l = Netz.serverListe();
+    if(!l.some(q => q.code === code)){ l.push({ name: weltName || 'Pocketcraft-Server', code }); Netz.serverSichern(l); }
+    this.serverGewaehlt = code;
+  },
+  serverLoeschen(){
+    const l = Netz.serverListe().filter(q => q.code !== this.serverGewaehlt);
+    Netz.serverSichern(l);
+    this.serverGewaehlt = null;
+    this.serverZeichnen();
+  },
+  serverBeitreten(code){
+    code = code || this.serverGewaehlt; if(!code) return;
+    this.nameSichern();
+    Sfx.init();
+    Netz.beitreten(code);
+  },
+  /* — Verbinden — */
+  verbindenZeigen(titel, text){
+    $('#vbTitel').textContent = titel;
+    const t = $('#vbText'); t.textContent = text || ''; t.classList.remove('fehler');
+    $('#vbZurueck').textContent = 'Abbrechen';
+    this.zeige('verbinden');
+  },
+  verbindenFehler(text){
+    $('#vbTitel').textContent = 'Beitreten ging nicht';
+    const t = $('#vbText'); t.textContent = text; t.classList.add('fehler');
+    $('#vbZurueck').textContent = 'Zurück zur Serverliste';
+    this.zeige('verbinden');
+  },
+  /** mitten im Spiel: Host weg, Leitung tot */
+  verbindungWeg(grund){
+    if(Game.running) Game.zumTitel();
+    $('#vbTitel').textContent = 'Verbindung getrennt';
+    const t = $('#vbText'); t.textContent = grund; t.classList.add('fehler');
+    $('#vbZurueck').textContent = 'Zurück zur Serverliste';
+    this.zeige('verbinden');
+  },
+  vbZurueck(){
+    if(Netz.rolle === 'verbinde') Netz.trennen();
+    this.zuMitspieler();
+  },
+
+  /* — Für Freunde öffnen (aus dem Spielmenü) — */
+  zuOeffnen(){
+    const m = Game.meta; if(!m || m.gast) return;
+    if(!m.netzCode){ m.netzCode = netzCodeNeu(); Speicher.steckbriefSichern(m).catch(() => {}); }
+    this.vonPause = true;
+    $('#oeName').value = Netz.ich.name;
+    this.zeige('oeffnen');
+    this.oeffnenZeigen();
+  },
+  oeffnenZeigen(){
+    const m = Game.meta; if(!m) return;
+    const offen = Netz.istHost, code = offen ? Netz.code : m.netzCode;
+    $('#oeCode').textContent = code ? netzCodeZeigen(code) : '———';
+    $('#oeCode').classList.toggle('blass', !offen);
+    $('#oeLos').textContent = offen ? 'Welt schließen' : 'Welt öffnen';
+    $('#oeAuto').textContent = 'Immer öffnen, wenn ich sie spiele: ' + (m.netzAuto ? 'An' : 'Aus');
+    $('#oeTeilen').style.display = navigator.share ? '' : 'none';
+    $('#oeKopie').parentElement.style.gridTemplateColumns = navigator.share ? '' : '1fr';
+    let st;
+    if(!offen) st = 'Noch zu. Offen ist die Welt, solange du in ihr bist — Freunde geben dann auf dem Titelbild unter „Mitspieler“ diesen Code ein.';
+    else if(Netz.status === 'offen'){
+      const n = [...Netz.andere.values()].map(q => q.name);
+      st = n.length ? 'Offen · mit dir spielen: ' + n.join(', ') : 'Offen! Freunde tippen auf dem Titelbild auf „Mitspieler“ und geben diesen Code ein.';
+    } else st = Netz.status;
+    const e = $('#oeStatus'); e.textContent = st; e.classList.toggle('fehler', !!Netz.statusFehler);
+  },
+  async oeffnenUmschalten(){
+    if(Netz.istHost) Netz.schliessen('Der Host hat die Welt geschlossen.');
+    else await Netz.oeffnen();
+    this.oeffnenZeigen();
+  },
+  oeffnenAuto(){
+    const m = Game.meta; if(!m) return;
+    m.netzAuto = !m.netzAuto;
+    Speicher.steckbriefSichern(m).catch(() => {});
+    this.oeffnenZeigen();
+  },
+  codeKopieren(){
+    const c = netzCodeZeigen(Netz.code || (Game.meta && Game.meta.netzCode));
+    if(!c) return;
+    const gut = () => hint('Code kopiert: ' + c, 1800), schlecht = () => hint('Der Code: ' + c, 3000);
+    try{ navigator.clipboard.writeText(c).then(gut, schlecht); }catch(e){ schlecht(); }
+  },
+  codeTeilen(){
+    const c = netzCodeZeigen(Netz.code || (Game.meta && Game.meta.netzCode));
+    if(!c || !navigator.share) return;
+    navigator.share({ title: 'Pocketcraft', text: 'Spiel mit mir Pocketcraft! Titelbild → Mitspieler → Direkt verbinden → Code ' + c }).catch(() => {});
+  },
+  /** Spielmenü: je nach Rolle andere Knöpfe */
+  pauseAnzeigen(){
+    const gast = Netz.istGast;
+    $('#pOeffnen').style.display = gast ? 'none' : '';
+    $('#pOeffnen').textContent = Netz.istHost ? 'Geöffnet · Code ' + netzCodeZeigen(Netz.code) + ' …' : 'Für Freunde öffnen …';
+    $('#toMenu').textContent = gast ? 'Verbindung trennen' : 'Speichern und zum Titelbild';
+    const n = [...Netz.andere.values()].map(q => q.name);
+    const info = $('#pNetz');
+    info.textContent = n.length ? 'Mit dir spielen: ' + n.join(', ') : (Netz.istHost ? 'Offen · noch niemand da' : '');
+    info.style.display = info.textContent ? '' : 'none';
+  },
+  netzAnzeigen(){
+    if(Screens.open === 'pause') this.pauseAnzeigen();
+    if(this.aktiv === 'oeffnen') this.oeffnenZeigen();
   },
 
   /* — Optionen — */

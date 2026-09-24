@@ -98,7 +98,34 @@ body.imMenue:not(.panoBereit) .mc-schirm{background:linear-gradient(rgba(0,0,0,.
 .mc-titel{font-family:var(--pix); font-weight:500; font-size:20px; margin:4px 0 10px; text-align:center; flex:0 0 auto}
 .mc-reihe{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:min(620px, 100%); margin-top:8px; flex:0 0 auto}
 .mc-reihe.vier{grid-template-columns:repeat(4, 1fr)}
-@media (max-width:560px){ .mc-reihe.vier{grid-template-columns:repeat(2, 1fr)} .mc{font-size:16px} }
+.mc-reihe.drei{grid-template-columns:repeat(3, 1fr)}
+.mc-reihe.eins{grid-template-columns:1fr; width:min(400px, 100%)}
+@media (max-width:560px){ .mc-reihe.vier{grid-template-columns:repeat(2, 1fr)} .mc{font-size:16px}
+  .mc-reihe.drei{grid-template-columns:repeat(2, 1fr)} .mc-reihe.drei > :first-child{grid-column:1 / -1} }
+/* Mitspieler */
+.serverStatus.an{color:#7fe06a}
+.serverStatus.fehler, .mc-hinweis.fehler, .mc-text.fehler{color:#ff9a8f}
+.mc-hinweis.fehler:empty{display:none}
+#msFarbe{display:flex; align-items:center; gap:8px}
+.farbPunkt{width:16px; height:16px; border:2px solid #000; box-shadow:inset 1px 1px 0 rgba(255,255,255,.35); flex:0 0 auto}
+.codeFeld{font-size:24px; letter-spacing:4px; text-transform:uppercase; text-align:center}
+.netzCode{font-family:var(--pix); font-size:44px; line-height:1.1; letter-spacing:6px; text-align:center; color:#fff; background:#000;
+  border:2px solid #a0a0a0; padding:10px 8px; margin:4px 0 10px; user-select:all; -webkit-user-select:all}
+.netzCode.blass{color:#7a7a7a}
+.pNetz{font-size:14px; color:#cfd6e0; text-shadow:none; margin:-4px 0 2px}
+#namen{position:fixed; inset:0; pointer-events:none; z-index:15; overflow:hidden}
+.schild{position:absolute; left:0; top:0; font-family:var(--pix); font-size:15px; line-height:1.2; color:#fff; background:rgba(0,0,0,.4);
+  padding:1px 6px 2px; white-space:nowrap; will-change:transform}
+body.imMenue #namen, body.mcOffen #namen{display:none}
+/* hinter einem Menü mitten im Spiel: Herzen und Knöpfe nicht durchscheinen lassen */
+body.mcOffen #hud{visibility:hidden}
+.oeTeil{display:flex; flex-direction:column}
+.oeTeil .mc-reihe{width:100%; margin:0 0 8px}
+@media (orientation:landscape) and (max-height:520px){
+  .mc-form.oeForm{display:grid; grid-template-columns:1fr 1fr; gap:0 16px; width:min(720px, 100%); align-items:start}
+  .oeForm .netzCode{font-size:32px; padding:5px 8px; margin:2px 0 0}
+  .oeForm .oeTeil:last-child{padding-top:26px}
+}
 .mc-feld{font-family:var(--pix); font-size:17px; color:#fff; background:#000; border:2px solid #a0a0a0; padding:8px 10px; width:100%;
   outline:none; text-shadow:none; border-radius:0; -webkit-appearance:none; appearance:none; min-width:0}
 .mc-feld:focus{border-color:#fff}
@@ -348,6 +375,8 @@ body.mcOffen .screen{visibility:hidden}
 <div class="screen" id="beh"></div>
 <div id="drag"></div>
 
+<div id="namen" aria-hidden="true"></div>
+
 <div class="screen" id="death">
   <div class="mc-karte">
     <h2 class="mc-titel todTitel">Du bist gestorben!</h2>
@@ -360,7 +389,9 @@ body.mcOffen .screen{visibility:hidden}
 <div class="screen" id="pause">
   <div class="mc-karte">
     <h2 class="mc-titel">Spielmenü</h2>
+    <p class="pNetz" id="pNetz" style="display:none"></p>
     <button class="mc" id="resume">Zurück zum Spiel</button>
+    <button class="mc" id="pOeffnen">Für Freunde öffnen …</button>
     <button class="mc" id="pOptionen">Optionen …</button>
     <button class="mc" id="toMenu">Speichern und zum Titelbild</button>
   </div>
@@ -377,8 +408,8 @@ body.mcOffen .screen{visibility:hidden}
   <div class="titelKopf"><canvas id="logo" role="img" aria-label="Pocketcraft"></canvas><div id="spruch"></div></div>
   <div class="mc-knoepfe">
     <button class="mc" id="tEinzel">Einzelspieler</button>
+    <button class="mc" id="tMehr">Mitspieler</button>
     <button class="mc" id="tOptionen">Optionen …</button>
-    <button class="mc" id="tHeim">Zurück zur Spieleseite</button>
   </div>
   <div class="titelFuss"><span id="tVersion"></span><span>AGG Games</span></div>
 </div>
@@ -430,6 +461,60 @@ body.mcOffen .screen{visibility:hidden}
   <div class="mc-reihe" style="margin-bottom:auto"><button class="mc" id="lJa">Löschen</button><button class="mc" id="lNein">Abbrechen</button></div>
 </div>
 
+<!-- Mitspieler: die Serverliste -->
+<div class="mc-schirm dunkel" id="mitspieler">
+  <h2 class="mc-titel">Mitspieler</h2>
+  <div class="wKopf">
+    <input id="msName" class="mc-feld" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Dein Name" aria-label="Dein Name">
+    <button class="mc klein" id="msFarbe" aria-label="Hemdfarbe wechseln"><i class="farbPunkt"></i><span>Farbe</span></button>
+  </div>
+  <div class="mc-liste" id="msListe"></div>
+  <div class="mc-reihe drei"><button class="mc" id="msBeitreten">Beitreten</button><button class="mc" id="msDirekt">Direkt verbinden</button><button class="mc" id="msNeu">Server hinzufügen</button></div>
+  <div class="mc-reihe vier"><button class="mc" id="msBearb">Bearbeiten</button><button class="mc" id="msLoeschen">Löschen</button><button class="mc" id="msAuffrischen">Aktualisieren</button><button class="mc" id="msZurueck">Zurück</button></div>
+</div>
+
+<!-- Server hinzufügen / bearbeiten / direkt verbinden -->
+<div class="mc-schirm dunkel" id="serverForm">
+  <h2 class="mc-titel" id="sfTitel">Server hinzufügen</h2>
+  <div class="mc-form">
+    <div id="sfNameZeile">
+      <label class="mc-lbl" for="sfName">Name in deiner Liste</label>
+      <input id="sfName" class="mc-feld" maxlength="32" autocomplete="off" spellcheck="false">
+    </div>
+    <label class="mc-lbl" for="sfCode">Code</label>
+    <input id="sfCode" class="mc-feld codeFeld" maxlength="9" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="z. B. KUH-4X7">
+    <p class="mc-hinweis fehler" id="sfFehler"></p>
+    <p class="mc-hinweis">Den Code zeigt dir der Host: im Spielmenü unter „Für Freunde öffnen“.</p>
+  </div>
+  <div class="mc-reihe"><button class="mc" id="sfOk">Fertig</button><button class="mc" id="sfAbbruch">Abbrechen</button></div>
+</div>
+
+<!-- Verbinden, Fehler, Verbindung getrennt -->
+<div class="mc-schirm dunkel" id="verbinden">
+  <h2 class="mc-titel" style="margin-top:auto" id="vbTitel">Verbinde …</h2>
+  <p class="mc-text" id="vbText"></p>
+  <div class="mc-reihe eins" style="margin-bottom:auto"><button class="mc" id="vbZurueck">Abbrechen</button></div>
+</div>
+
+<!-- Für Freunde öffnen -->
+<div class="mc-schirm dunkel" id="oeffnen">
+  <h2 class="mc-titel">Für Freunde öffnen</h2>
+  <div class="mc-form oeForm">
+    <div class="oeTeil">
+      <label class="mc-lbl" for="oeName">Dein Name für die anderen</label>
+      <input id="oeName" class="mc-feld" maxlength="16" autocomplete="off" spellcheck="false">
+      <label class="mc-lbl">Code dieser Welt</label>
+      <div class="netzCode" id="oeCode">———</div>
+    </div>
+    <div class="oeTeil">
+      <div class="mc-reihe"><button class="mc" id="oeKopie">Code kopieren</button><button class="mc" id="oeTeilen">Teilen …</button></div>
+      <button class="mc" id="oeAuto"></button>
+      <p class="mc-hinweis" id="oeStatus"></p>
+    </div>
+  </div>
+  <div class="mc-reihe"><button class="mc" id="oeLos">Welt öffnen</button><button class="mc" id="oeZurueck">Zurück zum Spiel</button></div>
+</div>
+
 <!-- Optionen -->
 <div class="mc-schirm dunkel" id="optionen">
   <h2 class="mc-titel">Optionen</h2>
@@ -457,6 +542,7 @@ body.mcOffen .screen{visibility:hidden}
 <script src="handwerk.js"></script>
 <script src="speicher.js"></script>
 <script src="menue.js"></script>
+<script src="netz.js"></script>
 <script src="spiel.js"></script>
 
 <script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>

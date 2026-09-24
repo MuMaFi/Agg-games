@@ -101,6 +101,8 @@ const Speicher = {
     const meta = await this.steckbrief(id), text = await this.laden(id);
     if(!meta || !text) throw new Error('Welt nicht gefunden');
     const neu = Object.assign({}, meta, { id: neueWeltId(), name, erstellt: Date.now(), gespielt: Date.now() });
+    // Die Kopie ist eine eigene Welt: eigener Code für Mitspieler
+    delete neu.netzCode; delete neu.netzAuto;
     await this.sichern(neu, text);
     return neu;
   },

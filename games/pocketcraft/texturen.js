@@ -1163,6 +1163,46 @@ function buildTextures(){
   });
   addTex('m_skin', p => haut(pal('#a8764f','#bb865d','#cc966b','#d9a679','#e4b688'), 341)(p));
 
+  /* — Mitspieler: Haare, Gesicht, ein helles Hemd (wird eingefärbt), Hose — */
+  const SP_HAUT = pal('#b07c55','#c28b62','#d09a70','#dcaa7e','#e7ba8e');
+  const SP_HAAR = pal('#2c1b10','#3b2516','#4a301c','#5a3b23','#6b482c');
+  addTex('m_sp_haar', p => {
+    p.fuell((x, y) => .6*fbm(x, y, 8, 2, 361, 3) + .4*vnoise(x, y, 16, 4, 362), SP_HAAR, [10,24,32,24,10], .5);
+    for(let i = 0; i < 7; i++){ const x = (p.r()*TS) | 0; for(let y = 0; y < TS; y += 2) if(h2(x, y, 363) < .6) p.put(x, y, SP_HAAR[4]); }
+  });
+  addTex('m_sp_gesicht', p => {
+    haut(SP_HAUT, 364)(p);
+    // Pony: unten gezackt
+    for(let x = 0; x < TS; x++){
+      const tief = 6 + ((h2(x >> 2, 0, 365)*4) | 0);
+      for(let y = 0; y < tief; y++) p.put(x, y, SP_HAAR[1 + (((x + y) >> 1) % 3)]);
+    }
+    for(const x0 of [7, 19]){                                            // Augen
+      p.rect(x0, 13, 6, 3, [240,240,236]);
+      p.rect(x0 + (x0 < 16 ? 3 : 0), 13, 3, 3, [52,86,150]);
+      p.put(x0 + (x0 < 16 ? 4 : 1), 13, [18,28,52]);
+      p.rect(x0, 11, 6, 1, SP_HAAR[1]);                                  // Brauen
+    }
+    p.rect(15, 17, 2, 3, hell(SP_HAUT[1], .9));                          // Nase
+    p.rect(12, 22, 8, 1, [140,78,64]); p.rect(13, 23, 6, 1, [168,98,82]);   // Mund
+  });
+  addTex('m_sp_hemd', p => {
+    const P = pal('#9c9c9c','#b2b2b2','#c6c6c6','#d8d8d8','#e8e8e8');
+    p.fuell((x, y) => .5*fbm(x, y, 2, 8, 366, 3) + .5*vnoise(x, y, 16, 16, 367), P, [6,18,34,30,12], .5);
+    for(let y = 0; y < 6; y++) for(let x = 13 - y; x <= 18 + y && y < 5; x++) if(x === 13 - y || x === 18 + y) p.put(x, y, P[0]);
+    for(let x = 0; x < TS; x++){ p.put(x, TS - 1, P[0]); p.put(x, TS - 2, P[1]); }
+  });
+  addTex('m_sp_arm', p => {
+    haut(SP_HAUT, 368)(p);
+    for(let y = TS - 6; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, hell(SP_HAUT[1], .9 - (y - TS + 6)*.02));
+  });
+  addTex('m_sp_hose', p => {
+    const P = pal('#1f2c52','#283766','#31437a','#3c518e','#4a60a0');
+    p.fuell((x, y) => .5*fbm(x, y, 8, 2, 369, 3) + .5*vnoise(x, y, 16, 16, 370), P, [8,22,34,26,10], .5);
+    const S = pal('#2a2a2e','#3a3a40','#4a4a52');
+    for(let y = TS - 6; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, S[y === TS - 6 ? 2 : (x + y) % 2]);
+  });
+
   /* — Kuh: braun mit weißen Flecken — */
   const KUH = pal('#3b2415','#472c1a','#543420','#613c25','#6e452b'), WEISS = pal('#b3ada2','#c8c3b8','#dcd7cc','#ebe7de');
   const kuhFell = (p, s) => {

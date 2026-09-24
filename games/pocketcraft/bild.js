@@ -467,6 +467,37 @@ function drawMobs(fogCol, near, far){
     }
   }
 }
+/* Mitspieler: Kästen wie die Wesen; Kopf nickt mit dem Blick, der rechte
+   Arm schlägt beim Abbauen, geduckt geht die Figur etwas in die Knie. */
+function drawSpieler(fogCol, near, far){
+  if(!Netz.andere.size) return;
+  const P = R.progEnt;
+  entUniforms(P, fogCol, near, far);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.bindVertexArray(R.cubeVAO);
+  const d = SPIELER_MODELL, figur = { x:0, y:0, z:0, yaw:0, kind:0, def:d };
+  for(const s of Netz.andere.values()){
+    if(s.tot) continue;
+    if(!R.boxVisible(s.x-1, s.y-0.2, s.z-1, s.x+1, s.y+2.1, s.z+1)) continue;
+    gl.uniform1f(P.u.uLight, blockLightAt(s.x, s.y + 1.4, s.z));
+    const geht = (s.flags & 8) !== 0, sw = Math.sin(s.walkPhase) * (geht ? 0.62 : 0);
+    const schlag = s.schlagT > 0 ? 0.5 + Math.abs(Math.sin(s.schlagT*9))*1.1 : 0;
+    figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw;
+    const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
+    for(const part of d.parts){
+      if(part.hemd) gl.uniform4f(P.u.uTint, f[0], f[1], f[2], 1); else gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+      let ang = 0;
+      if(part.anim === 'leg') ang = part.ph ? -sw : sw;
+      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
+      else if(part.anim === 'head') ang = clamp(s.pitch, -1.2, 1.2);
+      partMatrix(_m, figur, part, ang);
+      gl.uniformMatrix4fv(P.u.uModel, false, _m);
+      setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    }
+  }
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+}
 /* Pfeile: ein dünner, langer Kasten, entlang der Flugrichtung gedreht */
 function drawPfeile(fogCol, near, far){
   if(!Game.pfeile.length) return;
@@ -666,6 +697,7 @@ function render(dt){
   drawSky();
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
+  drawSpieler(fog, near, far);
   drawPfeile(fog, near, far);
   drawPartikel();
   drawDrops(fog, near, far);

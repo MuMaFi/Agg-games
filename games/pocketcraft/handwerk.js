@@ -445,6 +445,7 @@ const Screens = {
     this.open = which;
     $('#pause').classList.toggle('on', which === 'pause');
     $('#death').classList.toggle('on', which === 'death');
+    if(which === 'pause') Menue.pauseAnzeigen();
   },
   oeffne(modus, key){
     if(this.open) this.hide();
@@ -459,6 +460,7 @@ const Screens = {
     this.bau();
     $('#beh').classList.add('on');
     this.masse();
+    Netz.behaelterGeoeffnet();          // Stand beim Öffnen merken — geschickt wird nur, was sich danach ändert
     this.render();
     this.info(modus === 'inv' && !Game.player.creative
       ? 'Leg Zutaten ins Raster oder tipp ein Rezept an. Lang drücken nimmt die Hälfte oder legt eins ab.'
@@ -802,6 +804,7 @@ const Screens = {
     if(this.open !== 'beh') return;
     if(this.modus === 'ofen' && !Game.world.furnaces.get(this.ofenKey)){ this.hide(); return; }
     if(this.modus === 'truhe' && !Game.world.chests.get(this.truheKey)){ this.hide(); return; }
+    Netz.behaelterPruefen();
     for(const d of this.slots){
       const ref = d._ref;
       const geist = ref.gruppe === 'raster' ? this.geistFuer(ref.index) : null;
