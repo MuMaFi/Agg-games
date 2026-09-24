@@ -327,9 +327,12 @@ const Menue = {
     const w = this.welten.find(q => q.id === this.bearbeiteId); if(!w) return;
     const text = await Speicher.laden(w.id); if(!text) return;
     const datei = JSON.stringify({ format:'pocketcraft-welt', version:2, meta:w, daten:text });
+    const name = 'pocketcraft-' + w.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') + '.json';
+    // Der WebView der Android-App lädt nichts herunter — dort fragt die App, wohin
+    if(window.AGGApp && window.AGGApp.dateiSichern){ window.AGGApp.dateiSichern(name, datei); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([datei], { type:'application/json' }));
-    a.download = 'pocketcraft-' + w.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') + '.json';
+    a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   },

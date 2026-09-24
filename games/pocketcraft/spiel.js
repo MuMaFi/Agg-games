@@ -1490,6 +1490,26 @@ function wireSpiel(){
   window.addEventListener('beforeunload', weg);
 }
 
+/* Android-App: Die Zurück-Taste fragt erst hier nach. true heißt erledigt;
+   false heißt, die App darf in den Hintergrund (nur auf dem Titelbild).
+   Im Spiel öffnet sie die Pause wie Escape, statt die App zu schließen. */
+window.androidZurueck = () => {
+  if(Menue.aktiv){
+    if(Menue.aktiv === 'titel') return false;
+    Menue.zurueck(); return true;
+  }
+  if(!Game.running) return false;
+  if(Screens.open === 'death') return true;
+  if(Screens.open) Screens.hide(); else togglePause();
+  return true;
+};
+/** Die App geht in den Hintergrund: anhalten und sichern */
+window.androidPause = () => {
+  if(!Game.running) return;
+  if(!Screens.open && !Menue.aktiv) Screens.show('pause');
+  Game.save(true);
+};
+
 /* ═══════════════════════════════════════════════════════════════════
    START
    ═══════════════════════════════════════════════════════════════════ */

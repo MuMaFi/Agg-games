@@ -2,21 +2,31 @@
 # das nicht: das Android-SDK ist nicht installiert und Googles Auslieferung
 # ist per Netzwerkregel gesperrt. Auf ubuntu-latest ist das SDK vorhanden.
 #
-# Anstoßen: Actions -> "APK bauen" -> Run workflow.
-# Ergebnis: unter dem Lauf als Artefakt "agg-games-apk" zum Herunterladen.
+# Anstoßen: Actions -> "APK bauen" -> Run workflow, dann die App wählen:
+#   pocketcraft  nur Pocketcraft, eigener Name und eigenes Symbol
+#   alle         alle Spiele mit der Übersicht (AGG Games)
+#   beide        beides in einem Lauf
+# Ergebnis: unter dem Lauf als Artefakt "pocketcraft-apk" bzw. "agg-games-apk".
 name: APK bauen
 
 on:
   workflow_dispatch:
     inputs:
-      startseite:
-        description: 'Startseite in der App'
-        required: false
-        default: 'index.html'
+      app:
+        description: 'Welche App'
+        type: choice
+        options: [pocketcraft, alle, beide]
+        default: pocketcraft
 
 jobs:
   bauen:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(inputs.app == 'beide' && '["pocketcraft","alle"]' || format('["{0}"]', inputs.app)) }}
+    env:
+      APP: ${{ matrix.app }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,40 +38,54 @@ jobs:
 
       - name: Gradle einrichten
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Spiele als Beiwerk einlegen
         run: |
           set -eu
-          ziel=android/app/src/main/assets
+          ziel="android/app/src/$APP/assets"
           mkdir -p "$ziel"
-          # Alles außer Werkzeugkram — die Seite ist statisch und läuft so,
-          # wie sie im Netz liegt, auch aus der Anwendung heraus.
-          rsync -a --delete \
-            --exclude '.git' --exclude '.github' --exclude 'android' \
-            --exclude 'node_modules' --exclude '*.md' \
-            ./ "$ziel/"
-          if [ "${{ inputs.startseite }}" != "index.html" ]; then
-            sed -i "s#index.html\";#${{ inputs.startseite }}\";#" \
-              android/app/src/main/java/de/agg/spiele/MainActivity.java
+          if [ "$APP" = pocketcraft ]; then
+            # Nur das eine Spiel und der gemeinsame Heimknopf (der sich in
+            # dieser App selbst ausblendet)
+            mkdir -p "$ziel/games/pocketcraft"
+            rsync -a --delete --exclude '*.md' games/pocketcraft/ "$ziel/games/pocketcraft/"
+            cp games/heim.js "$ziel/games/heim.js"
+          else
+            # Alles außer Werkzeugkram — die Seite ist statisch und läuft so,
+            # wie sie im Netz liegt, auch aus der Anwendung heraus.
+            rsync -a --delete \
+              --exclude '.git' --exclude '.github' --exclude 'android' \
+              --exclude 'node_modules' --exclude 'werkzeug' --exclude '*.md' \
+              ./ "$ziel/"
           fi
           du -sh "$ziel"
 
       - name: Bauen
         working-directory: android
-        run: gradle --no-daemon assembleDebug
-
-      - name: Umbenennen
         run: |
           set -eu
+          variante="$(echo "${APP:0:1}" | tr a-z A-Z)${APP:1}"
+          gradle --no-daemon -Pfassung=${{ github.run_number }} "assemble${variante}Release"
+
+      - name: Umbenennen und Signatur prüfen
+        run: |
+          set -eu
+          name=$([ "$APP" = pocketcraft ] && echo pocketcraft || echo agg-games)
           mkdir -p ausgabe
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-             "ausgabe/agg-games-$(date +%Y%m%d)-$(git rev-parse --short HEAD).apk"
+          ziel="ausgabe/$name-$(date +%Y%m%d)-$(git rev-parse --short HEAD).apk"
+          cp "android/app/build/outputs/apk/$APP/release/app-$APP-release.apk" "$ziel"
+          werkzeug="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$werkzeug/apksigner" verify --print-certs "$ziel" | head -3
+          "$werkzeug/aapt2" dump badging "$ziel" | grep -E "^package|application-label:|sdkVersion" || true
           ls -lh ausgabe
+          echo "NAME=$name" >> "$GITHUB_ENV"
 
       - name: Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: agg-games-apk
+          name: ${{ env.NAME }}-apk
           path: ausgabe/*.apk
           if-no-files-found: error
           retention-days: 30

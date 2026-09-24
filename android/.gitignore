@@ -1,4 +1,5 @@
 app/src/main/assets/
+app/src/*/assets/
 build/
 .gradle/
 local.properties

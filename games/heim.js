@@ -11,6 +11,8 @@
                dicht an der Kante sitzt.
    ═══════════════════════════════════════════════════════════════════ */
 (() => {
+  // In einer App, die nur dieses eine Spiel enthält, gibt es keine Übersicht
+  if(/\bAGGApp\/einzeln\b/.test(navigator.userAgent)) return;
   const s = document.currentScript;
   const ziel = (s && s.dataset.ziel) || '../index.html';
   const ecke = (s && s.dataset.ecke) || 'ol';

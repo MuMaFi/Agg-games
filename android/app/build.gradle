@@ -1,5 +1,9 @@
 plugins { id 'com.android.application' }
 
+/* Jeder Bau auf GitHub zählt hoch (-Pfassung=<Laufnummer>), damit ein neues
+   APK über das alte installiert werden kann und die Spielstände bleiben. */
+def fassung = (project.findProperty('fassung') ?: '1') as int
+
 android {
   namespace 'de.agg.spiele'
   compileSdk 34
@@ -8,22 +12,50 @@ android {
     applicationId 'de.agg.spiele'
     minSdk 26
     targetSdk 34
-    versionCode 1
-    versionName '1.0'
+    versionCode fassung
+    versionName "1.${fassung}"
   }
 
-  /* Die Spiele liegen als Beiwerk in der Anwendung und werden zur Laufzeit
-     unter einer eigenen Herkunft ausgeliefert — anders laufen ES-Module und
-     die Importkarte im WebView nicht. */
-  sourceSets { main { assets.srcDirs = ['src/main/assets'] } }
+  buildFeatures { buildConfig true }
+
+  /* Zwei Apps aus einer Hülle: alle Spiele mit Übersicht, oder nur
+     Pocketcraft mit eigenem Namen und Symbol. Verschiedene Kennungen,
+     also können beide nebeneinander installiert sein. Die Spiele legt der
+     Workflow je Variante unter src/<variante>/assets ab. */
+  flavorDimensions 'app'
+  productFlavors {
+    alle {
+      dimension 'app'
+      applicationId 'de.agg.spiele'
+      buildConfigField 'String', 'START', '"index.html"'
+      buildConfigField 'boolean', 'EINZELN', 'false'
+    }
+    pocketcraft {
+      dimension 'app'
+      applicationId 'de.agg.pocketcraft'
+      buildConfigField 'String', 'START', '"games/pocketcraft/index.html"'
+      buildConfigField 'boolean', 'EINZELN', 'true'
+    }
+  }
+
+  /* Ein fester Schlüssel statt des Fehlersuch-Schlüssels, den jeder
+     GitHub-Läufer neu würfelt — sonst ließe sich ein neues APK nicht über
+     das alte installieren. Er liegt offen im Archiv: gut genug zum
+     Selbstinstallieren, nicht für den Play Store. */
+  signingConfigs {
+    fest {
+      storeFile rootProject.file('agg-apps.keystore')
+      storePassword 'android'
+      keyAlias 'agg'
+      keyPassword 'android'
+    }
+  }
 
   buildTypes {
-    debug { debuggable true }
+    debug { signingConfig signingConfigs.fest }
     release {
       minifyEnabled false
-      /* Ohne eigenen Schlüssel wird hier mit dem Fehlerschlüssel signiert;
-         das reicht zum Selbstinstallieren, nicht für den Play Store. */
-      signingConfig signingConfigs.debug
+      signingConfig signingConfigs.fest
     }
   }
   compileOptions {
@@ -31,5 +63,5 @@ android {
     targetCompatibility JavaVersion.VERSION_17
   }
   packagingOptions { jniLibs { useLegacyPackaging false } }
-  lint { abortOnError false }
+  lint { abortOnError false; checkReleaseBuilds false }
 }
