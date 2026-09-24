@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1118">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Taschenwelt</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230e1118'/%3E%3Crect x='2' y='4' width='12' height='3' fill='%2378a84e'/%3E%3Crect x='2' y='7' width='12' height='6' fill='%236b4b2f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* ── Taschenwelt · UI-System ───────────────────────────────────────────
+   Palette stammt aus der Welt selbst: Nachtblau als Grund, Grasgrün als
+   Akzent, Fackel-Bernstein für alles Aktive. Keine runden Ecken, harte
+   2px-Kanten — die Sprache des Materials ist der Würfel.            */
+:root{
+  --ground:#0e1118; --panel:#181d26; --panel-2:#222834; --panel-3:#2c3441;
+  --edge:#3d4757; --edge-hi:#556274;
+  --ink:#e8ebf0; --ink-dim:#98a3b3; --ink-faint:#69748a;
+  --grass:#78a84e; --grass-dk:#4f7534;
+  --amber:#ffb648; --amber-dk:#b8792a;
+  --blood:#d9484c; --blood-dk:#5a1f22;
+  --meat:#c8873a; --meat-dk:#57381a;
+  --air:#5ec8e8;
+  --shadow:0 6px 0 rgba(0,0,0,.35), 0 0 0 2px var(--edge) inset;
+  --pix:"Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
+  --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--ui); font-size:15px; line-height:1.45;
+  user-select:none; -webkit-user-select:none;
+}
+canvas#gl{position:fixed; inset:0; width:100%; height:100%; display:block; background:#0e1118; touch-action:none}
+
+/* ── Bausteine ─────────────────────────────────────────────────────── */
+.panel{background:var(--panel); border:2px solid var(--edge); box-shadow:0 8px 0 rgba(0,0,0,.3)}
+.btn{
+  font-family:var(--pix); font-size:17px; letter-spacing:.02em;
+  background:var(--panel-2); color:var(--ink); border:2px solid var(--edge);
+  border-bottom-width:4px; padding:10px 18px; cursor:pointer; display:inline-flex;
+  align-items:center; justify-content:center; gap:8px; transition:background .08s, transform .08s;
+}
+.btn:hover{background:var(--panel-3); border-color:var(--edge-hi)}
+.btn:active{transform:translateY(2px); border-bottom-width:2px; margin-bottom:2px}
+.btn:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
+.btn.primary{background:var(--grass-dk); border-color:var(--grass); color:#f2f7ec}
+.btn.primary:hover{background:var(--grass)}
+.btn.ghost{background:transparent}
+.lbl{font-family:var(--pix); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── Startmenü ─────────────────────────────────────────────────────── */
+#menu{
+  position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:20px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #1d3350 0%, #12182200 70%),
+    linear-gradient(#0d1017, #0a0d13);
+}
+#menu.hide{display:none}
+.menu-card{width:min(680px,100%); max-height:100%; overflow:auto; padding:28px 26px 22px; background:var(--panel); border:2px solid var(--edge); box-shadow:0 14px 0 rgba(0,0,0,.35)}
+.brand{font-family:var(--pix); font-weight:700; font-size:clamp(38px,9vw,62px); line-height:.95; margin:0; text-wrap:balance;
+  background:linear-gradient(180deg,#cfe7a8,#78a84e 55%,#4f7534); -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 3px 0 #1b2a12);}
+.brand-sub{margin:6px 0 22px; color:var(--ink-dim); font-size:14px}
+.field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px}
+.field input[type=text]{font-family:var(--pix); font-size:17px; padding:10px 12px; background:var(--ground); color:var(--ink); border:2px solid var(--edge)}
+.field input[type=text]:focus{outline:none; border-color:var(--grass)}
+.row{display:flex; gap:10px; flex-wrap:wrap}
+.opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:6px 0 20px}
+.opt{background:var(--panel-2); border:2px solid var(--edge); padding:10px 12px}
+.opt input[type=range]{width:100%; accent-color:var(--grass)}
+.opt .val{font-family:var(--pix); font-size:16px; color:var(--amber)}
+.seg{display:flex; border:2px solid var(--edge)}
+.seg button{flex:1; font-family:var(--pix); font-size:14px; padding:7px 4px; background:var(--panel-2); color:var(--ink-dim); border:0; cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--grass-dk); color:#f2f7ec}
+.hintlist{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--ink-dim); font-size:13.5px}
+.hintlist b{color:var(--ink); font-weight:600}
+kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--edge-hi); padding:1px 6px; font-size:12px}
+
+/* Auf einem Telefon im Querformat ist die Karte höher als der Bildschirm:
+   die beiden Knöpfe standen unter der Kante und man musste erst in der
+   Karte scrollen, um überhaupt anfangen zu können. Kurz und knapp, wenn
+   wenig Höhe da ist. */
+@media (max-height:560px){
+  .menu-card{padding:16px 18px 14px}
+  .brand{font-size:clamp(26px,6.5vw,38px)}
+  .brand-sub{margin:4px 0 12px; font-size:12.5px}
+  .field{margin-bottom:10px}
+  .opts{margin:4px 0 12px; gap:8px}
+  .opt{padding:7px 9px}
+  .hintlist{display:none}
+  .sep{display:none}
+}
+
+/* ── HUD ───────────────────────────────────────────────────────────── */
+#hud{position:fixed; inset:0; z-index:20; pointer-events:none; display:none}
+#hud.on{display:block}
+#crosshair{position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; opacity:.85}
+#crosshair i{position:absolute; background:#fff; mix-blend-mode:difference; display:block}
+#crosshair i:nth-child(1){left:11px; top:1px; width:4px; height:24px}
+#crosshair i:nth-child(2){top:11px; left:1px; height:4px; width:24px}
+
+#vitals{position:absolute; left:14px; top:12px; display:grid; gap:6px}
+.bar{display:flex; gap:3px}
+.pip{width:18px; height:18px; position:relative; filter:drop-shadow(0 2px 0 rgba(0,0,0,.5))}
+.pip::before,.pip::after{content:""; position:absolute; inset:0; background:var(--empty,#2a3040);
+  clip-path:polygon(50% 100%,10% 60%,0 35%,15% 15%,35% 15%,50% 32%,65% 15%,85% 15%,100% 35%,90% 60%);}
+.pip::after{background:var(--full,var(--blood)); clip-path:inherit; width:var(--fill,100%)}
+.pip.food::before,.pip.food::after{clip-path:polygon(20% 100%,10% 70%,15% 30%,40% 8%,70% 8%,92% 28%,96% 55%,72% 78%,68% 100%,52% 100%,56% 76%,36% 62%,34% 100%)}
+.pip.food::after{--full:var(--meat)}
+.pip.air::before,.pip.air::after{clip-path:circle(42% at 50% 50%)}
+.pip.air::after{--full:var(--air)}
+
+#hotbar{position:absolute; left:50%; bottom:14px; transform:translateX(-50%); display:flex; gap:4px; padding:4px;
+  background:rgba(14,17,24,.72); border:2px solid var(--edge); pointer-events:auto; backdrop-filter:blur(2px)}
+.slot{width:var(--slot,52px); height:var(--slot,52px); position:relative; background:var(--panel-2); border:2px solid #131820; display:grid; place-items:center; cursor:pointer}
+.slot .ic{width:76%; height:76%; display:block; background-size:100% 100%; background-repeat:no-repeat; image-rendering:pixelated}
+.slot .cnt{position:absolute; right:2px; bottom:0; font-family:var(--pix); font-size:14px; color:#fff; text-shadow:2px 2px 0 #000; pointer-events:none}
+.slot .dur{position:absolute; left:3px; right:3px; bottom:3px; height:3px; background:#000}
+.slot .dur i{display:block; height:100%; background:var(--grass)}
+#hotbar .slot.sel{border-color:#fff; box-shadow:0 0 0 2px #000 inset; transform:scale(1.06); z-index:2}
+
+#touchpad{position:absolute; inset:0; pointer-events:none}
+/* Rein visuell — die Berührung nimmt die Leinwand darunter entgegen,
+   sonst würde der Kreis genau die Eingabe schlucken, die er anzeigt. */
+#stick{position:absolute; width:132px; height:132px; left:26px; bottom:26px; border-radius:50%;
+  background:rgba(20,25,34,.42); border:2px solid rgba(120,136,160,.35); pointer-events:none;
+  touch-action:none; display:grid; place-items:center; opacity:.6; transition:opacity .12s}
+#stick.act{opacity:1; background:rgba(20,25,34,.55); border-color:rgba(150,180,120,.6)}
+#stick b{width:54px; height:54px; border-radius:50%; background:rgba(232,235,240,.5); border:2px solid rgba(255,255,255,.35); display:block; transition:transform .04s}
+#stick.act b{background:rgba(200,232,168,.72); transition:none}
+.tbtn{position:absolute; pointer-events:auto; font-family:var(--pix); font-size:13px; color:var(--ink);
+  background:rgba(24,29,38,.66); border:2px solid rgba(120,136,160,.38); display:grid; place-items:center; touch-action:none; text-align:center; line-height:1.05}
+.tbtn:active,.tbtn.on{background:rgba(120,168,78,.6); border-color:var(--grass)}
+#btnJump{right:26px; bottom:36px; width:96px; height:96px; border-radius:50%; font-size:15px}
+#btnSneak{right:132px; bottom:34px; width:62px; height:62px; border-radius:50%}
+#btnUp{right:132px; bottom:104px; width:62px; height:62px; border-radius:50%; display:none}
+#btnInv{right:30px; top:14px; width:56px; height:56px}
+#btnPause{right:94px; top:14px; width:56px; height:56px}
+#btnMode{right:158px; top:14px; width:56px; height:56px; font-size:11px}
+#btnAttack{right:26px; bottom:146px; width:76px; height:76px; border-radius:50%; font-size:13px}
+
+#hint{position:absolute; left:50%; top:16%; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
+  background:rgba(14,17,24,.8); border:2px solid var(--edge); padding:8px 14px; opacity:0; transition:opacity .25s; text-align:center; max-width:80vw}
+#hint.show{opacity:1}
+#itemname{position:absolute; left:50%; bottom:80px; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
+  text-shadow:2px 2px 0 #000; opacity:0; transition:opacity .3s}
+#itemname.show{opacity:1}
+#dbg{position:absolute; left:14px; top:96px; font-family:var(--pix); font-size:13px; color:#cfe7a8; text-shadow:1px 1px 0 #000; white-space:pre; display:none}
+#dbg.on{display:block}
+#hurt{position:absolute; inset:0; background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(190,30,30,.55)); opacity:0; transition:opacity .18s}
+#water{position:absolute; inset:0; background:rgba(28,86,140,.42); opacity:0; transition:opacity .2s}
+
+/* ── Bildschirme (Inventar, Ofen, Tod, Pause) ──────────────────────── */
+.screen{position:fixed; inset:0; z-index:40; display:none; place-items:center; padding:16px; background:rgba(8,10,15,.72)}
+.screen.on{display:grid}
+.sheet{width:min(720px,100%); max-height:100%; overflow:auto; padding:18px; background:var(--panel); border:2px solid var(--edge); box-shadow:0 12px 0 rgba(0,0,0,.35)}
+.sheet h2{font-family:var(--pix); font-weight:600; font-size:22px; margin:0 0 14px; letter-spacing:.02em}
+#drag{position:fixed; z-index:80; width:48px; height:48px; pointer-events:none; display:none; transform:translate(-50%,-50%)}
+#drag .ic{width:100%; height:100%; background-size:100% 100%; image-rendering:pixelated; filter:drop-shadow(0 4px 3px rgba(0,0,0,.6))}
+#drag .cnt{position:absolute; right:0; bottom:-2px; font-family:var(--pix); font-size:15px; text-shadow:2px 2px 0 #000}
+.furn{display:grid; grid-template-columns:auto auto auto; align-items:center; justify-content:center; gap:18px}
+.flame{width:26px; height:34px; background:#2a3040; position:relative}
+.flame i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(#ffd77a,#ff8a1f); height:var(--f,0%)}
+.progbar{width:88px; height:20px; background:#2a3040; position:relative}
+.progbar i{position:absolute; left:0; top:0; bottom:0; background:var(--grass); width:var(--p,0%)}
+#death .sheet{text-align:center; border-color:var(--blood-dk)}
+.pip.arm::before,.pip.arm::after{clip-path:polygon(0 0,35% 0,50% 14%,65% 0,100% 0,100% 55%,78% 55%,78% 100%,22% 100%,22% 55%,0 55%)}
+.pip.arm::after{--full:#c9ced8}
+#schlaf{position:absolute; inset:0; background:#05070b; opacity:0; transition:opacity .9s; pointer-events:none}
+
+/* ── Behälter: Inventar, Werkbank, Truhe, Ofen ─────────────────────── */
+#beh{padding:12px; align-items:center}
+.sheet.beh{--s:44px; --l:4px; width:auto; max-width:100%; max-height:100%; padding:12px 14px 10px; overflow:auto}
+.behKopf{display:flex; align-items:center; gap:12px; margin-bottom:8px; min-height:34px}
+.behKopf h2{margin:0}
+.behKopf .luecke{flex:1}
+#behZahl{margin:0; font-size:11px; letter-spacing:.08em}
+.behKopf .btn{padding:6px 12px; font-size:15px}
+.behRumpf{display:flex; flex-direction:column; gap:12px}
+.behRumpf.breit{flex-direction:row; align-items:stretch}
+.lager{display:flex; flex-direction:column; gap:var(--l); order:0}
+.buch{display:flex; flex-direction:column; gap:6px; order:1; min-width:0}
+.behRumpf.breit .buch{order:0; width:var(--buchW)}
+.behRumpf.breit .lager{order:1}
+.buch.aus{display:none}
+.reihe9{display:grid; grid-template-columns:repeat(9, var(--s)); gap:var(--l)}
+.reihe9.guertel{margin-top:6px}
+#behOben{display:flex; align-items:center; justify-content:center; gap:calc(var(--s)*.3); margin-bottom:8px; min-height:calc(var(--s)*2 + var(--l))}
+#behOben.oben-truhe{justify-content:flex-start}
+.lager .slot, .ruest .slot{width:var(--s); height:var(--s)}
+/* Fächer fangen jede Berührung selbst: Ziehen verteilt, statt das Blatt zu scrollen */
+.slot{touch-action:none}
+.slot.voll{cursor:grab}
+.slot.ziel{outline:2px solid var(--amber); outline-offset:-2px}
+.slot.haelt, .rz.haelt{outline:2px dashed var(--amber); outline-offset:-3px}
+.slot.mitLeer::before{content:""; position:absolute; inset:14%; background:var(--leer) center/contain no-repeat; opacity:.16; filter:grayscale(1) brightness(1.6); image-rendering:pixelated}
+.slot.mitLeer.voll::before{display:none}
+.slot.geist .ic{opacity:.32; filter:grayscale(.4)}
+.slot.ergebnis{width:calc(var(--s)*1.3) !important; height:calc(var(--s)*1.3) !important; border-color:var(--edge-hi); background:var(--panel-3)}
+.slot.ergebnis.bereit{border-color:var(--grass); box-shadow:0 0 0 2px rgba(120,168,78,.35)}
+.slot.muell{border-color:var(--blood-dk); margin-left:calc(var(--s)*.2)}
+.ruest{display:grid; grid-template-columns:repeat(2, var(--s)); gap:var(--l); margin-right:calc(var(--s)*.25)}
+.raster{display:grid; gap:var(--l)}
+.pfeil{font-family:var(--pix); font-size:calc(var(--s)*.6); color:var(--ink-faint)}
+.ofenLinks{display:grid; gap:6px; justify-items:center}
+.flame{width:calc(var(--s)*.55); height:calc(var(--s)*.7); background:#2a3040; position:relative}
+.flame i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(#ffd77a,#ff8a1f); height:var(--f,0%)}
+.progbar{width:calc(var(--s)*1.8); height:calc(var(--s)*.42); background:#2a3040; position:relative}
+.progbar i{position:absolute; left:0; top:0; bottom:0; background:var(--grass); width:var(--p,0%)}
+#behInfo{margin:6px 0 0; min-height:2.6em; font-size:13px; line-height:1.3; color:var(--ink-dim); max-width:calc(var(--s)*9 + 8*var(--l))}
+.buchKopf{display:flex; flex-wrap:wrap; gap:4px; align-items:center}
+.buchKopf .tabs{margin:0; flex-wrap:wrap; gap:3px}
+.buchKopf .tabs button{padding:3px 7px; font-size:12px}
+.schalter{font-family:var(--pix); font-size:12px; padding:3px 7px; background:transparent; color:var(--ink-dim); border:2px dashed var(--edge); cursor:pointer}
+.schalter[aria-pressed=true]{background:var(--grass-dk); color:#f2f7ec; border-style:solid; border-color:var(--grass)}
+#buchListe{display:grid; grid-template-columns:repeat(auto-fill, minmax(calc(var(--s)*.95), 1fr)); gap:4px; overflow:auto; align-content:start; flex:1; min-height:0; padding-right:2px}
+.behRumpf:not(.breit) #buchListe{max-height:calc(var(--s)*3.4)}
+.rz{position:relative; aspect-ratio:1; background:var(--panel-2); border:2px solid var(--edge); display:grid; place-items:center; cursor:pointer; padding:0; touch-action:pan-y}
+.rz .ic{width:74%; height:74%; display:block; background-size:100% 100%; image-rendering:pixelated; pointer-events:none}
+.rz .cnt{position:absolute; right:2px; bottom:0; font-family:var(--pix); font-size:13px; color:#fff; text-shadow:2px 2px 0 #000; pointer-events:none}
+.rz.ok{border-color:var(--grass)}
+.rz.bank{border-color:var(--amber-dk)}
+.rz.fehlt .ic{opacity:.38; filter:grayscale(.7)}
+.rz.gewaehlt{outline:2px solid var(--amber); outline-offset:-2px}
+.bankzeichen{position:absolute; left:2px; top:1px; font-family:var(--pix); font-size:10px; color:var(--amber); text-shadow:1px 1px 0 #000; pointer-events:none}
+.buchLeer{grid-column:1/-1; margin:4px 0; font-size:13px; color:var(--ink-dim)}
+#death h2{color:var(--blood); font-size:30px}
+.tabs{display:flex; gap:4px; margin-bottom:12px}
+.tabs button{font-family:var(--pix); font-size:14px; padding:7px 14px; background:var(--panel-2); border:2px solid var(--edge); color:var(--ink-dim); cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--panel-3); color:var(--ink); border-color:var(--edge-hi)}
+
+@media (max-width:820px){
+  #stick{width:112px; height:112px; left:18px; bottom:18px}
+  #btnJump{width:80px; height:80px; right:18px; bottom:26px}
+  #btnSneak{right:106px; bottom:24px; width:54px; height:54px}
+  #btnUp{right:106px; bottom:86px; width:54px; height:54px}
+  #btnAttack{right:18px; bottom:118px; width:64px; height:64px}
+  #btnInv,#btnPause,#btnMode{width:48px; height:48px}
+  #btnPause{right:84px} #btnMode{right:138px}
+  #hotbar{--slot:42px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<canvas id="gl"></canvas>
+
+<div id="hud">
+  <div id="water"></div>
+  <div id="schlaf"></div>
+  <div id="hurt"></div>
+  <div id="crosshair"><i></i><i></i></div>
+  <div id="vitals">
+    <div class="bar" id="hp"></div>
+    <div class="bar" id="food"></div>
+    <div class="bar" id="airbar"></div>
+    <div class="bar" id="armor"></div>
+  </div>
+  <div id="dbg"></div>
+  <div id="hint"></div>
+  <div id="itemname"></div>
+  <div id="hotbar"></div>
+  <div id="touchpad">
+    <div id="stick"><b></b></div>
+    <div class="tbtn" id="btnAttack">SCHLAG</div>
+    <div class="tbtn" id="btnJump">SPRUNG</div>
+    <div class="tbtn" id="btnSneak">DUCK</div>
+    <div class="tbtn" id="btnUp">HOCH</div>
+    <div class="tbtn" id="btnInv">INV</div>
+    <div class="tbtn" id="btnPause">II</div>
+    <div class="tbtn" id="btnMode">ESSEN</div>
+  </div>
+</div>
+
+<div class="screen" id="beh"></div>
+<div id="drag"></div>
+
+<div class="screen" id="death">
+  <div class="sheet" style="width:min(420px,100%)">
+    <h2>Du bist gestorben</h2>
+    <p id="deathCause" style="color:var(--ink-dim); margin:0 0 20px"></p>
+    <button class="btn primary" id="respawn">Wiederbeleben</button>
+  </div>
+</div>
+
+<div class="screen" id="pause">
+  <div class="sheet" style="width:min(460px,100%)">
+    <h2>Pause</h2>
+    <div class="opts" style="margin-top:0">
+      <div class="opt"><span class="lbl">Sichtweite</span><div><span class="val" id="pRdVal">5</span> Chunks</div>
+        <input type="range" id="pRd" min="2" max="8" step="1"></div>
+      <div class="opt"><span class="lbl">Blick-Tempo</span><div><span class="val" id="pSensVal">1.0</span></div>
+        <input type="range" id="pSens" min="4" max="30" step="1"></div>
+      <div class="opt"><span class="lbl">Auto-Sprung</span>
+        <div class="seg" style="margin-top:6px"><button id="pAjOn">An</button><button id="pAjOff">Aus</button></div></div>
+      <div class="opt"><span class="lbl">Debug-Info</span>
+        <div class="seg" style="margin-top:6px"><button id="pDbgOn">An</button><button id="pDbgOff">Aus</button></div></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="resume">Weiter</button>
+      <button class="btn" id="saveNow">Speichern</button>
+      <button class="btn ghost" id="toMenu">Hauptmenü</button>
+    </div>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="menu-card">
+    <h1 class="brand">Taschenwelt</h1>
+    <p class="brand-sub">Ein Survival-Voxelspiel für den Touchscreen — Höhlen, Erze, echtes Handwerk im Raster, Ackerbau, Truhen, Türen, Rüstung, Hunger und Zombies. Läuft komplett offline im Browser.</p>
+
+    <div class="field">
+      <label class="lbl" for="seed">Welt-Startwert</label>
+      <input type="text" id="seed" placeholder="z. B. taschenwelt" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="opts">
+      <div class="opt"><span class="lbl">Sichtweite</span><div><span class="val" id="mRdVal">5</span> Chunks</div>
+        <input type="range" id="mRd" min="2" max="8" step="1" value="5"></div>
+      <div class="opt"><span class="lbl">Spielmodus</span>
+        <div class="seg" style="margin-top:6px"><button id="mSurv" aria-pressed="true">Survival</button><button id="mCrea" aria-pressed="false">Kreativ</button></div></div>
+      <div class="opt"><span class="lbl">Auto-Sprung</span>
+        <div class="seg" style="margin-top:6px"><button id="mAjOn" aria-pressed="true">An</button><button id="mAjOff" aria-pressed="false">Aus</button></div></div>
+    </div>
+
+    <div class="row" style="margin-bottom:18px">
+      <button class="btn primary" id="btnNew">Neue Welt</button>
+      <button class="btn" id="btnLoad">Welt fortsetzen</button>
+    </div>
+
+    <div class="sep"></div>
+    <ul class="hintlist">
+      <li><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen.</li>
+      <li><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Space</kbd> springen, <kbd>Shift</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Hotbar, <kbd>F3</kbd> Debug, <kbd>Q</kbd> wegwerfen.</li>
+      <li><b>Handwerk:</b> Zutaten ins Raster legen — 2 × 2 im Inventar, 3 × 3 an der Werkbank. Das Rezeptbuch zeigt jedes entdeckte Muster und legt es auf Wunsch selbst hinein.</li>
+      <li><b>Ziel:</b> Holz schlagen, Werkbank bauen, Spitzhacke herstellen, vor der Nacht eine Tür hinter sich schließen.</li>
+    </ul>
+    <p id="loadinfo" class="lbl" style="margin-top:14px"></p>
+  </div>
+</div>
+<script src="grund.js"></script>
+<script src="texturen.js"></script>
+<script src="bloecke.js"></script>
+<script src="welt.js"></script>
+<script src="bild.js"></script>
+<script src="wesen.js"></script>
+<script src="handwerk.js"></script>
+<script src="spiel.js"></script>
+
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
