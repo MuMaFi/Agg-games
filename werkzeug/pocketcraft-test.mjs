@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','wasser.js','handwerk.js'])
+for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','wetter.js','handwerk.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -152,6 +152,74 @@ pruef(T(`ITEM.chicken_raw > ITEM.leather_boots && B.FLUSS === 62 && B.FALL === 6
 // Plattenspieler: acht Bretter um einen Diamanten; mit Platte ein eigener Block, der beim Abbauen den leeren gibt
 pruef(T(`rasterRezept([{id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}, {id:B.PLANKS,n:1},{id:ITEM.diamond,n:1},{id:B.PLANKS,n:1}, {id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}], 3).out === B.JUKEBOX`), 'Plattenspieler-Rezept');
 pruef(T(`B.JUKEBOX === 70 && B.JUKEBOX_VOLL === 71 && blocks[B.JUKEBOX_VOLL].drop === B.JUKEBOX && !blocks[B.JUKEBOX_VOLL].item && items[ITEM.platte].stack === 1`), 'Plattenspieler-Blöcke und Schallplatte');
+
+// Gelände: alte Welten behalten ihres (Fassung 1), neue bekommen Berge, Nadelwald, Schnee und Höhlen (Fassung 2)
+T(`globalThis.summe = (seed, gen) => { const W = new World(seed, gen); let h = 2166136261 >>> 0;
+  for(const [cx, cz] of [[0,0],[1,0],[0,1],[-1,-1],[5,-3],[-12,7],[40,40],[-63,18],[100,-100],[3,250]]){
+    W.ensureChunk(cx, cz); const c = W.getChunk(cx, cz);
+    for(const a of [c.blocks, c.hmap, c.biome]) for(let i = 0; i < a.length; i++){ h ^= a[i]; h = Math.imul(h, 16777619) >>> 0; }
+  }
+  return h.toString(16); };`);
+for(const [seed, soll] of [['pruefwelt', '96ae74c4'], ['taschenwelt', '3f9020af']]){
+  const ist = T(`summe(${JSON.stringify(seed)}, 1)`);
+  pruef(ist === soll, `altes Gelände unverändert (${seed}): ${ist} statt ${soll}`);
+}
+const neu1 = T(`summe('pruefwelt', 2)`), neu2 = T(`summe('pruefwelt', 2)`);
+pruef(neu1 === neu2 && neu1 !== '96ae74c4', 'neues Gelände: gleicher Startwert, gleiche Welt — und eine andere als früher');
+T(`globalThis.G = new World('pruefwelt', 2);`);
+pruef(T(`G.column(93, -348).h >= 80 && G.column(93, -348).biome === BIO.MOUNT && G.column(93, -348).kalt`), 'ein verschneiter Gipfel bei 93, −348');
+pruef(T(`(() => { G.ensureChunk(-5, 18); let st = 0, na = 0, sd = 0; for(const id of G.getChunk(-5, 18).blocks){ if(id === B.FICHTENSTAMM) st++; if(id === B.FICHTENNADELN) na++; if(id === B.SCHNEEDECKE) sd++; } return st > 20 && na > 100 && sd > 50; })()`),
+  'im Nadelwald stehen Fichten unter einer Schneedecke');
+pruef(T(`(() => { G.ensureChunk(-4, -3); return G.getBlock(-56, 13, -40) === B.AIR && G.heightAt(-56, -40) > 35; })()`), 'eine Höhle tief unter der Erde');
+pruef(T(`B.SCHNEEDECKE === 72 && B.FICHTENSTAMM === 73 && B.FICHTENNADELN === 74 && !blocks[B.SCHNEEDECKE].solid`), 'neue Blöcke hinten angehängt, durch Schnee läuft man');
+
+// Wetter: Regen hält an Dächern, Laub, Wasser; fällt als Schnee, wo es kalt ist; die Wüste bleibt trocken
+T(`globalThis.Netz = { istHost: false, istGast: false, hatGaeste(){ return false; } }; globalThis.Sfx = { ctx: null };
+globalThis.RW = new World('regentest');
+for(let cx = -2; cx <= 1; cx++) for(let cz = -2; cz <= 1; cz++) RW.ensureChunk(cx, cz);
+for(let x = -20; x <= 20; x++) for(let z = -20; z <= 20; z++){ RW.setBlock(x, 60, z, B.STONE); for(let y = 61; y < WH; y++) RW.setBlock(x, y, z, B.AIR); }
+globalThis.Game = { world: RW, player: { x: 0.5, y: 61, z: 0.5, headInWater: false }, spielerOrte(){ return [this.player]; } };`);
+pruef(T(`regenBoden(RW, 3, 3)`) === 61, 'auf freiem Feld kommt Regen am Boden an');
+T(`RW.setBlock(3, 70, 3, B.GLASS); RW.setBlock(4, 66, 4, B.LEAVES); RW.setBlock(5, 61, 5, B.WATER); RW.setBlock(6, 61, 6, B.SCHNEEDECKE); RW.setBlock(7, 61, 7, B.TORCH);`);
+pruef(T(`regenBoden(RW, 3, 3) === 71 && regenBoden(RW, 4, 4) === 67 && regenBoden(RW, 5, 5) === 61.875 && regenBoden(RW, 6, 6) === 61.125 && regenBoden(RW, 7, 7) === 61`),
+  'Glas, Laub, Wasser und Schneedecke halten Regen auf, eine Fackel nicht');
+pruef(T(`regenBoden(RW, 500, 500)`) === T('WH'), 'wo nichts geladen ist, regnet es nicht');
+T(`Wetter.laden({ regen: true, rest: 50 })`);
+pruef(T(`Wetter.regen && Wetter.staerke === 1 && Wetter.rest === 50`), 'Regen aus dem Spielstand');
+T(`Wetter.laden(null)`);
+pruef(T(`!Wetter.regen && Wetter.staerke === 0 && Wetter.rest >= 300 && Wetter.rest <= 900`), 'eine neue Welt beginnt klar: ' + T('Wetter.rest'));
+T(`Wetter.laden({ regen: false, rest: 99999 })`);
+pruef(T(`Wetter.rest`) === 900, 'zu lange Wartezeiten werden gekürzt');
+// von allein: nach der Wartezeit fängt es an, gleitet in 6 s zur vollen Stärke, hört wieder auf
+T(`Wetter.laden({ regen: false, rest: 1 }); for(let i = 0; i < 30; i++) Wetter.tick(0.05, false);`);
+pruef(T(`Wetter.regen && Wetter.rest >= 118 && Wetter.rest <= 300 && Wetter.staerke > 0 && Wetter.staerke < 0.1`), 'es fängt von selbst an zu regnen: ' + T('Wetter.text()'));
+T(`for(let i = 0; i < 140; i++) Wetter.tick(0.05, false);`);
+pruef(T(`Wetter.staerke === 1 && Wetter.aktiv === WETTER_N`), 'nach ein paar Sekunden regnet es richtig');
+pruef(T(`(() => { let n = 0; for(let i = 0; i < Wetter.aktiv; i++){ const a = Wetter.art[i]; if(a === ART_REGEN){ n++; if(Wetter.y[i] < Wetter.boden[i]) return false; } else if(a === ART_SCHNEE) return false; } return n > 500; })()`),
+  'Tropfen fallen über dem Boden, Schnee gibt es hier nicht');
+pruef(T(`(() => { for(let i = 0; i < Wetter.aktiv; i++) if(Wetter.art[i] !== ART_WARTET && Math.floor(Wetter.x[i]) === 3 && Math.floor(Wetter.z[i]) === 3 && Wetter.y[i] < 71) return false; return true; })()`),
+  'unter dem Glas bleibt es trocken');
+pruef(T(`!Wetter.regnetAn(3, 61, 3) && Wetter.regnetAn(2, 61, 2)`), 'Felder unter dem Glas gießt der Regen nicht');
+// in einer Höhle: kein Tropfen
+T(`for(let x = -20; x <= 20; x++) for(let z = -20; z <= 20; z++) RW.setBlock(x, 80, z, B.STONE); Wetter.leeren(); for(let i = 0; i < 40; i++) Wetter.tick(0.05, false);`);
+pruef(T(`Wetter.art.every(a => a === ART_WARTET)`), 'unter der Decke regnet es nicht');
+T(`for(let x = -20; x <= 20; x++) for(let z = -20; z <= 20; z++) RW.setBlock(x, 80, z, B.AIR);`);
+T(`Wetter.rest = 0.01; Wetter.tick(0.05, false);`);
+pruef(T(`!Wetter.regen && Wetter.rest >= 299`), 'der Regen hört wieder auf');
+T(`Wetter.laden({ regen: true, rest: 100 }); Wetter.klar();`);
+pruef(T(`!Wetter.regen && Wetter.staerke === 0`), 'nach dem Schlafen ist es klar');
+// Schnee: im Nadelwald liegt nach dem Wegräumen bald wieder eine Schneedecke
+T(`Game.world = G; Game.player = { x: -79.5, y: 46, z: 296.5, headInWater: false };
+for(let cx = -7; cx <= -3; cx++) for(let cz = 16; cz <= 20; cz++) G.ensureChunk(cx, cz);
+globalThis.weg = 0; for(let x = -95; x <= -64; x++) for(let z = 281; z <= 312; z++) for(let y = WH - 1; y > 0; y--) if(G.getBlock(x, y, z) === B.SCHNEEDECKE){ G.setBlock(x, y, z, B.AIR); weg++; }
+Wetter.laden({ regen: true, rest: 200 }); for(let i = 0; i < 1200; i++) Wetter.tick(0.05, false);`);
+const schnee = T(`(() => { let n = 0; for(let x = -95; x <= -64; x++) for(let z = 281; z <= 312; z++) for(let y = WH - 1; y > 0; y--) if(G.getBlock(x, y, z) === B.SCHNEEDECKE){ n++; break; } return n; })()`);
+pruef(T('weg') > 100 && schnee > 100, 'es schneit wieder zu: ' + schnee + ' Decken nach einer Minute, ' + T('weg') + ' weggeräumt');
+pruef(T(`(() => { for(let x = -95; x <= -64; x++) for(let z = 281; z <= 312; z++) for(let y = 1; y < WH; y++) if(G.getBlock(x, y, z) === B.SCHNEEDECKE){ const u = G.getBlock(x, y - 1, z); if(!(isOpaqueCube(u) || u === B.LEAVES || u === B.FICHTENNADELN) || !G.kaltAt(x, z)) return false; } return true; })()`),
+  'Schnee liegt nur auf festem Boden oder Nadeln und nur, wo es kalt ist');
+pruef(T(`(() => { let s = 0; for(let i = 0; i < Wetter.aktiv; i++) if(Wetter.art[i] === ART_SCHNEE) s++; return s > 500; })()`), 'im Nadelwald fällt Schnee');
+pruef(T(`!Wetter.regnetAn(-79, 45, 296)`), 'Schnee gießt nicht');
+T(`Wetter.aus()`);
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

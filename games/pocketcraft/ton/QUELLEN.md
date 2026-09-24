@@ -87,6 +87,16 @@ Lizenzen:
 | `ei_kaputt` | `mcl_throwing_egg_impact.ogg` | dav0r, <https://freesound.org/people/dav0r/sounds/176760/> | CC0 |
 | `werfen` | `mcl_throwing_throw.ogg` | kretopi, <https://freesound.org/people/kretopi/sounds/406405/> | CC0 |
 
+## Wetter (aus VoxeLibre)
+
+| Datei in Pocketcraft | Original | Urheber | Lizenz |
+|---|---|---|---|
+| `regen` | `weather_rain.ogg` (dort geschnitten aus <http://freesound.org/people/inchadney/sounds/58835/>) | inchadney | CC BY-SA 3.0 |
+
+`regen` ist zu einer nahtlosen Schleife umgebaut: 8 Sekunden, deren Naht
+eine halbe Sekunde überblendet ist, mit je 0,1 Sekunden Polster davor und
+danach. Das Spiel wiederholt den Abschnitt von 0,1 bis 8,1 Sekunden.
+
 ## Essen (aus der Luanti-Mod stamina)
 
 | Datei in Pocketcraft | Original | Urheber | Lizenz |

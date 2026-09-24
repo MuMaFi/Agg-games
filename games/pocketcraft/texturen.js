@@ -242,8 +242,7 @@ function malBretter(p, s, P = PAL.brett, fugen = true){
     if(fugen){ p.put(stoss - 2, b*8 + 2, P[0]); p.put(stoss - 2, b*8 + 4, P[0]); p.put(stoss + 3, b*8 + 3, P[0]); }
   }
 }
-function malRinde(p, s){
-  const P = PAL.rinde;
+function malRinde(p, s, P = PAL.rinde){
   const rippe = x => .5 + .5*Math.sin((x/TS)*TAU*5 + vnoise(x, 0, 8, 1, s+3)*5);
   p.fuell((x, y) => .5*rippe(x) + .5*fbm(x, y, 8, 2, s, 3), P, [8,16,26,26,17,7], .5);
   // tiefe Längsrisse
@@ -413,6 +412,17 @@ function buildTextures(){
       p.tone(x, tief, .72);                                          // Schatten unter der Grasnarbe
     }
   });
+  // Grasblock unter Schnee: oben ein weißer Saum statt der Halme
+  addTex('grass_side_snow', p => {
+    malErde(p, 31);
+    const P = PAL.schnee;
+    for(let x = 0; x < TS; x++){
+      let tief = 5 + Math.round((vnoise(x, 0, 8, 1, 47) - .5)*3);
+      if(h2(x, 5, 48) < .18) tief += 1 + (h2(x, 6, 48)*2|0);
+      for(let y = 0; y < tief; y++) p.put(x, y, P[y === 0 ? 4 : (y >= tief-1 ? 1 : (h2(x, y, 49) < .2 ? 2 : 3))]);
+      p.tone(x, tief, .78);
+    }
+  });
   addTex('sand', p => {
     const P = PAL.sand;
     p.fuell((x, y) => .6*fbm(x, y, 8, 8, 51, 2) + .4*vnoise(x, y, 16, 16, 52), P, [4,13,31,31,15,6], .9);
@@ -467,8 +477,7 @@ function buildTextures(){
 
   /* — Holz und Laub — */
   addTex('log_side', p => malRinde(p, 101));
-  addTex('log_top', p => {
-    const R = PAL.rinde, K = PAL.kern;
+  const stammOben = (R, K) => p => {
     for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
       const dx = x + .5 - 16, dy = y + .5 - 16;
       const q = Math.max(Math.abs(dx), Math.abs(dy));
@@ -480,8 +489,24 @@ function buildTextures(){
       if(r < 1.6) v = .08;
       p.quant(x, y, v, K, .45);
     }
-  });
+  };
+  addTex('log_top', stammOben(PAL.rinde, PAL.kern));
   addTex('planks', p => malBretter(p, 111));
+  /* — Fichte: dunkle Rinde, rötlicher Kern, Nadeln in Blaugrün — */
+  const FICHTE = pal('#1c140c','#261b10','#302215','#3a2a1a','#44321f','#4f3a25');
+  addTex('fichte_side', p => malRinde(p, 131, FICHTE));
+  addTex('fichte_top', stammOben(FICHTE, pal('#6e4a2a','#7c5532','#8a603a','#986b43','#a5774c','#b28356')));
+  addTex('fichtennadeln', p => {
+    const N = pal('#0d261c','#123224','#183d2c','#1f4934','#27563d','#306447');
+    p.fuell((x, y) => fbm(x, y, 4, 4, 141, 2), [N[0], N[1], N[2]], [35,45,20], .6);
+    // Nadeln: kurze schräge Striche, oben hell
+    for(let i = 0; i < 140; i++){
+      const x0 = p.r()*TS, y0 = p.r()*TS, t = 2 + (p.r()*4 | 0), d = p.r() < .5 ? 1 : -1;
+      for(let k = 0; k < 3; k++) p.put(x0 + k*d, y0 + k, N[clamp(t + (k === 0 ? 1 : 0), 1, 5)]);
+    }
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++)
+      if(fbm(x, y, 8, 8, 145, 2) < .3 && h2(x, y, 146) < .7) p.put(x, y, [0,0,0], 0);
+  });
   addTex('leaves', p => {
     const P = PAL.laub;
     p.fuell((x, y) => fbm(x, y, 4, 4, 121, 2), [P[0], P[1], P[2]], [30,45,25], .6);
@@ -1161,6 +1186,12 @@ function buildTextures(){
     F.glanz = [[13,14],[16,11],[19,9]];
     const K = S.lage(pal('#5a5a56','#8a8a84','#a8a8a2','#c8c8c2','#e0e0da'));
     S.strich(K, [[5,28],[10,21],[17,12],[25,5]], .6);
+  });
+  sprite('i_schneedecke', S => {
+    const L = S.lage(pal('#8ea0b6','#c6d3e2','#dfe8f2','#eef4fa','#ffffff'), { kante:true });
+    S.poly(L, [[3,19],[16,13],[29,19],[16,25]]);
+    const V = S.lage(pal('#6f8298','#9fb0c4','#b9c8d8','#cfdae6','#e4ecf4'));
+    S.poly(V, [[3,19],[16,25],[16,28],[3,22]]); S.poly(V, [[16,25],[29,19],[29,22],[16,28]]);
   });
   sprite('i_platte', S => {
     const mitte = (x, y) => Math.hypot(x + .5 - 16, y + .5 - 16);

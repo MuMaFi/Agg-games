@@ -4,6 +4,15 @@ plugins { id 'com.android.application' }
    APK über das alte installiert werden kann und die Spielstände bleiben. */
 def fassung = (project.findProperty('fassung') ?: '1') as int
 
+/* Die Pocketcraft-App trägt dieselbe Fassung wie das Spiel (Jahr.Nummer,
+   z. B. 26.9) — sie steht nur an einer Stelle, in menue.js. */
+def spielFassung = "1.${fassung}"
+def menue = rootProject.file('../games/pocketcraft/menue.js')
+if(menue.exists()){
+  def m = menue.text =~ /const VERSION = 'Pocketcraft ([0-9.]+)'/
+  if(m.find()) spielFassung = m.group(1)
+}
+
 android {
   namespace 'de.agg.spiele'
   compileSdk 34
@@ -33,6 +42,7 @@ android {
     pocketcraft {
       dimension 'app'
       applicationId 'de.agg.pocketcraft'
+      versionName spielFassung
       buildConfigField 'String', 'START', '"games/pocketcraft/index.html"'
       buildConfigField 'boolean', 'EINZELN', 'true'
     }

@@ -341,9 +341,16 @@ function computeSky(){
   let hor = mix3(nitHor, dayHor, day);
   hor = mix3(hor, [0.92,0.48,0.26], dusk*0.85);
   zen = mix3(zen, [0.35,0.24,0.42], dusk*0.45);
-  SkyCol.zen = zen; SkyCol.hor = hor; SkyCol.night = night;
-  SkyCol.fog = mix3(hor, zen, 0.28);
-  SkyCol.sun = mix3([1.0,0.62,0.32], [1.0,0.96,0.86], clamp(s*3, 0, 1));
+  // Regen: der Himmel wird grau wie beim Vorbild, Sonne, Mond und Sterne verschwinden
+  const r = Wetter.staerke;
+  if(r > 0){
+    const grau = c => { const l = (c[0]*0.3 + c[1]*0.59 + c[2]*0.11)*0.6; return mix3(c, [l, l, l], r*0.75); };
+    zen = grau(zen); hor = grau(hor);
+  }
+  SkyCol.zen = zen; SkyCol.hor = hor; SkyCol.night = night*(1 - r);
+  const fog = mix3(hor, zen, 0.28);
+  SkyCol.fog = r > 0 ? [fog[0]*(1 - 0.3*r), fog[1]*(1 - 0.3*r), fog[2]*(1 - 0.25*r)] : fog;
+  SkyCol.sun = mix3([1.0,0.62,0.32], [1.0,0.96,0.86], clamp(s*3, 0, 1)).map(v => v*(1 - r));
 }
 function sunDir(){
   const a = Game.sunAngle();
@@ -703,6 +710,7 @@ function render(dt){
   const rd = Game.sicht();
   let far = rd*CS*0.98, near = far*0.55;
   let fog = SkyCol.fog;
+  near *= 1 - 0.35*Wetter.staerke;                 // im Regen wird es früher diesig
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
 
   let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0) - (Game.bogen.aktiv ? Math.min(1, Game.bogen.t)*0.14 : 0);
@@ -722,5 +730,6 @@ function render(dt){
   const ohne = Game.panoramaAktiv || Game._ohneHand;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);
+  if(!Game.panoramaAktiv) Wetter.zeichnen();
   if(!ohne) drawHeld(fog);
 }

@@ -19,6 +19,7 @@ const KLANG_DATEIEN = {
   kuh:0, kuh_au:0, schwein:0, schwein_au:0, schaf:0,
   zombie:0, zombie_au:0, zombie_tot:0, skelett_au:0, skelett_tot:0,
   huhn:3, huhn_au:0, kueken:0, ei_legen:0, ei_kaputt:0, werfen:0,
+  regen:0,
 };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
@@ -43,7 +44,8 @@ function materialVon(id){
   if(isWasser(id)) return 'wasser';
   if(isWool(id)) return 'wolle';
   if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.TORCH) return 'pflanze';
-  if(id === B.LEAVES) return 'blatt';
+  if(id === B.LEAVES || id === B.FICHTENNADELN) return 'blatt';
+  if(id === B.SCHNEEDECKE) return 'schnee';
   if(id === B.GLASS) return 'glas';
   if(id === B.SNOW) return 'schnee';
   if(id === B.SAND) return 'sand';

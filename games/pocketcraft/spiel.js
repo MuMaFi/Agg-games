@@ -29,7 +29,8 @@ const Game = {
     this.panoramaAktiv = false;
     document.body.classList.remove('imMenue');
     const seed = meta.seed;
-    this.world = new World(seed);
+    this.world = new World(seed, meta.gen || (saved && saved.gen) || 1);
+    Wetter.laden(saved && saved.wetter);
     // Jede Blockänderung aus dem eigenen Spiel geht an die Mitspieler; was
     // aus dem Netz kommt (Netz.eingehend), natürlich nicht zurück
     const w = this.world, setzen = w.setBlock.bind(w);
@@ -118,11 +119,11 @@ const Game = {
       und seinen Platz zurück; Neue stehen am Startpunkt des Hosts. */
   startGast(m){
     const w = m.welt, du = m.du || {};
-    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus };
+    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1 };
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
       mods: w.mods || [], furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
-      time: w.time, zeit: w.zeit, tiere: []
+      time: w.time, zeit: w.zeit, tiere: [], wetter: w.wetter
     });
     const p = this.player;
     p.creative = w.modus === 'kreativ';
@@ -139,7 +140,7 @@ const Game = {
   panorama(seed){
     const neu = !!seed;
     if(neu){
-      this.world = new World(seed);
+      this.world = new World(seed, WELT_FASSUNG);
       this.player = new Player();
       this.meshes.forEach(m => { R.freeMesh(m.o); R.freeMesh(m.w); });
       this.meshes.clear();
@@ -158,6 +159,7 @@ const Game = {
     p.pitch = -0.12; p.vx = p.vy = p.vz = 0; p.swinging = false;
     this.mobs = []; this.drops = []; this.pfeile = []; this.partikel = []; this.bogen.aktiv = false;
     this.time = DAY_LEN*0.2;
+    Wetter.aus();
     this.panoramaAktiv = true;
     this.running = false;
     this.meta = null;
@@ -196,13 +198,17 @@ const Game = {
   },
 
   findSpawn(){
-    const p = this.player;
-    for(let r=0; r<220; r+=3){
+    const p = this.player, w = this.world;
+    // neues Gelände: am liebsten auf Wiesen und in Wäldern, sonst irgendwo an Land, nie auf Gipfeln
+    const land = info => info.h > SEA+2 && info.biome !== BIO.OCEAN && info.biome !== BIO.BEACH &&
+      (w.gen === 1 || (info.biome !== BIO.FLUSS && info.biome !== BIO.MOUNT && info.h < SEA + 20));
+    const gruen = info => land(info) && (w.gen === 1 || info.biome === BIO.PLAINS || info.biome === BIO.FOREST);
+    for(const gut of [gruen, land]) for(let r=0; r<(gut === gruen ? 400 : 220); r+=3){
       for(let a=0; a<12; a++){
         const ang = a/12*TAU;
         const x = Math.round(Math.cos(ang)*r), z = Math.round(Math.sin(ang)*r);
         const info = this.world.column(x,z);
-        if(info.h > SEA+2 && info.biome !== BIO.OCEAN && info.biome !== BIO.BEACH){
+        if(gut(info)){
           p.x = x+0.5; p.z = z+0.5; p.y = info.h+1.2;
           p.spawnX = p.x; p.spawnY = p.y; p.spawnZ = p.z;
           return;
@@ -231,7 +237,7 @@ const Game = {
         let frei = true;
         for(let y = h + 1; y < Math.min(WH, h + 12); y++){
           const id = w.getBlock(x, y, z);
-          if(y <= h + 2 ? blocksMovement(id) : (id === B.LEAVES || id === B.LOG)){ frei = false; break; }
+          if(y <= h + 2 ? blocksMovement(id) : (id === B.LEAVES || id === B.LOG || id === B.FICHTENNADELN || id === B.FICHTENSTAMM)){ frei = false; break; }
         }
         if(!frei) continue;
         p.x = x + 0.5; p.z = z + 0.5; p.y = h + 1.02; p.vy = 0;
@@ -268,7 +274,7 @@ const Game = {
     try{
       const p = this.player;
       const data = Object.assign({
-        seed: this.world.seedStr, time: this.time, zeit: this.gesamtZeit,
+        seed: this.world.seedStr, gen: this.world.gen, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
              spawnX:p.spawnX, spawnY:p.spawnY, spawnZ:p.spawnZ },
@@ -392,6 +398,7 @@ const Game = {
     if(b.tool === 'pickaxe' && !tierOk) return null;
     if(blockId === B.GLASS) return null;
     if(blockId === B.LEAVES) return Math.random() < 0.06 ? [[ITEM.apple,1]] : (Math.random() < 0.05 ? [[B.LEAVES,1]] : null);
+    if(blockId === B.FICHTENNADELN) return Math.random() < 0.05 ? [[B.FICHTENNADELN,1]] : null;
     if(blockId === B.TALLGRASS) return Math.random() < 0.14 ? [[ITEM.seeds,1]] : null;
     if(blockId === B.GRAVEL && Math.random() < 0.12) return [[ITEM.flint,1]];
     if(isWheat(blockId)) return b.stufe === 3 ? [[ITEM.wheat,1],[ITEM.seeds,1 + (Math.random()*3|0)]] : [[ITEM.seeds,1]];
@@ -454,7 +461,7 @@ const Game = {
   stuetzePruefen(x, y, z){
     const w = this.world;
     const oben = w.getBlock(x, y+1, z), bo = blocks[oben];
-    if(bo && (bo.model === 'cross' || bo.model === 'torch' || oben === B.CACTUS || (isDoor(oben) && !doorInfo(oben).oben)))
+    if(bo && (bo.model === 'cross' || bo.model === 'torch' || oben === B.CACTUS || oben === B.SCHNEEDECKE || (isDoor(oben) && !doorInfo(oben).oben)))
       this.entfernen(x, y+1, z, true);
     for(let sIdx = 0; sIdx < 4; sIdx++){
       const lx = x - SEITE[sIdx][0], lz = z - SEITE[sIdx][1];
@@ -589,7 +596,7 @@ const Game = {
       return;
     }
     // Pflanzen, Fackeln und Betten brauchen Boden
-    if((bd.model === 'cross' || s.id === B.TORCH || s.id === B.BED) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
+    if((bd.model === 'cross' || s.id === B.TORCH || s.id === B.BED || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
     if(bd.solid && this.belegt(bx,by,bz,setzId)) return;
     if(w.setBlock(bx,by,bz,setzId)){
       if(!p.creative) Inv.consumeHeld();
@@ -959,7 +966,7 @@ const Game = {
       if(f.nass === undefined || Math.random() < 0.02) f.nass = this.wasserNahe(x, y-1, z);
       const lv = w.getLight(x, y, z);
       if(Math.max((lv & 15)*this.dayLight(), lv >> 4) < 7) continue;
-      f.t = (f.t || 0) + schritt*(f.nass ? 1.7 : 1);
+      f.t = (f.t || 0) + schritt*(f.nass || Wetter.regnetAn(x, y, z) ? 1.7 : 1);    // Regen gießt mit
       if(f.t >= 45){ f.t = 0; w.setBlock(x, y, z, id + 1); }
     }
   },
@@ -1192,8 +1199,8 @@ const Game = {
       m.vx *= Math.pow(0.02, dt); m.vz *= Math.pow(0.02, dt);
       if(m.moving || tx || tz) m.walkPhase += dt*speed*3.2;
 
-      // Sonnenbrand
-      if(m.def.hostile && dl > 0.6){
+      // Sonnenbrand — nicht bei Regen, da ist der Tag zu trüb
+      if(m.def.hostile && dl > 0.6 && Wetter.staerke < 0.5){
         const lv = w.getLight(Math.floor(m.x), Math.floor(m.y+m.h), Math.floor(m.z));
         if((lv & 15) >= 14){ m.health -= dt*3.2; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
       }
@@ -1320,7 +1327,7 @@ const Game = {
       if(p.bob > this._lastStep + 2.6){ this._lastStep = p.bob;
         // der Block unter den Füßen gibt den Klang; geduckt leiser
         const unten = w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z));
-        Sfx.block('schritt', unten !== B.AIR ? unten : feetId, undefined, undefined, undefined, p.sneaking ? .45 : 1);
+        Sfx.block('schritt', feetId === B.SCHNEEDECKE ? feetId : (unten !== B.AIR ? unten : feetId), undefined, undefined, undefined, p.sneaking ? .45 : 1);
         p.addExhaustion(input.sprint ? 0.06 : 0.012); }
     } else this._lastStep = p.bob;
     if(p.inWater && !p.onGround && (Math.abs(wx)+Math.abs(wz)) > 0.05){
@@ -1375,7 +1382,7 @@ const Game = {
   sunAngle(){ return (this.time/DAY_LEN) * TAU; },
   dayLight(){
     const s = Math.sin(this.sunAngle());
-    return 0.165 + 0.835 * clamp(s*2.1 + 0.34, 0, 1);
+    return (0.165 + 0.835 * clamp(s*2.1 + 0.34, 0, 1)) * (1 - 0.25*Wetter.staerke);    // Regen macht den Tag trüb
   },
 };
 
@@ -1627,6 +1634,7 @@ function frame(now){
     } else Game.wasser.naechste.clear();          // beim Gast fließt es, wie der Host es schickt
     if(!imMenue) handleDigging(dt);
   }
+  Wetter.tick(dt, paused);
   Netz.tick(dt);
   /* Tod: gleich wodurch — Sturz, Zombie, Hunger. Früher prüfte das nur die
      Spielerbewegung selbst; wer von einem Zombie erschlagen wurde, blieb
@@ -1645,7 +1653,9 @@ function frame(now){
     if(vorher < 1 && Game.schlafT >= 1){
       // die übersprungene Nacht zählt als Spielzeit: ein neuer Tag
       Game.gesamtZeit += (DAY_LEN - Game.time + DAY_LEN*0.01) % DAY_LEN;
-      Game.time = DAY_LEN*0.01; hint('Guten Morgen', 1800); Game.save();
+      Game.time = DAY_LEN*0.01; hint('Guten Morgen', 1800);
+      if(Wetter.regen) Wetter.klar();          // wer die Nacht verschläft, verschläft auch den Regen
+      Game.save();
       if(Netz.istHost) Netz.zeitSenden();
     }
     const t = Game.schlafT;
@@ -1715,7 +1725,8 @@ function updateDebug(){
     'Biom ' + BIO_NAME[w.biomeAt(x,z)] + '   Höhe ' + w.heightAt(x,z) + '\n' +
     'Licht Sonne ' + (lv & 15) + ' Block ' + (lv >> 4) + '   Tag ' + Game.dayLight().toFixed(2) + '\n' +
     'Zeit ' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') +
-    '   Mobs ' + Game.mobs.length + '   Objekte ' + Game.drops.length;
+    '   Mobs ' + Game.mobs.length + '   Objekte ' + Game.drops.length + '\n' +
+    'Wetter ' + Wetter.text();
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1794,7 +1805,7 @@ boot();
    Indexpuffer behält. Genau da lag der Fehler mit den zerrissenen
    Gegenständen und Mobs. */
 window.__welt = {
-  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz,
+  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

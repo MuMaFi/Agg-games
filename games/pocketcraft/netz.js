@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 3;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler
+const NETZ_VERSION = 4;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -281,8 +281,8 @@ const Netz = {
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
     this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du,
-      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, modus: p.creative ? 'kreativ' : 'ueberleben',
-                            time: Game.time, zeit: Game.gesamtZeit, spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
+      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, modus: p.creative ? 'kreativ' : 'ueberleben',
+                            time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
     this.andere.set(id, this.figur(id, g.name, g.farbe, ort));
     // Öfen und Wesen gleich hinterher, nicht erst beim nächsten Takt
     this._ofenSig = {};
@@ -329,7 +329,7 @@ const Netz = {
   },
   beuteAn(g, liste, x, y, z){ if(liste.length) this.senden(g.conn, { t:'beute', l: liste, x: r2(x), y: r2(y), z: r2(z) }); },
   autsch(g, n, grund, kx, kz){ this.senden(g.conn, { t:'autsch', n, grund, kx: r2(kx), kz: r2(kz) }); },
-  zeitSenden(){ this.anAlle({ t:'zeit', a: Game.time, z: Game.gesamtZeit }); },
+  zeitSenden(){ this.anAlle({ t:'zeit', a: Game.time, z: Game.gesamtZeit, w: Wetter.regen ? 1 : 0 }); },
 
   /** Wesen für jeden Gast, soweit sie in seiner Nähe sind */
   wesenSenden(){
@@ -490,7 +490,8 @@ const Netz = {
       case 's': this.spielerEmpfangen(m.l); break;
       case 'w': this.wesenEmpfangen(m.l); break;
       case 'b': this.bloeckeEmpfangen(m.l); break;
-      case 'zeit': if(isFinite(m.a)) Game.time = +m.a; if(isFinite(m.z)) Game.gesamtZeit = +m.z; break;
+      case 'zeit': if(isFinite(m.a)) Game.time = +m.a; if(isFinite(m.z)) Game.gesamtZeit = +m.z; if(m.w !== undefined) Wetter.vomHost(m.w); break;
+      case 'wetter': Wetter.vomHost(m.r); break;
       case 'truhe': this.truheEmpfangen(m, null); break;
       case 'oefen': this.oefenEmpfangen(m.l); break;
       case 'pfeil': this.pfeilEmpfangen(m, null); break;

@@ -132,7 +132,7 @@ function formlos(gruppe, out, n, zutaten){
 }
 function initRecipes(){
   const P = B.PLANKS, S = ITEM.stick;
-  formlos('stoffe', B.PLANKS, 4, [B.LOG]);
+  formlos('stoffe', B.PLANKS, 4, [[B.LOG, B.FICHTENSTAMM]]);
   geformt('stoffe', S, 4, ['#','#'], {'#':P});
   geformt('bauen', B.TABLE, 1, ['##','##'], {'#':P});
   geformt('bauen', B.TORCH, 4, ['k','|'], {k:ITEM.coal, '|':S});
@@ -260,13 +260,14 @@ function initSmelt(){
   SMELT[B.GOLD_ORE] = ITEM.gold;
   SMELT[ITEM.pork_raw] = ITEM.pork_cook;
   SMELT[B.LOG] = ITEM.coal;
+  SMELT[B.FICHTENSTAMM] = ITEM.coal;
   SMELT[ITEM.beef_raw] = ITEM.beef_cooked;
   SMELT[ITEM.mutton_raw] = ITEM.mutton_cooked;
   SMELT[ITEM.chicken_raw] = ITEM.chicken_cooked;
 }
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
-  if(id === B.PLANKS || id === B.LOG || id === B.TABLE || id === B.CHEST || id === B.LADDER) return 300;
+  if(id === B.PLANKS || id === B.LOG || id === B.FICHTENSTAMM || id === B.TABLE || id === B.CHEST || id === B.LADDER) return 300;
   return 0;
 }
 

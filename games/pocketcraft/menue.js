@@ -7,9 +7,9 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 2.6';
+const VERSION = 'Pocketcraft 26.9';                // Jahr.Nummer
 const SPRUECHE = [
-  'Jetzt mit Werkbank!', 'Auch hochkant!', '57 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
+  'Jetzt mit Werkbank!', 'Auch hochkant!', '69 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
   'Bruchstein ist auch Stein!', 'Kein Download nötig!', 'Mit Strohbett!', 'Hack die Erde!',
   'Diamanten sind selten!', 'Nachts wird es laut!', 'Jetzt mit Rüstung!', 'Äxte auch gespiegelt!',
@@ -18,7 +18,8 @@ const SPRUECHE = [
   'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!',
   'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!', 'Jetzt mit Musik!', 'Hör mal, Kies!', 'Knirscht wie echt!',
   'Jetzt mit Hühnern!', 'Gack!', 'Erst das Huhn, dann das Ei!', 'Küken aus dem Ei!', 'Wasser marsch!', 'Es fließt!', 'Achtung, Wasserfall!',
-  'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!'
+  'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!',
+  'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {
@@ -293,7 +294,7 @@ const Menue = {
     const name = ($('#nName').value || '').trim() || 'Neue Welt';
     let seed = ($('#nSeed').value || '').trim();
     if(!seed) seed = STARTWORTE[(Math.random()*STARTWORTE.length)|0] + '-' + ((Math.random()*9000 + 1000)|0);
-    const meta = { id: neueWeltId(), name, seed, modus: this.neuModus, erstellt: Date.now(), gespielt: Date.now(), tag: 1, groesse: 0, bild: null };
+    const meta = { id: neueWeltId(), name, seed, modus: this.neuModus, gen: WELT_FASSUNG, erstellt: Date.now(), gespielt: Date.now(), tag: 1, groesse: 0, bild: null };
     Sfx.init();
     this.alleZu();
     Game.start(meta, null);

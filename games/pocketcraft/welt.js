@@ -8,8 +8,8 @@ const CS = 16, WH = 96, SEA = 38;
 const IDX = (x,y,z) => (y*CS + z)*CS + x;
 const ckey = (cx,cz) => cx + ',' + cz;
 
-const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5 };
-const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge'];
+const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5, TAIGA:6, SCHNEE:7, FLUSS:8 };
+const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald','Schneeebene','Fluss'];
 
 /* Sichtbarkeits-/Lichtregeln — als flache Tabellen, weil sie im
    Mesh- und Licht-Kern millionenfach abgefragt werden */
@@ -26,7 +26,7 @@ function buildBlockTables(){
     SOL[i] = b.solid ? 1 : 0;
     // stehendes Wasser dämpft das Licht; fließendes ist zu flach dafür — so
     // muss beim Fließen nur neu gezeichnet, nicht neu belichtet werden
-    LOPQ[i] = b.opaque ? 15 : (i === B.WATER ? 2 : (i === B.LEAVES ? 1 : 0));
+    LOPQ[i] = b.opaque ? 15 : (i === B.WATER ? 2 : (i === B.LEAVES || i === B.FICHTENNADELN ? 1 : 0));
     const k = b.solid && b.box ? b.box : [0,0,0,16,16,16];
     for(let j=0; j<6; j++) COLL[i*6+j] = k[j]/16;
     VOLL[i] = b.solid && !b.box ? 1 : 0;
@@ -86,6 +86,7 @@ class Chunk{
     this.lights = [];            // Indizes leuchtender Blöcke
     this.hmap = new Uint8Array(CS*CS);
     this.biome = new Uint8Array(CS*CS);
+    this.kalt = new Uint8Array(CS*CS);  // hier schneit es statt zu regnen
   }
 }
 
@@ -143,8 +144,10 @@ function buildFaceTables(){
 }
 
 class World{
-  constructor(seedStr){
+  /** gen: Fassung des Geländes — 1 für Welten von früher, 2 für neue (gelaende.js) */
+  constructor(seedStr, gen){
     this.seedStr = seedStr;
+    this.gen = gen === 2 ? 2 : 1;
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
     this.nCont = new Noise(s);
@@ -155,6 +158,13 @@ class World{
     this.nCaveA= new Noise(s ^ 0x7f11);
     this.nCaveB= new Noise(s ^ 0x22b9);
     this.nOre  = new Noise(s ^ 0x5c4d);
+    if(this.gen === 2){
+      this.nEro = new Noise(s ^ 0x3a7f); this.nGrat = new Noise(s ^ 0x6d2b); this.nFluss = new Noise(s ^ 0x4e91);
+      this.nKaese = new Noise(s ^ 0x1b3c); this.nKies = new Noise(s ^ 0x7e57);
+      // Das Rauschen ist an seinen Gitterpunkten immer null — ohne Versatz läge
+      // in jeder Welt genau am Ursprung ein Fluss
+      this.versatz = [((s >>> 3) & 0xfff) + 0.5137, ((s >>> 15) & 0xfff) + 0.2871];
+    }
     this.chunks = new Map();
     this.mods = new Map();       // "cx,cz" → Map(index→id)
     this.furnaces = new Map();   // "x,y,z" → {in,fuel,out,burn,burnMax,cook}
@@ -166,6 +176,7 @@ class World{
 
   /* — Spalteninfo: Höhe + Biom — */
   column(wx,wz){
+    if(this.gen === 2) return spalte2(this, wx, wz);
     const cont = this.nCont.fbm2(wx*0.0032, wz*0.0032, 4, 2, .5);
     const hill = this.nHill.fbm2(wx*0.014, wz*0.014, 4, 2, .5);
     let mt = this.nMount.fbm2(wx*0.0021, wz*0.0021, 3, 2, .5);
@@ -219,6 +230,22 @@ class World{
 
   /* — Terrain erzeugen — */
   generate(c){
+    if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c);
+    const bl = c.blocks;
+    const m = this.mods.get(ckey(c.cx,c.cz));
+    if(m) for(const [i,id] of m) bl[i] = id;
+    c.mods = m || null;
+    c.lights = [];
+    if(m) for(const [i,id] of m){ const bd = blocks[id]; if(bd && bd.light > 0) c.lights.push(i); }
+    // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —
+    // etwa nach dem Laden, oder wenn man zurückkommt
+    const ox = c.cx*CS, oz = c.cz*CS;
+    if(m && this.stroemung) for(const [i,id] of m) if(isWasser(id))
+      this.stroemung.naechste.add(wKey(ox + (i & 15), i >> 8, oz + ((i >> 4) & 15)));
+    c.state = 1;
+  }
+  /** Gelände der ersten Fassung — bleibt für alte Welten, wie es war */
+  erzeugen1(c){
     const bl = c.blocks = new Uint8Array(CS*WH*CS);
     const ox = c.cx*CS, oz = c.cz*CS;
     const cols = [];
@@ -227,6 +254,7 @@ class World{
       cols[z*CS+x] = info;
       c.hmap[z*CS+x] = info.h; c.biome[z*CS+x] = info.biome;
       const h = info.h, bio = info.biome;
+      c.kalt[z*CS+x] = bio === BIO.MOUNT && h > SEA+28 ? 1 : 0;       // oben liegt Schnee
       for(let y=0; y<=Math.max(h, SEA); y++){
         let id = B.AIR;
         if(y <= 1) id = y === 0 ? B.BEDROCK : (((hashStr(x+':'+y+':'+z+':'+ox+oz) & 3) < 2) ? B.BEDROCK : B.STONE);
@@ -252,16 +280,6 @@ class World{
       }
     }
     this.decorate(c, cols);
-    const m = this.mods.get(ckey(c.cx,c.cz));
-    if(m) for(const [i,id] of m) bl[i] = id;
-    c.mods = m || null;
-    c.lights = [];
-    if(m) for(const [i,id] of m){ const bd = blocks[id]; if(bd && bd.light > 0) c.lights.push(i); }
-    // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —
-    // etwa nach dem Laden, oder wenn man zurückkommt
-    if(m && this.stroemung) for(const [i,id] of m) if(isWasser(id))
-      this.stroemung.naechste.add(wKey(ox + (i & 15), i >> 8, oz + ((i >> 4) & 15)));
-    c.state = 1;
   }
 
   /* — Bäume, Kakteen, Gras, Blumen (deterministisch je Spalte) — */
@@ -325,6 +343,11 @@ class World{
     const c = this.chunks.get(ckey(x>>4, z>>4));
     if(c && c.state >= 1) return c.hmap[(z&15)*CS + (x&15)];
     return this.column(x,z).h;
+  }
+  /** schneit es hier, statt zu regnen? */
+  kaltAt(x,z){
+    const c = this.chunks.get(ckey(x>>4, z>>4));
+    return !!(c && c.state >= 1 && c.kalt[(z&15)*CS + (x&15)]);
   }
   biomeAt(x,z){
     const c = this.chunks.get(ckey(x>>4, z>>4));
@@ -557,6 +580,8 @@ class World{
 
       let texName = bd.faces[f];
       if(bd.dirFront && f === 5) texName = bd.dirFront;
+      // Gras unter Schnee: die Seiten tragen einen weißen Saum
+      if(id === B.GRASS && F.n[1] === 0){ const ob = this.pb(px, y+1, pz); if(ob === B.SCHNEEDECKE || ob === B.SNOW) texName = 'grass_side_snow'; }
       const layer = TEX[texName] !== undefined ? TEX[texName] : 0;
 
       const T = FACE_NB[f];

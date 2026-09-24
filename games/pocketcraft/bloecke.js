@@ -11,7 +11,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   CHEST:28, LADDER:29 /* …32, je Wand */, BED:33, FARMLAND:34, WHEAT:35 /* …38, je Stufe */,
   IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */,
   FLUSS:62 /* …68, fließendes Wasser, Stärke 7…1 */, FALL:69 /* fallendes Wasser */,
-  JUKEBOX:70, JUKEBOX_VOLL:71 /* mit Schallplatte */ };
+  JUKEBOX:70, JUKEBOX_VOLL:71 /* mit Schallplatte */,
+  SCHNEEDECKE:72, FICHTENSTAMM:73, FICHTENNADELN:74 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -81,6 +82,11 @@ function initBlocks(){
   defBlock(B.JUKEBOX,{name:'Plattenspieler', tex:['jukebox_top','planks','jukebox_side'], hardness:2, tool:'axe'});
   defBlock(B.JUKEBOX_VOLL,{name:'Plattenspieler', tex:['jukebox_top_voll','planks','jukebox_side'], hardness:2, tool:'axe',
     drop:B.JUKEBOX, item:false});
+  // dünner Schnee: zwei Sechzehntel hoch, man geht hindurch, ein Block darauf ersetzt ihn
+  defBlock(B.SCHNEEDECKE,{name:'Schneedecke', tex:'snow', model:'box', box:[0,0,0,16,2,16], solid:false, opaque:false,
+    hardness:.1, tool:'shovel', replaceable:true, icon:'i_schneedecke'});
+  defBlock(B.FICHTENSTAMM,{name:'Fichtenstamm', tex:['fichte_top','fichte_top','fichte_side'], hardness:2, tool:'axe'});
+  defBlock(B.FICHTENNADELN,{name:'Fichtennadeln', tex:'fichtennadeln', hardness:.2, opaque:false, model:'cutout'});
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
   defBlock(B.COAL_ORE,{name:'Kohleerz', tex:'coal_ore', hardness:3, tool:'pickaxe', tier:1, drop:'i_coal'});
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});
