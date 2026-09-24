@@ -1,4 +1,4 @@
-/* Taschenwelt · Bild */
+/* Pocketcraft · Bild */
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -447,10 +447,13 @@ function drawMobs(fogCol, near, far){
     if(!R.boxVisible(m.x-1, m.y-0.5, m.z-1, m.x+1, m.y+m.h+0.5, m.z+1)) continue;
     const light = blockLightAt(m.x, m.y+m.h*0.6, m.z);
     const hurt = m.hurtTimer > 0;
-    gl.uniform4f(P.u.uTint, hurt ? 1.6 : 1, hurt ? 0.45 : 1, hurt ? 0.45 : 1, 1);
     gl.uniform1f(P.u.uLight, light);
     const sw = Math.sin(m.walkPhase) * (m.moving || m.def.hostile ? 0.62 : 0.06);
     for(const part of m.def.parts){
+      if(part.wenn && !part.wenn(m)) continue;
+      const f = part.farbe ? part.farbe(m) : null;
+      const tr = f ? f[0] : 1, tg = f ? f[1] : 1, tb = f ? f[2] : 1;
+      gl.uniform4f(P.u.uTint, hurt ? 1.6*tr : tr, hurt ? 0.45*tg : tg, hurt ? 0.45*tb : tb, 1);
       let ang = 0;
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * 0.7 + (m.def.hostile ? -1.45 : 0);
@@ -460,6 +463,29 @@ function drawMobs(fogCol, near, far){
       setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     }
+  }
+}
+/* Pfeile: ein dünner, langer Kasten, entlang der Flugrichtung gedreht */
+function drawPfeile(fogCol, near, far){
+  if(!Game.pfeile.length) return;
+  const P = R.progEnt;
+  gl.useProgram(P.p);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+  gl.bindVertexArray(R.cubeVAO);
+  setLayers(P, TEX['m_pfeil']);
+  for(const a of Game.pfeile){
+    if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
+    gl.uniform1f(P.u.uLight, blockLightAt(a.x, a.y, a.z));
+    const hv = Math.hypot(a.rx, a.rz);
+    M4.ident(_m);
+    M4.translate(_m, _m, a.x, a.y, a.z);
+    M4.rotY(_m, _m, Math.atan2(-a.rx, -a.rz));
+    M4.rotX(_m, _m, Math.atan2(a.ry, hv));
+    M4.scale(_m, _m, 0.06, 0.06, 0.62);
+    M4.translate(_m, _m, -0.5, -0.5, -0.5);
+    gl.uniformMatrix4fv(P.u.uModel, false, _m);
+    gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
 }
 function partMatrix(out, mob, part, ang){
@@ -597,7 +623,7 @@ function render(dt){
   let fog = SkyCol.fog;
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
 
-  let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0);
+  let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0) - (Game.bogen.aktiv ? Math.min(1, Game.bogen.t)*0.14 : 0);
   const bobY = p.onGround ? Math.sin(p.bob*2)*0.022 : 0;
   const shake = Game.camShake > 0 ? (Math.random()-0.5)*Game.camShake : 0;
   R.setCamera(p.x, p.eyeY() + bobY + shake, p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh);
@@ -607,6 +633,7 @@ function render(dt){
   drawSky();
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
+  drawPfeile(fog, near, far);
   drawDrops(fog, near, far);
   const ohne = Game.panoramaAktiv || Game._ohneHand;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);

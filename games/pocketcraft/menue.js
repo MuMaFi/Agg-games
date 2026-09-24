@@ -1,18 +1,19 @@
-/* Taschenwelt · Titelbild und Weltenwahl
+/* Pocketcraft · Titelbild und Weltenwahl
    Aufgebaut wie der Startbildschirm des großen Vorbilds: hinten dreht sich
    eine echte Welt langsam im Kreis, vorn das Logo aus Steinblöcken, ein
    gelber Spruch, drei Knöpfe. »Einzelspieler« führt zur Weltenliste, von
    dort zu »Neue Welt erstellen«, »Bearbeiten«, »Löschen«, »Kopieren«. */
 'use strict';
 
-const VERSION = 'Taschenwelt 2.1';
+const VERSION = 'Pocketcraft 2.2';
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '57 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
   'Bruchstein ist auch Stein!', 'Kein Download nötig!', 'Mit Strohbett!', 'Hack die Erde!',
   'Diamanten sind selten!', 'Nachts wird es laut!', 'Jetzt mit Rüstung!', 'Äxte auch gespiegelt!',
   'Grab nie senkrecht nach unten!', 'Fackeln helfen!', 'Pixelig und stolz drauf!', 'Frisch gebacken: Brot!',
-  'Mehrere Welten!', 'Passt in die Tasche!', 'Schweine grunzen!', 'Voll auf Holz!'
+  'Mehrere Welten!', 'Passt in die Tasche!', 'Schweine grunzen!', 'Voll auf Holz!',
+  'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {
@@ -31,6 +32,11 @@ const GLYPHEN = {
   N:['#...#','##..#','#.#.#','#.#.#','#..##','#...#','#...#'],
   W:['#...#','#...#','#...#','#.#.#','#.#.#','##.##','#...#'],
   L:['#....','#....','#....','#....','#....','#....','#####'],
+  P:['####.','#...#','#...#','####.','#....','#....','#....'],
+  O:['.###.','#...#','#...#','#...#','#...#','#...#','.###.'],
+  K:['#...#','#..#.','#.#..','##...','#.#..','#..#.','#...#'],
+  R:['####.','#...#','#...#','####.','#.#..','#..#.','#...#'],
+  F:['#####','#....','#....','####.','#....','#....','#....'],
 };
 function logoZeichnen(cv, wort, maxBreite){
   // fett gesetzt: jede Zelle bekommt ihre rechte Nachbarin dazu, so werden
@@ -176,7 +182,7 @@ const Menue = {
   },
   logo(){
     const w = Math.min(window.innerWidth*0.9, 760, window.innerHeight*1.6);
-    logoZeichnen($('#logo'), 'TASCHENWELT', w);
+    logoZeichnen($('#logo'), 'POCKETCRAFT', w);
   },
 
   /* — Weltenliste — */
@@ -320,10 +326,10 @@ const Menue = {
   async exportieren(){
     const w = this.welten.find(q => q.id === this.bearbeiteId); if(!w) return;
     const text = await Speicher.laden(w.id); if(!text) return;
-    const datei = JSON.stringify({ format:'taschenwelt-welt', version:2, meta:w, daten:text });
+    const datei = JSON.stringify({ format:'pocketcraft-welt', version:2, meta:w, daten:text });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([datei], { type:'application/json' }));
-    a.download = 'taschenwelt-' + w.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') + '.json';
+    a.download = 'pocketcraft-' + w.name.replace(/[^\wäöüÄÖÜß-]+/g, '_') + '.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   },
@@ -331,7 +337,8 @@ const Menue = {
     if(!datei) return;
     try{
       const d = JSON.parse(await datei.text());
-      if(!d || d.format !== 'taschenwelt-welt' || !d.meta || typeof d.daten !== 'string') throw new Error('Format');
+      // Sicherungen aus der Zeit vor der Umbenennung gelten weiter
+      if(!d || (d.format !== 'pocketcraft-welt' && d.format !== 'taschenwelt-welt') || !d.meta || typeof d.daten !== 'string') throw new Error('Format');
       JSON.parse(d.daten);
       const namen = new Set(this.welten.map(w => w.name));
       let name = d.meta.name || 'Eingelesene Welt';
@@ -341,7 +348,7 @@ const Menue = {
       this.gewaehlt = meta.id;
       await this.listeLaden();
       hint('„' + name + '“ eingelesen', 2200);
-    }catch(e){ hint('Das ist keine Taschenwelt-Sicherung', 2600); }
+    }catch(e){ hint('Das ist keine Pocketcraft-Sicherung', 2600); }
     $('#wDatei').value = '';
   },
 

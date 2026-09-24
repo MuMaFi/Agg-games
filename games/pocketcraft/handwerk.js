@@ -1,4 +1,4 @@
-/* Taschenwelt · Inventar und Handwerk
+/* Pocketcraft · Inventar und Handwerk
    Herstellen geht wie an einer echten Werkbank: Zutaten werden in ein
    Raster gelegt — 2 × 2 im Inventar, 3 × 3 an der Werkbank — und das
    Muster entscheidet, was herauskommt. Eine Spitzhacke ist drei Stück
@@ -160,6 +160,22 @@ function initRecipes(){
     geformt('kampf', ITEM[m+'_boots'],      1, ['M M','M M'], k);
   }
   geformt('werkzeug', ITEM.bucket, 1, ['I I',' I '], {I:ITEM.iron});
+  // Pocketcraft: was die neuen Tiere hergeben
+  const WOLL = [B.WOOL, B.WOOL + 1, B.WOOL + 2, B.WOOL + 3];
+  geformt('werkzeug', ITEM.shears, 1, [' I','I '], {I:ITEM.iron});
+  geformt('kampf', ITEM.bow, 1, [' |f','| f',' |f'], {'|':S, f:ITEM.string});
+  geformt('kampf', ITEM.arrow, 4, ['F','|','f'], {F:ITEM.flint, '|':S, f:ITEM.string});
+  geformt('bauen', B.BED, 1, ['WWW','###'], {W:WOLL, '#':P});
+  geformt('stoffe', B.WOOL, 1, ['ff','ff'], {f:ITEM.string});
+  formlos('stoffe', ITEM.string, 4, [WOLL]);
+  formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
+  {
+    const k = { M:ITEM.leather };
+    geformt('kampf', ITEM.leather_helmet,     1, ['MMM','M M'], k);
+    geformt('kampf', ITEM.leather_chestplate, 1, ['M M','MMM','MMM'], k);
+    geformt('kampf', ITEM.leather_leggings,   1, ['MMM','M M','M M'], k);
+    geformt('kampf', ITEM.leather_boots,      1, ['M M','M M'], k);
+  }
   geformt('essen', ITEM.bread, 1, ['www'], {w:ITEM.wheat});
   geformt('essen', ITEM.golden_apple, 1, ['GGG','GaG','GGG'], {G:ITEM.gold, a:ITEM.apple});
   for(const [blk, it] of [[B.IRON_BLOCK, ITEM.iron],[B.GOLD_BLOCK, ITEM.gold],[B.DIAMOND_BLOCK, ITEM.diamond]]){
@@ -242,6 +258,8 @@ function initSmelt(){
   SMELT[B.GOLD_ORE] = ITEM.gold;
   SMELT[ITEM.pork_raw] = ITEM.pork_cook;
   SMELT[B.LOG] = ITEM.coal;
+  SMELT[ITEM.beef_raw] = ITEM.beef_cooked;
+  SMELT[ITEM.mutton_raw] = ITEM.mutton_cooked;
 }
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
@@ -289,6 +307,12 @@ const Sfx = {
       case 'door':  this.noise(0.12, 0.14, 500); this.tone(140, 0.08, 'square', 0.05, 0.8); break;
       case 'zombie':this.tone(110, 0.4, 'sawtooth', 0.06, 0.6); break;
       case 'pig':   this.tone(300, 0.14, 'square', 0.05, 1.5); break;
+      case 'kuh':   this.tone(118, 0.7, 'sawtooth', 0.06, 0.7); break;
+      case 'schaf': this.tone(430, 0.09, 'square', 0.04, 0.9); setTimeout(()=>this.tone(410,0.09,'square',0.04,0.85), 90); setTimeout(()=>this.tone(400,0.14,'square',0.035,0.8), 180); break;
+      case 'skelett': for(let i=0;i<4;i++) setTimeout(()=>this.noise(0.03, 0.08, 3200), i*55); break;
+      case 'bogen': this.noise(0.12, 0.10, 2400); this.tone(220, 0.1, 'triangle', 0.05, 0.6); break;
+      case 'pfeil': this.noise(0.06, 0.12, 900); break;
+      case 'schere': this.noise(0.04, 0.10, 4000); setTimeout(()=>this.noise(0.04, 0.10, 4000), 90); break;
       case 'die':   this.tone(300, 0.7, 'sawtooth', 0.16, 0.25); break;
     }
   }

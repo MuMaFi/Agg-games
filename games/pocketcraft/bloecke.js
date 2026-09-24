@@ -1,4 +1,4 @@
-/* Taschenwelt · Blöcke und Gegenstände
+/* Pocketcraft · Blöcke und Gegenstände
    Die Nummern sind Teil jedes Spielstands. Neue Blöcke und Gegenstände
    werden deshalb nur hinten angehängt, nie dazwischen geschoben. */
 'use strict';
@@ -9,7 +9,16 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   TABLE:17, FURNACE:18, FURNACE_LIT:19, TORCH:20, TALLGRASS:21, ROSE:22, DANDELION:23,
   CACTUS:24, STONEBRICK:25, SANDSTONE:26, SNOW:27,
   CHEST:28, LADDER:29 /* …32, je Wand */, BED:33, FARMLAND:34, WHEAT:35 /* …38, je Stufe */,
-  IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */ };
+  IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */ };
+
+/* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
+const WOLLE = [
+  { name:'Weiße Wolle',     tint:[1, 1, 1],          anteil:.82 },
+  { name:'Hellgraue Wolle', tint:[.66, .66, .64],    anteil:.06 },
+  { name:'Schwarze Wolle',  tint:[.2, .2, .22],      anteil:.06 },
+  { name:'Braune Wolle',    tint:[.56, .39, .26],    anteil:.06 },
+];
+const isWool = id => id >= B.WOOL && id < B.WOOL + 4;
 
 /* Seiten, wie sie Leiter und Tür benutzen: 0 +X, 1 −X, 2 +Z, 3 −Z */
 const SEITE = [[1,0],[-1,0],[0,1],[0,-1]];
@@ -88,6 +97,7 @@ function initBlocks(){
   defBlock(B.IRON_BLOCK,{name:'Eisenblock', tex:'iron_block', hardness:4, tool:'pickaxe', tier:2});
   defBlock(B.GOLD_BLOCK,{name:'Goldblock', tex:'gold_block', hardness:4, tool:'pickaxe', tier:3});
   defBlock(B.DIAMOND_BLOCK,{name:'Diamantblock', tex:'diamond_block', hardness:4.5, tool:'pickaxe', tier:3});
+  WOLLE.forEach((f, k) => defBlock(B.WOOL + k, { name:f.name, tex:'wool' + k, hardness:.8, tool:'shears' }));
   for(let oben = 0; oben < 2; oben++) for(let offen = 0; offen < 2; offen++) for(let s = 0; s < 4; s++){
     const t = oben ? 'door_top' : 'door_bottom';
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
@@ -142,6 +152,23 @@ function initItems(){
                 ['diamond','Diamant',[3,8,6,3],[363,528,495,429]]];
   for(const [mk, mn, pts, durs] of RMAT) for(const [rk, rn, slot] of RUEST)
     defItem(mk + '_' + rk, { name: mn + rn, stack:1, dur: durs[slot], armor: { slot, pts: pts[slot] } });
+
+  // Pocketcraft: Kühe, Schafe, Skelette
+  defItem('leather',{name:'Leder'});
+  defItem('beef_raw',{name:'Rohes Rindfleisch', food:3});
+  defItem('beef_cooked',{name:'Steak', food:8});
+  defItem('mutton_raw',{name:'Rohes Hammelfleisch', food:2});
+  defItem('mutton_cooked',{name:'Gebratenes Hammelfleisch', food:6});
+  defItem('bone',{name:'Knochen'});
+  defItem('bone_meal',{name:'Knochenmehl'});
+  defItem('arrow',{name:'Pfeil'});
+  defItem('bow',{name:'Bogen', stack:1, dur:384, tool:'bow'});
+  defItem('string',{name:'Faden'});
+  defItem('shears',{name:'Schere', stack:1, dur:238, tool:'shears', speed:5});
+  defItem('milk_bucket',{name:'Milcheimer', stack:1, food:4});
+  defItem('flint',{name:'Feuerstein'});
+  const LEDER = [['helmet','Lederkappe',1,55],['chestplate','Lederjacke',3,80],['leggings','Lederhose',2,75],['boots','Lederstiefel',1,65]];
+  LEDER.forEach(([rk, name, pts, dur], slot) => defItem('leather_' + rk, { name, stack:1, dur, armor:{ slot, pts } }));
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

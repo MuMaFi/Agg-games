@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1118">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Pocketcraft</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230e1118'/%3E%3Crect x='2' y='4' width='12' height='3' fill='%2378a84e'/%3E%3Crect x='2' y='7' width='12' height='6' fill='%236b4b2f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* ── Pocketcraft · UI-System ───────────────────────────────────────────
+   Palette stammt aus der Welt selbst: Nachtblau als Grund, Grasgrün als
+   Akzent, Fackel-Bernstein für alles Aktive. Keine runden Ecken, harte
+   2px-Kanten — die Sprache des Materials ist der Würfel.            */
+:root{
+  --ground:#0e1118; --panel:#181d26; --panel-2:#222834; --panel-3:#2c3441;
+  --edge:#3d4757; --edge-hi:#556274;
+  --ink:#e8ebf0; --ink-dim:#98a3b3; --ink-faint:#69748a;
+  --grass:#78a84e; --grass-dk:#4f7534;
+  --amber:#ffb648; --amber-dk:#b8792a;
+  --blood:#d9484c; --blood-dk:#5a1f22;
+  --meat:#c8873a; --meat-dk:#57381a;
+  --air:#5ec8e8;
+  --shadow:0 6px 0 rgba(0,0,0,.35), 0 0 0 2px var(--edge) inset;
+  --pix:"Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
+  --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--ui); font-size:15px; line-height:1.45;
+  user-select:none; -webkit-user-select:none;
+}
+canvas#gl{position:fixed; inset:0; width:100%; height:100%; display:block; background:#0e1118; touch-action:none}
+
+/* ── Bausteine ─────────────────────────────────────────────────────── */
+.panel{background:var(--panel); border:2px solid var(--edge); box-shadow:0 8px 0 rgba(0,0,0,.3)}
+.btn{
+  font-family:var(--pix); font-size:17px; letter-spacing:.02em;
+  background:var(--panel-2); color:var(--ink); border:2px solid var(--edge);
+  border-bottom-width:4px; padding:10px 18px; cursor:pointer; display:inline-flex;
+  align-items:center; justify-content:center; gap:8px; transition:background .08s, transform .08s;
+}
+.btn:hover{background:var(--panel-3); border-color:var(--edge-hi)}
+.btn:active{transform:translateY(2px); border-bottom-width:2px; margin-bottom:2px}
+.btn:focus-visible{outline:3px solid var(--amber); outline-offset:2px}
+.btn.primary{background:var(--grass-dk); border-color:var(--grass); color:#f2f7ec}
+.btn.primary:hover{background:var(--grass)}
+.btn.ghost{background:transparent}
+.lbl{font-family:var(--pix); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── Titelbild und Weltenwahl im Stil des Vorbilds ───────────────────
+   Steinknöpfe mit schwarzem Rand, weiß umrandet unter dem Zeiger,
+   schwarze Eingabefelder, graue Schrift mit hartem Schatten. Hinten
+   dreht sich die Welt, leicht unscharf; bis sie geladen ist, Erde. */
+.row{display:flex; gap:10px; flex-wrap:wrap}
+kbd{font-family:var(--pix); background:#1c1c1c; border:1px solid #555; padding:0 5px; font-size:12px}
+body.imMenue{background:#1b120c}
+body.imMenue canvas#gl{filter:blur(1.4px) brightness(.92); opacity:0; transition:opacity .9s}
+body.imMenue.panoBereit canvas#gl{opacity:1}
+body.imMenue:not(.panoBereit) .mc-schirm{background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)), var(--erdbild) 0 0/64px 64px}
+.mc-schirm{position:fixed; inset:0; z-index:60; display:none; flex-direction:column; align-items:center;
+  padding:max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  color:#fff; font-family:var(--pix); text-shadow:2px 2px 0 #3f3f3f; overflow:auto; image-rendering:pixelated}
+.mc-schirm.on{display:flex}
+.mc-schirm.dunkel{background:rgba(0,0,0,.42)}
+#titel{background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 35%, rgba(0,0,0,.5))}
+.titelKopf{position:relative; margin-top:clamp(10px, 8vh, 72px); display:flex; justify-content:center; flex:0 0 auto}
+#logo{display:block; filter:drop-shadow(0 8px 12px rgba(0,0,0,.45))}
+#spruch{position:absolute; right:1%; bottom:-13%; color:#ffff55; text-shadow:2px 2px 0 #3f3f15; white-space:nowrap; pointer-events:none;
+  font-size:calc(clamp(13px, 2.3vw, 22px) * var(--gross, 1)); transform-origin:50% 50%; animation:spruch .42s ease-in-out infinite alternate}
+@keyframes spruch{from{transform:rotate(-17deg) scale(.96)} to{transform:rotate(-17deg) scale(1.06)}}
+@media (prefers-reduced-motion:reduce){#spruch{animation:none; transform:rotate(-17deg)}}
+.mc-knoepfe{display:grid; gap:10px; width:min(400px, 86vw); margin:auto 0; padding:14px 0}
+.titelFuss{display:flex; justify-content:space-between; width:100%; font-size:13px; flex:0 0 auto}
+.mc{font-family:var(--pix); font-size:18px; line-height:1.15; color:#fff; text-shadow:2px 2px 0 #3f3f3f;
+  min-height:44px; padding:7px 10px; width:100%; cursor:pointer; position:relative; image-rendering:pixelated;
+  background:linear-gradient(rgba(52,52,52,.42), rgba(52,52,52,.42)), var(--steinbild) 0 0/64px 64px;
+  border:2px solid #000; box-shadow:inset 2px 2px 0 rgba(255,255,255,.3), inset -2px -3px 0 rgba(0,0,0,.42)}
+.mc:hover, .mc:focus-visible{border-color:#fff; outline:none}
+.mc:active{box-shadow:inset 2px 2px 0 rgba(0,0,0,.42), inset -2px -2px 0 rgba(255,255,255,.2)}
+.mc:disabled{color:#9a9a9a; text-shadow:none; background:#2a2a2a; box-shadow:none; border-color:#000; cursor:default}
+.mc.klein{width:auto; flex:0 0 auto; font-size:15px; min-height:40px}
+.mc-titel{font-family:var(--pix); font-weight:500; font-size:20px; margin:4px 0 10px; text-align:center; flex:0 0 auto}
+.mc-reihe{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:min(620px, 100%); margin-top:8px; flex:0 0 auto}
+.mc-reihe.vier{grid-template-columns:repeat(4, 1fr)}
+@media (max-width:560px){ .mc-reihe.vier{grid-template-columns:repeat(2, 1fr)} .mc{font-size:16px} }
+.mc-feld{font-family:var(--pix); font-size:17px; color:#fff; background:#000; border:2px solid #a0a0a0; padding:8px 10px; width:100%;
+  outline:none; text-shadow:none; border-radius:0; -webkit-appearance:none; appearance:none; min-width:0}
+.mc-feld:focus{border-color:#fff}
+.mc-feld::placeholder{color:#6d6d6d}
+.mc-lbl{font-size:14px; color:#a0a0a0; text-shadow:none; margin:8px 0 4px; display:block}
+.mc-hinweis{font-size:13px; line-height:1.35; color:#a0a0a0; text-shadow:none; margin:6px 2px 4px; min-height:2.7em}
+.mc-form{width:min(420px, 100%); display:flex; flex-direction:column; margin:auto 0}
+.mc-text{max-width:min(560px, 100%); text-align:center; color:#e0e0e0; line-height:1.4; margin:auto 0 14px}
+.wKopf{display:flex; gap:8px; width:min(620px, 100%); margin-bottom:8px; flex:0 0 auto}
+.mc-liste{flex:1 1 auto; min-height:96px; width:calc(100% + 28px); margin:0 -14px; overflow:auto; background:rgba(0,0,0,.55);
+  border-top:2px solid rgba(255,255,255,.22); border-bottom:2px solid rgba(255,255,255,.22); padding:6px 14px;
+  display:flex; flex-direction:column; align-items:center; gap:4px}
+.welt{display:grid; grid-template-columns:auto 1fr; gap:10px; width:min(620px, 100%); padding:3px; border:2px solid transparent; cursor:pointer; text-shadow:none; flex:0 0 auto}
+.welt:hover{background:rgba(255,255,255,.06)}
+.welt.gewaehlt{border-color:#9a9a9a; background:#000}
+.weltBild{width:64px; height:64px; background:#1a1a1a center/cover no-repeat; position:relative; image-rendering:auto}
+.weltBild.ohne{background-size:78%; image-rendering:pixelated}
+.weltLos{position:absolute; inset:0; border:0; padding:0; margin:0; background:rgba(0,0,0,.5); display:none; cursor:pointer}
+.welt.gewaehlt .weltLos, .welt:hover .weltLos{display:block}
+.weltLos i{position:absolute; left:36%; top:27%; width:0; height:0; border-left:20px solid #fff; border-top:14px solid transparent; border-bottom:14px solid transparent;
+  filter:drop-shadow(2px 2px 0 #3f3f3f)}
+.weltText{display:flex; flex-direction:column; justify-content:center; min-width:0; gap:1px}
+.weltText b{font-weight:500; font-size:17px; color:#fff; text-shadow:2px 2px 0 #3f3f3f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.weltText span{font-size:13px; color:#8f8f8f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.weltLeer{color:#a0a0a0; margin:24px 12px; text-align:center; text-shadow:none}
+.mc-gitter{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:min(620px, 100%); margin-top:auto}
+@media (max-width:520px){ .mc-gitter{grid-template-columns:1fr} }
+.mc-schieber{position:relative; height:44px; border:2px solid #000; background:#141414}
+.mc-schieber:hover{border-color:#fff}
+.mc-schieber input{position:absolute; inset:0; width:100%; height:100%; margin:0; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; touch-action:pan-y}
+.mc-schieber input::-webkit-slider-runnable-track{height:100%; background:transparent}
+.mc-schieber input::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:40px; border:2px solid #000;
+  background:linear-gradient(rgba(52,52,52,.3), rgba(52,52,52,.3)), var(--steinbild) 0 0/64px 64px;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.3), inset -2px -2px 0 rgba(0,0,0,.4)}
+.mc-schieber input::-moz-range-thumb{width:12px; height:36px; border:2px solid #000; border-radius:0;
+  background:linear-gradient(rgba(52,52,52,.3), rgba(52,52,52,.3)), var(--steinbild) 0 0/64px 64px}
+.mc-schieber span{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; font-size:17px}
+.steuerHilfe{width:min(620px, 100%); font-size:13px; color:#c8c8c8; text-shadow:none; margin:12px 0 auto; line-height:1.5; font-family:var(--ui)}
+.steuerHilfe b{color:#fff}
+#oFertig{width:min(400px, 100%); margin-top:12px; flex:0 0 auto}
+#laden{position:fixed; inset:0; z-index:55; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  font-family:var(--pix); color:#fff; text-shadow:2px 2px 0 #3f3f3f; font-size:20px; image-rendering:pixelated;
+  background:linear-gradient(rgba(0,0,0,.6), rgba(0,0,0,.6)), var(--erdbild) 0 0/64px 64px}
+#laden.on{display:flex}
+.ladenLeiste{width:min(300px, 70vw); height:10px; background:#3a3a3a; border:2px solid #000}
+#ladenBalken{display:block; height:100%; width:0; background:#80ff20}
+.ladenKlein{font-size:14px; color:#c0c0c0}
+.mc-karte{display:grid; gap:10px; width:min(400px, 90vw); font-family:var(--pix); color:#fff; text-shadow:2px 2px 0 #3f3f3f; text-align:center}
+#death{background:rgba(110,0,0,.5)}
+/* Optionen aus der Pause: die Pause darunter nicht durchscheinen lassen */
+body.mcOffen .screen{visibility:hidden}
+.todTitel{font-size:30px; margin-bottom:0}
+.todGrund{margin:0 0 12px; color:#e6e6e6}
+@media (max-height:460px){
+  .titelKopf{margin-top:6px}
+  .mc-knoepfe{gap:7px; padding:8px 0}
+  .mc{min-height:38px; padding:5px 10px}
+  .mc-titel{margin:0 0 6px; font-size:18px}
+  .mc-hinweis{min-height:0}
+  .mc-lbl{margin:4px 0 3px}
+}
+
+/* ── HUD ───────────────────────────────────────────────────────────── */
+#hud{position:fixed; inset:0; z-index:20; pointer-events:none; display:none}
+#hud.on{display:block}
+#crosshair{position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; opacity:.85}
+#crosshair i{position:absolute; background:#fff; mix-blend-mode:difference; display:block}
+#crosshair i:nth-child(1){left:11px; top:1px; width:4px; height:24px}
+#crosshair i:nth-child(2){top:11px; left:1px; height:4px; width:24px}
+#spannung{position:absolute; left:50%; top:calc(50% + 22px); width:44px; height:5px; margin-left:-22px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.35); display:none}
+#spannung.on{display:block}
+#spannung i{display:block; height:100%; width:0; background:#ffd24a}
+
+#vitals{position:absolute; left:14px; top:12px; display:grid; gap:6px}
+.bar{display:flex; gap:3px}
+.pip{width:18px; height:18px; position:relative; filter:drop-shadow(0 2px 0 rgba(0,0,0,.5))}
+.pip::before,.pip::after{content:""; position:absolute; inset:0; background:var(--empty,#2a3040);
+  clip-path:polygon(50% 100%,10% 60%,0 35%,15% 15%,35% 15%,50% 32%,65% 15%,85% 15%,100% 35%,90% 60%);}
+.pip::after{background:var(--full,var(--blood)); clip-path:inherit; width:var(--fill,100%)}
+.pip.food::before,.pip.food::after{clip-path:polygon(20% 100%,10% 70%,15% 30%,40% 8%,70% 8%,92% 28%,96% 55%,72% 78%,68% 100%,52% 100%,56% 76%,36% 62%,34% 100%)}
+.pip.food::after{--full:var(--meat)}
+.pip.air::before,.pip.air::after{clip-path:circle(42% at 50% 50%)}
+.pip.air::after{--full:var(--air)}
+
+#hotbar{position:absolute; left:50%; bottom:14px; transform:translateX(-50%); display:flex; gap:4px; padding:4px;
+  background:rgba(14,17,24,.72); border:2px solid var(--edge); pointer-events:auto; backdrop-filter:blur(2px)}
+.slot{width:var(--slot,52px); height:var(--slot,52px); position:relative; background:var(--panel-2); border:2px solid #131820; display:grid; place-items:center; cursor:pointer}
+.slot .ic{width:76%; height:76%; display:block; background-size:100% 100%; background-repeat:no-repeat; image-rendering:pixelated}
+.slot .cnt{position:absolute; right:2px; bottom:0; font-family:var(--pix); font-size:14px; color:#fff; text-shadow:2px 2px 0 #000; pointer-events:none}
+.slot .dur{position:absolute; left:3px; right:3px; bottom:3px; height:3px; background:#000}
+.slot .dur i{display:block; height:100%; background:var(--grass)}
+#hotbar .slot.sel{border-color:#fff; box-shadow:0 0 0 2px #000 inset; transform:scale(1.06); z-index:2}
+
+#touchpad{position:absolute; inset:0; pointer-events:none}
+/* Rein visuell — die Berührung nimmt die Leinwand darunter entgegen,
+   sonst würde der Kreis genau die Eingabe schlucken, die er anzeigt. */
+#stick{position:absolute; width:132px; height:132px; left:26px; bottom:26px; border-radius:50%;
+  background:rgba(20,25,34,.42); border:2px solid rgba(120,136,160,.35); pointer-events:none;
+  touch-action:none; display:grid; place-items:center; opacity:.6; transition:opacity .12s}
+#stick.act{opacity:1; background:rgba(20,25,34,.55); border-color:rgba(150,180,120,.6)}
+#stick b{width:54px; height:54px; border-radius:50%; background:rgba(232,235,240,.5); border:2px solid rgba(255,255,255,.35); display:block; transition:transform .04s}
+#stick.act b{background:rgba(200,232,168,.72); transition:none}
+.tbtn{position:absolute; pointer-events:auto; font-family:var(--pix); font-size:13px; color:var(--ink);
+  background:rgba(24,29,38,.66); border:2px solid rgba(120,136,160,.38); display:grid; place-items:center; touch-action:none; text-align:center; line-height:1.05}
+.tbtn:active,.tbtn.on{background:rgba(120,168,78,.6); border-color:var(--grass)}
+#btnJump{right:26px; bottom:36px; width:96px; height:96px; border-radius:50%; font-size:15px}
+#btnSneak{right:132px; bottom:34px; width:62px; height:62px; border-radius:50%}
+#btnUp{right:132px; bottom:104px; width:62px; height:62px; border-radius:50%; display:none}
+#btnInv{right:30px; top:14px; width:56px; height:56px}
+#btnPause{right:94px; top:14px; width:56px; height:56px}
+#btnMode{right:158px; top:14px; width:56px; height:56px; font-size:11px}
+#btnAttack{right:26px; bottom:146px; width:76px; height:76px; border-radius:50%; font-size:13px}
+
+#hint{position:fixed; z-index:75; pointer-events:none; color:var(--ink); left:50%; top:16%; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
+  background:rgba(14,17,24,.8); border:2px solid var(--edge); padding:8px 14px; opacity:0; transition:opacity .25s; text-align:center; max-width:80vw}
+#hint.show{opacity:1}
+#itemname{position:absolute; left:50%; bottom:80px; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
+  text-shadow:2px 2px 0 #000; opacity:0; transition:opacity .3s}
+#itemname.show{opacity:1}
+#dbg{position:absolute; left:14px; top:96px; font-family:var(--pix); font-size:13px; color:#cfe7a8; text-shadow:1px 1px 0 #000; white-space:pre; display:none}
+#dbg.on{display:block}
+#hurt{position:absolute; inset:0; background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(190,30,30,.55)); opacity:0; transition:opacity .18s}
+#water{position:absolute; inset:0; background:rgba(28,86,140,.42); opacity:0; transition:opacity .2s}
+
+/* ── Bildschirme (Inventar, Ofen, Tod, Pause) ──────────────────────── */
+.screen{position:fixed; inset:0; z-index:40; display:none; place-items:center; padding:16px; background:rgba(8,10,15,.72)}
+.screen.on{display:grid}
+.sheet{width:min(720px,100%); max-height:100%; overflow:auto; padding:18px; background:var(--panel); border:2px solid var(--edge); box-shadow:0 12px 0 rgba(0,0,0,.35)}
+.sheet h2{font-family:var(--pix); font-weight:600; font-size:22px; margin:0 0 14px; letter-spacing:.02em}
+#drag{position:fixed; z-index:80; width:48px; height:48px; pointer-events:none; display:none; transform:translate(-50%,-50%)}
+#drag .ic{width:100%; height:100%; background-size:100% 100%; image-rendering:pixelated; filter:drop-shadow(0 4px 3px rgba(0,0,0,.6))}
+#drag .cnt{position:absolute; right:0; bottom:-2px; font-family:var(--pix); font-size:15px; text-shadow:2px 2px 0 #000}
+.furn{display:grid; grid-template-columns:auto auto auto; align-items:center; justify-content:center; gap:18px}
+.flame{width:26px; height:34px; background:#2a3040; position:relative}
+.flame i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(#ffd77a,#ff8a1f); height:var(--f,0%)}
+.progbar{width:88px; height:20px; background:#2a3040; position:relative}
+.progbar i{position:absolute; left:0; top:0; bottom:0; background:var(--grass); width:var(--p,0%)}
+#death .sheet{text-align:center; border-color:var(--blood-dk)}
+.pip.arm::before,.pip.arm::after{clip-path:polygon(0 0,35% 0,50% 14%,65% 0,100% 0,100% 55%,78% 55%,78% 100%,22% 100%,22% 55%,0 55%)}
+.pip.arm::after{--full:#c9ced8}
+#schlaf{position:absolute; inset:0; background:#05070b; opacity:0; transition:opacity .9s; pointer-events:none}
+
+/* ── Behälter: Inventar, Werkbank, Truhe, Ofen ─────────────────────── */
+#beh{padding:12px; align-items:center}
+.sheet.beh{--s:44px; --l:4px; width:auto; max-width:100%; max-height:100%; padding:12px 14px 10px; overflow:auto}
+.behKopf{display:flex; align-items:center; gap:12px; margin-bottom:8px; min-height:34px}
+.behKopf h2{margin:0}
+.behKopf .luecke{flex:1}
+#behZahl{margin:0; font-size:11px; letter-spacing:.08em}
+.behKopf .btn{padding:6px 12px; font-size:15px}
+.behRumpf{display:flex; flex-direction:column; gap:12px}
+.behRumpf.breit{flex-direction:row; align-items:stretch}
+.lager{display:flex; flex-direction:column; gap:var(--l); order:0}
+.buch{display:flex; flex-direction:column; gap:6px; order:1; min-width:0}
+.behRumpf.breit .buch{order:0; width:var(--buchW)}
+.behRumpf.breit .lager{order:1}
+.buch.aus{display:none}
+.reihe9{display:grid; grid-template-columns:repeat(9, var(--s)); gap:var(--l)}
+.reihe9.guertel{margin-top:6px}
+#behOben{display:flex; align-items:center; justify-content:center; gap:calc(var(--s)*.3); margin-bottom:8px; min-height:calc(var(--s)*2 + var(--l))}
+#behOben.oben-truhe{justify-content:flex-start}
+.lager .slot, .ruest .slot{width:var(--s); height:var(--s)}
+/* Fächer fangen jede Berührung selbst: Ziehen verteilt, statt das Blatt zu scrollen */
+.slot{touch-action:none}
+.slot.voll{cursor:grab}
+.slot.ziel{outline:2px solid var(--amber); outline-offset:-2px}
+.slot.haelt, .rz.haelt{outline:2px dashed var(--amber); outline-offset:-3px}
+.slot.mitLeer::before{content:""; position:absolute; inset:14%; background:var(--leer) center/contain no-repeat; opacity:.16; filter:grayscale(1) brightness(1.6); image-rendering:pixelated}
+.slot.mitLeer.voll::before{display:none}
+.slot.geist .ic{opacity:.32; filter:grayscale(.4)}
+.slot.ergebnis{width:calc(var(--s)*1.3) !important; height:calc(var(--s)*1.3) !important; border-color:var(--edge-hi); background:var(--panel-3)}
+.slot.ergebnis.bereit{border-color:var(--grass); box-shadow:0 0 0 2px rgba(120,168,78,.35)}
+.slot.muell{border-color:var(--blood-dk); margin-left:calc(var(--s)*.2)}
+.ruest{display:grid; grid-template-columns:repeat(2, var(--s)); gap:var(--l); margin-right:calc(var(--s)*.25)}
+.raster{display:grid; gap:var(--l)}
+.pfeil{font-family:var(--pix); font-size:calc(var(--s)*.6); color:var(--ink-faint)}
+.ofenLinks{display:grid; gap:6px; justify-items:center}
+.flame{width:calc(var(--s)*.55); height:calc(var(--s)*.7); background:#2a3040; position:relative}
+.flame i{position:absolute; left:0; right:0; bottom:0; background:linear-gradient(#ffd77a,#ff8a1f); height:var(--f,0%)}
+.progbar{width:calc(var(--s)*1.8); height:calc(var(--s)*.42); background:#2a3040; position:relative}
+.progbar i{position:absolute; left:0; top:0; bottom:0; background:var(--grass); width:var(--p,0%)}
+#behInfo{margin:6px 0 0; min-height:2.6em; font-size:13px; line-height:1.3; color:var(--ink-dim); max-width:calc(var(--s)*9 + 8*var(--l))}
+.buchKopf{display:flex; flex-wrap:wrap; gap:4px; align-items:center}
+.buchKopf .tabs{margin:0; flex-wrap:wrap; gap:3px}
+.buchKopf .tabs button{padding:3px 7px; font-size:12px}
+.schalter{font-family:var(--pix); font-size:12px; padding:3px 7px; background:transparent; color:var(--ink-dim); border:2px dashed var(--edge); cursor:pointer}
+.schalter[aria-pressed=true]{background:var(--grass-dk); color:#f2f7ec; border-style:solid; border-color:var(--grass)}
+#buchListe{display:grid; grid-template-columns:repeat(auto-fill, minmax(calc(var(--s)*.95), 1fr)); gap:4px; overflow:auto; align-content:start; flex:1; min-height:0; padding-right:2px}
+.behRumpf:not(.breit) #buchListe{max-height:calc(var(--s)*3.4)}
+.rz{position:relative; aspect-ratio:1; background:var(--panel-2); border:2px solid var(--edge); display:grid; place-items:center; cursor:pointer; padding:0; touch-action:pan-y}
+.rz .ic{width:74%; height:74%; display:block; background-size:100% 100%; image-rendering:pixelated; pointer-events:none}
+.rz .cnt{position:absolute; right:2px; bottom:0; font-family:var(--pix); font-size:13px; color:#fff; text-shadow:2px 2px 0 #000; pointer-events:none}
+.rz.ok{border-color:var(--grass)}
+.rz.bank{border-color:var(--amber-dk)}
+.rz.fehlt .ic{opacity:.38; filter:grayscale(.7)}
+.rz.gewaehlt{outline:2px solid var(--amber); outline-offset:-2px}
+.bankzeichen{position:absolute; left:2px; top:1px; font-family:var(--pix); font-size:10px; color:var(--amber); text-shadow:1px 1px 0 #000; pointer-events:none}
+.buchLeer{grid-column:1/-1; margin:4px 0; font-size:13px; color:var(--ink-dim)}
+#death h2{color:var(--blood); font-size:30px}
+.tabs{display:flex; gap:4px; margin-bottom:12px}
+.tabs button{font-family:var(--pix); font-size:14px; padding:7px 14px; background:var(--panel-2); border:2px solid var(--edge); color:var(--ink-dim); cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--panel-3); color:var(--ink); border-color:var(--edge-hi)}
+
+@media (max-width:820px){
+  #stick{width:112px; height:112px; left:18px; bottom:18px}
+  #btnJump{width:80px; height:80px; right:18px; bottom:26px}
+  #btnSneak{right:106px; bottom:24px; width:54px; height:54px}
+  #btnUp{right:106px; bottom:86px; width:54px; height:54px}
+  #btnAttack{right:18px; bottom:118px; width:64px; height:64px}
+  #btnInv,#btnPause,#btnMode{width:48px; height:48px}
+  #btnPause{right:84px} #btnMode{right:138px}
+  #hotbar{--slot:42px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<canvas id="gl"></canvas>
+
+<div id="hud">
+  <div id="water"></div>
+  <div id="schlaf"></div>
+  <div id="hurt"></div>
+  <div id="crosshair"><i></i><i></i></div>
+  <div id="spannung"><i></i></div>
+  <div id="vitals">
+    <div class="bar" id="hp"></div>
+    <div class="bar" id="food"></div>
+    <div class="bar" id="airbar"></div>
+    <div class="bar" id="armor"></div>
+  </div>
+  <div id="dbg"></div>
+  <div id="itemname"></div>
+  <div id="hotbar"></div>
+  <div id="touchpad">
+    <div id="stick"><b></b></div>
+    <div class="tbtn" id="btnAttack">SCHLAG</div>
+    <div class="tbtn" id="btnJump">SPRUNG</div>
+    <div class="tbtn" id="btnSneak">DUCK</div>
+    <div class="tbtn" id="btnUp">HOCH</div>
+    <div class="tbtn" id="btnInv">INV</div>
+    <div class="tbtn" id="btnPause">II</div>
+    <div class="tbtn" id="btnMode">ESSEN</div>
+  </div>
+</div>
+
+<div id="hint" role="status"></div>
+<div class="screen" id="beh"></div>
+<div id="drag"></div>
+
+<div class="screen" id="death">
+  <div class="mc-karte">
+    <h2 class="mc-titel todTitel">Du bist gestorben!</h2>
+    <p id="deathCause" class="todGrund"></p>
+    <button class="mc" id="respawn">Wiederbeleben</button>
+    <button class="mc" id="deathTitel">Zum Titelbild</button>
+  </div>
+</div>
+
+<div class="screen" id="pause">
+  <div class="mc-karte">
+    <h2 class="mc-titel">Spielmenü</h2>
+    <button class="mc" id="resume">Zurück zum Spiel</button>
+    <button class="mc" id="pOptionen">Optionen …</button>
+    <button class="mc" id="toMenu">Speichern und zum Titelbild</button>
+  </div>
+</div>
+
+<div id="laden" aria-live="polite">
+  <div>Welt wird geladen</div>
+  <div class="ladenLeiste"><i id="ladenBalken"></i></div>
+  <div class="ladenKlein">Gelände wird erzeugt …</div>
+</div>
+
+<!-- Titelbild -->
+<div class="mc-schirm" id="titel">
+  <div class="titelKopf"><canvas id="logo" role="img" aria-label="Pocketcraft"></canvas><div id="spruch"></div></div>
+  <div class="mc-knoepfe">
+    <button class="mc" id="tEinzel">Einzelspieler</button>
+    <button class="mc" id="tOptionen">Optionen …</button>
+    <button class="mc" id="tHeim">Zurück zur Spieleseite</button>
+  </div>
+  <div class="titelFuss"><span id="tVersion"></span><span>AGG Games</span></div>
+</div>
+
+<!-- Welt auswählen -->
+<div class="mc-schirm dunkel" id="welten">
+  <h2 class="mc-titel">Welt auswählen</h2>
+  <div class="wKopf">
+    <input id="wSuche" class="mc-feld" type="search" placeholder="Suchen …" autocomplete="off" spellcheck="false" aria-label="Welten durchsuchen">
+    <button class="mc klein" id="wEinlesen">Einlesen …</button>
+    <input type="file" id="wDatei" accept=".json,application/json" hidden>
+  </div>
+  <div class="mc-liste" id="wListe"></div>
+  <div class="mc-reihe"><button class="mc" id="wSpielen">Ausgewählte Welt spielen</button><button class="mc" id="wNeu">Neue Welt erstellen</button></div>
+  <div class="mc-reihe vier"><button class="mc" id="wBearb">Bearbeiten</button><button class="mc" id="wLoeschen">Löschen</button><button class="mc" id="wKopie">Kopieren</button><button class="mc" id="wZurueck">Zurück</button></div>
+</div>
+
+<!-- Neue Welt erstellen -->
+<div class="mc-schirm dunkel" id="neu">
+  <h2 class="mc-titel">Neue Welt erstellen</h2>
+  <div class="mc-form">
+    <label class="mc-lbl" for="nName">Name der Welt</label>
+    <input id="nName" class="mc-feld" maxlength="32" autocomplete="off" spellcheck="false">
+    <div style="height:12px"></div>
+    <button class="mc" id="nModus">Spielmodus: Überleben</button>
+    <p class="mc-hinweis" id="nModusText"></p>
+    <label class="mc-lbl" for="nSeed">Startwert für den Weltgenerator</label>
+    <input id="nSeed" class="mc-feld" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Leer lassen für einen zufälligen">
+  </div>
+  <div class="mc-reihe"><button class="mc" id="nLos">Neue Welt erstellen</button><button class="mc" id="nAbbruch">Abbrechen</button></div>
+</div>
+
+<!-- Welt bearbeiten -->
+<div class="mc-schirm dunkel" id="bearbeiten">
+  <h2 class="mc-titel">Welt bearbeiten</h2>
+  <div class="mc-form">
+    <label class="mc-lbl" for="bName">Name der Welt</label>
+    <input id="bName" class="mc-feld" maxlength="32" autocomplete="off" spellcheck="false">
+    <p class="mc-hinweis" id="bInfo"></p>
+    <button class="mc" id="bExport">Sicherung herunterladen</button>
+  </div>
+  <div class="mc-reihe"><button class="mc" id="bSichern">Speichern</button><button class="mc" id="bAbbruch">Abbrechen</button></div>
+</div>
+
+<!-- Welt löschen -->
+<div class="mc-schirm dunkel" id="loeschen">
+  <h2 class="mc-titel" style="margin-top:auto">Soll diese Welt wirklich gelöscht werden?</h2>
+  <p class="mc-text" id="lText"></p>
+  <div class="mc-reihe" style="margin-bottom:auto"><button class="mc" id="lJa">Löschen</button><button class="mc" id="lNein">Abbrechen</button></div>
+</div>
+
+<!-- Optionen -->
+<div class="mc-schirm dunkel" id="optionen">
+  <h2 class="mc-titel">Optionen</h2>
+  <div class="mc-gitter">
+    <div class="mc-schieber"><input type="range" id="oRd" min="2" max="8" step="1" aria-label="Sichtweite"><span id="oRdText"></span></div>
+    <div class="mc-schieber"><input type="range" id="oSens" min="4" max="30" step="1" aria-label="Blick-Tempo"><span id="oSensText"></span></div>
+    <button class="mc" id="oSprung"></button>
+    <button class="mc" id="oTon"></button>
+    <button class="mc" id="oDebug"></button>
+  </div>
+  <div class="steuerHilfe">
+    <p><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen oder benutzen.</p>
+    <p><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Leertaste</kbd> springen, <kbd>Umschalt</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Schnellleiste, <kbd>Q</kbd> wegwerfen, <kbd>F3</kbd> Debug.</p>
+    <p><b>Handwerk:</b> Zutaten ins Raster legen — 2 × 2 im Inventar, 3 × 3 an der Werkbank. Das Rezeptbuch legt entdeckte Muster selbst hinein.</p>
+  </div>
+  <button class="mc" id="oFertig">Fertig</button>
+</div>
+
+<script src="grund.js"></script>
+<script src="texturen.js"></script>
+<script src="bloecke.js"></script>
+<script src="welt.js"></script>
+<script src="bild.js"></script>
+<script src="wesen.js"></script>
+<script src="handwerk.js"></script>
+<script src="speicher.js"></script>
+<script src="menue.js"></script>
+<script src="spiel.js"></script>
+
+<script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-/* Taschenwelt · Wesen */
+/* Pocketcraft · Wesen */
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -108,10 +108,16 @@ class Player{
   addExhaustion(v){ this.exhaustion += v; }
 }
 
-/* ── Mob-Modelle ───────────────────────────────────────────────────── */
+/* ── Mob-Modelle ───────────────────────────────────────────────────
+   Jedes Wesen besteht aus Kästen. wenn(m) blendet einen Kasten aus (das
+   geschorene Schaf hat keine Wolle mehr), farbe(m) färbt ihn (Wollfarbe),
+   pivot legt den Drehpunkt fest, wenn er nicht oben am Kasten liegt.
+   beute(m) sagt, was beim Tod fallen gelassen wird. */
+const zufallN = (a, b) => a + ((Math.random()*(b - a + 1))|0);
 const MOBS = {
   pig: {
-    name:'Schwein', w:0.9, h:0.9, health:10, speed:1.5, hostile:false, drop:'pork_raw', dropN:[1,3],
+    name:'Schwein', w:0.9, h:0.9, health:10, speed:1.5, hostile:false, laut:'pig',
+    beute: () => [[ITEM.pork_raw, zufallN(1, 3)]],
     parts:[
       { n:'body', box:[-0.31,0.42,-0.5, 0.62,0.5,1.0], tex:'m_pig' },
       { n:'head', box:[-0.25,0.4,-0.94, 0.5,0.5,0.44], tex:'m_pig', face:'m_pig_face', anim:'head' },
@@ -121,8 +127,38 @@ const MOBS = {
       { n:'l3', box:[ 0.03,0.0, 0.2,  0.25,0.44,0.25], tex:'m_pig_leg', anim:'leg', ph:0 },
     ]
   },
+  cow: {
+    name:'Kuh', w:0.9, h:1.4, health:10, speed:1.3, hostile:false, laut:'kuh',
+    beute: () => [[ITEM.leather, zufallN(0, 2)], [ITEM.beef_raw, zufallN(1, 3)]],
+    parts:[
+      { n:'body', box:[-0.375,0.75,-0.56, 0.75,0.625,1.125], tex:'m_kuh' },
+      { n:'head', box:[-0.25,0.94,-0.94, 0.5,0.5,0.4], tex:'m_kuh', face:'m_kuh_face', anim:'head' },
+      { n:'horn0', box:[-0.33,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn' },
+      { n:'horn1', box:[ 0.24,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn' },
+      { n:'euter', box:[-0.12,0.66,0.12, 0.24,0.1,0.28], tex:'m_euter' },
+      { n:'l0', box:[-0.34,0.0,-0.5, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:0 },
+      { n:'l1', box:[ 0.09,0.0,-0.5, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:1 },
+      { n:'l2', box:[-0.34,0.0, 0.25, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:1 },
+      { n:'l3', box:[ 0.09,0.0, 0.25, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:0 },
+    ]
+  },
+  sheep: {
+    name:'Schaf', w:0.9, h:1.3, health:8, speed:1.35, hostile:false, laut:'schaf',
+    beute: m => (m.geschoren ? [] : [[B.WOOL + m.wolle, 1]]).concat([[ITEM.mutton_raw, zufallN(1, 2)]]),
+    parts:[
+      { n:'wolle', box:[-0.36,0.6,-0.5, 0.72,0.62,1.0], tex:'m_schaf_wolle', wenn: m => !m.geschoren, farbe: m => WOLLE[m.wolle].tint },
+      { n:'body', box:[-0.26,0.7,-0.42, 0.52,0.44,0.84], tex:'m_schaf_haut', wenn: m => m.geschoren },
+      { n:'head', box:[-0.19,0.9,-0.8, 0.38,0.38,0.38], tex:'m_schaf_haut', face:'m_schaf_face', anim:'head' },
+      { n:'kappe', box:[-0.21,1.2,-0.76, 0.42,0.12,0.32], tex:'m_schaf_wolle', wenn: m => !m.geschoren, farbe: m => WOLLE[m.wolle].tint },
+      { n:'l0', box:[-0.3,0.0,-0.42, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:0 },
+      { n:'l1', box:[ 0.1,0.0,-0.42, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:1 },
+      { n:'l2', box:[-0.3,0.0, 0.22, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:1 },
+      { n:'l3', box:[ 0.1,0.0, 0.22, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:0 },
+    ]
+  },
   zombie: {
-    name:'Zombie', w:0.6, h:1.95, health:20, speed:2.3, hostile:true, dmg:3, drop:null,
+    name:'Zombie', w:0.6, h:1.95, health:20, speed:2.3, hostile:true, dmg:3, laut:'zombie',
+    beute: () => [],
     parts:[
       { n:'head', box:[-0.25,1.42,-0.25, 0.5,0.5,0.5], tex:'m_zsk', face:'m_zface', anim:'head' },
       { n:'body', box:[-0.25,0.67,-0.13, 0.5,0.75,0.25], tex:'m_zshirt' },
@@ -131,8 +167,28 @@ const MOBS = {
       { n:'leg0', box:[-0.25,0.0,-0.13, 0.25,0.68,0.25], tex:'m_zpants', anim:'leg', ph:0 },
       { n:'leg1', box:[ 0.0, 0.0,-0.13, 0.25,0.68,0.25], tex:'m_zpants', anim:'leg', ph:1 },
     ]
+  },
+  skeleton: {
+    name:'Skelett', w:0.6, h:1.95, health:20, speed:2.0, hostile:true, dmg:0, fernkampf:true, laut:'skelett',
+    beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.arrow, zufallN(0, 2)]].concat(Math.random() < 0.08 ? [[ITEM.bow, 1]] : []),
+    parts:[
+      { n:'head', box:[-0.25,1.42,-0.25, 0.5,0.5,0.5], tex:'m_skelett', face:'m_skelett_face', anim:'head' },
+      { n:'body', box:[-0.22,0.67,-0.1, 0.44,0.75,0.2], tex:'m_skelett_brust' },
+      { n:'arm0', box:[-0.32,0.67,-0.06, 0.1,0.75,0.12], tex:'m_skelett_glied', anim:'arm', ph:0 },
+      { n:'arm1', box:[ 0.22,0.67,-0.06, 0.1,0.75,0.12], tex:'m_skelett_glied', anim:'arm', ph:1 },
+      { n:'bogen', box:[0.04,1.0,-0.84, 0.46,0.66,0.02], tex:'m_bogen' },
+      { n:'leg0', box:[-0.19,0.0,-0.06, 0.12,0.68,0.12], tex:'m_skelett_glied', anim:'leg', ph:0 },
+      { n:'leg1', box:[ 0.07,0.0,-0.06, 0.12,0.68,0.12], tex:'m_skelett_glied', anim:'leg', ph:1 },
+    ]
   }
 };
+
+/** Schafe sind meist weiß; Grau, Schwarz und Braun kommen seltener vor */
+function wollfarbe(){
+  let r = Math.random();
+  for(let k = 0; k < WOLLE.length; k++){ r -= WOLLE[k].anteil; if(r <= 0) return k; }
+  return 0;
+}
 
 class Mob{
   constructor(type, x, y, z){
@@ -145,6 +201,19 @@ class Mob{
     this.wander = 0; this.wanderYaw = this.yaw; this.moving = false;
     this.hurtTimer = 0; this.attackCd = 0; this.walkPhase = 0; this.dead = false;
     this.jumpCd = 0; this.age = 0; this.headYaw = 0;
+    this.schussCd = 1 + Math.random()*1.5; this.seite = Math.random() < .5 ? 1 : -1; this.seiteT = 0;
+    if(type === 'sheep'){ this.wolle = wollfarbe(); this.geschoren = false; this.wolleT = 0; }
+  }
+}
+
+/* ── Pfeile ─────────────────────────────────────────────────────────
+   Fliegen mit Schwerkraft, prüfen unterwegs Blöcke und Wesen. Pfeile des
+   Spielers, die im Boden stecken, kann man wieder aufheben. */
+class Pfeil{
+  constructor(x, y, z, vx, vy, vz, dmg, vomSpieler){
+    this.x = x; this.y = y; this.z = z; this.vx = vx; this.vy = vy; this.vz = vz;
+    this.dmg = dmg; this.vomSpieler = vomSpieler;
+    this.alter = 0; this.steckt = false; this.weg = false;
   }
 }
 

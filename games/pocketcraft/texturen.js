@@ -1,4 +1,4 @@
-/* Taschenwelt · Texturen
+/* Pocketcraft · Texturen
    Alles wird beim Start gezeichnet, nichts wird geladen. 32 × 32 Texel je
    Fläche. Die Regeln, nach denen hier gemalt wird, sind die der Pixelkunst,
    nicht die des Rauschens: jedes Material hat eine feste Palette von fünf,
@@ -285,6 +285,18 @@ function malErz(p, s, P, haufen = 4){
     }
   }
 }
+/** Wolle: Grund aus Rauschen, darauf kleine Locken mit Licht und Schatten */
+function malWolle(p, P, s){
+  p.fuell((x, y) => .6*fbm(x, y, 8, 8, s, 2) + .4*vnoise(x, y, 16, 16, s + 3), P, [6,20,34,28,12], .7);
+  for(let i = 0; i < 70; i++){
+    const cx = p.r()*TS, cy = p.r()*TS;
+    const pts = [[0,0],[1,0],[0,1],[1,1],[-1,0],[2,1]];
+    for(const [dx, dy] of pts){
+      const k = dx <= 0 && dy === 0 ? 4 : (dx >= 1 && dy === 1 ? 1 : 3);
+      p.put(cx + dx, cy + dy, P[k]);
+    }
+  }
+}
 /** Metallplatte für Speicherblöcke */
 function malPlatte(p, P, s){
   for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
@@ -543,6 +555,15 @@ function buildTextures(){
 
   /* — Speicherblöcke — */
   addTex('iron_block', p => malPlatte(p, pal('#6f7076','#9b9ca3','#c3c4ca','#dfe0e5','#f7f7fa'), 161));
+  /* — Wolle: weiche Locken, in jeder der vier Schaffarben — */
+  const WOLL_PAL = [
+    pal('#b4b3ad','#c9c8c2','#dbdad5','#e9e8e4','#f5f5f2'),
+    pal('#737270','#868583','#989795','#aaa9a7','#bbbab8'),
+    pal('#121214','#1c1c1f','#26262a','#313136','#3e3e44'),
+    pal('#442a18','#553520','#654028','#754b30','#86573a'),
+  ];
+  WOLL_PAL.forEach((P, k) => addTex('wool' + k, p => malWolle(p, P, 171 + k)));
+  addTex('m_schaf_wolle', p => malWolle(p, WOLL_PAL[0], 175));
   addTex('gold_block', p => malPlatte(p, pal('#8a6408','#c49414','#eabd2a','#f8d955','#fff4a8'), 162));
   addTex('diamond_block', p => {
     const P = pal('#127072','#1f9d9b','#3cc7c2','#7ae6df','#d2fffa');
@@ -1016,6 +1037,85 @@ function buildTextures(){
     S.rechteck(kissen, 4, 12, 7, 5);
   });
 
+  /* — Pocketcraft: Beute und Werkzeug der neuen Tiere — */
+  MAT.leather = pal('#3a2010','#6e4424','#8a5a33','#a47244','#bd8c5a');
+  for(const k of Object.keys(RUEST)) sprite('i_leather_' + k, S => RUEST[k](S, MAT.leather));
+  sprite('i_leather', S => {
+    const L = S.lage(MAT.leather);
+    S.poly(L, [[7,7],[12,5],[20,6],[26,5],[27,12],[24,19],[27,26],[19,27],[12,26],[5,27],[8,19],[5,12]]);
+    L.muster = (x, y) => (h2(x >> 1, y >> 1, 401) < .18 ? -1 : 0);
+    L.glanz = [[10,8],[11,8],[9,9]];
+  });
+  const steak = (name, F, G, fett) => sprite(name, S => {
+    const f = S.lage(fett); S.oval(f, 16, 16, 12, 9);
+    const L = S.lage(F); S.oval(L, 15, 15.5, 10, 7.5);
+    L.muster = G;
+    L.glanz = [[10,11],[11,11],[12,10]];
+  });
+  steak('i_beef_raw', pal('#6a1418','#a4272c','#c53a3c','#dc5a58','#f08a82'), (x, y) => (h2(x, y >> 1, 402) < .12 ? 2 : 0), pal('#8a6a5a','#d8c0b0','#efe0d4','#fbf2ea','#ffffff'));
+  steak('i_beef_cooked', pal('#2a1206','#5e2e12','#7a3e1a','#955024','#b26a36'), (x, y) => ((x + y) % 7 === 0 ? -1 : 0), pal('#3a1a08','#7a4418','#9a5a24','#b87434','#d49048'));
+  const keule = (name, P, K) => sprite(name, S => {
+    const L = S.lage(P); S.oval(L, 13, 18, 8.5, 9); S.poly(L, [[14,10],[20,6],[23,9],[19,15]]);
+    L.glanz = [[9,13],[10,12],[8,15]];
+    const k = S.lage(K); S.strich(k, [[20,8],[26,3]], 1.5); S.oval(k, 26.5, 3.5, 2.2, 2.2);
+  });
+  keule('i_mutton_raw', pal('#6a1a22','#b04450','#cc6068','#e08088','#f2a8ac'), pal('#8a826e','#cfc6ae','#e6dec8','#f6f0e0','#ffffff'));
+  keule('i_mutton_cooked', pal('#3a1a0a','#7a4220','#96562a','#b26e3a','#cc8a50'), pal('#7a705a','#c2b89c','#dcd2b8','#eee6d0','#ffffff'));
+  const KN = pal('#6a6658','#b6b2a2','#d2cfc0','#e8e6da','#fbfaf4');
+  sprite('i_bone', S => {
+    const L = S.lage(KN);
+    S.strich(L, [[8,24],[24,8]], 2.2);
+    for(const [x, y] of [[6,23],[9,26],[23,6],[26,9]]) S.oval(L, x, y, 2.8, 2.8);
+    L.glanz = [[11,20],[14,17],[17,14],[20,11]];
+  });
+  sprite('i_bone_meal', S => {
+    const L = S.lage(KN);
+    S.oval(L, 16, 22, 11, 6); S.oval(L, 16, 17, 7, 6); S.oval(L, 16, 13, 3.5, 3.5);
+    L.muster = (x, y) => (h2(x, y, 403) < .2 ? -1 : (h2(x, y, 404) < .1 ? 1 : 0));
+  });
+  sprite('i_arrow', S => {
+    const schaft = S.lage(HOLZ); S.strich(schaft, [[7,25],[22,10]], 1.1);
+    const kopf = S.lage(pal('#26272b','#5c5e66','#8a8c94','#b4b6bc','#e2e3e7'), { kante:true });
+    S.poly(kopf, [[20,8],[27,5],[24,12]]); S.poly(kopf, [[19,9],[23,9],[23,13]]);
+    const feder = S.lage(pal('#8a8a8a','#c8c8c8','#e2e2e2','#f4f4f4','#ffffff'));
+    S.poly(feder, [[4,22],[9,23],[6,27],[4,28]]); S.poly(feder, [[8,21],[12,22],[9,26]]);
+  });
+  sprite('i_bow', S => {
+    const holz = S.lage(HOLZ);
+    S.strich(holz, [[5,26],[5,19],[8,12],[12,8],[19,5],[26,5]], 1.5);
+    holz.glanz = [[6,20],[8,14],[12,9],[17,6]];
+    const sehne = S.lage(pal('#8a8a84','#bdbdb6','#dadad4','#eeeee8','#ffffff'));
+    S.strich(sehne, [[6,25],[26,6]], .55);
+  });
+  sprite('i_string', S => {
+    const L = S.lage(pal('#8a8a84','#c4c4bd','#dcdcd6','#eeeee8','#ffffff'));
+    S.strich(L, [[6,24],[10,18],[16,20],[18,13],[24,14],[26,8]], .7);
+  });
+  sprite('i_shears', S => {
+    const M = MAT.iron;
+    const a = S.lage(M, { kante:true }); S.poly(a, [[9,6],[12,5],[22,21],[19,22]]);
+    const b = S.lage(M, { kante:true }); S.poly(b, [[20,5],[23,6],[13,22],[10,21]]);
+    const g = S.lage(pal('#3a1414','#8a2626','#b03434','#cc4a48','#e87a70'));
+    S.oval(g, 8.5, 24.5, 3.6, 3.6); S.oval(g, 23.5, 24.5, 3.6, 3.6);
+    S.loesch(g, (x, y) => Math.hypot(x + .5 - 8.5, y + .5 - 24.5) < 1.8 || Math.hypot(x + .5 - 23.5, y + .5 - 24.5) < 1.8);
+    a.glanz = [[11,7],[12,8],[13,9]];
+  });
+  sprite('i_flint', S => {
+    const L = S.lage(pal('#1c1d22','#3f414a','#5b5e69','#7a7d8a','#a8abb8'));
+    S.poly(L, [[12,7],[21,6],[26,14],[22,25],[12,26],[7,17]]);
+    L.muster = (x, y) => (x + y > 34 ? -1 : (x < 14 && y < 14 ? 1 : 0));
+    L.glanz = [[14,9],[15,9],[13,10]];
+  });
+  sprite('i_milk_bucket', S => {
+    const P = MAT.iron;
+    const henkel = S.lage(P); S.strich(henkel, [[7,12],[9,5],[16,3],[23,5],[25,12]], .8);
+    S.loesch(henkel, (x, y) => y > 11);
+    const koerper = S.lage(P, { kante: true }); S.poly(koerper, [[6,11],[26,11],[23,28],[9,28]]);
+    koerper.muster = (x) => (x < 11 ? 1 : x > 20 ? -1 : 0);
+    const rand = S.lage([P[0], P[1], P[3], P[4], P[4]], { kante: true }); S.oval(rand, 16, 11, 10.5, 2.6);
+    const milch = S.lage(pal('#b8b8b0','#dcdcd4','#eeeee8','#f8f8f4','#ffffff')); S.oval(milch, 16, 11, 8.5, 1.6);
+  });
+
   /* — Wesen — */
   const haut = (P, s, anteile) => p => p.fuell((x, y) => .7*fbm(x, y, 4, 4, s, 2) + .3*vnoise(x, y, 16, 16, s+1), P, anteile || [8,22,34,26,10], .6);
   const PIG = pal('#c97a78','#d98a87','#e69b97','#f0aca7','#f7bfb9');
@@ -1062,6 +1162,99 @@ function buildTextures(){
     p.rect(4, 20, 6, 5, [70,78,140]); for(let x = 4; x < 10; x++) p.put(x, 20, [110,118,176]);
   });
   addTex('m_skin', p => haut(pal('#a8764f','#bb865d','#cc966b','#d9a679','#e4b688'), 341)(p));
+
+  /* — Kuh: braun mit weißen Flecken — */
+  const KUH = pal('#3b2415','#472c1a','#543420','#613c25','#6e452b'), WEISS = pal('#b3ada2','#c8c3b8','#dcd7cc','#ebe7de');
+  const kuhFell = (p, s) => {
+    haut(KUH, s)(p);
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const f = fbm(x, y, 2, 2, s + 50, 3);
+      if(f > .6) p.quant(x, y, .3 + (vnoise(x, y, 16, 16, s + 51) - .5)*.5 + (f - .6)*1.2, WEISS, .6);
+    }
+  };
+  addTex('m_kuh', p => kuhFell(p, 351));
+  addTex('m_kuh_face', p => {
+    haut(KUH, 352)(p);
+    for(let y = 0; y < 22; y++) for(let x = 12; x < 20; x++) p.quant(x, y, .5 + (vnoise(x, y, 8, 8, 353) - .5)*.4, WEISS, .5);
+    for(const x0 of [4, 22]){ p.rect(x0, 10, 6, 4, [18,12,8]); p.rect(x0 + (x0 < 16 ? 0 : 4), 10, 2, 2, [236,232,224]); }
+    const M = pal('#9a7464','#b38a78','#c89c88','#d9ae98');
+    for(let y = 21; y < 31; y++) for(let x = 7; x < 25; x++){
+      const r = x === 7 || x === 24 || y === 21 || y === 30;
+      p.put(x, y, r ? M[0] : (y === 22 || x === 8 ? M[3] : M[2]));
+    }
+    p.rect(10, 24, 3, 3, [52,30,24]); p.rect(19, 24, 3, 3, [52,30,24]);
+  });
+  addTex('m_kuh_bein', p => {
+    kuhFell(p, 354);
+    for(let y = 18; y < 26; y++) for(let x = 0; x < TS; x++) p.quant(x, y, .5 + (vnoise(x, y, 8, 8, 355) - .5)*.4, WEISS, .5);
+    for(let y = 26; y < TS; y++) for(let x = 0; x < TS; x++) p.quant(x, y, .35 + (y === 26 ? .4 : 0), pal('#1a1410','#2a221c','#3a302a','#4a4038'), .5);
+  });
+  addTex('m_horn', p => p.fuell((x, y) => y/TS + vnoise(x, y, 8, 8, 356)*.3, pal('#8a806a','#b3a88c','#cfc4a6','#e2d9bd','#efe8d2'), [8,20,34,26,12], .5));
+  addTex('m_euter', p => haut(pal('#b87a78','#cc8c89','#dc9e9a','#e8b0ab','#f2c2bd'), 357)(p));
+
+  /* — Schaf — */
+  const SCHAFHAUT = pal('#9a8676','#ad9a89','#bfac9b','#cfbdac','#ddcbbb');
+  addTex('m_schaf_haut', p => { haut(SCHAFHAUT, 361)(p); for(let i = 0; i < 40; i++) p.put(p.r()*TS, p.r()*TS, SCHAFHAUT[0]); });
+  addTex('m_schaf_face', p => {
+    haut(SCHAFHAUT, 362)(p);
+    for(const x0 of [4, 21]){ p.rect(x0, 11, 7, 4, [236,234,228]); p.rect(x0 + (x0 < 16 ? 4 : 0), 11, 3, 4, [24,20,18]); }
+    const N = pal('#6a5a4e','#7e6c5e','#94806f');
+    for(let y = 19; y < 27; y++) for(let x = 10; x < 22; x++) p.put(x, y, N[(x === 10 || x === 21 || y === 26) ? 0 : (y === 19 ? 2 : 1)]);
+    p.rect(12, 21, 2, 2, [40,30,26]); p.rect(18, 21, 2, 2, [40,30,26]);
+    for(let x = 13; x < 19; x++) p.put(x, 24, [52,40,34]);
+  });
+  addTex('m_schaf_bein', p => {
+    haut(SCHAFHAUT, 363)(p);
+    for(let y = 26; y < TS; y++) for(let x = 0; x < TS; x++) p.quant(x, y, .35 + (y === 26 ? .4 : 0), pal('#2a221c','#3a302a','#4a4038','#5a5046'), .5);
+  });
+
+  /* — Skelett — */
+  const KNOCHEN = pal('#77746a','#948f84','#aeaa9d','#c4c0b2','#d8d4c7');
+  const knochen = (p, s) => { haut(KNOCHEN, s)(p); for(let i = 0; i < 4; i++) p.weg(p.r()*TS, p.r()*TS, 4 + (p.r()*5|0), 0, 1, KNOCHEN[0], 255, .5); };
+  addTex('m_skelett', p => knochen(p, 371));
+  addTex('m_skelett_glied', p => {
+    knochen(p, 372);
+    for(const y0 of [0, 15, 30]) for(let x = 0; x < TS; x++){ p.put(x, y0, KNOCHEN[4]); p.put(x, y0 + 1, KNOCHEN[1]); }
+  });
+  addTex('m_skelett_face', p => {
+    knochen(p, 373);
+    for(const x0 of [5, 19]) for(let y = 9; y < 17; y++) for(let x = x0; x < x0 + 8; x++){
+      const r = (x === x0 || x === x0 + 7) && (y === 9 || y === 16);
+      if(!r) p.put(x, y, y === 9 ? [40,38,34] : [22,20,18]);
+    }
+    p.rect(14, 18, 4, 3, [28,26,22]); p.put(15, 21, [28,26,22]); p.put(16, 21, [28,26,22]);
+    for(let x = 7; x < 25; x++){ p.put(x, 24, [34,32,28]); if(x % 3 === 0) for(let y = 25; y < 28; y++) p.put(x, y, [44,42,38]); }
+    for(let x = 7; x < 25; x++) p.put(x, 28, [34,32,28]);
+  });
+  addTex('m_skelett_brust', p => {
+    p.klar();
+    // Rippen mit Lücken, dazwischen sieht man durch
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const wirbel = x >= 14 && x <= 17;
+      const rippe = y % 6 < 3 && y < 24;
+      const becken = y >= 26;
+      const rand = y < 2;
+      if(wirbel || rippe || becken || rand) p.quant(x, y, .45 + (vnoise(x, y, 8, 8, 374) - .5)*.4 + (y % 6 === 0 ? .25 : 0) + (y % 6 === 2 ? -.25 : 0), KNOCHEN, .5);
+    }
+  });
+  addTex('m_bogen', p => {
+    // der Bogen in der Hand: senkrecht, Bauch nach links, Sehne rechts
+    p.klar();
+    for(let y = 1; y < 31; y++){
+      const t = (y - 16)/15, bauch = Math.round(4 + 10*(1 - t*t));
+      for(let k = 0; k < 3; k++) p.set(24 - bauch - k, y, HOLZ[k === 0 ? 3 : (k === 1 ? 2 : 1)]);
+      p.set(26, y, [220,220,212]);
+    }
+    for(let y = 13; y < 19; y++) for(let x = 8; x < 12; x++) p.set(x, y, [70,44,20]);
+  });
+  addTex('m_pfeil', p => {
+    // längs: Spitze links, Schaft, Federn rechts
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      if(x < 6) p.put(x, y, x < 2 ? [200,202,208] : [120,122,130]);
+      else if(x < 25) p.quant(x, y, .5 + (y < 10 ? .3 : y > 22 ? -.3 : 0), HOLZ, .4);
+      else p.put(x, y, (x + y) % 3 ? [236,236,232] : [200,200,196]);
+    }
+  });
 }
 
 /* ── Symbole für die Oberfläche ────────────────────────────────────── */

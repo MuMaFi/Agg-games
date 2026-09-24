@@ -1,4 +1,4 @@
-/* Taschenwelt · Grundlagen: Matrizen, Zufall, Rauschen */
+/* Pocketcraft · Grundlagen: Matrizen, Zufall, Rauschen */
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════

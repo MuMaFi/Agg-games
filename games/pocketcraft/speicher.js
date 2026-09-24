@@ -1,4 +1,4 @@
-/* Taschenwelt · Speicher für mehrere Welten
+/* Pocketcraft · Speicher für mehrere Welten
    Jede Welt hat einen kleinen Steckbrief (Name, Startwert, Modus, Bild,
    zuletzt gespielt) und einen großen Datenteil. Beides liegt in
    IndexedDB, getrennt, damit die Weltenliste nicht jeden Datenteil laden
@@ -10,6 +10,8 @@
    auf localStorage zurück. */
 'use strict';
 
+/* Die Schlüssel tragen noch den alten Namen »Taschenwelt«. Umbenennen
+   hieße, jeden Spielstand umzuziehen — sie bleiben, wie sie sind. */
 const ALT_KEY     = 'taschenwelt.world.v1';        // Spielstand der ersten Fassung
 const NOTFALL_KEY = 'taschenwelt.notfall.v2';
 const LS_INDEX    = 'taschenwelt.welten.v2';

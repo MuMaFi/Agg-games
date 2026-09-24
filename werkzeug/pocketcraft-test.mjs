@@ -1,7 +1,7 @@
-// Prüft den Musterabgleich der Taschenwelt ohne Browser:
-// node werkzeug/taschenwelt-test.mjs
+// Prüft den Musterabgleich von Pocketcraft ohne Browser:
+// node werkzeug/pocketcraft-test.mjs
 import fs from 'fs'; import vm from 'vm'; import path from 'path';
-const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/taschenwelt/');
+const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
 for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','handwerk.js'])

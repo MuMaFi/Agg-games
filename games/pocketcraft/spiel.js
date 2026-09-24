@@ -1,10 +1,10 @@
-/* Taschenwelt · Spiel, Eingabe, Schleife, Menüs */
+/* Pocketcraft · Spiel, Eingabe, Schleife, Menüs */
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const OPT_KEY  = 'taschenwelt.opts.v1';
+const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 
 const Game = {
@@ -16,6 +16,7 @@ const Game = {
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
   hurtFlash:0, mobTimer:0, camShake:0,
   meta:null, gesamtZeit:0, panoramaAktiv:false, _panoZiel:0,
+  pfeile:[], bogen:{ aktiv:false, t:0 },
 
   /** Sichtweite: das Panorama begnügt sich mit weniger */
   sicht(){ return this.panoramaAktiv ? Math.min(4, this.settings.rd) : this.settings.rd; },
@@ -29,7 +30,7 @@ const Game = {
     const seed = meta.seed;
     this.world = new World(seed);
     this.player = new Player();
-    this.mobs = []; this.drops = [];
+    this.mobs = []; this.drops = []; this.pfeile = []; this.bogen.aktiv = false;
     this.meshes.forEach(m => { R.freeMesh(m.o); R.freeMesh(m.w); });
     this.meshes.clear();
     Inv.clear(); Inv.sel = 0;
@@ -98,7 +99,7 @@ const Game = {
     }
     const p = this.player;
     p.pitch = -0.12; p.vx = p.vy = p.vz = 0; p.swinging = false;
-    this.mobs = []; this.drops = [];
+    this.mobs = []; this.drops = []; this.pfeile = []; this.bogen.aktiv = false;
     this.time = DAY_LEN*0.2;
     this.panoramaAktiv = true;
     this.running = false;
@@ -317,6 +318,7 @@ const Game = {
     if(blockId === B.GLASS) return null;
     if(blockId === B.LEAVES) return Math.random() < 0.06 ? [[ITEM.apple,1]] : (Math.random() < 0.05 ? [[B.LEAVES,1]] : null);
     if(blockId === B.TALLGRASS) return Math.random() < 0.14 ? [[ITEM.seeds,1]] : null;
+    if(blockId === B.GRAVEL && Math.random() < 0.12) return [[ITEM.flint,1]];
     if(isWheat(blockId)) return b.stufe === 3 ? [[ITEM.wheat,1],[ITEM.seeds,1 + (Math.random()*3|0)]] : [[ITEM.seeds,1]];
     if(b.drop === null || b.drop === undefined) return [[blockId, 1]];
     if(b.drop === B.AIR) return null;
@@ -414,6 +416,21 @@ const Game = {
     if(!s) return;
     if(it && it.food){ this.eat(); return; }
     const schwing = () => { p.swinging = true; p.swing = 0; HUD.refreshHotbar(); };
+    // Knochenmehl: Weizen wächst sofort ein, zwei Stufen, auf Gras sprießt es
+    if(s.id === ITEM.bone_meal){
+      if(isWheat(id) && id < B.WHEAT + 3){
+        w.setBlock(t.x, t.y, t.z, Math.min(B.WHEAT + 3, id + 1 + (Math.random() < .5 ? 1 : 0)));
+      } else if(id === B.GRASS && t.ny === 1){
+        for(let i = 0; i < 12; i++){
+          const x = t.x + ((Math.random()*5)|0) - 2, z = t.z + ((Math.random()*5)|0) - 2, y = w.heightAt(x, z);
+          if(w.getBlock(x, y, z) === B.GRASS && w.getBlock(x, y+1, z) === B.AIR)
+            w.setBlock(x, y+1, z, Math.random() < .8 ? B.TALLGRASS : (Math.random() < .5 ? B.ROSE : B.DANDELION));
+        }
+      } else return;
+      if(!p.creative) Inv.consumeHeld();
+      Sfx.play('dig'); schwing();
+      return;
+    }
     // Hacke: aus Erde wird Acker
     if(it && it.tool === 'hoe'){
       if((id === B.GRASS || id === B.DIRT) && t.ny === 1){
@@ -522,12 +539,16 @@ const Game = {
     p.food = Math.min(20, p.food + it.food);
     p.saturation = Math.min(p.food, p.saturation + it.food*0.6);
     if(it.heal) p.health = Math.min(p.maxHealth, p.health + it.heal);
-    if(!p.creative) Inv.consumeHeld();
+    if(!p.creative){
+      if(s.id === ITEM.milk_bucket) Inv.slots[Inv.sel] = Inv.make(ITEM.bucket, 1);
+      else Inv.consumeHeld();
+    }
     Sfx.play('eat'); HUD.refreshHotbar();
   },
-  attack(){
+  /** das Wesen, auf das man schaut (bis maxD) */
+  wesenImBlick(maxD){
     const p = this.player, f = p.forward();
-    let best = null, bestD = 3.4;
+    let best = null, bestD = maxD;
     for(const m of this.mobs){
       const dx = m.x-p.x, dy = (m.y+m.h*0.6)-p.eyeY(), dz = m.z-p.z;
       const d = Math.hypot(dx,dy,dz);
@@ -536,22 +557,119 @@ const Game = {
       if(dot < 0.86) continue;
       bestD = d; best = m;
     }
+    return best;
+  },
+  attack(){
+    const best = this.wesenImBlick(3.4);
     if(!best) return false;
-    const s = Inv.held();
+    const p = this.player, s = Inv.held();
     const dmg = s && items[s.id] ? items[s.id].dmg : 1;
-    best.health -= dmg; best.hurtTimer = 0.4;
     const l = Math.hypot(best.x-p.x, best.z-p.z) || 1;
-    best.vx += (best.x-p.x)/l * 6; best.vz += (best.z-p.z)/l * 6; best.vy = Math.max(best.vy, 4.5);
-    if(s && items[s.id] && items[s.id].dur) Inv.damageHeld(1);
+    this.mobTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
+    if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
     this.player.addExhaustion(0.1);
     Sfx.play('hit');
-    if(best.health <= 0){
-      best.dead = true;
-      const d = best.def;
-      if(d.drop){ const n = d.dropN[0] + ((Math.random()*(d.dropN[1]-d.dropN[0]+1))|0);
-        this.dropItem(ITEM[d.drop], n, best.x, best.y+0.4, best.z); }
+    return true;
+  },
+  /** Treffer auf ein Wesen, vom Schlag oder vom Pfeil */
+  mobTreffer(m, dmg, kx, kz){
+    if(m.dead) return;
+    m.health -= dmg; m.hurtTimer = 0.4;
+    m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5);
+    if(!m.def.hostile){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
+    if(m.health <= 0){
+      m.dead = true;
+      if(!this.player.creative) for(const [id, n] of m.def.beute(m)) if(n > 0) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
+    }
+  },
+  /** Benutzen auf ein Wesen: Schaf scheren, Kuh melken */
+  benutzeWesen(){
+    const s = Inv.held(); if(!s) return false;
+    const m = this.wesenImBlick(3.4); if(!m) return false;
+    const p = this.player;
+    if(s.id === ITEM.shears && m.type === 'sheep' && !m.geschoren){
+      m.geschoren = true; m.wolleT = 30 + Math.random()*60;
+      for(let i = 0, n = zufallN(1, 3); i < n; i++) this.dropItem(B.WOOL + m.wolle, 1, m.x, m.y + 1, m.z);
+      if(!p.creative) Inv.damageHeld(1);
+      Sfx.play('schere'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      return true;
+    }
+    if(s.id === ITEM.bucket && m.type === 'cow'){
+      if(!p.creative){ Inv.consumeHeld(); const r = Inv.add(ITEM.milk_bucket, 1); if(r) this.dropItem(ITEM.milk_bucket, 1, p.x, p.y + 1, p.z); }
+      Sfx.play('kuh'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      return true;
+    }
+    return false;
+  },
+
+  /* ── Bogen und Pfeile ────────────────────────────────────────────── */
+  hatPfeile(){ return this.player.creative || Inv.countOf(ITEM.arrow) > 0; },
+  bogenStart(){
+    const s = Inv.held();
+    if(!s || s.id !== ITEM.bow) return false;
+    if(!this.hatPfeile()){ hint('Keine Pfeile'); return true; }
+    this.bogen.aktiv = true; this.bogen.t = 0;
+    return true;
+  },
+  bogenLos(){
+    const b = this.bogen;
+    if(!b.aktiv) return;
+    b.aktiv = false;
+    const s = Inv.held();
+    if(!s || s.id !== ITEM.bow || b.t < 0.12 || !this.hatPfeile()) return;
+    const x = Math.min(1, b.t);
+    const kraft = (x*x + 2*x)/3;                        // wie beim Vorbild: gegen Ende zieht es an
+    const p = this.player, f = p.forward(), v = 34*kraft;
+    this.pfeile.push(new Pfeil(p.x + f[0]*0.4, p.eyeY() - 0.1 + f[1]*0.4, p.z + f[2]*0.4, f[0]*v, f[1]*v, f[2]*v,
+      Math.round(2 + 7*kraft), true));
+    if(!p.creative){ Inv.take(ITEM.arrow, 1); Inv.damageHeld(1); }
+    Sfx.play('bogen'); HUD.refreshHotbar();
+  },
+  /** freie Sicht zwischen zwei Punkten — nur feste Blöcke halten auf */
+  freieSicht(ax, ay, az, bx, by, bz){
+    const d = Math.hypot(bx-ax, by-ay, bz-az), n = Math.ceil(d/0.3);
+    for(let i = 1; i < n; i++){
+      const t = i/n;
+      if(blocksMovement(this.world.getBlock(Math.floor(ax + (bx-ax)*t), Math.floor(ay + (by-ay)*t), Math.floor(az + (bz-az)*t)))) return false;
     }
     return true;
+  },
+  updatePfeile(dt){
+    const w = this.world, p = this.player;
+    for(let i = this.pfeile.length - 1; i >= 0; i--){
+      const a = this.pfeile[i];
+      a.alter += dt;
+      if(a.weg || a.alter > 40){ this.pfeile.splice(i, 1); continue; }
+      if(a.steckt){
+        // Pfeile des Spielers aufheben, sobald man nah ist; fremde verschwinden bald
+        if(a.vomSpieler && !p.creative && Math.hypot(p.x - a.x, p.y + 0.9 - a.y, p.z - a.z) < 1.6){
+          if(Inv.add(ITEM.arrow, 1) === 0){ Sfx.play('pickup'); HUD.refreshHotbar(); this.pfeile.splice(i, 1); continue; }
+        }
+        if(!a.vomSpieler && a.alter > 6) this.pfeile.splice(i, 1);
+        continue;
+      }
+      a.vy -= 20*dt;
+      const k = Math.pow(0.99, dt*60); a.vx *= k; a.vy *= k; a.vz *= k;
+      a.rx = a.vx; a.ry = a.vy; a.rz = a.vz;
+      const weg = Math.hypot(a.vx, a.vy, a.vz)*dt, n = Math.max(1, Math.ceil(weg/0.2));
+      for(let j = 0; j < n && !a.steckt && !a.weg; j++){
+        a.x += a.vx*dt/n; a.y += a.vy*dt/n; a.z += a.vz*dt/n;
+        if(blocksMovement(w.getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z)))){
+          a.steckt = true; a.alter = 0; Sfx.play('pfeil'); break;
+        }
+        const tv = Math.hypot(a.vx, a.vz) || 1;
+        if(a.vomSpieler){
+          for(const m of this.mobs){
+            if(m.dead || Math.abs(a.x - m.x) > m.w/2 + .1 || Math.abs(a.z - m.z) > m.w/2 + .1 || a.y < m.y || a.y > m.y + m.h) continue;
+            this.mobTreffer(m, a.dmg, a.vx/tv*.6, a.vz/tv*.6);
+            Sfx.play('hit'); a.weg = true; break;
+          }
+        } else if(!p.dead && Math.abs(a.x - p.x) < p.w/2 + .1 && Math.abs(a.z - p.z) < p.w/2 + .1 && a.y > p.y && a.y < p.y + p.h){
+          if(p.hurt(a.dmg, 'Ein Skelett hat dich getroffen', a.vx/tv*.5, a.vz/tv*.5)){ this.hurtFlash = 1; Sfx.play('hurt'); }
+          a.weg = true;
+        }
+      }
+    }
   },
 
   /* ── Öfen ────────────────────────────────────────────────────────── */
@@ -620,7 +738,7 @@ const Game = {
     let host = 0, pass = 0;
     for(const m of this.mobs) (m.def.hostile ? host++ : pass++);
     const dl = this.dayLight();
-    const wantHost = dl < 0.42 ? 14 : 5, wantPass = 10;
+    const wantHost = dl < 0.42 ? 14 : 5, wantPass = 12;
     for(let a=0; a<6; a++){
       const ang = Math.random()*TAU, r = 22 + Math.random()*22;
       const x = Math.floor(p.x + Math.cos(ang)*r), z = Math.floor(p.z + Math.sin(ang)*r);
@@ -635,9 +753,15 @@ const Game = {
       const lv = w.getLight(x,y,z), sky = lv & 15, blk = lv >> 4;
       const bright = Math.max(sky*dl, blk);
       if(host < wantHost && bright < 6.5){
-        this.mobs.push(new Mob('zombie', x+0.5, y, z+0.5)); host++;
+        this.mobs.push(new Mob(Math.random() < 0.4 ? 'skeleton' : 'zombie', x+0.5, y, z+0.5)); host++;
       } else if(pass < wantPass && bright > 8 && ground === B.GRASS){
-        this.mobs.push(new Mob('pig', x+0.5, y, z+0.5)); pass++;
+        // Tiere kommen in kleinen Herden
+        const r = Math.random(), art = r < 0.3 ? 'pig' : (r < 0.62 ? 'cow' : 'sheep');
+        for(let k = 0, n = 1 + ((Math.random()*3)|0); k < n && pass < wantPass; k++){
+          const hx = x + ((Math.random()*5)|0) - 2, hz = z + ((Math.random()*5)|0) - 2, hh = w.heightAt(hx, hz);
+          if(w.getBlock(hx, hh, hz) !== B.GRASS || blocksMovement(w.getBlock(hx, hh+1, hz)) || blocksMovement(w.getBlock(hx, hh+2, hz))) continue;
+          this.mobs.push(new Mob(art, hx+0.5, hh+1, hz+0.5)); pass++;
+        }
       }
     }
   },
@@ -658,7 +782,31 @@ const Game = {
       if(m.jumpCd > 0) m.jumpCd -= dt;
 
       let tx = 0, tz = 0, speed = m.def.speed;
-      if(m.def.hostile && dist < 22 && !p.dead && !p.creative){
+      const jagt = m.def.hostile && dist < 22 && !p.dead && !p.creative;
+      const held = Inv.held();
+      if(jagt && m.def.fernkampf){
+        // Skelett: Abstand halten, seitlich ausweichen, schießen, wenn es freie Sicht hat
+        const l = dist || 1, ux = dx/l, uz = dz/l;
+        m.yaw = Math.atan2(-ux, -uz);
+        m.seiteT -= dt; if(m.seiteT <= 0){ m.seiteT = 1.5 + Math.random()*2; m.seite = -m.seite; }
+        const vor = dist > 11 ? 1 : (dist < 6 ? -1 : 0);
+        tx = ux*vor + (-uz)*m.seite*0.6; tz = uz*vor + ux*m.seite*0.6;
+        m.moving = true; speed *= vor < 0 ? 0.9 : 0.75;
+        m.schussCd -= dt;
+        if(m.schussCd <= 0 && dist < 16){
+          const ax = m.x, ay = m.y + 1.5, az = m.z, zx = p.x, zy = p.y + 1.3, zz = p.z;
+          if(this.freieSicht(ax, ay, az, zx, zy, zz)){
+            const v = 18, flug = Math.hypot(zx-ax, zz-az)/v;
+            const ungenau = () => (Math.random() - .5)*0.9;
+            const vy = (zy - ay)/Math.max(flug, .1) + 0.5*20*flug;       // Fallen ausgleichen
+            const hl = Math.hypot(zx-ax, zz-az) || 1;
+            this.pfeile.push(new Pfeil(ax + ux*.5, ay, az + uz*.5, (zx-ax)/hl*v + ungenau(), vy + ungenau()*.5, (zz-az)/hl*v + ungenau(), 2 + ((Math.random()*3)|0), false));
+            Sfx.play('bogen');
+            m.schussCd = 1.8 + Math.random()*1.2;
+          } else m.schussCd = 0.4;
+        }
+        if(Math.random() < 0.004) Sfx.play('skelett');
+      } else if(jagt){
         const l = dist || 1; tx = dx/l; tz = dz/l;
         m.yaw = Math.atan2(-tx, -tz);
         m.moving = true;
@@ -668,6 +816,14 @@ const Game = {
           }
         }
         if(Math.random() < 0.004) Sfx.play('zombie');
+      } else if(!m.def.hostile && m.flucht > 0){
+        // getroffen: ein paar Sekunden weg vom Spieler
+        m.flucht -= dt;
+        tx = m.fluchtX; tz = m.fluchtZ; m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 1.6;
+      } else if(!m.def.hostile && held && held.id === ITEM.wheat && dist < 10 && dist > 2.2 && !p.dead){
+        // Weizen in der Hand: Kühe, Schafe und Schweine laufen hinterher
+        const l = dist || 1; tx = dx/l; tz = dz/l;
+        m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 0.8;
       } else {
         m.wander -= dt;
         if(m.wander <= 0){
@@ -676,7 +832,17 @@ const Game = {
           m.wanderYaw = Math.random()*TAU;
         }
         if(m.moving){ m.yaw = m.wanderYaw; tx = -Math.sin(m.yaw); tz = -Math.cos(m.yaw); speed *= 0.55; }
-        if(!m.def.hostile && Math.random() < 0.0012) Sfx.play('pig');
+        if(!m.def.hostile && Math.random() < 0.0012) Sfx.play(m.def.laut);
+        if(held && held.id === ITEM.wheat && !m.def.hostile && dist <= 2.2){ m.yaw = Math.atan2(dx, dz) + Math.PI; m.moving = false; tx = tz = 0; }
+      }
+      // geschorene Schafe fressen Gras, dann wächst die Wolle nach
+      if(m.geschoren){
+        m.wolleT -= dt;
+        if(m.wolleT <= 0){
+          const bx = Math.floor(m.x), by = Math.floor(m.y) - 1, bz = Math.floor(m.z);
+          if(w.getBlock(bx, by, bz) === B.GRASS){ w.setBlock(bx, by, bz, B.DIRT); m.geschoren = false; }
+          else m.wolleT = 5;
+        }
       }
 
       // Physik
@@ -908,8 +1074,10 @@ const Input = {
     hold('#btnJump', () => { this.jump = true; }, () => { this.jump = false; });
     hold('#btnSneak', () => { this.sneak = true; }, () => { this.sneak = false; });
     hold('#btnUp', () => { this.jump = true; }, () => { this.jump = false; });
-    hold('#btnAttack', () => { this.attackHeld = true; if(!Game.attack()) this.digging = true; Game.player.swinging = true; Game.player.swing = 0; },
-                       () => { this.attackHeld = false; this.digging = false; });
+    // SCHLAG: mit dem Bogen in der Hand spannt Halten, Loslassen schießt
+    hold('#btnAttack', () => { if(Game.bogenStart()) return;
+                               this.attackHeld = true; if(!Game.attack()) this.digging = true; Game.player.swinging = true; Game.player.swing = 0; },
+                       () => { if(Game.bogen.aktiv) Game.bogenLos(); this.attackHeld = false; this.digging = false; });
     hold('#btnMode', () => Game.eat());
     $('#btnInv').addEventListener('pointerdown', e => { e.preventDefault();
       if(Screens.open){ Screens.hide(); } else Screens.oeffne('inv'); });
@@ -946,7 +1114,7 @@ const Input = {
       }
       if(e.pointerType === 'mouse'){
         this.pendingTap = false;
-        if(e.button === 2) Game.useAt(Game.targetBlock());
+        if(e.button === 2){ if(!Game.bogenStart() && !Game.benutzeWesen()) Game.useAt(Game.targetBlock()); }
         else { if(!Game.attack()) this.digging = true; Game.player.swinging = true; Game.player.swing = 0; }
       }
     }
@@ -982,8 +1150,10 @@ const Input = {
       st.style.left = ''; st.style.top = ''; st.style.bottom = '';
     } else if(e.pointerId === this.lookId){
       const held = performance.now() - this.holdStart;
+      if(Game.bogen.aktiv) Game.bogenLos();
       if(this.pendingTap && held < 260 && this.holdMoved < 14 && e.pointerType !== 'mouse'){
-        if(!Game.attack()) Game.useAt(Game.targetBlock());
+        // Tippen: erst Schere oder Eimer an einem Tier, dann Schlag, dann Block
+        if(!Game.benutzeWesen() && !Game.attack()) Game.useAt(Game.targetBlock());
         Game.player.swinging = true; Game.player.swing = 0;
       }
       this.lookId = null; this.digging = false; this.pendingTap = false;
@@ -1064,6 +1234,11 @@ function frame(now){
     }
     Game.updateMobs(dt);
     Game.updateDrops(dt);
+    Game.updatePfeile(dt);
+    if(Game.bogen.aktiv){
+      const s = Inv.held();
+      if(!s || s.id !== ITEM.bow) Game.bogen.aktiv = false; else Game.bogen.t = Math.min(1.2, Game.bogen.t + dt);
+    }
     Game.tickFurnaces(dt);
     Game.tickFelder(dt);
     Game.spawnMobs(dt);
@@ -1101,6 +1276,9 @@ function frame(now){
 
   HUD.refreshVitals(p);
   HUD.refreshHotbar();
+  const sp = $('#spannung');
+  sp.classList.toggle('on', Game.bogen.aktiv);
+  if(Game.bogen.aktiv) sp.firstElementChild.style.width = Math.round(Math.min(1, Game.bogen.t)*100) + '%';
   if(Game.settings.debug) updateDebug();
 
   render(dt);
@@ -1113,8 +1291,11 @@ function handleDigging(dt){
   if(Input.lookId !== null && !Input.touchDig && Input.lookType !== 'mouse'
      && performance.now() - Input.holdStart > 280 && Input.holdMoved < 26){
     Input.touchDig = true; Input.pendingTap = false;
+    const s = Inv.held();
+    if(s && s.id === ITEM.bow) Game.bogenStart();       // mit dem Bogen: Halten spannt statt abzubauen
   }
   if(Input.lookId === null) Input.touchDig = false;
+  if(Game.bogen.aktiv){ Game.breakPos = null; Game.breakProg = 0; return; }
   const want = Input.digging || Input.touchDig || Input.attackHeld;
   if(!want){ Game.breakPos = null; Game.breakProg = 0; return; }
   const t = Game.targetBlock();
@@ -1180,7 +1361,7 @@ function boot(){
   if(!R.init()){
     const t = document.getElementById('titel');
     t.classList.add('on');
-    t.innerHTML = '<h1 class="mc-titel" style="margin-top:auto">Taschenwelt</h1>' +
+    t.innerHTML = '<h1 class="mc-titel" style="margin-top:auto">Pocketcraft</h1>' +
       '<p class="mc-text" style="margin-bottom:auto">Dieser Browser unterstützt kein WebGL 2. Auf iPad und iPhone hilft ein Update auf iOS 15 oder neuer; ' +
       'am Desktop ein aktueller Chrome, Firefox oder Safari.</p>';
     return;
@@ -1201,7 +1382,7 @@ boot();
    Indexpuffer behält. Genau da lag der Fehler mit den zerrissenen
    Gegenständen und Mobs. */
 window.__welt = {
-  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher,
+  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
