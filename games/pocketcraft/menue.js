@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 2.5';
+const VERSION = 'Pocketcraft 2.6';
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '57 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -17,7 +17,8 @@ const SPRUECHE = [
   'Mehrere Welten!', 'Passt in die Tasche!', 'Schweine grunzen!', 'Voll auf Holz!',
   'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!',
   'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!', 'Jetzt mit Musik!', 'Hör mal, Kies!', 'Knirscht wie echt!',
-  'Jetzt mit Hühnern!', 'Gack!', 'Erst das Huhn, dann das Ei!', 'Küken aus dem Ei!', 'Wasser marsch!', 'Es fließt!', 'Achtung, Wasserfall!'
+  'Jetzt mit Hühnern!', 'Gack!', 'Erst das Huhn, dann das Ei!', 'Küken aus dem Ei!', 'Wasser marsch!', 'Es fließt!', 'Achtung, Wasserfall!',
+  'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {

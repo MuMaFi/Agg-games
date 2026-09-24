@@ -41,11 +41,18 @@ const Game = {
       if(d) for(const [i, n] of d) this.dropItem(i, n, x + .5, y + .3, z + .5);
     };
     w.setBlock = (x, y, z, id, noSave) => {
+      const vorher = w.getBlock(x, y, z);
       const ok = setzen(x, y, z, id, noSave);
       if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id);
       if(ok && !Netz.istGast) this.wasser.melden(x, y, z);
+      // Plattenspieler: Platte hinein spielt, Platte heraus oder Block weg verstummt —
+      // bei allen, denn auch Änderungen aus dem Netz kommen hier vorbei
+      if(ok && (id === B.JUKEBOX_VOLL) !== (vorher === B.JUKEBOX_VOLL)){
+        if(id === B.JUKEBOX_VOLL) Plattenspieler.an(x, y, z); else Plattenspieler.aus(x, y, z);
+      }
       return ok;
     };
+    Plattenspieler.alleAus();
     this.player = new Player();
     this.mobs = []; this.drops = []; this.pfeile = []; this.partikel = []; this.bogen.aktiv = false;
     this.meshes.forEach(m => { R.freeMesh(m.o); R.freeMesh(m.w); });
@@ -168,6 +175,7 @@ const Game = {
   },
   zumTitel(){
     Screens.hide();
+    Plattenspieler.alleAus();
     this.running = false;
     this.meta = null;
     $('#hud').classList.remove('on');
@@ -432,6 +440,7 @@ const Game = {
       if(f){ inhalt.push(f.in, f.fuel, f.out); w.furnaces.delete(k); }
     }
     if(id === B.CHEST){ const t = w.chests.get(k); if(t) inhalt.push(...t); w.chests.delete(k); }
+    if(id === B.JUKEBOX_VOLL) inhalt.push(Inv.make(ITEM.platte, 1));
     for(const st of inhalt) if(st) this.dropItem(st.id, st.n, x+.5, y+.5, z+.5, st.dur);
     if(isWheat(id)) w.crops.delete(k);
     w.setBlock(x,y,z,B.AIR);
@@ -487,6 +496,19 @@ const Game = {
       }
       if(isDoor(id)){ this.tuerSchalten(t.x, t.y, t.z); return; }
       if(id === B.BED){ this.schlafen(t.x, t.y, t.z); return; }
+      // Plattenspieler: Schallplatte einlegen — oder die, die drin ist, herausholen
+      if(id === B.JUKEBOX_VOLL){
+        w.setBlock(t.x, t.y, t.z, B.JUKEBOX);
+        this.dropItem(ITEM.platte, 1, t.x + .5, t.y + 1.05, t.z + .5);
+        return;
+      }
+      if(id === B.JUKEBOX && s && s.id === ITEM.platte){
+        w.setBlock(t.x, t.y, t.z, B.JUKEBOX_VOLL);
+        if(!p.creative) Inv.consumeHeld();
+        hint('Die Schallplatte läuft', 1600);
+        p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+        return;
+      }
     }
     if(!s) return;
     if(it && it.food){ this.eat(); return; }

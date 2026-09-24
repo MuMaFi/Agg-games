@@ -12,6 +12,9 @@ Aufruf:  python3 werkzeug/musik-einlesen.py games/pocketcraft/musik
 - Jeder Titel bekommt eine Pegelangabe „db“ (wie ReplayGain): gemessen nach
   EBU R128, Ziel −18 LUFS, ohne die Spitze über −0,5 dBFS zu heben. Das Spiel
   gleicht damit leise und laute Titel an, ohne die Datei anzufassen.
+- Stücke im Unterordner platten/ werden genauso behandelt, laufen aber
+  nicht als Hintergrundmusik: Sie sind Schallplatten für den Plattenspieler
+  (in liste.json unter "platten").
 - liste.json wird neu geschrieben; von Hand gesetzte Pegel bleiben.
 
 Braucht ffmpeg (auf GitHub-Läufern vorhanden; sonst geht auch das
@@ -58,14 +61,8 @@ def pegel(pfad):
     return round(min(ZIEL_LUFS - lufs, SPITZE_MAX - spitze), 1)
 
 
-def main(ordner):
-    liste_pfad = os.path.join(ordner, 'liste.json')
-    try:
-        alt = json.load(open(liste_pfad, encoding='utf-8'))
-    except (OSError, ValueError):
-        alt = {}
-    alte_pegel = {t['datei']: t['db'] for t in alt.get('titel', []) if isinstance(t, dict) and t.get('datei') and 'db' in t}
-
+def einlesen(ordner):
+    """Umwandeln, verkleinern, Angaben entfernen — nur die Dateien direkt im Ordner"""
     for name in sorted(os.listdir(ordner)):
         pfad = os.path.join(ordner, name)
         endung = os.path.splitext(name)[1].lower()
@@ -89,14 +86,36 @@ def main(ordner):
                 subprocess.run([FF, '-v', 'error', '-y', '-i', pfad, '-map', '0:a:0', '-c:a', 'copy'] + OHNE_ANGABEN + [tmp], check=True)
                 os.replace(tmp, pfad)
 
+
+def liste(ordner, praefix, alte_pegel):
+    """alle MP3s eines Ordners mit Pegel; praefix ist der Weg ab musik/"""
     titel = []
     for name in sorted(os.listdir(ordner), key=str.lower):
-        if name.lower().endswith('.mp3'):
-            titel.append({'datei': name, 'db': alte_pegel[name] if name in alte_pegel else pegel(os.path.join(ordner, name))})
+        if name.lower().endswith('.mp3') and os.path.isfile(os.path.join(ordner, name)):
+            datei = praefix + name
+            titel.append({'datei': datei, 'db': alte_pegel[datei] if datei in alte_pegel else pegel(os.path.join(ordner, name))})
+    return titel
+
+
+def main(ordner):
+    liste_pfad = os.path.join(ordner, 'liste.json')
+    try:
+        alt = json.load(open(liste_pfad, encoding='utf-8'))
+    except (OSError, ValueError):
+        alt = {}
+    alte_pegel = {t['datei']: t['db'] for art in ('titel', 'platten') for t in alt.get(art, [])
+                  if isinstance(t, dict) and t.get('datei') and 'db' in t}
+
+    einlesen(ordner)
+    daten = {'titel': liste(ordner, '', alte_pegel)}
+    platten = os.path.join(ordner, 'platten')
+    if os.path.isdir(platten):
+        einlesen(platten)
+        daten['platten'] = liste(platten, 'platten/', alte_pegel)
     with open(liste_pfad, 'w', encoding='utf-8') as f:
-        json.dump({'titel': titel}, f, ensure_ascii=False, indent=2)
+        json.dump(daten, f, ensure_ascii=False, indent=2)
         f.write('\n')
-    print(f'{len(titel)} Titel in {liste_pfad}')
+    print(f"{len(daten['titel'])} Titel, {len(daten.get('platten', []))} Schallplatten in {liste_pfad}")
 
 
 if __name__ == '__main__':

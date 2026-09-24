@@ -143,6 +143,7 @@ function initRecipes(){
   geformt('bauen', B.BED, 1, ['www','###'], {w:ITEM.wheat, '#':P});
   geformt('bauen', B.STONEBRICK, 4, ['##','##'], {'#':B.STONE});
   geformt('bauen', B.SANDSTONE, 1, ['##','##'], {'#':B.SAND});
+  geformt('bauen', B.JUKEBOX, 1, ['###','#D#','###'], {'#':P, D:ITEM.diamond});
   const MATS = [['wood',P],['stone',B.COBBLE],['iron',ITEM.iron],['gold',ITEM.gold],['diamond',ITEM.diamond]];
   for(const [m, mat] of MATS){
     const k = { M:mat, '|':S };
@@ -307,6 +308,8 @@ function beschreibung(s){
   if(fuelValue(s.id)) t.push('brennt');
   if(s.id === ITEM.seeds) t.push('auf Ackerboden säen, Hühner füttern');
   if(s.id === ITEM.egg) t.push('werfen — manchmal schlüpft ein Küken');
+  if(s.id === ITEM.platte) t.push('in einen Plattenspieler legen');
+  if(s.id === B.JUKEBOX) t.push('spielt Schallplatten');
   if(it && it.tool === 'hoe') t.push('macht aus Erde Acker');
   if(s.id === B.BED) t.push('nachts schlafen, Startpunkt');
   return t.join(' · ');

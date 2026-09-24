@@ -281,7 +281,7 @@ const Sfx = {
    keine Titel, kein Name.
    ═══════════════════════════════════════════════════════════════════ */
 const Musik = {
-  liste: null,
+  liste: null, platten: [],
   laut: 0.7, modus: null, spielt: false, titel: null,
   _a: null, _g: null, _plan: 0, _reihe: [], _geladen: null,
 
@@ -289,7 +289,11 @@ const Musik = {
     if(this._geladen) return this._geladen;
     this._geladen = fetch('musik/liste.json', { cache: 'no-cache' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { this.liste = (d && Array.isArray(d.titel) ? d.titel : []).filter(t => t && t.datei); })
+      .then(d => {
+        this.liste = (d && Array.isArray(d.titel) ? d.titel : []).filter(t => t && t.datei);
+        // Schallplatten laufen nicht im Hintergrund, nur im Plattenspieler
+        this.platten = (d && Array.isArray(d.platten) ? d.platten : []).filter(t => t && t.datei);
+      })
       .catch(() => { this.liste = []; });
     return this._geladen;
   },
@@ -299,6 +303,7 @@ const Musik = {
   lautSetzen(v){
     this.laut = v;
     if(this._g && Sfx.ctx && this.spielt) this._g.gain.setTargetAtTime(this.ziel(), Sfx.ctx.currentTime, 0.1);
+    Plattenspieler.lautAnpassen();
     if(v <= 0) this.stopp(0.2);
     else if(!this.spielt && this.modus === 'titel') this.weiter(0.5);
   },
@@ -317,6 +322,8 @@ const Musik = {
     this._plan = setTimeout(async () => {
       await this.laden();
       if(!this.hat() || this.laut <= 0 || !this.modus || !Sfx.ctx || document.hidden) return;
+      // läuft in der Nähe eine Schallplatte, wartet die Hintergrundmusik
+      if(this.modus === 'spiel' && Plattenspieler.hoerbar()){ this.weiter(30); return; }
       if(!this._reihe.length) this._reihe = this.liste.slice().sort(() => Math.random() - .5);
       this.spielen(this._reihe.shift());
     }, (verzug || 0)*1000);
@@ -360,9 +367,90 @@ const Musik = {
     } else a.pause();
   },
 };
-// Musik ruht, solange das Spiel nicht zu sehen ist
+
+/* ── Plattenspieler ─────────────────────────────────────────────────
+   Eine Schallplatte spielt aus dem Plattenspieler heraus: aus seiner
+   Richtung, mit der Entfernung leiser, bis 48 Blöcke weit. Solange eine in
+   Hörweite läuft, schweigt die Hintergrundmusik. Den Ton regelt der
+   Musik-Regler. Titel und Namen zeigt das Spiel auch hier nicht. */
+const PLATTE_WEIT = 48;
+const Plattenspieler = {
+  laufen: new Map(),            // "x,y,z" → { a, g, p, x, y, z, t }
+
+  ziel(t){ return Musik.laut*Math.pow(10, ((t && +t.db) || 0)/20); },
+  /** eine Platte wurde eingelegt: von vorn abspielen */
+  an(x, y, z){
+    const k = x + ',' + y + ',' + z;
+    this.aus(x, y, z);
+    const s = { a: null, g: null, p: null, x: x + .5, y: y + .5, z: z + .5, t: null };
+    this.laufen.set(k, s);
+    Sfx.init();
+    Musik.laden().then(() => {
+      const t = Musik.platten[0], c = Sfx.ctx;
+      if(this.laufen.get(k) !== s) return;                 // schon wieder heraus
+      if(!t || !c){ this.laufen.delete(k); return; }
+      const a = new Audio();
+      a.preload = 'auto';
+      a.src = 'musik/' + String(t.datei).split('/').map(encodeURIComponent).join('/');
+      s.a = a; s.t = t;
+      try{
+        const q = c.createMediaElementSource(a);
+        s.g = c.createGain(); s.g.gain.value = this.ziel(t);
+        s.p = c.createPanner();
+        s.p.panningModel = 'equalpower'; s.p.distanceModel = 'linear';
+        s.p.refDistance = 4; s.p.maxDistance = PLATTE_WEIT; s.p.rolloffFactor = 1;
+        if(s.p.positionX){ s.p.positionX.value = s.x; s.p.positionY.value = s.y; s.p.positionZ.value = s.z; }
+        else s.p.setPosition(s.x, s.y, s.z);
+        q.connect(s.g); s.g.connect(s.p); s.p.connect(c.destination);
+      }catch(e){ s.g = s.p = null; a.volume = Math.min(1, this.ziel(t)); }
+      a.addEventListener('ended', () => { if(this.laufen.get(k) === s){ this.laufen.delete(k); this.danach(); } });
+      a.addEventListener('error', () => { if(this.laufen.get(k) === s){ this.laufen.delete(k); this.danach(); } });
+      if(!document.hidden){ const p = a.play(); if(p && p.catch) p.catch(() => {}); }
+      if(this.hoerbar()) Musik.stopp(1.5);
+    });
+  },
+  /** Platte heraus oder Plattenspieler weg */
+  aus(x, y, z){
+    const k = x + ',' + y + ',' + z, s = this.laufen.get(k);
+    if(!s) return;
+    this.laufen.delete(k);
+    if(s.a){ s.a.pause(); s.a.removeAttribute('src'); try{ s.a.load(); }catch(e){} }
+    try{ if(s.g) s.g.disconnect(); if(s.p) s.p.disconnect(); }catch(e){}
+    this.danach();
+  },
+  alleAus(){ for(const k of [...this.laufen.keys()]){ const [x, y, z] = k.split(',').map(Number); this.aus(x, y, z); } },
+  /** läuft eine Platte so nah, dass man sie hört? */
+  hoerbar(){
+    const o = Sfx._ort;
+    for(const s of this.laufen.values()){
+      if(!s.a || (s.a.paused && !document.hidden)) continue;     // verborgen pausiert sie nur
+      if(!o || Math.hypot(s.x - o[0], s.y - o[1], s.z - o[2]) < PLATTE_WEIT) return true;
+    }
+    return false;
+  },
+  /** nach einer Platte kommt irgendwann wieder die Hintergrundmusik */
+  danach(){
+    if(Musik.modus === 'spiel' && !Musik.spielt && !this.hoerbar()) Musik.weiter(20 + Math.random()*40);
+  },
+  lautAnpassen(){
+    const c = Sfx.ctx;
+    for(const s of this.laufen.values()){
+      if(s.g && c) s.g.gain.setTargetAtTime(this.ziel(s.t), c.currentTime, 0.1);
+      else if(s.a) s.a.volume = Math.min(1, this.ziel(s.t));
+    }
+  },
+};
+
+// Musik ruht, solange das Spiel nicht zu sehen ist — Schallplatten auch
 document.addEventListener('visibilitychange', () => {
-  const a = Musik._a; if(!a) return;
-  if(document.hidden){ if(Musik.spielt){ Musik._warAn = true; a.pause(); } }
-  else if(Musik._warAn){ Musik._warAn = false; const p = a.play(); if(p && p.catch) p.catch(() => {}); }
+  const a = Musik._a;
+  if(a){
+    if(document.hidden){ if(Musik.spielt){ Musik._warAn = true; a.pause(); } }
+    else if(Musik._warAn){ Musik._warAn = false; const p = a.play(); if(p && p.catch) p.catch(() => {}); }
+  }
+  for(const s of Plattenspieler.laufen.values()){
+    if(!s.a) continue;
+    if(document.hidden) s.a.pause();
+    else { const p = s.a.play(); if(p && p.catch) p.catch(() => {}); }
+  }
 });

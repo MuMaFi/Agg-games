@@ -185,7 +185,9 @@ const MOBS = {
   },
   skeleton: {
     name:'Skelett', w:0.6, h:1.95, health:20, speed:2.0, hostile:true, dmg:0, fernkampf:true, laut:'skelett', armSchwung:0.12,
-    beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.arrow, zufallN(0, 2)]].concat(Math.random() < 0.08 ? [[ITEM.bow, 1]] : []),
+    // selten ein Bogen, noch seltener eine Schallplatte
+    beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.arrow, zufallN(0, 2)]].concat(Math.random() < 0.08 ? [[ITEM.bow, 1]] : [])
+      .concat(Math.random() < 0.05 ? [[ITEM.platte, 1]] : []),
     parts:[
       { n:'head', box:[-0.25,1.42,-0.25, 0.5,0.5,0.5], tex:'m_skelett', face:'m_skelett_face', anim:'head' },
       { n:'body', box:[-0.22,0.67,-0.1, 0.44,0.75,0.2], tex:'m_skelett_brust' },

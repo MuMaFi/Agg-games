@@ -661,6 +661,34 @@ function buildTextures(){
       p.rect(15, 12, 2, 3, E[0]); p.put(15, 12, E[1]);
     }
   };
+  /* — Plattenspieler: dunkles Holz im Rahmen, oben ein Schlitz für die Platte — */
+  const JUKE = pal('#2a190d','#382213','#462b18','#54341e','#623d24','#71472b');
+  const plattenspieler = (oben, voll) => p => {
+    malBretter(p, oben ? 211 : 212, JUKE, !oben);
+    const D = [22,13,6], H = [128,86,50], S = [52,32,16];
+    for(let i = 0; i < TS; i++) for(const k of [0, TS-1]){ p.put(i, k, D); p.put(k, i, D); }
+    for(let i = 1; i < TS-1; i++){ p.put(i, 1, H); p.put(1, i, H); p.put(i, TS-2, S); p.put(TS-2, i, S); }
+    if(!oben){
+      // Seiten: ein eingelassenes Feld mit Kante
+      for(let y = 7; y < 25; y++) for(let x = 7; x < 25; x++){
+        if(x === 7 || y === 7) p.put(x, y, D);
+        else if(x === 24 || y === 24) p.put(x, y, H);
+        else p.tone(x, y, .8);
+      }
+      return;
+    }
+    // Schlitz
+    for(let y = 13; y < 19; y++) for(let x = 5; x < 27; x++)
+      p.put(x, y, (y === 13 || x === 5) ? [8,6,4] : (y === 18 || x === 26) ? H : [18,12,8]);
+    if(voll){
+      // die Platte steckt im Schlitz: schwarzer Rand, in der Mitte das Etikett
+      for(let x = 7; x < 25; x++){ p.put(x, 15, [44,44,50]); p.put(x, 16, [20,20,24]); }
+      p.rect(14, 15, 4, 2, [224,122,42]); p.put(14, 15, [248,180,110]);
+    }
+  };
+  addTex('jukebox_side', plattenspieler(false, false));
+  addTex('jukebox_top', plattenspieler(true, false));
+  addTex('jukebox_top_voll', plattenspieler(true, true));
   addTex('chest_top', truhe(false, true));
   addTex('chest_side', truhe(false, false));
   addTex('chest_front', truhe(true, false));
@@ -1133,6 +1161,19 @@ function buildTextures(){
     F.glanz = [[13,14],[16,11],[19,9]];
     const K = S.lage(pal('#5a5a56','#8a8a84','#a8a8a2','#c8c8c2','#e0e0da'));
     S.strich(K, [[5,28],[10,21],[17,12],[25,5]], .6);
+  });
+  sprite('i_platte', S => {
+    const mitte = (x, y) => Math.hypot(x + .5 - 16, y + .5 - 16);
+    const V = S.lage(pal('#050506','#16161a','#2a2a32','#666676','#a4a4b6'));
+    S.oval(V, 16, 16, 12.5, 12.5);
+    V.muster = (x, y) => (Math.round(mitte(x, y)) % 3 === 0 && mitte(x, y) > 6 && mitte(x, y) < 11.5 ? -1 : 0);   // Rillen
+    // Glanz: ein heller Bogen oben links, ein kurzer unten rechts
+    V.glanz = [];
+    for(let a = 3.5; a < 4.6; a += 0.1) V.glanz.push([Math.round(15.5 + Math.cos(a)*9.3), Math.round(15.5 + Math.sin(a)*9.3), 3]);
+    for(let a = 0.45; a < 1.05; a += 0.12) V.glanz.push([Math.round(15.5 + Math.cos(a)*8.3), Math.round(15.5 + Math.sin(a)*8.3), 3]);
+    const E = S.lage(pal('#5a2a08','#b8561a','#e07a2a','#f09a48','#f8c078'));                // Etikett
+    S.oval(E, 16, 16, 4.6, 4.6);
+    for(const L of [V, E]) S.loesch(L, (x, y) => mitte(x, y) < 1.3);                            // Loch
   });
   sprite('i_egg', S => {
     const L = S.lage(pal('#8a7454','#cdb68e','#e2cfaa','#efe2c4','#fbf4e2'));

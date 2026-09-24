@@ -10,7 +10,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   CACTUS:24, STONEBRICK:25, SANDSTONE:26, SNOW:27,
   CHEST:28, LADDER:29 /* …32, je Wand */, BED:33, FARMLAND:34, WHEAT:35 /* …38, je Stufe */,
   IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */,
-  FLUSS:62 /* …68, fließendes Wasser, Stärke 7…1 */, FALL:69 /* fallendes Wasser */ };
+  FLUSS:62 /* …68, fließendes Wasser, Stärke 7…1 */, FALL:69 /* fallendes Wasser */,
+  JUKEBOX:70, JUKEBOX_VOLL:71 /* mit Schallplatte */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -77,6 +78,9 @@ function initBlocks(){
   defBlock(B.WATER,{name:'Wasser', tex:'water0', solid:false, opaque:false, model:'liquid', hardness:-1, replaceable:true, item:false});
   for(let k = 0; k < 8; k++)
     defBlock(B.FLUSS + k,{name:'Wasser', tex:'water0', solid:false, opaque:false, model:'liquid', hardness:-1, replaceable:true, item:false});
+  defBlock(B.JUKEBOX,{name:'Plattenspieler', tex:['jukebox_top','planks','jukebox_side'], hardness:2, tool:'axe'});
+  defBlock(B.JUKEBOX_VOLL,{name:'Plattenspieler', tex:['jukebox_top_voll','planks','jukebox_side'], hardness:2, tool:'axe',
+    drop:B.JUKEBOX, item:false});
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
   defBlock(B.COAL_ORE,{name:'Kohleerz', tex:'coal_ore', hardness:3, tool:'pickaxe', tier:1, drop:'i_coal'});
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});
@@ -186,6 +190,8 @@ function initItems(){
   defItem('chicken_cooked',{name:'Gebratenes Hähnchen', food:6});
   defItem('feather',{name:'Feder'});
   defItem('egg',{name:'Ei', stack:16});
+  // für den Plattenspieler
+  defItem('platte',{name:'Schallplatte', stack:1});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

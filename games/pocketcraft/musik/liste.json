@@ -5,10 +5,6 @@
       "db": -3.6
     },
     {
-      "datei": "titel-2.mp3",
-      "db": 0.1
-    },
-    {
       "datei": "titel-3.mp3",
       "db": -0.9
     },
@@ -19,6 +15,12 @@
     {
       "datei": "titel-5.mp3",
       "db": -3.2
+    }
+  ],
+  "platten": [
+    {
+      "datei": "platten/platte-1.mp3",
+      "db": 0.1
     }
   ]
 }

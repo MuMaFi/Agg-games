@@ -149,5 +149,9 @@ pruef(T(`rasterRezept([{id:ITEM.flint,n:1},null,null, {id:ITEM.stick,n:1},null,n
 pruef(T(`SMELT[ITEM.chicken_raw] === ITEM.chicken_cooked && items[ITEM.egg].stack === 16`), 'Hähnchen im Ofen, Eier zu 16');
 pruef(T(`ITEM.chicken_raw > ITEM.leather_boots && B.FLUSS === 62 && B.FALL === 69 && blocks[B.FALL].name === 'Wasser'`), 'neue Nummern hinten angehängt');
 
+// Plattenspieler: acht Bretter um einen Diamanten; mit Platte ein eigener Block, der beim Abbauen den leeren gibt
+pruef(T(`rasterRezept([{id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}, {id:B.PLANKS,n:1},{id:ITEM.diamond,n:1},{id:B.PLANKS,n:1}, {id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}], 3).out === B.JUKEBOX`), 'Plattenspieler-Rezept');
+pruef(T(`B.JUKEBOX === 70 && B.JUKEBOX_VOLL === 71 && blocks[B.JUKEBOX_VOLL].drop === B.JUKEBOX && !blocks[B.JUKEBOX_VOLL].item && items[ITEM.platte].stack === 1`), 'Plattenspieler-Blöcke und Schallplatte');
+
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);
