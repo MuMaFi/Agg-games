@@ -50,14 +50,15 @@ jobs:
             # Nur das eine Spiel und der gemeinsame Heimknopf (der sich in
             # dieser App selbst ausblendet)
             mkdir -p "$ziel/games/pocketcraft"
-            rsync -a --delete --exclude '*.md' games/pocketcraft/ "$ziel/games/pocketcraft/"
+            # LIESMICH bleibt draußen, die Quellenangaben der Geräusche kommen mit
+            rsync -a --delete --exclude 'LIESMICH.md' games/pocketcraft/ "$ziel/games/pocketcraft/"
             cp games/heim.js "$ziel/games/heim.js"
           else
             # Alles außer Werkzeugkram — die Seite ist statisch und läuft so,
             # wie sie im Netz liegt, auch aus der Anwendung heraus.
             rsync -a --delete \
               --exclude '.git' --exclude '.github' --exclude 'android' \
-              --exclude 'node_modules' --exclude 'werkzeug' --exclude '*.md' \
+              --exclude 'node_modules' --exclude 'werkzeug' --include 'QUELLEN.md' --exclude '*.md' \
               ./ "$ziel/"
           fi
           du -sh "$ziel"

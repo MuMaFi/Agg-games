@@ -10,7 +10,7 @@ const DAY_LEN  = 720;             // Sekunden je voller Tag
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70 },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -93,6 +93,7 @@ const Game = {
     this.running = true;
     this.lastSave = performance.now();
     HUD.build(); HUD.refreshHotbar();
+    Musik.inDieWelt();
     $('#hud').classList.add('on');
     Screens.hide();
   },
@@ -164,6 +165,7 @@ const Game = {
     $('#hud').classList.remove('on');
     Menue.ladeStand(false);
     this.panorama(null);
+    Musik.zumTitel();
   },
   /** Vorschaubild für die Weltenliste, ohne Hand, quadratisch aus der Mitte */
   bildJetzt(){
@@ -405,7 +407,7 @@ const Game = {
     const info = this.breakSpeed(id);
     if(!this.player.creative){ Inv.damageHeld(1); this.player.addExhaustion(0.02); }
     this.entfernen(x, y, z, info.tierOk);
-    Sfx.play('break');
+    Sfx.block('weg', id, x, y, z);
     this.camShake = 0.05;
   },
   /** Block weg, mit allem, was daran hängt: Inhalt, zweite Türhälfte, Pflanzen, Leitern */
@@ -460,14 +462,14 @@ const Game = {
     const s = Inv.held(), it = s ? items[s.id] : null;
     // Benutzbare Blöcke — geduckt baut man stattdessen daran
     if(!Input.sneak){
-      if(id === B.TABLE){ Screens.oeffne('werkbank'); Sfx.play('place'); return; }
+      if(id === B.TABLE){ Screens.oeffne('werkbank'); Sfx.block('hacken', B.TABLE, t.x, t.y, t.z, .6); return; }
       if(id === B.FURNACE || id === B.FURNACE_LIT){
         if(!w.furnaces.has(k)) w.furnaces.set(k, { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x:t.x, y:t.y, z:t.z });
         Screens.oeffne('ofen', k); return;
       }
       if(id === B.CHEST){
         if(!w.chests.has(k)) w.chests.set(k, new Array(27).fill(null));
-        Screens.oeffne('truhe', k); Sfx.play('door'); return;
+        Screens.oeffne('truhe', k); Sfx.play('truhe_auf', t.x + .5, t.y + .5, t.z + .5); return;
       }
       if(isDoor(id)){ this.tuerSchalten(t.x, t.y, t.z); return; }
       if(id === B.BED){ this.schlafen(t.x, t.y, t.z); return; }
@@ -487,7 +489,7 @@ const Game = {
         }
       } else return;
       if(!p.creative) Inv.consumeHeld();
-      Sfx.play('dig'); schwing();
+      Sfx.block('setzen', B.TALLGRASS, t.x, t.y, t.z); schwing();
       return;
     }
     // Hacke: aus Erde wird Acker
@@ -497,7 +499,7 @@ const Game = {
         if(ob !== B.AIR && !(blocks[ob] && blocks[ob].replaceable)) return;
         if(ob !== B.AIR) w.setBlock(t.x,t.y+1,t.z,B.AIR);
         w.setBlock(t.x,t.y,t.z,B.FARMLAND);
-        Sfx.play('dig'); if(!p.creative) Inv.damageHeld(1); schwing();
+        Sfx.block('hacken', B.DIRT, t.x, t.y, t.z); if(!p.creative) Inv.damageHeld(1); schwing();
       }
       return;
     }
@@ -507,7 +509,7 @@ const Game = {
         w.setBlock(t.x,t.y+1,t.z,B.WHEAT);
         w.crops.set(t.x+','+(t.y+1)+','+t.z, { t:0 });
         if(!p.creative) Inv.consumeHeld();
-        Sfx.play('place'); schwing();
+        Sfx.block('setzen', B.WHEAT, t.x, t.y + 1, t.z); schwing();
       } else hint('Weizenkörner brauchen Ackerboden — den macht eine Hacke aus Erde');
       return;
     }
@@ -517,7 +519,7 @@ const Game = {
       if(r.hit && r.id === B.WATER){
         w.setBlock(r.x, r.y, r.z, B.AIR);
         if(!p.creative){ Inv.consumeHeld(); const rest = Inv.add(ITEM.water_bucket, 1); if(rest) this.dropItem(ITEM.water_bucket, 1, p.x, p.y+1, p.z); }
-        Sfx.play('place'); schwing();
+        Sfx.play('platsch', r.x + .5, r.y + .5, r.z + .5); schwing();
       }
       return;
     }
@@ -526,7 +528,7 @@ const Game = {
       if(cur !== B.AIR && !(blocks[cur] && blocks[cur].replaceable)) return;
       w.setBlock(bx, by, bz, B.WATER);
       if(!p.creative) Inv.slots[Inv.sel] = Inv.make(ITEM.bucket, 1);
-      Sfx.play('place'); schwing();
+      Sfx.play('platsch', bx + .5, by + .5, bz + .5); schwing();
       return;
     }
     if(!isBlockId(s.id)) return;
@@ -554,7 +556,7 @@ const Game = {
       if(seite === undefined){ hint('Geh erst aus dem Weg'); return; }
       w.setBlock(bx,by,bz,doorId(0,0,seite)); w.setBlock(bx,by+1,bz,doorId(1,0,seite));
       if(!p.creative) Inv.consumeHeld();
-      Sfx.play('place'); schwing();
+      Sfx.block('setzen', B.DOOR, bx, by, bz); schwing();
       return;
     }
     // Pflanzen, Fackeln und Betten brauchen Boden
@@ -567,7 +569,7 @@ const Game = {
       if(s.id === B.CHEST) w.chests.set(k2, new Array(27).fill(null));
       // Acker unter einem festen Block wird wieder Erde
       if(bd.solid && w.getBlock(bx,by-1,bz) === B.FARMLAND) w.setBlock(bx,by-1,bz,B.DIRT);
-      Sfx.play('place'); schwing();
+      Sfx.block('setzen', setzId, bx, by, bz); schwing();
     }
   },
   tuerSchalten(x, y, z){
@@ -578,7 +580,7 @@ const Game = {
     if(this.belegt(x,y0,z,unten) || this.belegt(x,y0+1,z,oben)){ hint('Geh erst aus der Tür'); return; }
     w.setBlock(x,y0,z,unten);
     if(isDoor(w.getBlock(x,y0+1,z))) w.setBlock(x,y0+1,z,oben);
-    Sfx.play('door');
+    Sfx.play(di.offen ? 'tuer_zu' : 'tuer_auf', x + .5, y0 + 1, z + .5);
   },
   schlafen(x, y, z){
     const p = this.player;
@@ -654,7 +656,7 @@ const Game = {
     this.mobTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
     if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
     this.player.addExhaustion(0.1);
-    Sfx.play('hit');
+    Sfx.wesen(best, 'au');
     return true;
   },
   herz(m, verzug){
@@ -713,12 +715,12 @@ const Game = {
       if(Netz.istGast){ Netz.wesenAnfrage('schere', m); m.geschoren = true; }
       else this.scheren(m, null);
       if(!p.creative) Inv.damageHeld(1);
-      Sfx.play('schere'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      Sfx.play('schere', m.x, m.y + 1, m.z); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
       return true;
     }
     if(s.id === ITEM.bucket && m.type === 'cow'){
       if(!p.creative){ Inv.consumeHeld(); const r = Inv.add(ITEM.milk_bucket, 1); if(r) this.dropItem(ITEM.milk_bucket, 1, p.x, p.y + 1, p.z); }
-      Sfx.play('kuh'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      Sfx.play('melken', m.x, m.y + 1, m.z); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
       return true;
     }
     return false;
@@ -796,14 +798,14 @@ const Game = {
       for(let j = 0; j < n && !a.steckt && !a.weg; j++){
         a.x += a.vx*dt/n; a.y += a.vy*dt/n; a.z += a.vz*dt/n;
         if(blocksMovement(w.getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z)))){
-          a.steckt = true; a.alter = 0; Sfx.play('pfeil'); break;
+          a.steckt = true; a.alter = 0; Sfx.play('pfeil', a.x, a.y, a.z); break;
         }
         const tv = Math.hypot(a.vx, a.vz) || 1;
         if(a.vomSpieler){
           for(const m of this.mobs){
             if(m.dead || Math.abs(a.x - m.x) > m.w/2 + .1 || Math.abs(a.z - m.z) > m.w/2 + .1 || a.y < m.y || a.y > m.y + m.h) continue;
             this.mobTreffer(m, a.dmg, a.vx/tv*.6, a.vz/tv*.6);
-            Sfx.play('hit'); a.weg = true; break;
+            Sfx.wesen(m, 'au'); a.weg = true; break;
           }
         } else if(!a.nurBild && !p.dead && Math.abs(a.x - p.x) < p.w/2 + .1 && Math.abs(a.z - p.z) < p.w/2 + .1 && a.y > p.y && a.y < p.y + p.h){
           if(p.hurt(a.dmg, 'Ein Skelett hat dich getroffen', a.vx/tv*.5, a.vz/tv*.5)){ this.hurtFlash = 1; Sfx.play('hurt'); }
@@ -974,7 +976,7 @@ const Game = {
       const dist = Math.hypot(dx,dz);
       const hoerbar = Math.hypot(p.x - m.x, p.z - m.z) < 24;
       if(m.dead || (nd > far && !m.bleibt) || m.y < -4){
-        if(m.dead && hoerbar) Sfx.play('hit');
+        if(m.dead) Sfx.wesen(m, 'tot');
         this.mobs.splice(i,1); continue;
       }
       // Bleibende Tiere in ungeladenen Chunks warten, statt ins Nichts zu fallen
@@ -1015,11 +1017,11 @@ const Game = {
             const pf = new Pfeil(ax + ux*.5, ay, az + uz*.5, (zx-ax)/hl*v + ungenau(), vy + ungenau()*.5, (zz-az)/hl*v + ungenau(), 2 + ((Math.random()*3)|0), false);
             this.pfeile.push(pf);
             Netz.pfeilSenden(pf, false);           // jeder Mitspieler prüft selbst, ob er getroffen wird
-            if(hoerbar) Sfx.play('bogen');
+            Sfx.play('bogen', m.x, m.y + 1.5, m.z);
             m.schussCd = 1.8 + Math.random()*1.2;
           } else m.schussCd = 0.4;
         }
-        if(hoerbar && Math.random() < 0.004) Sfx.play('skelett');
+        if(Math.random() < 0.004) Sfx.wesen(m, 'laut');
       } else if(jagt){
         const l = dist || 1; tx = dx/l; tz = dz/l;
         m.yaw = Math.atan2(-tx, -tz);
@@ -1029,7 +1031,7 @@ const Game = {
             if(p.hurt(m.def.dmg, 'Ein Zombie hat dich erwischt', -tx, -tz)){ m.attackCd = 1.1; this.hurtFlash = 1; Sfx.play('hurt'); }
           } else { Netz.autsch(z.g, m.def.dmg, 'Ein Zombie hat dich erwischt', -tx, -tz); m.attackCd = 1.1; }
         }
-        if(hoerbar && Math.random() < 0.004) Sfx.play('zombie');
+        if(Math.random() < 0.004) Sfx.wesen(m, 'laut');
       } else if(!m.def.hostile && m.flucht > 0){
         // getroffen: ein paar Sekunden weg vom Spieler
         m.flucht -= dt;
@@ -1056,7 +1058,7 @@ const Game = {
           m.wanderYaw = Math.random()*TAU;
         }
         if(m.moving){ m.yaw = m.wanderYaw; tx = -Math.sin(m.yaw); tz = -Math.cos(m.yaw); speed *= 0.55; }
-        if(!m.def.hostile && hoerbar && Math.random() < 0.0012) Sfx.play(m.def.laut);
+        if(!m.def.hostile && hoerbar && Math.random() < 0.0012) Sfx.wesen(m, 'laut');
         if(heldId === ITEM.wheat && !m.def.hostile && dist <= 2.2){ m.yaw = Math.atan2(dx, dz) + Math.PI; m.moving = false; tx = tz = 0; }
       }
       // geschorene Schafe fressen Gras, dann wächst die Wolle nach
@@ -1118,7 +1120,9 @@ const Game = {
     if(p.hurtTimer > 0) p.hurtTimer -= dt;
 
     const feetId = w.getBlock(Math.floor(p.x), Math.floor(p.y+0.1), Math.floor(p.z));
+    const warImWasser = p.inWater;
     p.inWater = inBlockOfType(w, p, id => id === B.WATER);
+    if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
     p.headInWater = w.getBlock(Math.floor(p.x), Math.floor(p.eyeY()), Math.floor(p.z)) === B.WATER;
 
     // Bewegung
@@ -1188,9 +1192,16 @@ const Game = {
     // Schritt-Geräusch + Erschöpfung
     if(p.onGround && (Math.abs(wx)+Math.abs(wz)) > 0.05){
       p.bob += dt*speed*1.9;
-      if(p.bob > this._lastStep + 2.6){ this._lastStep = p.bob; Sfx.play('step');
+      if(p.bob > this._lastStep + 2.6){ this._lastStep = p.bob;
+        // der Block unter den Füßen gibt den Klang; geduckt leiser
+        const unten = w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z));
+        Sfx.block('schritt', unten !== B.AIR ? unten : feetId, undefined, undefined, undefined, p.sneaking ? .45 : 1);
         p.addExhaustion(input.sprint ? 0.06 : 0.012); }
     } else this._lastStep = p.bob;
+    if(p.inWater && !p.onGround && (Math.abs(wx)+Math.abs(wz)) > 0.05){
+      this._schwimmT = (this._schwimmT || 0) + dt;
+      if(this._schwimmT > 0.8){ this._schwimmT = 0; Sfx.block('schritt', B.WATER); }
+    }
 
     // Kaktus / Ersticken
     if(inBlockOfType(w, p, id => id === B.CACTUS) && !p.creative){
@@ -1520,6 +1531,7 @@ function frame(now){
   if(Game.bogen.aktiv) sp.firstElementChild.style.width = Math.round(Math.min(1, Game.bogen.t)*100) + '%';
   if(Game.settings.debug) updateDebug();
 
+  Sfx.hoerer(p.x, p.eyeY(), p.z, p.yaw, p.pitch);
   render(dt);
   Netz.schilder();
 
@@ -1550,7 +1562,7 @@ function handleDigging(dt){
   if(Game.breakTotal <= 0){ Game.breakPos = null; return; }
   Game.breakProg += dt;
   Game._digSnd += dt;
-  if(Game._digSnd > 0.22){ Game._digSnd = 0; Sfx.play('dig'); }
+  if(Game._digSnd > 0.22){ Game._digSnd = 0; Sfx.block('hacken', t.id, t.x, t.y, t.z); }
   if(Game.breakProg >= Game.breakTotal){
     Game.finishBreak(t.x, t.y, t.z, t.id);
     Game.breakPos = null; Game.breakProg = 0;
@@ -1628,7 +1640,11 @@ function boot(){
   }
   buildWire();
   Game.loadOpts();
-  if(Game.settings.ton === false) Sfx.on = false;
+  // früher gab es nur »Ton an/aus«
+  if(Game.settings.ton === false){ Game.settings.geraeusche = 0; delete Game.settings.ton; Game.saveOpts(); }
+  Sfx.lautSetzen(Game.settings.geraeusche/100);
+  Musik.lautSetzen(Game.settings.musik/100);
+  Musik.laden();
   Input.init();
   wireSpiel();
   Netz.init();

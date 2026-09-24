@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 2.3';
+const VERSION = 'Pocketcraft 2.4';
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '57 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -16,7 +16,7 @@ const SPRUECHE = [
   'Grab nie senkrecht nach unten!', 'Fackeln helfen!', 'Pixelig und stolz drauf!', 'Frisch gebacken: Brot!',
   'Mehrere Welten!', 'Passt in die Tasche!', 'Schweine grunzen!', 'Voll auf Holz!',
   'Jetzt mit Schafen!', 'Muh!', 'Skelette zielen gut!', 'Scheren scheren!', 'Früher Taschenwelt!', 'Frische Milch!', 'Pfeil und Bogen!',
-  'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!'
+  'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!', 'Jetzt mit Musik!', 'Hör mal, Kies!', 'Knirscht wie echt!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {
@@ -139,7 +139,11 @@ const Menue = {
     knopf('#lNein', () => this.zuWelten());
     knopf('#oFertig', () => this.optionenZu());
     knopf('#oSprung', () => { Game.settings.autojump = !Game.settings.autojump; Game.saveOpts(); this.optionenZeigen(); });
-    knopf('#oTon', () => { Sfx.on = !Sfx.on; Game.settings.ton = Sfx.on; Game.saveOpts(); this.optionenZeigen(); });
+    $('#oGer').addEventListener('input', e => { Game.settings.geraeusche = +e.target.value; Sfx.lautSetzen(Game.settings.geraeusche/100); Game.saveOpts(); this.optionenZeigen(); });
+    $('#oGer').addEventListener('change', () => Sfx.play('pickup'));      // hören, wie laut es jetzt ist
+    $('#oMusik').addEventListener('input', e => { Game.settings.musik = +e.target.value; Musik.lautSetzen(Game.settings.musik/100); Game.saveOpts(); this.optionenZeigen(); });
+    knopf('#oMitw', () => this.zuMitwirkende());
+    knopf('#mwFertig', () => this.zeige('optionen'));
     knopf('#oDebug', () => { Game.settings.debug = !Game.settings.debug; $('#dbg').classList.toggle('on', Game.settings.debug); Game.saveOpts(); this.optionenZeigen(); });
     $('#oRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     $('#oSens').addEventListener('input', e => { Game.settings.sens = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
@@ -183,11 +187,12 @@ const Menue = {
     this.logo();
     this.zeige('titel');
     Game.panorama(STARTWORTE[0] + '-panorama');
+    Musik.zumTitel();
     this.bereit = Speicher.init().then(() => this.listeLaden());
   },
 
   zeige(name){
-    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen'])
+    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende'])
       $('#' + id).classList.toggle('on', id === name);
     this.aktiv = name;
     document.body.classList.toggle('imMenue', !!name && !Game.running);
@@ -198,7 +203,7 @@ const Menue = {
   alleZu(){ this.zeige(null); this.aktiv = null; document.body.classList.remove('imMenue', 'mcOffen'); },
   /** Escape und Zurück-Taste */
   zurueck(){
-    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler' };
+    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen' };
     if(this.aktiv === 'optionen' || this.aktiv === 'oeffnen'){ this.optionenZu(); return; }
     if(this.aktiv === 'verbinden'){ this.vbZurueck(); return; }
     if(this.aktiv === 'mitspieler'){ this.nameSichern(); this.zeige('titel'); return; }
@@ -605,8 +610,16 @@ const Menue = {
     $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks';
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
-    $('#oTon').textContent = 'Ton: ' + (Sfx.on ? 'An' : 'Aus');
+    const pz = v => v > 0 ? v + ' %' : 'Aus';
+    $('#oGer').value = s.geraeusche; $('#oGerText').textContent = 'Geräusche: ' + pz(s.geraeusche);
+    $('#oMusik').value = s.musik;
+    $('#oMusikText').textContent = 'Musik: ' + pz(s.musik) + (Musik.liste && !Musik.hat() ? ' · noch keine Titel' : '');
     $('#oDebug').textContent = 'Debug-Anzeige: ' + (s.debug ? 'An' : 'Aus');
+  },
+  /* — Mitwirkende — */
+  zuMitwirkende(){
+    this.zeige('mitwirkende');
+    $('.mitw').scrollTop = 0;
   },
   optionenZu(){
     if(this.vonPause){ this.vonPause = false; this.alleZu(); return; }

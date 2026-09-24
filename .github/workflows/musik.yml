@@ -1,0 +1,37 @@
+# Musik für Pocketcraft einlesen: Wer Titel in games/pocketcraft/musik/
+# hochlädt, bekommt sie hier in MP3 umgewandelt und in liste.json
+# eingetragen — danach spielt das Spiel sie ab. Siehe dort LIESMICH.md.
+name: Musik einlesen
+
+on:
+  push:
+    paths:
+      - 'games/pocketcraft/musik/**'
+      - '!games/pocketcraft/musik/liste.json'
+      - '!games/pocketcraft/musik/LIESMICH.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  einlesen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ffmpeg bereitstellen
+        run: which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+
+      - name: Umwandeln und Liste schreiben
+        run: python3 werkzeug/musik-einlesen.py games/pocketcraft/musik
+
+      - name: Zurückschreiben
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A games/pocketcraft/musik
+          if git diff --cached --quiet; then echo "Nichts zu tun."; exit 0; fi
+          git commit -m "Musik: eingelesen und Liste erneuert"
+          git push

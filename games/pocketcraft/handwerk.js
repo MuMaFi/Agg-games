@@ -268,56 +268,7 @@ function fuelValue(id){
 }
 
 /* ── Klänge (WebAudio, komplett synthetisch) ───────────────────────── */
-const Sfx = {
-  ctx:null, on:true,
-  init(){ if(this.ctx) return; try{ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ this.on = false; } },
-  tone(f, dur, type, gain, slide){
-    if(!this.on) { return; }
-    this.init(); if(!this.ctx) return;
-    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = type || 'square'; o.frequency.setValueAtTime(f, c.currentTime);
-    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f*slide), c.currentTime + dur);
-    g.gain.setValueAtTime(0.0001, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(gain || 0.12, c.currentTime + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
-    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + dur + 0.02);
-  },
-  noise(dur, gain, filterFreq){
-    if(!this.on) return; this.init(); if(!this.ctx) return;
-    const c = this.ctx, n = c.sampleRate * dur | 0;
-    const buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
-    for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
-    const src = c.createBufferSource(); src.buffer = buf;
-    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterFreq || 900;
-    const g = c.createGain(); g.gain.value = gain || 0.16;
-    src.connect(f); f.connect(g); g.connect(c.destination); src.start();
-  },
-  play(what){
-    switch(what){
-      case 'dig':   this.noise(0.07, 0.10, 1500); break;
-      case 'break': this.noise(0.16, 0.20, 1100); break;
-      case 'place': this.noise(0.10, 0.16, 700); break;
-      case 'step':  this.noise(0.05, 0.05, 500); break;
-      case 'hurt':  this.tone(220, 0.18, 'sawtooth', 0.14, 0.5); break;
-      case 'hit':   this.tone(160, 0.09, 'square', 0.12, 0.7); break;
-      case 'craft': this.tone(660, 0.07, 'triangle', 0.10); setTimeout(()=>this.tone(880,0.09,'triangle',0.10), 60); break;
-      case 'pickup':this.tone(880, 0.05, 'triangle', 0.07); break;
-      case 'klick': this.tone(520, 0.03, 'triangle', 0.05); break;
-      case 'eat':   this.noise(0.14, 0.08, 400); break;
-      case 'door':  this.noise(0.12, 0.14, 500); this.tone(140, 0.08, 'square', 0.05, 0.8); break;
-      case 'zombie':this.tone(110, 0.4, 'sawtooth', 0.06, 0.6); break;
-      case 'pig':   this.tone(300, 0.14, 'square', 0.05, 1.5); break;
-      case 'kuh':   this.tone(118, 0.7, 'sawtooth', 0.06, 0.7); break;
-      case 'schaf': this.tone(430, 0.09, 'square', 0.04, 0.9); setTimeout(()=>this.tone(410,0.09,'square',0.04,0.85), 90); setTimeout(()=>this.tone(400,0.14,'square',0.035,0.8), 180); break;
-      case 'skelett': for(let i=0;i<4;i++) setTimeout(()=>this.noise(0.03, 0.08, 3200), i*55); break;
-      case 'bogen': this.noise(0.12, 0.10, 2400); this.tone(220, 0.1, 'triangle', 0.05, 0.6); break;
-      case 'pfeil': this.noise(0.06, 0.12, 900); break;
-      case 'geburt': this.tone(660, 0.08, 'triangle', 0.07, 1.3); setTimeout(()=>this.tone(990, 0.12, 'triangle', 0.07, 1.1), 90); break;
-      case 'schere': this.noise(0.04, 0.10, 4000); setTimeout(()=>this.noise(0.04, 0.10, 4000), 90); break;
-      case 'die':   this.tone(300, 0.7, 'sawtooth', 0.16, 0.25); break;
-    }
-  }
-};
+/* Sfx (Geräusche) steht jetzt in klang.js */
 
 /* ── Slot-Darstellung ──────────────────────────────────────────────── */
 function zeigeSlot(d, s, geist){
@@ -468,6 +419,10 @@ const Screens = {
   },
   hide(){
     if(this.open === 'beh'){
+      if(this.modus === 'truhe' && this.truheKey){
+        const [x, y, z] = String(this.truheKey).split(',').map(Number);
+        Sfx.play('truhe_zu', x + .5, y + .5, z + .5);
+      }
       // Raster und Hand zurück in die Tasche, was nicht passt, fällt vor die Füße
       for(let i=0; i<9; i++){ if(this.raster[i]){ this.zurueck(this.raster[i]); this.raster[i] = null; } }
       if(Inv.cursor){ this.zurueck(Inv.cursor); Inv.cursor = null; }
@@ -537,7 +492,8 @@ const Screens = {
       if(this.modus === 'inv'){
         const r = el('div', 'ruest');
         for(let k=0; k<4; k++) r.appendChild(this.mk({
-          gruppe:'ruestung', art:'lager', get:() => Inv.ruestung[k], set:v => { Inv.ruestung[k] = v; },
+          gruppe:'ruestung', art:'lager', get:() => Inv.ruestung[k],
+          set:v => { const alt = Inv.ruestung[k]; Inv.ruestung[k] = v; if(v && v !== alt) Sfx.ruestung(v.id); },
           passt: st => !!(items[st.id] && items[st.id].armor && items[st.id].armor.slot === k),
           nein:'Hier gehört ' + ['ein Helm','ein Brustpanzer','eine Hose','ein Paar Stiefel'][k] + ' hin', leer: RUEST_LEER[k] }));
         oben.appendChild(r);

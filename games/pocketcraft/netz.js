@@ -584,7 +584,9 @@ const Netz = {
       if(jung && !(m.kind > 0)){ m.kind = 1; m.w = m.def.w*BABY; m.h = m.def.h*BABY; }
       else if(!jung && m.kind > 0){ m.kind = 0; m.w = m.def.w; m.h = m.def.h; }
       neu.push(m);
+      alt.delete(nid);
     }
+    for(const m of alt.values()) if(m.hurtTimer > 0) Sfx.wesen(m, 'tot');
     Game.mobs = neu;
   },
   wesenNachziehen(dt){
@@ -598,10 +600,7 @@ const Netz = {
       if(m.hurtTimer > 0) m.hurtTimer -= dt;
       if(m.moving) m.walkPhase += dt*m.def.speed*3.2*0.8;
       if(m.liebe > 0){ m.herzT -= dt; if(m.herzT <= 0){ m.herzT = 0.7 + Math.random()*0.4; Game.herz(m); } }
-      if(Math.hypot(m.x - p.x, m.z - p.z) < 20){
-        if(!m.def.hostile && Math.random() < 0.0012) Sfx.play(m.def.laut);
-        else if(m.def.hostile && Math.random() < 0.003) Sfx.play(m.def.laut);
-      }
+      if(Math.hypot(m.x - p.x, m.z - p.z) < 20 && Math.random() < (m.def.hostile ? 0.003 : 0.0012)) Sfx.wesen(m, 'laut');
     }
   },
 
@@ -616,6 +615,7 @@ const Netz = {
   blockGeaendert(x, y, z, id){ this.ausgang.push(x, y, z, id); },
   bloeckeEmpfangen(l){
     if(!Array.isArray(l)) return;
+    this._toene = 4;
     for(let i = 0; i + 3 < l.length; i += 4){
       const x = l[i] | 0, y = l[i+1] | 0, z = l[i+2] | 0, id = l[i+3] | 0;
       if(!blocks[id] && id !== B.AIR) continue;
@@ -641,6 +641,7 @@ const Netz = {
         m.set(i, id);
       }
       if(alt === id) return;
+      if(alt >= 0 && this._toene > 0) this.bauKlang(alt, id, x, y, z);
       if(alt === B.CHEST && id !== B.CHEST) w.chests.delete(k);
       if((alt === B.FURNACE || alt === B.FURNACE_LIT) && id !== B.FURNACE && id !== B.FURNACE_LIT) w.furnaces.delete(k);
       if(id === B.CHEST && !w.chests.has(k)) w.chests.set(k, new Array(27).fill(null));
@@ -649,6 +650,15 @@ const Netz = {
       if(isWheat(id)){ if(!w.crops.has(k)) w.crops.set(k, { t:0 }); }
       else w.crops.delete(k);
     } finally { this.eingehend = false; }
+  },
+
+  /** Abbauen, Setzen, Türen der anderen — Wachsen und Ofenglut bleiben still */
+  bauKlang(alt, id, x, y, z){
+    if((isWheat(alt) && isWheat(id)) || ((alt === B.FURNACE || alt === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT))) return;
+    this._toene--;
+    if(isDoor(alt) && isDoor(id)){ if(doorInfo(id).oben) return; Sfx.play(doorInfo(id).offen ? 'tuer_auf' : 'tuer_zu', x + .5, y + 1, z + .5); }
+    else if(id === B.AIR) Sfx.block('weg', alt, x, y, z);
+    else Sfx.block('setzen', id, x, y, z);
   },
 
   /* — Truhen und Öfen: wer etwas hineinlegt, schickt den neuen Inhalt — */

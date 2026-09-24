@@ -119,6 +119,14 @@ body.imMenue:not(.panoBereit) .mc-schirm{background:linear-gradient(rgba(0,0,0,.
 body.imMenue #namen, body.mcOffen #namen{display:none}
 /* hinter einem Menü mitten im Spiel: Herzen und Knöpfe nicht durchscheinen lassen */
 body.mcOffen #hud{visibility:hidden}
+/* Mitwirkende */
+.mitw{flex:1 1 auto; min-height:0; overflow:auto; width:min(640px, 100%); background:rgba(0,0,0,.55); padding:6px 14px 12px;
+  font-family:var(--ui); font-size:13px; line-height:1.5; color:#d8d8d8; text-shadow:none}
+.mitw h3{font-family:var(--pix); font-weight:500; font-size:16px; color:#ffe66b; margin:12px 0 4px; text-shadow:2px 2px 0 #3f3f14}
+.mitw p{margin:0 0 6px} .mitw b{color:#fff; font-weight:600}
+.mitw ul{margin:0 0 8px; padding-left:18px} .mitw li{margin:1px 0}
+.mitw .klein{font-size:12px; color:#a8a8a8} .mitw code{font-size:11.5px; color:#cfcfcf}
+#mwFertig{width:min(400px, 100%); margin-top:10px; flex:0 0 auto}
 .oeTeil{display:flex; flex-direction:column}
 .oeTeil .mc-reihe{width:100%; margin:0 0 8px}
 @media (orientation:landscape) and (max-height:520px){
@@ -515,15 +523,63 @@ body.mcOffen .screen{visibility:hidden}
   <div class="mc-reihe"><button class="mc" id="oeLos">Welt öffnen</button><button class="mc" id="oeZurueck">Zurück zum Spiel</button></div>
 </div>
 
+<!-- Mitwirkende: Musik, Geräusche, Schrift, Technik -->
+<div class="mc-schirm dunkel" id="mitwirkende">
+  <h2 class="mc-titel">Mitwirkende</h2>
+  <div class="mitw">
+    <h3>Pocketcraft</h3>
+    <p>Ein Spiel von AGG Games. Blöcke, Wesen und Texturen entstehen im Spiel selbst.</p>
+    <h3>Geräusche</h3>
+    <p>Echte Aufnahmen aus freien Spielen, gekürzt, in der Lautstärke angeglichen und in MP3 umgewandelt.
+      Gesammelt über <b>Minetest Game</b>, <b>VoxeLibre</b> und die Luanti-Mod <b>stamina</b>.</p>
+    <ul>
+      <li><b>Mito551</b> — Laufen auf Gras, Erde, Kies, Holz, Glas; Abbauen, Setzen · CC BY-SA 3.0</li>
+      <li><b>Erdie</b> — Laufen auf Stein · CC BY 3.0</li>
+      <li><b>Benboncan</b> — Stein abbauen · CC BY 3.0</li>
+      <li><b>Sheyvan</b> — Holz hacken · CC0</li>
+      <li><b>blukotek</b> — Laub · CC0</li>
+      <li><b>lolamadeus</b> — Kies · CC0</li>
+      <li><b>worthahep88</b> — Sand · CC0</li>
+      <li><b>Ryding</b> — Schnee · CC0</li>
+      <li><b>Alecia Shepherd</b> — Wolle · CC BY-SA 4.0</li>
+      <li><b>AGFX</b> — Schwimmen · CC BY 3.0</li>
+      <li><b>tran5ient</b> — Platschen · CC0</li>
+      <li><b>yadronoff</b> · <b>Iwan Gabovitch (qubodup)</b> · <b>Ogrebane</b> · <b>mypantsfelldown</b> — Metall · CC BY 3.0 / CC0</li>
+      <li><b>cmusounddesign</b> · <b>Tomlija</b> · <b>lsprice</b> — Glas zerspringt · CC BY 3.0</li>
+      <li><b>HerbertBoland</b> — Werkzeug zerbricht · CC BY 3.0</li>
+      <li><b>sonictechtonic</b> — Schmerz, Essen · CC BY 3.0</li>
+      <li><b>sofar</b>, gemischt aus Aufnahmen von Sevin7, Percy Duke, kingsamas, bulbastre und Yoyodaman234 — Truhe · CC BY-SA 3.0</li>
+      <li><b>CGEffex</b> (bearbeitet von BlockMen) · <b>bennstir</b> — Tür · CC BY 3.0</li>
+      <li><b>Zozzy</b> · <b>Bird_man</b> · <b>Klaraschick</b> — Kuh, Melken · CC0</li>
+      <li><b>TenPlus1</b> — Schwein · MIT</li>
+      <li><b>Blender Foundation</b> — Schaf · CC BY 3.0</li>
+      <li><b>Under7dude</b> · <b>haratman</b> — Zombie · CC0</li>
+      <li><b>Baŝto</b> nach <b>kantouth</b> — Skelett · CC BY 3.0; <b>Cribbler</b> · <b>spookymodem</b> · CC0</li>
+      <li><b>JoeDinesSound</b> — Bogen, Pfeil · CC0</li>
+      <li><b>SmartWentCody</b> — Schere · CC BY 3.0</li>
+      <li><b>benniknop</b> — Aufheben · CC0</li>
+      <li><b>artisticdude</b> · <b>mitchanary</b> · <b>juryduty</b> — Rüstung · CC0</li>
+    </ul>
+    <p class="klein">Alle Dateien mit Original, Link und Lizenz: <code>games/pocketcraft/ton/QUELLEN.md</code> im Quellcode.</p>
+    <h3>Schrift</h3>
+    <p><b>Pixelify Sans</b> von The Pixelify Sans Project Authors · SIL Open Font License 1.1</p>
+    <h3>Mitspieler-Technik</h3>
+    <p><b>PeerJS</b> von Michelle Bu, Eric Zhang und Mitwirkenden · MIT</p>
+  </div>
+  <button class="mc" id="mwFertig">Fertig</button>
+</div>
+
 <!-- Optionen -->
 <div class="mc-schirm dunkel" id="optionen">
   <h2 class="mc-titel">Optionen</h2>
   <div class="mc-gitter">
     <div class="mc-schieber"><input type="range" id="oRd" min="2" max="8" step="1" aria-label="Sichtweite"><span id="oRdText"></span></div>
     <div class="mc-schieber"><input type="range" id="oSens" min="4" max="30" step="1" aria-label="Blick-Tempo"><span id="oSensText"></span></div>
+    <div class="mc-schieber"><input type="range" id="oGer" min="0" max="100" step="5" aria-label="Geräusche"><span id="oGerText"></span></div>
+    <div class="mc-schieber"><input type="range" id="oMusik" min="0" max="100" step="5" aria-label="Musik"><span id="oMusikText"></span></div>
     <button class="mc" id="oSprung"></button>
-    <button class="mc" id="oTon"></button>
     <button class="mc" id="oDebug"></button>
+    <button class="mc" id="oMitw">Mitwirkende …</button>
   </div>
   <div class="steuerHilfe">
     <p><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen oder benutzen.</p>
@@ -539,6 +595,7 @@ body.mcOffen .screen{visibility:hidden}
 <script src="welt.js"></script>
 <script src="bild.js"></script>
 <script src="wesen.js"></script>
+<script src="klang.js"></script>
 <script src="handwerk.js"></script>
 <script src="speicher.js"></script>
 <script src="menue.js"></script>
