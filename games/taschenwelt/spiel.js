@@ -4,7 +4,6 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const SAVE_KEY = 'taschenwelt.world.v1';
 const OPT_KEY  = 'taschenwelt.opts.v1';
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 
@@ -16,9 +15,18 @@ const Game = {
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
   hurtFlash:0, mobTimer:0, camShake:0,
+  meta:null, gesamtZeit:0, panoramaAktiv:false, _panoZiel:0,
+
+  /** Sichtweite: das Panorama begnügt sich mit weniger */
+  sicht(){ return this.panoramaAktiv ? Math.min(4, this.settings.rd) : this.settings.rd; },
 
   /* ── Start ───────────────────────────────────────────────────────── */
-  start(seed, opts, saved){
+  /** meta: Steckbrief der Welt · saved: Datenteil oder null für eine neue */
+  start(meta, saved){
+    this.meta = meta;
+    this.panoramaAktiv = false;
+    document.body.classList.remove('imMenue');
+    const seed = meta.seed;
     this.world = new World(seed);
     this.player = new Player();
     this.mobs = []; this.drops = [];
@@ -27,6 +35,7 @@ const Game = {
     Inv.clear(); Inv.sel = 0;
     this.time = DAY_LEN*0.12;
 
+    this.gesamtZeit = saved ? (saved.zeit || 0) : 0;
     if(saved){
       const p = this.player;
       Object.assign(p, saved.p);
@@ -49,7 +58,7 @@ const Game = {
       Inv.merkeAlles();
       this.platzSuchen = false;
     } else {
-      if(opts && opts.creative) this.player.creative = true;
+      if(meta.modus === 'kreativ') this.player.creative = true;
       this.findSpawn();
       this.platzSuchen = true;
       if(this.player.creative){
@@ -59,13 +68,71 @@ const Game = {
       }
     }
     this.loading = true; this.loadDone = 0;
-    const rd = this.settings.rd;
+    const rd = this.sicht();
     this.loadTarget = Math.max(9, ((rd*2+1)*(rd*2+1)) * 0.55 | 0);
     this.running = true;
+    this.lastSave = performance.now();
     HUD.build(); HUD.refreshHotbar();
     $('#hud').classList.add('on');
-    $('#menu').classList.add('hide');
     Screens.hide();
+  },
+
+  /* ── Panorama: eine Welt dreht sich hinter dem Titelbild ─────────── */
+  panorama(seed){
+    const neu = !!seed;
+    if(neu){
+      this.world = new World(seed);
+      this.player = new Player();
+      this.meshes.forEach(m => { R.freeMesh(m.o); R.freeMesh(m.w); });
+      this.meshes.clear();
+      this.findSpawn();
+      this._panoHoehe = true;
+      this.loading = true; this.loadDone = 0;
+      const rd = Math.min(4, this.settings.rd);
+      this.loadTarget = Math.max(9, ((rd*2+1)*(rd*2+1)) * 0.55 | 0);
+      document.body.classList.remove('panoBereit');
+    } else {
+      // die gerade verlassene Welt bleibt stehen, die Kamera hebt sich über die Bäume
+      this.panoramaHoehe();
+      document.body.classList.add('panoBereit');
+    }
+    const p = this.player;
+    p.pitch = -0.12; p.vx = p.vy = p.vz = 0; p.swinging = false;
+    this.mobs = []; this.drops = [];
+    this.time = DAY_LEN*0.2;
+    this.panoramaAktiv = true;
+    this.running = false;
+    this.meta = null;
+    document.body.classList.add('imMenue');
+  },
+  /** über dem höchsten Punkt der Umgebung, damit kein Baum im Bild steht */
+  panoramaHoehe(){
+    const w = this.world, p = this.player;
+    let h = 0;
+    for(let dz = -3; dz <= 3; dz++) for(let dx = -3; dx <= 3; dx++){
+      const x = Math.floor(p.x) + dx, z = Math.floor(p.z) + dz;
+      for(let y = WH-1; y > 0; y--){ const id = w.getBlock(x, y, z); if(id !== B.AIR && id !== B.TALLGRASS){ h = Math.max(h, y); break; } }
+    }
+    p.y = h + 3.2;
+  },
+  zumTitel(){
+    Screens.hide();
+    this.running = false;
+    this.meta = null;
+    $('#hud').classList.remove('on');
+    Menue.ladeStand(false);
+    this.panorama(null);
+  },
+  /** Vorschaubild für die Weltenliste, ohne Hand, quadratisch aus der Mitte */
+  bildJetzt(){
+    if(this.loading || this.panoramaAktiv || document.hidden) return null;
+    try{
+      this._ohneHand = true; render(0); this._ohneHand = false;
+      const q = document.createElement('canvas'); q.width = q.height = 96;
+      const s = Math.min(canvas.width, canvas.height);
+      q.getContext('2d').drawImage(canvas, (canvas.width - s)/2, (canvas.height - s)/2, s, s, 0, 0, 96, 96);
+      return q.toDataURL('image/jpeg', 0.72);
+    }catch(e){ this._ohneHand = false; return null; }
   },
 
   findSpawn(){
@@ -116,8 +183,11 @@ const Game = {
   },
 
   /* ── Speichern / Laden ───────────────────────────────────────────── */
-  save(){
-    if(!this.world) return false;
+  /** gibt ein Versprechen zurück; sofort=true schreibt zusätzlich eine
+      synchrone Notkopie — für den Moment, in dem die Seite verschwindet */
+  save(sofort){
+    if(!this.world || !this.meta || this.panoramaAktiv) return Promise.resolve(false);
+    let text;
     try{
       const p = this.player;
       const mods = [];
@@ -127,7 +197,7 @@ const Game = {
         mods.push([k, arr]);
       }
       const data = {
-        seed: this.world.seedStr, time: this.time,
+        seed: this.world.seedStr, time: this.time, zeit: this.gesamtZeit,
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
              spawnX:p.spawnX, spawnY:p.spawnY, spawnZ:p.spawnZ },
@@ -139,14 +209,20 @@ const Game = {
         bekannt: [...Inv.bekannt],
         rest: Screens.raster.concat([Inv.cursor]).filter(Boolean).map(s => [s.id, s.n, s.dur])
       };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-      this.lastSave = performance.now();
-      return true;
-    }catch(e){ return false; }
-  },
-  loadSaved(){
-    try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }
-    catch(e){ return null; }
+      text = JSON.stringify(data);
+    }catch(e){ return Promise.resolve(false); }
+    const m = this.meta;
+    m.gespielt = Date.now();
+    m.groesse = text.length;
+    m.tag = Math.floor(this.gesamtZeit / DAY_LEN) + 1;
+    m.modus = this.player.creative ? 'kreativ' : 'ueberleben';
+    if(!sofort){ const bild = this.bildJetzt(); if(bild) m.bild = bild; }
+    this.lastSave = performance.now();
+    if(sofort) Speicher.notfall(m, text);
+    return Speicher.sichern(m, text).then(() => true, e => {
+      hint('Speichern fehlgeschlagen' + (e && e.name === 'QuotaExceededError' ? ': der Speicher ist voll' : ''), 3000);
+      return false;
+    });
   },
   saveOpts(){ try{ localStorage.setItem(OPT_KEY, JSON.stringify(this.settings)); }catch(e){} },
   loadOpts(){ try{ const r = localStorage.getItem(OPT_KEY); if(r) Object.assign(this.settings, JSON.parse(r)); }catch(e){} },
@@ -155,7 +231,7 @@ const Game = {
   streamChunks(budgetMs){
     const w = this.world, p = this.player;
     const pcx = Math.floor(p.x/CS), pcz = Math.floor(p.z/CS);
-    const rd = this.settings.rd;
+    const rd = this.sicht();
     const t0 = performance.now();
 
     // Entladen
@@ -751,7 +827,6 @@ const Game = {
       }
     }
     if(p.y < -8 && !p.creative) p.hurt(20, 'Du bist aus der Welt gefallen');
-    if(p.dead){ Sfx.play('die'); $('#deathCause').textContent = p.deathCause; Screens.show('death'); }
   },
   respawn(){
     const p = this.player;
@@ -852,7 +927,7 @@ const Input = {
   /** Berührungen auf echten Bedienelementen gehören diesen, nicht der Welt */
   onWidget(e){
     const t = e.target;
-    return !!(t && t.closest && t.closest('.tbtn, #hotbar, .screen, #menu, button, input'));
+    return !!(t && t.closest && t.closest('.tbtn, #hotbar, .screen, .mc-schirm, button, input'));
   },
 
   down(e){
@@ -917,6 +992,9 @@ const Input = {
   },
   key(e, dn){
     const k = e.key.toLowerCase();
+    // Titelbild und Optionen: Escape geht einen Schritt zurück, sonst nichts
+    if(Menue.aktiv){ if(dn && k === 'escape') Menue.zurueck(); return; }
+    if(!Game.running) return;
     if(dn && k === 'escape'){ if(Screens.open) Screens.hide(); else togglePause(); return; }
     if(Screens.open && Screens.open !== 'pause') { if(dn && (k === 'e')) Screens.hide(); return; }
     this.keys[k] = dn;
@@ -945,7 +1023,7 @@ function dropHeld(){
 }
 function togglePause(){
   if(Screens.open === 'pause') Screens.hide();
-  else { syncPauseUI(); Screens.show('pause'); }
+  else Screens.show('pause');
 }
 
 Game._lastStep = 0;
@@ -958,6 +1036,16 @@ function frame(now){
   requestAnimationFrame(frame);
   let dt = (now - lastT)/1000; lastT = now;
   if(dt > 0.1) dt = 0.1;
+  if(Game.panoramaAktiv){
+    Game.streamChunks(Game.loading ? 16 : 6);
+    if(Game._panoHoehe && Game.world.getChunk(Math.floor(Game.player.x/CS), Math.floor(Game.player.z/CS))){
+      Game._panoHoehe = false; Game.panoramaHoehe();
+    }
+    if(!Game.loading) document.body.classList.add('panoBereit');
+    Game.player.yaw += dt*0.045;
+    render(dt);
+    return;
+  }
   if(!Game.running){ return; }
 
   Game.tick++;
@@ -967,8 +1055,10 @@ function frame(now){
   Game.streamChunks(Game.loading ? 22 : 7);
 
   const paused = Screens.open === 'pause' || Screens.open === 'death';
+  Menue.ladeStand(Game.loading, Game.loadDone / Game.loadTarget);
   if(!paused){
     Game.time = (Game.time + dt) % DAY_LEN;
+    Game.gesamtZeit += dt;
     if(!Game.loading || Game.world.getChunk(Math.floor(Game.player.x/CS), Math.floor(Game.player.z/CS))){
       Game.updatePlayer(dt, Input);
     }
@@ -979,6 +1069,12 @@ function frame(now){
     Game.spawnMobs(dt);
     handleDigging(dt);
   }
+  /* Tod: gleich wodurch — Sturz, Zombie, Hunger. Früher prüfte das nur die
+     Spielerbewegung selbst; wer von einem Zombie erschlagen wurde, blieb
+     ohne Todesbildschirm einfach stehen. */
+  if(Game.player.dead && Screens.open !== 'death'){
+    Sfx.play('die'); $('#deathCause').textContent = Game.player.deathCause; Screens.show('death');
+  }
   if(Game.platzSuchen && !Game.loading){
     Game.platzSuchen = false;
     Game.freierPlatz(Game.player.x, Game.player.z, true);
@@ -987,7 +1083,11 @@ function frame(now){
   if(Game.schlafT > 0){
     const vorher = Game.schlafT;
     Game.schlafT += dt;
-    if(vorher < 1 && Game.schlafT >= 1){ Game.time = DAY_LEN*0.01; hint('Guten Morgen', 1800); Game.save(); }
+    if(vorher < 1 && Game.schlafT >= 1){
+      // die übersprungene Nacht zählt als Spielzeit: ein neuer Tag
+      Game.gesamtZeit += (DAY_LEN - Game.time + DAY_LEN*0.01) % DAY_LEN;
+      Game.time = DAY_LEN*0.01; hint('Guten Morgen', 1800); Game.save();
+    }
     const t = Game.schlafT;
     $('#schlaf').style.opacity = t < 1 ? t : Math.max(0, 1 - (t - 1.5)/0.9);
     if(t > 2.4){ Game.schlafT = 0; $('#schlaf').style.opacity = 0; }
@@ -1002,8 +1102,6 @@ function frame(now){
   HUD.refreshVitals(p);
   HUD.refreshHotbar();
   if(Game.settings.debug) updateDebug();
-  if(Game.loading && (Game.tick % 8) === 0)
-    hint('Welt wird geladen … ' + Math.min(99, Math.round(Game.loadDone/Game.loadTarget*100)) + '%', 900);
 
   render(dt);
 
@@ -1053,78 +1151,10 @@ function updateDebug(){
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   MENÜS
+   SPIEL-KNÖPFE — alles Übrige an Menüs steht in menue.js
    ═══════════════════════════════════════════════════════════════════ */
-let menuCreative = false, menuAutojump = true;
-
-function syncMenuUI(){
-  $('#mRd').value = Game.settings.rd; $('#mRdVal').textContent = Game.settings.rd;
-  menuAutojump = Game.settings.autojump;
-  $('#mAjOn').setAttribute('aria-pressed', menuAutojump);
-  $('#mAjOff').setAttribute('aria-pressed', !menuAutojump);
-  $('#mSurv').setAttribute('aria-pressed', !menuCreative);
-  $('#mCrea').setAttribute('aria-pressed', menuCreative);
-  const s = Game.loadSaved();
-  const btn = $('#btnLoad');
-  if(s){
-    btn.disabled = false; btn.style.opacity = '';
-    const hh = Math.floor((s.time||0)/DAY_LEN*24);
-    $('#loadinfo').textContent = 'Gespeicherte Welt: „' + s.seed + '“ · ' +
-      Math.round(s.p.x) + ' / ' + Math.round(s.p.z) + ' · Tageszeit ' + String(hh).padStart(2,'0') + ':00';
-  } else {
-    btn.disabled = true; btn.style.opacity = '.4';
-    $('#loadinfo').textContent = 'Noch keine gespeicherte Welt vorhanden.';
-  }
-}
-function syncPauseUI(){
-  $('#pRd').value = Game.settings.rd; $('#pRdVal').textContent = Game.settings.rd;
-  $('#pSens').value = Game.settings.sens; $('#pSensVal').textContent = (Game.settings.sens/12).toFixed(1);
-  $('#pAjOn').setAttribute('aria-pressed', Game.settings.autojump);
-  $('#pAjOff').setAttribute('aria-pressed', !Game.settings.autojump);
-  $('#pDbgOn').setAttribute('aria-pressed', Game.settings.debug);
-  $('#pDbgOff').setAttribute('aria-pressed', !Game.settings.debug);
-}
-
-function wireMenus(){
-  const seeds = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland'];
-  $('#seed').value = seeds[(Math.random()*seeds.length)|0] + '-' + ((Math.random()*900+100)|0);
-
-  $('#mRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; $('#mRdVal').textContent = e.target.value; Game.saveOpts(); });
-  $('#mSurv').addEventListener('click', () => { menuCreative = false; syncMenuUI(); });
-  $('#mCrea').addEventListener('click', () => { menuCreative = true; syncMenuUI(); });
-  $('#mAjOn').addEventListener('click', () => { Game.settings.autojump = true; Game.saveOpts(); syncMenuUI(); });
-  $('#mAjOff').addEventListener('click', () => { Game.settings.autojump = false; Game.saveOpts(); syncMenuUI(); });
-
-  $('#btnNew').addEventListener('click', () => {
-    Sfx.init();
-    const seed = $('#seed').value.trim() || 'taschenwelt';
-    try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
-    Game.start(seed, { creative: menuCreative }, null);
-    hint(menuCreative ? 'Kreativmodus — flieg mit doppeltem Sprung-Tipp' : 'Schlag Holz, bau eine Werkbank, überleb die Nacht', 4200);
-  });
-  $('#btnLoad').addEventListener('click', () => {
-    Sfx.init();
-    const s = Game.loadSaved();
-    if(!s) return;
-    Game.start(s.seed, null, s);
-    hint('Willkommen zurück', 2200);
-  });
-
+function wireSpiel(){
   window.addEventListener('resize', () => Screens.masse());
-  $('#respawn').addEventListener('click', () => Game.respawn());
-  $('#resume').addEventListener('click', () => Screens.hide());
-  $('#saveNow').addEventListener('click', () => hint(Game.save() ? 'Welt gespeichert' : 'Speichern fehlgeschlagen'));
-  $('#toMenu').addEventListener('click', () => {
-    Game.save(); Game.running = false; Screens.hide();
-    $('#hud').classList.remove('on'); $('#menu').classList.remove('hide'); syncMenuUI();
-  });
-  $('#pRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; $('#pRdVal').textContent = e.target.value; Game.saveOpts(); });
-  $('#pSens').addEventListener('input', e => { Game.settings.sens = +e.target.value; $('#pSensVal').textContent = (e.target.value/12).toFixed(1); Game.saveOpts(); });
-  $('#pAjOn').addEventListener('click', () => { Game.settings.autojump = true; Game.saveOpts(); syncPauseUI(); });
-  $('#pAjOff').addEventListener('click', () => { Game.settings.autojump = false; Game.saveOpts(); syncPauseUI(); });
-  $('#pDbgOn').addEventListener('click', () => { Game.settings.debug = true; $('#dbg').classList.add('on'); Game.saveOpts(); syncPauseUI(); });
-  $('#pDbgOff').addEventListener('click', () => { Game.settings.debug = false; $('#dbg').classList.remove('on'); Game.saveOpts(); syncPauseUI(); });
-
   // Doppel-Tipp auf Sprung = fliegen (Kreativ)
   let lastJump = 0;
   $('#btnJump').addEventListener('pointerdown', () => {
@@ -1133,9 +1163,12 @@ function wireMenus(){
     lastJump = n;
     if(Game.player) $('#btnUp').style.display = Game.player.flying ? 'grid' : 'none';
   });
-
-  window.addEventListener('visibilitychange', () => { if(document.hidden && Game.running) Game.save(); });
-  window.addEventListener('beforeunload', () => { if(Game.running) Game.save(); });
+  // Verschwindet die Seite, wird gespeichert — mit Notkopie, weil die
+  // Datenbank nicht mehr fertig schreiben könnte
+  const weg = () => { if(Game.running) Game.save(true); };
+  window.addEventListener('visibilitychange', () => { if(document.hidden) weg(); });
+  window.addEventListener('pagehide', weg);
+  window.addEventListener('beforeunload', weg);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1145,17 +1178,19 @@ function boot(){
   buildTextures();
   initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();
   if(!R.init()){
-    document.getElementById('menu').innerHTML =
-      '<div class="menu-card"><h1 class="brand">Taschenwelt</h1>' +
-      '<p class="brand-sub">Dieser Browser unterstützt kein WebGL 2. Auf iPad und iPhone hilft ein Update auf iOS 15 oder neuer; ' +
-      'am Desktop ein aktueller Chrome, Firefox oder Safari.</p></div>';
+    const t = document.getElementById('titel');
+    t.classList.add('on');
+    t.innerHTML = '<h1 class="mc-titel" style="margin-top:auto">Taschenwelt</h1>' +
+      '<p class="mc-text" style="margin-bottom:auto">Dieser Browser unterstützt kein WebGL 2. Auf iPad und iPhone hilft ein Update auf iOS 15 oder neuer; ' +
+      'am Desktop ein aktueller Chrome, Firefox oder Safari.</p>';
     return;
   }
   buildWire();
   Game.loadOpts();
+  if(Game.settings.ton === false) Sfx.on = false;
   Input.init();
-  wireMenus();
-  syncMenuUI();
+  wireSpiel();
+  Menue.init();
   symboleVorwaermen();
   $('#dbg').classList.toggle('on', Game.settings.debug);
   requestAnimationFrame(frame);
@@ -1166,7 +1201,7 @@ boot();
    Indexpuffer behält. Genau da lag der Fehler mit den zerrissenen
    Gegenständen und Mobs. */
 window.__welt = {
-  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input,
+  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

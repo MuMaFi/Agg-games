@@ -57,47 +57,102 @@ canvas#gl{position:fixed; inset:0; width:100%; height:100%; display:block; backg
 .lbl{font-family:var(--pix); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint)}
 .num{font-variant-numeric:tabular-nums}
 
-/* ── Startmenü ─────────────────────────────────────────────────────── */
-#menu{
-  position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:20px;
-  background:
-    radial-gradient(120% 90% at 50% 0%, #1d3350 0%, #12182200 70%),
-    linear-gradient(#0d1017, #0a0d13);
-}
-#menu.hide{display:none}
-.menu-card{width:min(680px,100%); max-height:100%; overflow:auto; padding:28px 26px 22px; background:var(--panel); border:2px solid var(--edge); box-shadow:0 14px 0 rgba(0,0,0,.35)}
-.brand{font-family:var(--pix); font-weight:700; font-size:clamp(38px,9vw,62px); line-height:.95; margin:0; text-wrap:balance;
-  background:linear-gradient(180deg,#cfe7a8,#78a84e 55%,#4f7534); -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter:drop-shadow(0 3px 0 #1b2a12);}
-.brand-sub{margin:6px 0 22px; color:var(--ink-dim); font-size:14px}
-.field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px}
-.field input[type=text]{font-family:var(--pix); font-size:17px; padding:10px 12px; background:var(--ground); color:var(--ink); border:2px solid var(--edge)}
-.field input[type=text]:focus{outline:none; border-color:var(--grass)}
+/* ── Titelbild und Weltenwahl im Stil des Vorbilds ───────────────────
+   Steinknöpfe mit schwarzem Rand, weiß umrandet unter dem Zeiger,
+   schwarze Eingabefelder, graue Schrift mit hartem Schatten. Hinten
+   dreht sich die Welt, leicht unscharf; bis sie geladen ist, Erde. */
 .row{display:flex; gap:10px; flex-wrap:wrap}
-.opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:6px 0 20px}
-.opt{background:var(--panel-2); border:2px solid var(--edge); padding:10px 12px}
-.opt input[type=range]{width:100%; accent-color:var(--grass)}
-.opt .val{font-family:var(--pix); font-size:16px; color:var(--amber)}
-.seg{display:flex; border:2px solid var(--edge)}
-.seg button{flex:1; font-family:var(--pix); font-size:14px; padding:7px 4px; background:var(--panel-2); color:var(--ink-dim); border:0; cursor:pointer}
-.seg button[aria-pressed=true]{background:var(--grass-dk); color:#f2f7ec}
-.hintlist{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--ink-dim); font-size:13.5px}
-.hintlist b{color:var(--ink); font-weight:600}
-kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--edge-hi); padding:1px 6px; font-size:12px}
-
-/* Auf einem Telefon im Querformat ist die Karte höher als der Bildschirm:
-   die beiden Knöpfe standen unter der Kante und man musste erst in der
-   Karte scrollen, um überhaupt anfangen zu können. Kurz und knapp, wenn
-   wenig Höhe da ist. */
-@media (max-height:560px){
-  .menu-card{padding:16px 18px 14px}
-  .brand{font-size:clamp(26px,6.5vw,38px)}
-  .brand-sub{margin:4px 0 12px; font-size:12.5px}
-  .field{margin-bottom:10px}
-  .opts{margin:4px 0 12px; gap:8px}
-  .opt{padding:7px 9px}
-  .hintlist{display:none}
-  .sep{display:none}
+kbd{font-family:var(--pix); background:#1c1c1c; border:1px solid #555; padding:0 5px; font-size:12px}
+body.imMenue{background:#1b120c}
+body.imMenue canvas#gl{filter:blur(1.4px) brightness(.92); opacity:0; transition:opacity .9s}
+body.imMenue.panoBereit canvas#gl{opacity:1}
+body.imMenue:not(.panoBereit) .mc-schirm{background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)), var(--erdbild) 0 0/64px 64px}
+.mc-schirm{position:fixed; inset:0; z-index:60; display:none; flex-direction:column; align-items:center;
+  padding:max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  color:#fff; font-family:var(--pix); text-shadow:2px 2px 0 #3f3f3f; overflow:auto; image-rendering:pixelated}
+.mc-schirm.on{display:flex}
+.mc-schirm.dunkel{background:rgba(0,0,0,.42)}
+#titel{background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 35%, rgba(0,0,0,.5))}
+.titelKopf{position:relative; margin-top:clamp(10px, 8vh, 72px); display:flex; justify-content:center; flex:0 0 auto}
+#logo{display:block; filter:drop-shadow(0 8px 12px rgba(0,0,0,.45))}
+#spruch{position:absolute; right:1%; bottom:-13%; color:#ffff55; text-shadow:2px 2px 0 #3f3f15; white-space:nowrap; pointer-events:none;
+  font-size:calc(clamp(13px, 2.3vw, 22px) * var(--gross, 1)); transform-origin:50% 50%; animation:spruch .42s ease-in-out infinite alternate}
+@keyframes spruch{from{transform:rotate(-17deg) scale(.96)} to{transform:rotate(-17deg) scale(1.06)}}
+@media (prefers-reduced-motion:reduce){#spruch{animation:none; transform:rotate(-17deg)}}
+.mc-knoepfe{display:grid; gap:10px; width:min(400px, 86vw); margin:auto 0; padding:14px 0}
+.titelFuss{display:flex; justify-content:space-between; width:100%; font-size:13px; flex:0 0 auto}
+.mc{font-family:var(--pix); font-size:18px; line-height:1.15; color:#fff; text-shadow:2px 2px 0 #3f3f3f;
+  min-height:44px; padding:7px 10px; width:100%; cursor:pointer; position:relative; image-rendering:pixelated;
+  background:linear-gradient(rgba(52,52,52,.42), rgba(52,52,52,.42)), var(--steinbild) 0 0/64px 64px;
+  border:2px solid #000; box-shadow:inset 2px 2px 0 rgba(255,255,255,.3), inset -2px -3px 0 rgba(0,0,0,.42)}
+.mc:hover, .mc:focus-visible{border-color:#fff; outline:none}
+.mc:active{box-shadow:inset 2px 2px 0 rgba(0,0,0,.42), inset -2px -2px 0 rgba(255,255,255,.2)}
+.mc:disabled{color:#9a9a9a; text-shadow:none; background:#2a2a2a; box-shadow:none; border-color:#000; cursor:default}
+.mc.klein{width:auto; flex:0 0 auto; font-size:15px; min-height:40px}
+.mc-titel{font-family:var(--pix); font-weight:500; font-size:20px; margin:4px 0 10px; text-align:center; flex:0 0 auto}
+.mc-reihe{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:min(620px, 100%); margin-top:8px; flex:0 0 auto}
+.mc-reihe.vier{grid-template-columns:repeat(4, 1fr)}
+@media (max-width:560px){ .mc-reihe.vier{grid-template-columns:repeat(2, 1fr)} .mc{font-size:16px} }
+.mc-feld{font-family:var(--pix); font-size:17px; color:#fff; background:#000; border:2px solid #a0a0a0; padding:8px 10px; width:100%;
+  outline:none; text-shadow:none; border-radius:0; -webkit-appearance:none; appearance:none; min-width:0}
+.mc-feld:focus{border-color:#fff}
+.mc-feld::placeholder{color:#6d6d6d}
+.mc-lbl{font-size:14px; color:#a0a0a0; text-shadow:none; margin:8px 0 4px; display:block}
+.mc-hinweis{font-size:13px; line-height:1.35; color:#a0a0a0; text-shadow:none; margin:6px 2px 4px; min-height:2.7em}
+.mc-form{width:min(420px, 100%); display:flex; flex-direction:column; margin:auto 0}
+.mc-text{max-width:min(560px, 100%); text-align:center; color:#e0e0e0; line-height:1.4; margin:auto 0 14px}
+.wKopf{display:flex; gap:8px; width:min(620px, 100%); margin-bottom:8px; flex:0 0 auto}
+.mc-liste{flex:1 1 auto; min-height:96px; width:calc(100% + 28px); margin:0 -14px; overflow:auto; background:rgba(0,0,0,.55);
+  border-top:2px solid rgba(255,255,255,.22); border-bottom:2px solid rgba(255,255,255,.22); padding:6px 14px;
+  display:flex; flex-direction:column; align-items:center; gap:4px}
+.welt{display:grid; grid-template-columns:auto 1fr; gap:10px; width:min(620px, 100%); padding:3px; border:2px solid transparent; cursor:pointer; text-shadow:none; flex:0 0 auto}
+.welt:hover{background:rgba(255,255,255,.06)}
+.welt.gewaehlt{border-color:#9a9a9a; background:#000}
+.weltBild{width:64px; height:64px; background:#1a1a1a center/cover no-repeat; position:relative; image-rendering:auto}
+.weltBild.ohne{background-size:78%; image-rendering:pixelated}
+.weltLos{position:absolute; inset:0; border:0; padding:0; margin:0; background:rgba(0,0,0,.5); display:none; cursor:pointer}
+.welt.gewaehlt .weltLos, .welt:hover .weltLos{display:block}
+.weltLos i{position:absolute; left:36%; top:27%; width:0; height:0; border-left:20px solid #fff; border-top:14px solid transparent; border-bottom:14px solid transparent;
+  filter:drop-shadow(2px 2px 0 #3f3f3f)}
+.weltText{display:flex; flex-direction:column; justify-content:center; min-width:0; gap:1px}
+.weltText b{font-weight:500; font-size:17px; color:#fff; text-shadow:2px 2px 0 #3f3f3f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.weltText span{font-size:13px; color:#8f8f8f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.weltLeer{color:#a0a0a0; margin:24px 12px; text-align:center; text-shadow:none}
+.mc-gitter{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:min(620px, 100%); margin-top:auto}
+@media (max-width:520px){ .mc-gitter{grid-template-columns:1fr} }
+.mc-schieber{position:relative; height:44px; border:2px solid #000; background:#141414}
+.mc-schieber:hover{border-color:#fff}
+.mc-schieber input{position:absolute; inset:0; width:100%; height:100%; margin:0; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; touch-action:pan-y}
+.mc-schieber input::-webkit-slider-runnable-track{height:100%; background:transparent}
+.mc-schieber input::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:40px; border:2px solid #000;
+  background:linear-gradient(rgba(52,52,52,.3), rgba(52,52,52,.3)), var(--steinbild) 0 0/64px 64px;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.3), inset -2px -2px 0 rgba(0,0,0,.4)}
+.mc-schieber input::-moz-range-thumb{width:12px; height:36px; border:2px solid #000; border-radius:0;
+  background:linear-gradient(rgba(52,52,52,.3), rgba(52,52,52,.3)), var(--steinbild) 0 0/64px 64px}
+.mc-schieber span{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; font-size:17px}
+.steuerHilfe{width:min(620px, 100%); font-size:13px; color:#c8c8c8; text-shadow:none; margin:12px 0 auto; line-height:1.5; font-family:var(--ui)}
+.steuerHilfe b{color:#fff}
+#oFertig{width:min(400px, 100%); margin-top:12px; flex:0 0 auto}
+#laden{position:fixed; inset:0; z-index:55; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  font-family:var(--pix); color:#fff; text-shadow:2px 2px 0 #3f3f3f; font-size:20px; image-rendering:pixelated;
+  background:linear-gradient(rgba(0,0,0,.6), rgba(0,0,0,.6)), var(--erdbild) 0 0/64px 64px}
+#laden.on{display:flex}
+.ladenLeiste{width:min(300px, 70vw); height:10px; background:#3a3a3a; border:2px solid #000}
+#ladenBalken{display:block; height:100%; width:0; background:#80ff20}
+.ladenKlein{font-size:14px; color:#c0c0c0}
+.mc-karte{display:grid; gap:10px; width:min(400px, 90vw); font-family:var(--pix); color:#fff; text-shadow:2px 2px 0 #3f3f3f; text-align:center}
+#death{background:rgba(110,0,0,.5)}
+/* Optionen aus der Pause: die Pause darunter nicht durchscheinen lassen */
+body.mcOffen .screen{visibility:hidden}
+.todTitel{font-size:30px; margin-bottom:0}
+.todGrund{margin:0 0 12px; color:#e6e6e6}
+@media (max-height:460px){
+  .titelKopf{margin-top:6px}
+  .mc-knoepfe{gap:7px; padding:8px 0}
+  .mc{min-height:38px; padding:5px 10px}
+  .mc-titel{margin:0 0 6px; font-size:18px}
+  .mc-hinweis{min-height:0}
+  .mc-lbl{margin:4px 0 3px}
 }
 
 /* ── HUD ───────────────────────────────────────────────────────────── */
@@ -148,7 +203,7 @@ kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--ed
 #btnMode{right:158px; top:14px; width:56px; height:56px; font-size:11px}
 #btnAttack{right:26px; bottom:146px; width:76px; height:76px; border-radius:50%; font-size:13px}
 
-#hint{position:absolute; left:50%; top:16%; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
+#hint{position:fixed; z-index:75; pointer-events:none; color:var(--ink); left:50%; top:16%; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
   background:rgba(14,17,24,.8); border:2px solid var(--edge); padding:8px 14px; opacity:0; transition:opacity .25s; text-align:center; max-width:80vw}
 #hint.show{opacity:1}
 #itemname{position:absolute; left:50%; bottom:80px; transform:translateX(-50%); font-family:var(--pix); font-size:16px;
@@ -265,7 +320,6 @@ kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--ed
     <div class="bar" id="armor"></div>
   </div>
   <div id="dbg"></div>
-  <div id="hint"></div>
   <div id="itemname"></div>
   <div id="hotbar"></div>
   <div id="touchpad">
@@ -280,72 +334,110 @@ kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--ed
   </div>
 </div>
 
+<div id="hint" role="status"></div>
 <div class="screen" id="beh"></div>
 <div id="drag"></div>
 
 <div class="screen" id="death">
-  <div class="sheet" style="width:min(420px,100%)">
-    <h2>Du bist gestorben</h2>
-    <p id="deathCause" style="color:var(--ink-dim); margin:0 0 20px"></p>
-    <button class="btn primary" id="respawn">Wiederbeleben</button>
+  <div class="mc-karte">
+    <h2 class="mc-titel todTitel">Du bist gestorben!</h2>
+    <p id="deathCause" class="todGrund"></p>
+    <button class="mc" id="respawn">Wiederbeleben</button>
+    <button class="mc" id="deathTitel">Zum Titelbild</button>
   </div>
 </div>
 
 <div class="screen" id="pause">
-  <div class="sheet" style="width:min(460px,100%)">
-    <h2>Pause</h2>
-    <div class="opts" style="margin-top:0">
-      <div class="opt"><span class="lbl">Sichtweite</span><div><span class="val" id="pRdVal">5</span> Chunks</div>
-        <input type="range" id="pRd" min="2" max="8" step="1"></div>
-      <div class="opt"><span class="lbl">Blick-Tempo</span><div><span class="val" id="pSensVal">1.0</span></div>
-        <input type="range" id="pSens" min="4" max="30" step="1"></div>
-      <div class="opt"><span class="lbl">Auto-Sprung</span>
-        <div class="seg" style="margin-top:6px"><button id="pAjOn">An</button><button id="pAjOff">Aus</button></div></div>
-      <div class="opt"><span class="lbl">Debug-Info</span>
-        <div class="seg" style="margin-top:6px"><button id="pDbgOn">An</button><button id="pDbgOff">Aus</button></div></div>
-    </div>
-    <div class="row">
-      <button class="btn primary" id="resume">Weiter</button>
-      <button class="btn" id="saveNow">Speichern</button>
-      <button class="btn ghost" id="toMenu">Hauptmenü</button>
-    </div>
+  <div class="mc-karte">
+    <h2 class="mc-titel">Spielmenü</h2>
+    <button class="mc" id="resume">Zurück zum Spiel</button>
+    <button class="mc" id="pOptionen">Optionen …</button>
+    <button class="mc" id="toMenu">Speichern und zum Titelbild</button>
   </div>
 </div>
 
-<div id="menu">
-  <div class="menu-card">
-    <h1 class="brand">Taschenwelt</h1>
-    <p class="brand-sub">Ein Survival-Voxelspiel für den Touchscreen — Höhlen, Erze, echtes Handwerk im Raster, Ackerbau, Truhen, Türen, Rüstung, Hunger und Zombies. Läuft komplett offline im Browser.</p>
-
-    <div class="field">
-      <label class="lbl" for="seed">Welt-Startwert</label>
-      <input type="text" id="seed" placeholder="z. B. taschenwelt" autocomplete="off" spellcheck="false">
-    </div>
-
-    <div class="opts">
-      <div class="opt"><span class="lbl">Sichtweite</span><div><span class="val" id="mRdVal">5</span> Chunks</div>
-        <input type="range" id="mRd" min="2" max="8" step="1" value="5"></div>
-      <div class="opt"><span class="lbl">Spielmodus</span>
-        <div class="seg" style="margin-top:6px"><button id="mSurv" aria-pressed="true">Survival</button><button id="mCrea" aria-pressed="false">Kreativ</button></div></div>
-      <div class="opt"><span class="lbl">Auto-Sprung</span>
-        <div class="seg" style="margin-top:6px"><button id="mAjOn" aria-pressed="true">An</button><button id="mAjOff" aria-pressed="false">Aus</button></div></div>
-    </div>
-
-    <div class="row" style="margin-bottom:18px">
-      <button class="btn primary" id="btnNew">Neue Welt</button>
-      <button class="btn" id="btnLoad">Welt fortsetzen</button>
-    </div>
-
-    <div class="sep"></div>
-    <ul class="hintlist">
-      <li><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen.</li>
-      <li><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Space</kbd> springen, <kbd>Shift</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Hotbar, <kbd>F3</kbd> Debug, <kbd>Q</kbd> wegwerfen.</li>
-      <li><b>Handwerk:</b> Zutaten ins Raster legen — 2 × 2 im Inventar, 3 × 3 an der Werkbank. Das Rezeptbuch zeigt jedes entdeckte Muster und legt es auf Wunsch selbst hinein.</li>
-      <li><b>Ziel:</b> Holz schlagen, Werkbank bauen, Spitzhacke herstellen, vor der Nacht eine Tür hinter sich schließen.</li>
-    </ul>
-    <p id="loadinfo" class="lbl" style="margin-top:14px"></p>
-  </div>
+<div id="laden" aria-live="polite">
+  <div>Welt wird geladen</div>
+  <div class="ladenLeiste"><i id="ladenBalken"></i></div>
+  <div class="ladenKlein">Gelände wird erzeugt …</div>
 </div>
+
+<!-- Titelbild -->
+<div class="mc-schirm" id="titel">
+  <div class="titelKopf"><canvas id="logo" role="img" aria-label="Taschenwelt"></canvas><div id="spruch"></div></div>
+  <div class="mc-knoepfe">
+    <button class="mc" id="tEinzel">Einzelspieler</button>
+    <button class="mc" id="tOptionen">Optionen …</button>
+    <button class="mc" id="tHeim">Zurück zur Spieleseite</button>
+  </div>
+  <div class="titelFuss"><span id="tVersion"></span><span>AGG Games</span></div>
+</div>
+
+<!-- Welt auswählen -->
+<div class="mc-schirm dunkel" id="welten">
+  <h2 class="mc-titel">Welt auswählen</h2>
+  <div class="wKopf">
+    <input id="wSuche" class="mc-feld" type="search" placeholder="Suchen …" autocomplete="off" spellcheck="false" aria-label="Welten durchsuchen">
+    <button class="mc klein" id="wEinlesen">Einlesen …</button>
+    <input type="file" id="wDatei" accept=".json,application/json" hidden>
+  </div>
+  <div class="mc-liste" id="wListe"></div>
+  <div class="mc-reihe"><button class="mc" id="wSpielen">Ausgewählte Welt spielen</button><button class="mc" id="wNeu">Neue Welt erstellen</button></div>
+  <div class="mc-reihe vier"><button class="mc" id="wBearb">Bearbeiten</button><button class="mc" id="wLoeschen">Löschen</button><button class="mc" id="wKopie">Kopieren</button><button class="mc" id="wZurueck">Zurück</button></div>
+</div>
+
+<!-- Neue Welt erstellen -->
+<div class="mc-schirm dunkel" id="neu">
+  <h2 class="mc-titel">Neue Welt erstellen</h2>
+  <div class="mc-form">
+    <label class="mc-lbl" for="nName">Name der Welt</label>
+    <input id="nName" class="mc-feld" maxlength="32" autocomplete="off" spellcheck="false">
+    <div style="height:12px"></div>
+    <button class="mc" id="nModus">Spielmodus: Überleben</button>
+    <p class="mc-hinweis" id="nModusText"></p>
+    <label class="mc-lbl" for="nSeed">Startwert für den Weltgenerator</label>
+    <input id="nSeed" class="mc-feld" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Leer lassen für einen zufälligen">
+  </div>
+  <div class="mc-reihe"><button class="mc" id="nLos">Neue Welt erstellen</button><button class="mc" id="nAbbruch">Abbrechen</button></div>
+</div>
+
+<!-- Welt bearbeiten -->
+<div class="mc-schirm dunkel" id="bearbeiten">
+  <h2 class="mc-titel">Welt bearbeiten</h2>
+  <div class="mc-form">
+    <label class="mc-lbl" for="bName">Name der Welt</label>
+    <input id="bName" class="mc-feld" maxlength="32" autocomplete="off" spellcheck="false">
+    <p class="mc-hinweis" id="bInfo"></p>
+    <button class="mc" id="bExport">Sicherung herunterladen</button>
+  </div>
+  <div class="mc-reihe"><button class="mc" id="bSichern">Speichern</button><button class="mc" id="bAbbruch">Abbrechen</button></div>
+</div>
+
+<!-- Welt löschen -->
+<div class="mc-schirm dunkel" id="loeschen">
+  <h2 class="mc-titel" style="margin-top:auto">Soll diese Welt wirklich gelöscht werden?</h2>
+  <p class="mc-text" id="lText"></p>
+  <div class="mc-reihe" style="margin-bottom:auto"><button class="mc" id="lJa">Löschen</button><button class="mc" id="lNein">Abbrechen</button></div>
+</div>
+
+<!-- Optionen -->
+<div class="mc-schirm dunkel" id="optionen">
+  <h2 class="mc-titel">Optionen</h2>
+  <div class="mc-gitter">
+    <div class="mc-schieber"><input type="range" id="oRd" min="2" max="8" step="1" aria-label="Sichtweite"><span id="oRdText"></span></div>
+    <div class="mc-schieber"><input type="range" id="oSens" min="4" max="30" step="1" aria-label="Blick-Tempo"><span id="oSensText"></span></div>
+    <button class="mc" id="oSprung"></button>
+    <button class="mc" id="oTon"></button>
+    <button class="mc" id="oDebug"></button>
+  </div>
+  <div class="steuerHilfe">
+    <p><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen oder benutzen.</p>
+    <p><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Leertaste</kbd> springen, <kbd>Umschalt</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Schnellleiste, <kbd>Q</kbd> wegwerfen, <kbd>F3</kbd> Debug.</p>
+    <p><b>Handwerk:</b> Zutaten ins Raster legen — 2 × 2 im Inventar, 3 × 3 an der Werkbank. Das Rezeptbuch legt entdeckte Muster selbst hinein.</p>
+  </div>
+  <button class="mc" id="oFertig">Fertig</button>
+</div>
+
 <script src="grund.js"></script>
 <script src="texturen.js"></script>
 <script src="bloecke.js"></script>
@@ -353,6 +445,8 @@ kbd{font-family:var(--pix); background:var(--panel-3); border:1px solid var(--ed
 <script src="bild.js"></script>
 <script src="wesen.js"></script>
 <script src="handwerk.js"></script>
+<script src="speicher.js"></script>
+<script src="menue.js"></script>
 <script src="spiel.js"></script>
 
 <script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>

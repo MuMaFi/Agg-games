@@ -244,7 +244,8 @@ const R = {
   freeMesh(m){ if(!m) return; gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); },
 
   resize(){
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // hinter dem Titelbild mit halber Auflösung: spart Kraft und macht weich wie beim Vorbild
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * (Game.panoramaAktiv ? 0.5 : 1);
     const w = Math.floor(canvas.clientWidth * dpr), h = Math.floor(canvas.clientHeight * dpr);
     if(canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
     return [w, h];
@@ -591,7 +592,7 @@ function render(dt){
   const p = Game.player;
   computeSky();
 
-  const rd = Game.settings.rd;
+  const rd = Game.sicht();
   let far = rd*CS*0.98, near = far*0.55;
   let fog = SkyCol.fog;
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
@@ -607,8 +608,8 @@ function render(dt){
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
   drawDrops(fog, near, far);
-  const t = Game.targetBlock();
-  drawSelection(t, fog, near, far);
+  const ohne = Game.panoramaAktiv || Game._ohneHand;
+  if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);
-  drawHeld(fog);
+  if(!ohne) drawHeld(fog);
 }
