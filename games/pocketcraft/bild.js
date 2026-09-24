@@ -456,7 +456,9 @@ function drawMobs(fogCol, near, far){
       gl.uniform4f(P.u.uTint, hurt ? 1.6*tr : tr, hurt ? 0.45*tg : tg, hurt ? 0.45*tb : tb, 1);
       let ang = 0;
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
-      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * 0.7 + (m.def.hostile ? -1.45 : 0);
+      // Erhobene Arme zeigen nach vorn (−Z). Das Vorzeichen war lange falsch:
+      // Zombies und Skelette streckten die Arme nach hinten.
+      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0);
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
       partMatrix(_m, m, part, ang);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
@@ -488,15 +490,46 @@ function drawPfeile(fogCol, near, far){
     gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
 }
+const BABY = 0.52, BABYKOPF = 1.45;
+/* Herzen über verliebten Tieren: kleine Karten, die zur Kamera schauen */
+function drawPartikel(){
+  if(!Game.partikel.length) return;
+  const P = R.progEnt;
+  gl.useProgram(P.p);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+  gl.bindVertexArray(R.cubeVAO);
+  setLayers(P, TEX['p_herz']);
+  for(const q of Game.partikel){
+    gl.uniform1f(P.u.uLight, 1);
+    const sc = 0.26 * Math.min(1, q.t*5) * (q.t > 1 ? Math.max(0, 1.3 - q.t)/0.3 : 1);
+    M4.ident(_m);
+    M4.translate(_m, _m, q.x, q.y, q.z);
+    M4.rotY(_m, _m, Game.player.yaw);
+    M4.scale(_m, _m, sc, sc, 0.01);
+    M4.translate(_m, _m, -0.5, -0.5, -0.5);
+    gl.uniformMatrix4fv(P.u.uModel, false, _m);
+    gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+  }
+}
 function partMatrix(out, mob, part, ang){
   M4.ident(out);
   M4.translate(out, out, mob.x, mob.y, mob.z);
   M4.rotY(out, out, mob.yaw);
+  // Junge: kleiner, mit verhältnismäßig großem Kopf
+  if(mob.kind > 0){
+    M4.scale(out, out, BABY, BABY, BABY);
+    if(part.kopf && mob.def.kopfPunkt){
+      const [kx, ky, kz] = mob.def.kopfPunkt;
+      M4.translate(out, out, kx, ky, kz); M4.scale(out, out, BABYKOPF, BABYKOPF, BABYKOPF); M4.translate(out, out, -kx, -ky, -kz);
+    }
+  }
   const [ox, oy, oz, w, h, d] = part.box;
-  if(ang){
+  if(ang || part.gier){
     const px = ox + w/2, py = part.anim === 'head' ? oy + h/2 : oy + h, pz = oz + d/2;
     M4.translate(out, out, px, py, pz);
-    M4.rotX(out, out, ang);
+    if(part.gier) M4.rotY(out, out, part.gier);
+    if(ang) M4.rotX(out, out, ang);
     M4.translate(out, out, -px, -py, -pz);
   }
   M4.translate(out, out, ox, oy, oz);
@@ -634,6 +667,7 @@ function render(dt){
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
   drawPfeile(fog, near, far);
+  drawPartikel();
   drawDrops(fog, near, far);
   const ohne = Game.panoramaAktiv || Game._ohneHand;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);

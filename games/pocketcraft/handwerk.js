@@ -312,6 +312,7 @@ const Sfx = {
       case 'skelett': for(let i=0;i<4;i++) setTimeout(()=>this.noise(0.03, 0.08, 3200), i*55); break;
       case 'bogen': this.noise(0.12, 0.10, 2400); this.tone(220, 0.1, 'triangle', 0.05, 0.6); break;
       case 'pfeil': this.noise(0.06, 0.12, 900); break;
+      case 'geburt': this.tone(660, 0.08, 'triangle', 0.07, 1.3); setTimeout(()=>this.tone(990, 0.12, 'triangle', 0.07, 1.1), 90); break;
       case 'schere': this.noise(0.04, 0.10, 4000); setTimeout(()=>this.noise(0.04, 0.10, 4000), 90); break;
       case 'die':   this.tone(300, 0.7, 'sawtooth', 0.16, 0.25); break;
     }

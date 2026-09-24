@@ -16,7 +16,7 @@ const Game = {
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
   hurtFlash:0, mobTimer:0, camShake:0,
   meta:null, gesamtZeit:0, panoramaAktiv:false, _panoZiel:0,
-  pfeile:[], bogen:{ aktiv:false, t:0 },
+  pfeile:[], bogen:{ aktiv:false, t:0 }, partikel:[],
 
   /** Sichtweite: das Panorama begnügt sich mit weniger */
   sicht(){ return this.panoramaAktiv ? Math.min(4, this.settings.rd) : this.settings.rd; },
@@ -30,7 +30,7 @@ const Game = {
     const seed = meta.seed;
     this.world = new World(seed);
     this.player = new Player();
-    this.mobs = []; this.drops = []; this.pfeile = []; this.bogen.aktiv = false;
+    this.mobs = []; this.drops = []; this.pfeile = []; this.partikel = []; this.bogen.aktiv = false;
     this.meshes.forEach(m => { R.freeMesh(m.o); R.freeMesh(m.w); });
     this.meshes.clear();
     Inv.clear(); Inv.sel = 0;
@@ -52,6 +52,15 @@ const Game = {
       const stapel = a => a ? { id:a[0], n:a[1], dur:a[2]|0 } : null;
       for(const [k, arr] of (saved.truhen || [])) this.world.chests.set(k, arr.map(stapel));
       for(const [k, f] of (saved.felder || [])) this.world.crops.set(k, f);
+      // gezüchtete und gefütterte Tiere bleiben in der Welt
+      for(const t of (saved.tiere || [])){
+        const [art, x, y, z, yaw, hp, kind, pause, wolle, geschoren] = t;
+        if(!MOBS[art]) continue;
+        const m = new Mob(art, x, y, z, kind > 0);
+        m.kind = kind; m.yaw = yaw; m.health = hp; m.pause = pause; m.bleibt = true;
+        if(art === 'sheep'){ m.wolle = wolle | 0; m.geschoren = !!geschoren; m.wolleT = 30 + Math.random()*60; }
+        this.mobs.push(m);
+      }
       (saved.ruest || []).forEach((a, i) => { Inv.ruestung[i] = stapel(a); });
       for(const id of (saved.bekannt || [])) Inv.bekannt.add(id);
       // was beim Speichern im Raster oder in der Hand lag
@@ -99,7 +108,7 @@ const Game = {
     }
     const p = this.player;
     p.pitch = -0.12; p.vx = p.vy = p.vz = 0; p.swinging = false;
-    this.mobs = []; this.drops = []; this.pfeile = []; this.bogen.aktiv = false;
+    this.mobs = []; this.drops = []; this.pfeile = []; this.partikel = []; this.bogen.aktiv = false;
     this.time = DAY_LEN*0.2;
     this.panoramaAktiv = true;
     this.running = false;
@@ -208,7 +217,10 @@ const Game = {
         felder: [...this.world.crops],
         ruest: Inv.ruestung.map(s => s ? [s.id, s.n, s.dur] : null),
         bekannt: [...Inv.bekannt],
-        rest: Screens.raster.concat([Inv.cursor]).filter(Boolean).map(s => [s.id, s.n, s.dur])
+        rest: Screens.raster.concat([Inv.cursor]).filter(Boolean).map(s => [s.id, s.n, s.dur]),
+        tiere: this.mobs.filter(m => m.bleibt && !m.dead && !m.def.hostile).map(m =>
+          [m.type, +m.x.toFixed(2), +m.y.toFixed(2), +m.z.toFixed(2), +m.yaw.toFixed(2), m.health, Math.round(m.kind), Math.round(m.pause),
+           m.wolle || 0, m.geschoren ? 1 : 0])
       };
       text = JSON.stringify(data);
     }catch(e){ return Promise.resolve(false); }
@@ -545,17 +557,43 @@ const Game = {
     }
     Sfx.play('eat'); HUD.refreshHotbar();
   },
-  /** das Wesen, auf das man schaut (bis maxD) */
+  /** das Wesen unter dem Fadenkreuz (bis maxD): Strahl gegen den Körper.
+      Ein echter Treffer schlägt einen Treffer im großzügigen Rand (0.12)
+      eines näheren Wesens — sonst bekommt beim Füttern eines Kalbs dicht
+      neben den Eltern ein Elternteil den Weizen. Trifft der Strahl gar
+      nichts, zählt das, was dem Fadenkreuz am nächsten liegt. */
   wesenImBlick(maxD){
-    const p = this.player, f = p.forward();
-    let best = null, bestD = maxD;
+    const p = this.player, f = p.forward(), o = [p.x, p.eyeY(), p.z];
+    const strahl = (m, rand) => {
+      const r = m.w/2 + rand;
+      const lo = [m.x - r, m.y - rand*0.4, m.z - r], hi = [m.x + r, m.y + m.h + rand, m.z + r];
+      let t0 = 0, t1 = maxD;
+      for(let a = 0; a < 3; a++){
+        if(Math.abs(f[a]) < 1e-9){ if(o[a] < lo[a] || o[a] > hi[a]) return -1; continue; }
+        let ta = (lo[a] - o[a])/f[a], tb = (hi[a] - o[a])/f[a];
+        if(ta > tb){ const q = ta; ta = tb; tb = q; }
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+        if(t0 > t1) return -1;
+      }
+      return t0;
+    };
+    let best = null;
+    for(const rand of [0, 0.12]){
+      let bestT = maxD;
+      for(const m of this.mobs){
+        if(m.dead) continue;
+        const t = strahl(m, rand);
+        if(t >= 0 && t < bestT){ bestT = t; best = m; }
+      }
+      if(best) return best;
+    }
+    let bestDot = 0.9;
     for(const m of this.mobs){
-      const dx = m.x-p.x, dy = (m.y+m.h*0.6)-p.eyeY(), dz = m.z-p.z;
+      const dx = m.x-o[0], dy = (m.y+m.h*0.6)-o[1], dz = m.z-o[2];
       const d = Math.hypot(dx,dy,dz);
-      if(d > bestD) continue;
+      if(d > maxD || m.dead) continue;
       const dot = (dx*f[0]+dy*f[1]+dz*f[2])/d;
-      if(dot < 0.86) continue;
-      bestD = d; best = m;
+      if(dot > bestDot){ bestDot = dot; best = m; }
     }
     return best;
   },
@@ -571,6 +609,23 @@ const Game = {
     Sfx.play('hit');
     return true;
   },
+  herz(m, verzug){
+    this.partikel.push({ x: m.x + (Math.random()-.5)*m.w*.8, y: m.y + m.h + 0.1, z: m.z + (Math.random()-.5)*m.w*.8, t: -(verzug || 0) });
+  },
+  /** zwei verliebte Tiere einer Art: ein Junges zwischen ihnen */
+  geburt(a, b){
+    const nah = this.mobs.filter(m => m.bleibt && Math.hypot(m.x - a.x, m.z - a.z) < 32).length;
+    a.liebe = b.liebe = 0;
+    a.pause = b.pause = ZUCHT_PAUSE;
+    if(nah >= 60){ hint('Hier sind schon zu viele Tiere', 2000); return; }
+    const jung = new Mob(a.type, (a.x + b.x)/2, Math.max(a.y, b.y) + 0.1, (a.z + b.z)/2, true);
+    jung.yaw = a.yaw;
+    if(a.type === 'sheep') jung.wolle = Math.random() < .5 ? a.wolle : b.wolle;
+    a.bleibt = b.bleibt = true;
+    this.mobs.push(jung);
+    for(let k = 0; k < 6; k++) this.herz(jung, k*0.08);
+    Sfx.play('geburt');
+  },
   /** Treffer auf ein Wesen, vom Schlag oder vom Pfeil */
   mobTreffer(m, dmg, kx, kz){
     if(m.dead) return;
@@ -579,7 +634,7 @@ const Game = {
     if(!m.def.hostile){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
     if(m.health <= 0){
       m.dead = true;
-      if(!this.player.creative) for(const [id, n] of m.def.beute(m)) if(n > 0) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
+      if(!this.player.creative && !(m.kind > 0)) for(const [id, n] of m.def.beute(m)) if(n > 0) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
     }
   },
   /** Benutzen auf ein Wesen: Schaf scheren, Kuh melken */
@@ -587,6 +642,23 @@ const Game = {
     const s = Inv.held(); if(!s) return false;
     const m = this.wesenImBlick(3.4); if(!m) return false;
     const p = this.player;
+    // Weizen: Junge wachsen schneller, Erwachsene werden verliebt
+    if(s.id === ITEM.wheat && !m.def.hostile){
+      if(m.kind > 0){
+        m.kind = Math.max(0, m.kind - WACHS_ZEIT*0.1);
+      } else if(m.pause > 0 || m.liebe > 0){
+        hint(m.liebe > 0 ? m.def.name + ' sucht schon einen Partner' : m.def.name + ' braucht noch etwas Zeit', 1600);
+        return true;
+      } else {
+        m.liebe = LIEBE_ZEIT; m.herzT = 0;
+        for(let k = 0; k < 3; k++) this.herz(m, k*0.12);
+      }
+      m.bleibt = true;
+      if(!p.creative) Inv.consumeHeld();
+      Sfx.play('eat'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      return true;
+    }
+    if(m.kind > 0) return false;
     if(s.id === ITEM.shears && m.type === 'sheep' && !m.geschoren){
       m.geschoren = true; m.wolleT = 30 + Math.random()*60;
       for(let i = 0, n = zufallN(1, 3); i < n; i++) this.dropItem(B.WOOL + m.wolle, 1, m.x, m.y + 1, m.z);
@@ -736,7 +808,8 @@ const Game = {
     const p = this.player, w = this.world;
     if(p.creative) return;
     let host = 0, pass = 0;
-    for(const m of this.mobs) (m.def.hostile ? host++ : pass++);
+    // gezählt wird nur, was in der Nähe ist — ferne Weiden verhindern keine neuen Tiere
+    for(const m of this.mobs){ if(Math.hypot(m.x - p.x, m.z - p.z) < 48) (m.def.hostile ? host++ : pass++); }
     const dl = this.dayLight();
     const wantHost = dl < 0.42 ? 14 : 5, wantPass = 12;
     for(let a=0; a<6; a++){
@@ -765,23 +838,73 @@ const Game = {
       }
     }
   },
+  partnerFuer(m){
+    let best = null, bd = 8;
+    for(const o of this.mobs){
+      if(o === m || o.type !== m.type || o.dead || o.kind > 0 || o.liebe <= 0) continue;
+      const d = Math.hypot(o.x - m.x, o.z - m.z);
+      if(d < bd){ bd = d; best = o; }
+    }
+    return best;
+  },
+  elternFuer(m){
+    let best = null, bd = 16;
+    for(const o of this.mobs){
+      if(o === m || o.type !== m.type || o.dead || o.kind > 0) continue;
+      const d = Math.hypot(o.x - m.x, o.z - m.z);
+      if(d < bd){ bd = d; best = o; }
+    }
+    return best;
+  },
+  /** Wesen, die ineinander stehen, drücken sich sanft auseinander (wie in
+      Minecraft) — sonst steckt ein Kalb halb in seinen Eltern. */
+  wesenSchieben(dt){
+    const ms = this.mobs, n = ms.length;
+    for(let i = 0; i < n; i++){
+      const a = ms[i]; if(a.dead) continue;
+      for(let j = i + 1; j < n; j++){
+        const b = ms[j]; if(b.dead) continue;
+        const min = (a.w + b.w)/2, dx = b.x - a.x, dz = b.z - a.z;
+        if(Math.abs(dx) >= min || Math.abs(dz) >= min) continue;
+        if(a.y >= b.y + b.h || b.y >= a.y + a.h) continue;
+        let d = Math.hypot(dx, dz), ux = dx/(d || 1), uz = dz/(d || 1);
+        if(d < 1e-4){ const r = Math.random()*TAU; ux = Math.cos(r); uz = Math.sin(r); }
+        if(d >= min) continue;
+        const k = (min - d)/min * 14 * dt, ga = b.w/(a.w + b.w);   // Kleine weichen mehr aus
+        a.vx -= ux*k*ga*2; a.vz -= uz*k*ga*2;
+        b.vx += ux*k*(1-ga)*2; b.vz += uz*k*(1-ga)*2;
+      }
+    }
+  },
   updateMobs(dt){
     const p = this.player, w = this.world, dl = this.dayLight();
     const far = (this.settings.rd*CS) + 30;
+    this.wesenSchieben(dt);
     for(let i=this.mobs.length-1; i>=0; i--){
       const m = this.mobs[i];
       const dx = p.x-m.x, dz = p.z-m.z;
       const dist = Math.hypot(dx,dz);
-      if(m.dead || dist > far || m.y < -4){
+      if(m.dead || (dist > far && !m.bleibt) || m.y < -4){
         if(m.dead) Sfx.play('hit');
         this.mobs.splice(i,1); continue;
       }
+      // Bleibende Tiere in ungeladenen Chunks warten, statt ins Nichts zu fallen
+      if(m.bleibt){ const c = w.getChunk(Math.floor(m.x) >> 4, Math.floor(m.z) >> 4); if(!c || c.state < 1 || dist > far) continue; }
       m.age += dt;
+      if(m.kind > 0){
+        m.kind -= dt;
+        if(m.kind <= 0){ m.kind = 0; m.w = m.def.w; m.h = m.def.h; }
+      }
+      if(m.pause > 0) m.pause -= dt;
+      if(m.liebe > 0){
+        m.liebe -= dt; m.herzT -= dt;
+        if(m.herzT <= 0){ m.herzT = 0.7 + Math.random()*0.4; this.herz(m); }
+      }
       if(m.hurtTimer > 0) m.hurtTimer -= dt;
       if(m.attackCd > 0) m.attackCd -= dt;
       if(m.jumpCd > 0) m.jumpCd -= dt;
 
-      let tx = 0, tz = 0, speed = m.def.speed;
+      let tx = 0, tz = 0, speed = m.def.speed, partner = null, eltern = null;
       const jagt = m.def.hostile && dist < 22 && !p.dead && !p.creative;
       const held = Inv.held();
       if(jagt && m.def.fernkampf){
@@ -820,6 +943,16 @@ const Game = {
         // getroffen: ein paar Sekunden weg vom Spieler
         m.flucht -= dt;
         tx = m.fluchtX; tz = m.fluchtZ; m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 1.6;
+      } else if(!m.def.hostile && m.liebe > 0 && (partner = this.partnerFuer(m))){
+        // verliebt: zum Partner laufen; nah genug, gibt es ein Junges
+        const ex = partner.x - m.x, ez = partner.z - m.z, d = Math.hypot(ex, ez) || 1;
+        if(d < 1.3){ if(m.liebe > 0 && partner.liebe > 0) this.geburt(m, partner); }
+        else { tx = ex/d; tz = ez/d; m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 0.9; }
+      } else if(!m.def.hostile && m.kind > 0 && (eltern = this.elternFuer(m))){
+        // Junge bleiben in der Nähe der Großen
+        const ex = eltern.x - m.x, ez = eltern.z - m.z, d = Math.hypot(ex, ez) || 1;
+        if(d > 3){ tx = ex/d; tz = ez/d; m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 1.1; }
+        else { m.moving = false; }
       } else if(!m.def.hostile && held && held.id === ITEM.wheat && dist < 10 && dist > 2.2 && !p.dead){
         // Weizen in der Hand: Kühe, Schafe und Schweine laufen hinterher
         const l = dist || 1; tx = dx/l; tz = dz/l;
@@ -1235,6 +1368,11 @@ function frame(now){
     Game.updateMobs(dt);
     Game.updateDrops(dt);
     Game.updatePfeile(dt);
+    for(let i = Game.partikel.length - 1; i >= 0; i--){
+      const q = Game.partikel[i]; q.t += dt;
+      if(q.t > 0) q.y += dt*0.55;
+      if(q.t > 1.3) Game.partikel.splice(i, 1);
+    }
     if(Game.bogen.aktiv){
       const s = Inv.held();
       if(!s || s.id !== ITEM.bow) Game.bogen.aktiv = false; else Game.bogen.t = Math.min(1.2, Game.bogen.t + dt);

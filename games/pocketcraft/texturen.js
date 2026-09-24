@@ -1247,6 +1247,11 @@ function buildTextures(){
     }
     for(let y = 13; y < 19; y++) for(let x = 8; x < 12; x++) p.set(x, y, [70,44,20]);
   });
+  sprite('p_herz', S => {
+    const L = S.lage(pal('#6a0c16','#b01c2c','#e0303c','#f25a5e','#ff9c9c'));
+    S.oval(L, 11, 12, 6.5, 6.5); S.oval(L, 21, 12, 6.5, 6.5); S.poly(L, [[5,14],[27,14],[16,27]]);
+    L.glanz = [[8,9],[9,8],[10,8],[8,10]];
+  });
   addTex('m_pfeil', p => {
     // längs: Spitze links, Schaft, Federn rechts
     for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){

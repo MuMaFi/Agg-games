@@ -116,11 +116,11 @@ class Player{
 const zufallN = (a, b) => a + ((Math.random()*(b - a + 1))|0);
 const MOBS = {
   pig: {
-    name:'Schwein', w:0.9, h:0.9, health:10, speed:1.5, hostile:false, laut:'pig',
+    name:'Schwein', w:0.9, h:0.9, health:10, speed:1.5, hostile:false, laut:'pig', kopfPunkt:[0, 0.4, -0.5],
     beute: () => [[ITEM.pork_raw, zufallN(1, 3)]],
     parts:[
       { n:'body', box:[-0.31,0.42,-0.5, 0.62,0.5,1.0], tex:'m_pig' },
-      { n:'head', box:[-0.25,0.4,-0.94, 0.5,0.5,0.44], tex:'m_pig', face:'m_pig_face', anim:'head' },
+      { n:'head', box:[-0.25,0.4,-0.94, 0.5,0.5,0.44], tex:'m_pig', face:'m_pig_face', anim:'head', kopf:true },
       { n:'l0', box:[-0.28,0.0,-0.44, 0.25,0.44,0.25], tex:'m_pig_leg', anim:'leg', ph:0 },
       { n:'l1', box:[ 0.03,0.0,-0.44, 0.25,0.44,0.25], tex:'m_pig_leg', anim:'leg', ph:1 },
       { n:'l2', box:[-0.28,0.0, 0.2,  0.25,0.44,0.25], tex:'m_pig_leg', anim:'leg', ph:1 },
@@ -128,14 +128,14 @@ const MOBS = {
     ]
   },
   cow: {
-    name:'Kuh', w:0.9, h:1.4, health:10, speed:1.3, hostile:false, laut:'kuh',
+    name:'Kuh', w:0.9, h:1.4, health:10, speed:1.3, hostile:false, laut:'kuh', kopfPunkt:[0, 0.94, -0.56],
     beute: () => [[ITEM.leather, zufallN(0, 2)], [ITEM.beef_raw, zufallN(1, 3)]],
     parts:[
       { n:'body', box:[-0.375,0.75,-0.56, 0.75,0.625,1.125], tex:'m_kuh' },
-      { n:'head', box:[-0.25,0.94,-0.94, 0.5,0.5,0.4], tex:'m_kuh', face:'m_kuh_face', anim:'head' },
-      { n:'horn0', box:[-0.33,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn' },
-      { n:'horn1', box:[ 0.24,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn' },
-      { n:'euter', box:[-0.12,0.66,0.12, 0.24,0.1,0.28], tex:'m_euter' },
+      { n:'head', box:[-0.25,0.94,-0.94, 0.5,0.5,0.4], tex:'m_kuh', face:'m_kuh_face', anim:'head', kopf:true },
+      { n:'horn0', box:[-0.33,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn', kopf:true, wenn: m => !(m.kind > 0) },
+      { n:'horn1', box:[ 0.24,1.32,-0.84, 0.09,0.2,0.09], tex:'m_horn', kopf:true, wenn: m => !(m.kind > 0) },
+      { n:'euter', box:[-0.12,0.66,0.12, 0.24,0.1,0.28], tex:'m_euter', wenn: m => !(m.kind > 0) },
       { n:'l0', box:[-0.34,0.0,-0.5, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:0 },
       { n:'l1', box:[ 0.09,0.0,-0.5, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:1 },
       { n:'l2', box:[-0.34,0.0, 0.25, 0.25,0.75,0.25], tex:'m_kuh_bein', anim:'leg', ph:1 },
@@ -143,13 +143,13 @@ const MOBS = {
     ]
   },
   sheep: {
-    name:'Schaf', w:0.9, h:1.3, health:8, speed:1.35, hostile:false, laut:'schaf',
+    name:'Schaf', w:0.9, h:1.3, health:8, speed:1.35, hostile:false, laut:'schaf', kopfPunkt:[0, 0.9, -0.42],
     beute: m => (m.geschoren ? [] : [[B.WOOL + m.wolle, 1]]).concat([[ITEM.mutton_raw, zufallN(1, 2)]]),
     parts:[
       { n:'wolle', box:[-0.36,0.6,-0.5, 0.72,0.62,1.0], tex:'m_schaf_wolle', wenn: m => !m.geschoren, farbe: m => WOLLE[m.wolle].tint },
       { n:'body', box:[-0.26,0.7,-0.42, 0.52,0.44,0.84], tex:'m_schaf_haut', wenn: m => m.geschoren },
-      { n:'head', box:[-0.19,0.9,-0.8, 0.38,0.38,0.38], tex:'m_schaf_haut', face:'m_schaf_face', anim:'head' },
-      { n:'kappe', box:[-0.21,1.2,-0.76, 0.42,0.12,0.32], tex:'m_schaf_wolle', wenn: m => !m.geschoren, farbe: m => WOLLE[m.wolle].tint },
+      { n:'head', box:[-0.19,0.9,-0.8, 0.38,0.38,0.38], tex:'m_schaf_haut', face:'m_schaf_face', anim:'head', kopf:true },
+      { n:'kappe', box:[-0.21,1.2,-0.76, 0.42,0.12,0.32], tex:'m_schaf_wolle', wenn: m => !m.geschoren, farbe: m => WOLLE[m.wolle].tint, kopf:true },
       { n:'l0', box:[-0.3,0.0,-0.42, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:0 },
       { n:'l1', box:[ 0.1,0.0,-0.42, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:1 },
       { n:'l2', box:[-0.3,0.0, 0.22, 0.2,0.7,0.2], tex:'m_schaf_bein', anim:'leg', ph:1 },
@@ -169,12 +169,12 @@ const MOBS = {
     ]
   },
   skeleton: {
-    name:'Skelett', w:0.6, h:1.95, health:20, speed:2.0, hostile:true, dmg:0, fernkampf:true, laut:'skelett',
+    name:'Skelett', w:0.6, h:1.95, health:20, speed:2.0, hostile:true, dmg:0, fernkampf:true, laut:'skelett', armSchwung:0.12,
     beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.arrow, zufallN(0, 2)]].concat(Math.random() < 0.08 ? [[ITEM.bow, 1]] : []),
     parts:[
       { n:'head', box:[-0.25,1.42,-0.25, 0.5,0.5,0.5], tex:'m_skelett', face:'m_skelett_face', anim:'head' },
       { n:'body', box:[-0.22,0.67,-0.1, 0.44,0.75,0.2], tex:'m_skelett_brust' },
-      { n:'arm0', box:[-0.32,0.67,-0.06, 0.1,0.75,0.12], tex:'m_skelett_glied', anim:'arm', ph:0 },
+      { n:'arm0', box:[-0.32,0.67,-0.06, 0.1,0.75,0.12], tex:'m_skelett_glied', anim:'arm', ph:0, gier:-0.42 },
       { n:'arm1', box:[ 0.22,0.67,-0.06, 0.1,0.75,0.12], tex:'m_skelett_glied', anim:'arm', ph:1 },
       { n:'bogen', box:[0.04,1.0,-0.84, 0.46,0.66,0.02], tex:'m_bogen' },
       { n:'leg0', box:[-0.19,0.0,-0.06, 0.12,0.68,0.12], tex:'m_skelett_glied', anim:'leg', ph:0 },
@@ -190,13 +190,18 @@ function wollfarbe(){
   return 0;
 }
 
+/* Vermehren: gefüttert ist ein Tier eine halbe Minute »verliebt«; findet
+   es dann ein zweites seiner Art, gibt es ein Junges. Danach brauchen
+   beide eine Pause. Junge wachsen in vier Minuten heran. */
+const LIEBE_ZEIT = 30, ZUCHT_PAUSE = 150, WACHS_ZEIT = 240;
 class Mob{
-  constructor(type, x, y, z){
+  constructor(type, x, y, z, jung){
     const d = MOBS[type];
     this.type = type; this.def = d;
     this.x = x; this.y = y; this.z = z;
     this.vx = 0; this.vy = 0; this.vz = 0;
-    this.w = d.w; this.h = d.h; this.yaw = Math.random()*TAU;
+    this.kind = jung ? WACHS_ZEIT : 0; this.liebe = 0; this.pause = 0; this.herzT = 0; this.bleibt = !!jung;
+    this.w = d.w * (jung ? BABY : 1); this.h = d.h * (jung ? BABY : 1); this.yaw = Math.random()*TAU;
     this.health = d.health; this.onGround = false; this.stepUp = true;
     this.wander = 0; this.wanderYaw = this.yaw; this.moving = false;
     this.hurtTimer = 0; this.attackCd = 0; this.walkPhase = 0; this.dead = false;
