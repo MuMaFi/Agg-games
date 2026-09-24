@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f7f7f7">
+<title>Dino — AGG Games</title>
+<meta name="description" content="Kein Netz, kein Problem: ein Pixel-Dino rennt durch die Wüste, springt über Kakteen und duckt sich unter Flugsauriern. Endlos, mit Bestwert.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23f7f7f7'/%3E%3Cpath d='M8 1h6v4h-3v1h2v1h-3v3h-1v2h-1v3h-1v-2h-2v2h-1v-3l-3-3v-3h1v2h1v-1h2v-1h2z' fill='%23535353'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+<style>
+:root{ --pix:"Pixelify Sans", ui-monospace, monospace }
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; overflow:hidden; overscroll-behavior:none}
+body{
+  background:#f7f7f7; color:#535353; font-family:var(--pix);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  touch-action:none; user-select:none; -webkit-user-select:none;
+}
+canvas{display:block; touch-action:none}
+#hinweis{font-size:13px; opacity:.7; text-align:center; padding:0 16px; line-height:1.4}
+</style>
+</head>
+<body>
+<canvas id="dino" aria-label="Wüste mit rennendem Pixel-Dino"></canvas>
+<p id="hinweis"></p>
+
+<script>
+(() => {
+'use strict';
+
+/* ── Spielfeld ─────────────────────────────────────────────────────
+   Gerechnet wird in einem Band von 150 Einheiten Höhe; die Breite
+   ist 600, auf schmalen Handys so breit wie der Bildschirm, damit
+   der Dino nicht zur Briefmarke wird. Ein Kunstpixel = 2 Einheiten. */
+const H = 150, GY = 140, P = 2;
+
+const leinwand = document.getElementById('dino');
+const ctx = leinwand.getContext('2d');
+const hinweis = document.getElementById('hinweis');
+const beruehrung = matchMedia('(hover:none) and (pointer:coarse)').matches;
+hinweis.textContent = beruehrung
+  ? 'Rechts tippen: springen · links halten: ducken'
+  : 'Leertaste oder ↑: springen · ↓: ducken · P: Pause';
+
+let W = 600, mass = 1, k = 1, DX = 44;
+function groesse(){
+  const vw = innerWidth, vh = innerHeight;
+  if(vw < 600){ W = Math.max(320, Math.round(vw)); mass = vw / W; }
+  else { W = 600; mass = Math.min(2, (vw - 32) / 600, vh * .7 / H); }
+  k = mass * Math.min(window.devicePixelRatio || 1, 3);
+  leinwand.style.width  = Math.round(W * mass) + 'px';
+  leinwand.style.height = Math.round(H * mass) + 'px';
+  leinwand.width  = Math.round(W * k);
+  leinwand.height = Math.round(H * k);
+  DX = W < 480 ? 24 : 44;
+}
+addEventListener('resize', groesse);
+
+/* ── Pixelbilder ───────────────────────────────────────────────────
+   Jede Zeile ein String, '#' ist ein Pixel. Beim Laden werden daraus
+   waagrechte Striche, damit jede Zeile nur ein paar Rechtecke kostet. */
+function bild(zeilen){
+  const striche = [];
+  zeilen.forEach((z, y) => {
+    for(let x = 0; x < z.length; ){
+      if(z[x] !== '#'){ x++; continue; }
+      const s = x; while(z[x] === '#') x++;
+      striche.push([s, y, x - s]);
+    }
+  });
+  return { w: Math.max(...zeilen.map(z => z.length)) * P, h: zeilen.length * P, striche };
+}
+
+/* Rechtecke auf ganze Bildschirmpixel runden — so gibt es bei krummen
+   Maßstäben keine Haarlinien zwischen den Zeilen. */
+function rechteck(x, y, w, h){
+  const x0 = Math.round(x * k), y0 = Math.round(y * k);
+  ctx.fillRect(x0, y0, Math.round((x + w) * k) - x0, Math.round((y + h) * k) - y0);
+}
+function malen(b, x, y){ for(const [sx, sy, l] of b.striche) rechteck(x + sx*P, y + sy*P, l*P, P); }
+
+const KOPF_RUMPF = [
+  '            ########  ',
+  '           ## ####### ',
+  '           ########## ',
+  '           ########## ',
+  '           ########## ',
+  '           #####      ',
+  '           ########   ',
+  '          #####       ',
+  '#        #######      ',
+  '#       ##########    ',
+  '##     ######### #    ',
+  '###   ##########      ',
+  '#### ###########      ',
+  '################      ',
+  ' ###############      ',
+  '  #############       ',
+  '   ###########        ',
+  '    #########         ',
+];
+const BEINE = {
+  steh: ['     ###  ##', '     #     #', '     ##    ##'],
+  a:    ['    ###   ##', '           #', '           ##'],
+  b:    ['     ##    ###', '     #', '     ##'],
+};
+const TOT_KOPF = KOPF_RUMPF.slice();
+TOT_KOPF[1] = '           #  ####### ';
+TOT_KOPF[2] = '           #  ####### ';
+TOT_KOPF[5] = '           ####       ';
+
+const DINO = {
+  steh: bild([...KOPF_RUMPF, ...BEINE.steh]),
+  a:    bild([...KOPF_RUMPF, ...BEINE.a]),
+  b:    bild([...KOPF_RUMPF, ...BEINE.b]),
+  tot:  bild([...TOT_KOPF,   ...BEINE.steh]),
+};
+
+/* Geduckt: Rumpf waagrecht, der Kopf vorne auf gleicher Höhe */
+const DUCK_RUMPF = ['', '#     ############', '##   #############', '###  #############',
+  '##################', ' #################', '  ################', '   ############'];
+const DUCK_KOPF = [' ######## ', '## #######', '##########', '##########', '#####     ', '########  '];
+const duckOben = DUCK_RUMPF.map((r, i) => r.padEnd(18) + (DUCK_KOPF[i] || ''));
+const DUCK = {
+  a: bild([...duckOben, '    ###   ##', '           #', '           ##']),
+  b: bild([...duckOben, '     ##    ###', '     #', '     ##']),
+};
+
+const KAKTUS_K = bild([
+  '   ###   ', '   ###   ', '   ### # ', ' # ### # ', ' # ### # ', ' # ### # ',
+  ' # ##### ', ' #####   ', '   ###   ', '   ###   ', '   ###   ', '   ###   ',
+  '   ###   ', '   ###   ', '   ###   ', '   ###   ', '   ###   ', '   ###   ',
+]);
+const KAKTUS_G = bild([
+  '     ###     ', '    #####    ', '    #####    ', '    #####  # ', ' #  ##### ###',
+  '### ##### ###', '### ##### ###', '### ##### ###', '### ##### ###', '### #########',
+  '### ######## ', '#########    ', ' ########    ', '    #####    ', '    #####    ',
+  '    #####    ', '    #####    ', '    #####    ', '    #####    ', '    #####    ',
+  '    #####    ', '    #####    ', '    #####    ', '    #####    ', '    #####    ',
+]);
+
+const VOGEL_KOPF = ['    #', '   ##', '  ###', ' ## ##'];
+const VOGEL = [
+  bild([
+    '          #', '          ##', '          ###',
+    '    #     ####', '   ##     #####', '  ###     ######', ' ## ##    #######',
+    '###################### ', '    ###################', '      ###########', '        ########',
+    '', '', '', '', '',
+  ]),
+  bild([
+    '', '', '', ...VOGEL_KOPF,
+    '###################### ', '    ###################', '      ###########',
+    '         #######', '         #####', '         ####', '         ###', '         ##', '         #',
+  ]),
+];
+
+const WOLKE = bild([
+  '        #####        ', '      ##     ##      ', '  #####         ###  ',
+  ' #                 # ', '#                   #', '#####################',
+]);
+
+/* Mond und Neustart-Pfeil werden gerechnet statt gezeichnet */
+function kreisBild(n, fuellen){
+  const z = [];
+  for(let y = 0; y < n; y++){ let s = ''; for(let x = 0; x < n; x++) s += fuellen(x, y) ? '#' : ' '; z.push(s); }
+  return bild(z);
+}
+const MONDE = [5, 9, null, -9, -5].map(ab => kreisBild(20, (x, y) => {
+  const d = Math.hypot(x - 9.5, y - 9.5);
+  return d < 9 && (ab === null || Math.hypot(x - 9.5 - ab, y - 9.5) >= 9);
+}));
+const NEUSTART = kreisBild(15, (x, y) => {
+  const dx = x - 7, dy = y - 7, d = Math.hypot(dx, dy), w = Math.atan2(dy, dx);
+  const ring = Math.abs(d - 5.2) < .85 && !(w > -Math.PI/2 && w < -Math.PI/9);
+  const i = y - 2;                                         // Pfeilspitze oben, nach rechts
+  const spitze = Math.abs(i) <= 2 && x >= 7 && x <= 7 + (2 - Math.abs(i));
+  return ring || spitze;
+});
+
+/* Trefferkisten, großzügig nach innen gezogen: wer knapp vorbei ist,
+   soll auch vorbei sein. */
+const KISTEN_STEH = [[23,1,18,12], [12,14,20,20], [2,18,10,10], [11,34,14,8]];
+const KISTEN_DUCK = [[37,1,18,10], [2,4,34,12], [9,16,16,6]];
+
+const TYPEN = [
+  { bilder:[KAKTUS_K], breite:18, hoehe:36, minLuecke:120, gruppeAb:4, abTempo:0,
+    kisten:[[6,0,6,36], [2,6,14,8]] },
+  { bilder:[KAKTUS_G], breite:26, hoehe:50, minLuecke:120, gruppeAb:7, abTempo:0,
+    kisten:[[8,0,10,50], [1,9,24,14]] },
+  { bilder:VOGEL, breite:46, hoehe:32, minLuecke:150, gruppeAb:99, abTempo:8.5,
+    hoehen:[GY - 28, GY - 48, GY - 78], kisten:[[2,8,12,10], [6,14,38,6]] },
+];
+
+/* ── Ton ───────────────────────────────────────────────────────── */
+let ac = null;
+function tonAn(){
+  if(ac){ if(ac.state === 'suspended') ac.resume(); return; }
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+}
+function ton(f, dauer = .06, laut = .05, nach = 0){
+  if(!ac) return;
+  const t = ac.currentTime + nach, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'square'; o.frequency.setValueAtTime(f, t);
+  g.gain.setValueAtTime(laut, t); g.gain.exponentialRampToValueAtTime(.0001, t + dauer);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dauer + .02);
+}
+
+/* ── Zustand ───────────────────────────────────────────────────── */
+const zufall = (a, b) => a + Math.random() * (b - a);
+const ganz = (a, b) => Math.floor(zufall(a, b + 1));
+
+let zustand = 'bereit';          // bereit | lauf | aus | pause
+let tempo = 6, distanz = 0, punkte = 0, laufzeit = 0, ausSeit = 0;
+let bester = 0;
+try { bester = +localStorage.getItem('agg-dino-bester') || 0; } catch(e) {}
+let blinkZeit = 0, blinkWert = 0;
+let nachtZeit = 0, nacht = 0, mondPhase = 0, sterne = [], mondX = 0;
+let bodenX = 0, zwinkern = 0;
+let hindernisse = [], wolken = [], letzteTypen = [];
+let sprungGehalten = false, sprungPuffer = 0, duckWunsch = false;
+
+const dino = { y:0, vy:0, springt:false, duckt:false, los:false, schnell:false, uhr:0 };
+
+/* Boden: ein langes, sich wiederholendes Band aus Buckeln und Kieseln */
+const BODEN_L = 1200;
+const boden = [];
+for(let x = 0; x < BODEN_L; ){
+  x += ganz(6, 40);
+  if(Math.random() < .12){ boden.push({ x, y:GY - 5, w:ganz(4, 10), h:2, buckel:true }); x += 12; }
+  else boden.push({ x, y:GY - 1 + ganz(0, 6), w:ganz(1, 3), h:1 });
+}
+
+/* ── Ablauf ────────────────────────────────────────────────────── */
+function starten(){
+  zustand = 'lauf';
+  tempo = 6; distanz = 0; punkte = 0; laufzeit = 0;
+  hindernisse = []; letzteTypen = [];
+  blinkZeit = 0; nachtZeit = 0;
+  Object.assign(dino, { y:0, vy:0, springt:false, duckt:false, los:false, schnell:false });
+}
+
+function springen(){
+  if(zustand !== 'lauf') return;
+  if(dino.springt){ sprungPuffer = .12; return; }        // kurz vor der Landung gedrückt: zählt
+  dino.springt = true; dino.duckt = false; dino.schnell = false;
+  dino.vy = 10 + tempo / 10;
+  dino.los = !sprungGehalten;
+  ton(760, .05, .04);
+}
+
+function aktion(){
+  if(zustand === 'bereit'){ starten(); springen(); }
+  else if(zustand === 'lauf') springen();
+  else if(zustand === 'pause') zustand = 'lauf';
+  else if(zustand === 'aus' && performance.now() - ausSeit > 450){ starten(); }
+}
+
+function duckDruck(an){
+  duckWunsch = an;
+  if(an && zustand === 'lauf' && dino.springt && !dino.schnell){
+    dino.schnell = true;
+    if(dino.vy > -1) dino.vy = -1;
+  }
+  if(!an) dino.schnell = false;
+}
+
+function aus(){
+  zustand = 'aus'; ausSeit = performance.now();
+  ton(140, .25, .06);
+  if(navigator.vibrate) try { navigator.vibrate(40); } catch(e) {}
+  if(punkte > bester){
+    bester = punkte;
+    try { localStorage.setItem('agg-dino-bester', bester); } catch(e) {}
+  }
+}
+
+/* ── Eingabe ───────────────────────────────────────────────────── */
+const SPRUNG = ['Space', 'ArrowUp', 'KeyW', 'Enter'], DUCK_T = ['ArrowDown', 'KeyS'];
+addEventListener('keydown', e => {
+  if(e.target.closest && e.target.closest('#heimKnopf')) return;
+  if([...SPRUNG, ...DUCK_T].includes(e.code)) e.preventDefault();
+  if(e.repeat) return;
+  tonAn();
+  if(SPRUNG.includes(e.code)){ sprungGehalten = true; aktion(); }
+  else if(DUCK_T.includes(e.code)) duckDruck(true);
+  else if(e.code === 'KeyP' || e.code === 'Escape'){
+    if(zustand === 'lauf') zustand = 'pause'; else if(zustand === 'pause') zustand = 'lauf';
+  }
+});
+addEventListener('keyup', e => {
+  if(SPRUNG.includes(e.code)){ sprungGehalten = false; dino.los = true; }
+  if(DUCK_T.includes(e.code)) duckDruck(false);
+});
+
+/* Auf dem Handy: rechte Hälfte springt, linke Hälfte hält geduckt.
+   Mit der Maus springt jeder Klick. */
+const duckFinger = new Set();
+document.addEventListener('pointerdown', e => {
+  if(e.target.closest && e.target.closest('#heimKnopf')) return;
+  if(e.button > 0) return;
+  e.preventDefault();
+  tonAn();
+  if(e.pointerType !== 'mouse' && zustand === 'lauf' && e.clientX < innerWidth / 2){
+    duckFinger.add(e.pointerId); duckDruck(true); return;
+  }
+  sprungGehalten = true; aktion();
+});
+const loslassen = e => {
+  if(duckFinger.delete(e.pointerId)){ if(!duckFinger.size) duckDruck(false); return; }
+  sprungGehalten = false; dino.los = true;
+};
+document.addEventListener('pointerup', loslassen);
+document.addEventListener('pointercancel', loslassen);
+
+const anhalten = () => { if(zustand === 'lauf') zustand = 'pause'; duckFinger.clear(); duckDruck(false); sprungGehalten = false; };
+addEventListener('blur', anhalten);
+document.addEventListener('visibilitychange', () => { if(document.hidden) anhalten(); });
+
+/* ── Schritt ───────────────────────────────────────────────────── */
+function neuesHindernis(){
+  const moeglich = TYPEN.filter(t => tempo >= t.abTempo);
+  let typ;
+  do typ = moeglich[ganz(0, moeglich.length - 1)];
+  while(moeglich.length > 1 && letzteTypen.length >= 2 && letzteTypen.every(t => t === typ));
+  letzteTypen = [typ, ...letzteTypen].slice(0, 2);
+  const anzahl = tempo > typ.gruppeAb ? ganz(1, 3) : 1;
+  const w = typ.breite * anzahl;
+  const minL = Math.round(w * tempo + typ.minLuecke * .6);
+  hindernisse.push({
+    typ, anzahl, w, x: W + 10,
+    y: typ.hoehen ? typ.hoehen[ganz(0, typ.hoehen.length - 1)] : GY - typ.hoehe,
+    luecke: Math.round(zufall(minL, minL * 1.5)),
+    plus: typ.hoehen ? (Math.random() < .5 ? .8 : -.8) : 0,
+    uhr: 0,
+  });
+}
+
+function dinoBild(){
+  if(zustand === 'aus') return DINO.tot;
+  const lauf = Math.floor(dino.uhr * (dino.duckt ? 8 : 12)) % 2;
+  if(dino.duckt) return lauf ? DUCK.b : DUCK.a;
+  if(dino.springt || zustand !== 'lauf') return DINO.steh;
+  return lauf ? DINO.b : DINO.a;
+}
+
+function kisten(liste, x0, y0){ return liste.map(([x, y, w, h]) => [x0 + x, y0 + y, w, h]); }
+const ueberlappt = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+
+function kollision(){
+  const b = dinoBild();
+  const dk = kisten(dino.duckt ? KISTEN_DUCK : KISTEN_STEH, DX, GY - b.h - dino.y);
+  for(const o of hindernisse){
+    if(o.x > DX + b.w || o.x + o.w < DX) continue;
+    for(let i = 0; i < o.anzahl; i++)
+      for(const hk of kisten(o.typ.kisten, o.x + i * o.typ.breite, o.y))
+        for(const d of dk) if(ueberlappt(d, hk)) return true;
+  }
+  return false;
+}
+
+function schritt(dt){
+  const f = dt * 60;           // alles ist in „Einheiten pro 60stel“ gedacht
+  laufzeit += dt;
+  tempo = Math.min(13, tempo + .001 * f);
+  distanz += tempo * f;
+
+  const neu = Math.min(99999, Math.floor(distanz * .025));
+  if(Math.floor(neu / 100) > Math.floor(punkte / 100)){
+    blinkZeit = .9; blinkWert = Math.floor(neu / 100) * 100;
+    ton(1000, .06, .04); ton(1330, .09, .04, .08);
+  }
+  if(Math.floor(neu / 700) > Math.floor(punkte / 700) && nachtZeit <= 0){
+    nachtZeit = 12; mondPhase = (mondPhase + 1) % MONDE.length; mondX = W - 60;
+    sterne = [0, 1, 2].map(i => ({ x: zufall(W * i / 3, W * (i + 1) / 3), y: zufall(10, 70) }));
+  }
+  punkte = neu;
+
+  // Dino
+  dino.uhr += dt;
+  sprungPuffer = Math.max(0, sprungPuffer - dt);
+  if(dino.springt){
+    if((dino.los && dino.y >= 30) || dino.y >= 63) dino.vy = Math.min(dino.vy, 5);
+    dino.vy -= .6 * (dino.schnell ? 3 : 1) * f;
+    dino.y += dino.vy * f;
+    if(dino.y <= 0){
+      dino.y = 0; dino.vy = 0; dino.springt = false; dino.schnell = false;
+      if(sprungPuffer > 0){ sprungPuffer = 0; springen(); }
+    }
+  }
+  dino.duckt = duckWunsch && !dino.springt;
+
+  // Hindernisse
+  for(const o of hindernisse){ o.x -= (tempo + o.plus) * f; o.uhr += dt; }
+  hindernisse = hindernisse.filter(o => o.x + o.w > -20);
+  const letztes = hindernisse[hindernisse.length - 1];
+  if(laufzeit > 1.2 && (!letztes || letztes.x + letztes.w + letztes.luecke < W)) neuesHindernis();
+
+  if(kollision()){ aus(); return; }
+
+  bodenX = (bodenX + tempo * f) % BODEN_L;
+  wolkenSchieben(tempo * .2 * f);
+  mondX -= .25 * f;
+}
+
+function wolkenSchieben(v){
+  for(const w of wolken) w.x -= v;
+  wolken = wolken.filter(w => w.x > -WOLKE.w);
+  const letzte = wolken[wolken.length - 1];
+  if(!letzte || letzte.x < W - letzte.luecke)
+    wolken.push({ x: W + zufall(0, 60), y: zufall(22, 72), luecke: zufall(100, 400) });
+}
+
+/* ── Zeichnen ──────────────────────────────────────────────────── */
+const TAG   = { bg:[247,247,247], fg:[83,83,83],    wolke:[210,210,210], blass:[140,140,140] };
+const NACHT = { bg:[32,33,36],    fg:[172,172,172], wolke:[74,76,82],    blass:[120,122,126] };
+const farbe = (n) => { const a = TAG[n], b = NACHT[n];
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * nacht)).join(',')})`; };
+let letzterHintergrund = '';
+
+function text(t, x, y, groesse = 13, ausrichtung = 'center'){
+  ctx.font = `600 ${groesse * k}px "Pixelify Sans", ui-monospace, monospace`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = 'middle';
+  ctx.fillText(t, Math.round(x * k), Math.round(y * k));
+}
+
+function zeichnen(){
+  const bg = farbe('bg');
+  if(bg !== letzterHintergrund){
+    letzterHintergrund = bg;
+    document.body.style.background = bg;
+    document.body.style.color = farbe('fg');
+  }
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, leinwand.width, leinwand.height);
+
+  // Nachthimmel
+  if(nacht > .01){
+    ctx.globalAlpha = nacht;
+    ctx.fillStyle = '#e8eaed';
+    malen(MONDE[mondPhase], mondX, 30);
+    for(const s of sterne){ rechteck(s.x, s.y, 2, 2); ctx.globalAlpha = nacht * .5;
+      rechteck(s.x - 2, s.y, 1, 2); rechteck(s.x + 3, s.y, 1, 2); ctx.globalAlpha = nacht; }
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.fillStyle = farbe('wolke');
+  for(const w of wolken) malen(WOLKE, w.x, w.y);
+
+  // Boden
+  const fg = farbe('fg');
+  ctx.fillStyle = fg;
+  rechteck(0, GY - 3, W, 1);
+  for(let wdh = 0; wdh * BODEN_L - bodenX < W; wdh++){
+    for(const b of boden){
+      const x = b.x + wdh * BODEN_L - bodenX;
+      if(x < -12 || x > W) continue;
+      if(b.buckel){
+        ctx.fillStyle = farbe('bg'); rechteck(x, GY - 3, b.w, 1); ctx.fillStyle = fg;
+        rechteck(x, GY - 4, 1, 1); rechteck(x + 1, GY - 5, b.w - 2, 1); rechteck(x + b.w - 1, GY - 4, 1, 1);
+      } else rechteck(x, b.y, b.w, b.h);
+    }
+  }
+
+  // Hindernisse
+  for(const o of hindernisse){
+    const b = o.typ.bilder[o.typ.bilder.length > 1 ? Math.floor(o.uhr * 6) % 2 : 0];
+    for(let i = 0; i < o.anzahl; i++) malen(b, o.x + i * o.typ.breite, o.y);
+  }
+
+  // Dino
+  const db = dinoBild();
+  const dy = GY - db.h - dino.y;
+  malen(db, DX, dy);
+  if(zustand === 'bereit' && zwinkern > 0){ rechteck(DX + 26, dy + 2, 2, 2); }
+
+  // Punkte
+  const rechts = W - 12;
+  const zeigen = blinkZeit <= 0 || Math.floor(blinkZeit * 8) % 2 === 0;
+  const wert = blinkZeit > 0 ? blinkWert : punkte;
+  if(zeigen) text(String(wert).padStart(5, '0'), rechts, 16, 13, 'right');
+  if(bester > 0){
+    ctx.fillStyle = farbe('blass');
+    text('HI ' + String(bester).padStart(5, '0'), rechts - 52, 16, 13, 'right');
+    ctx.fillStyle = fg;
+  }
+
+  // Tafeln
+  if(zustand === 'bereit'){
+    text(beruehrung ? 'Tippen zum Starten' : 'Leertaste zum Starten', W / 2, 60, 14);
+  } else if(zustand === 'aus'){
+    text('G A M E   O V E R', W / 2, 50, 16);
+    malen(NEUSTART, W / 2 - NEUSTART.w / 2, 66);
+  } else if(zustand === 'pause'){
+    text('P A U S E', W / 2, 50, 16);
+    text(beruehrung ? 'Tippen zum Weiterlaufen' : 'Leertaste zum Weiterlaufen', W / 2, 74, 12);
+  }
+}
+
+/* ── Schleife ──────────────────────────────────────────────────── */
+let zuletzt = performance.now(), zwinkerUhr = 3;
+function takt(jetzt){
+  const dt = Math.min(1 / 20, (jetzt - zuletzt) / 1000);
+  zuletzt = jetzt;
+  if(zustand === 'lauf') schritt(dt);
+  else if(zustand === 'bereit'){
+    wolkenSchieben(6 * .2 * dt * 60 * .3);
+    zwinkerUhr -= dt; zwinkern = Math.max(0, zwinkern - dt);
+    if(zwinkerUhr <= 0){ zwinkern = .15; zwinkerUhr = zufall(2, 5); }
+  }
+  if(zustand !== 'pause') blinkZeit = Math.max(0, blinkZeit - dt);
+  if(zustand === 'lauf') nachtZeit = Math.max(0, nachtZeit - dt);
+  const ziel = nachtZeit > 0 ? 1 : 0;
+  nacht += Math.sign(ziel - nacht) * Math.min(Math.abs(ziel - nacht), dt / .8);
+  zeichnen();
+  requestAnimationFrame(takt);
+}
+
+groesse();
+wolkenSchieben(0); wolken[0].x = W * .55;
+requestAnimationFrame(takt);
+})();
+</script>
+<script src="./heim.js" data-ziel="../index.html" data-ecke="ol" data-rand="8"></script>
+</body>
+</html>
