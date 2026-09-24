@@ -81,6 +81,11 @@ Lizenzen:
 | `ruestung_leder` | `mcl_armor_equip_leather.ogg` | artisticdude, <https://opengameart.org/content/rpg-sound-pack> | CC0 |
 | `ruestung_eisen` | `mcl_armor_equip_iron.ogg` | mitchanary, <https://freesound.org/people/mitchanary/sounds/506148/> | CC0 |
 | `ruestung_diamant` | `mcl_armor_equip_diamond.ogg` | juryduty, <https://freesound.org/people/juryduty/sounds/180231/> | CC0 |
+| `huhn_1…3`, `huhn_au` | `mobs_mc_chicken_buck.1…3.ogg`, `mobs_mc_chicken_hurt.ogg` | evsecrets, <https://freesound.org/people/evsecrets/sounds/346961/> | CC0 |
+| `kueken` | `mobs_mc_chicken_child.ogg` | AGFX, <https://freesound.org/people/AGFX/sounds/43380/> | CC0 |
+| `ei_legen` | `mobs_mc_chicken_lay_egg.ogg` | PilzAdam und Wuzzy | CC0 |
+| `ei_kaputt` | `mcl_throwing_egg_impact.ogg` | dav0r, <https://freesound.org/people/dav0r/sounds/176760/> | CC0 |
+| `werfen` | `mcl_throwing_throw.ogg` | kretopi, <https://freesound.org/people/kretopi/sounds/406405/> | CC0 |
 
 ## Essen (aus der Luanti-Mod stamina)
 

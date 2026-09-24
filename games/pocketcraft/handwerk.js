@@ -164,7 +164,8 @@ function initRecipes(){
   const WOLL = [B.WOOL, B.WOOL + 1, B.WOOL + 2, B.WOOL + 3];
   geformt('werkzeug', ITEM.shears, 1, [' I','I '], {I:ITEM.iron});
   geformt('kampf', ITEM.bow, 1, [' |f','| f',' |f'], {'|':S, f:ITEM.string});
-  geformt('kampf', ITEM.arrow, 4, ['F','|','f'], {F:ITEM.flint, '|':S, f:ITEM.string});
+  // Pfeile: mit Feder wie beim Vorbild, Faden geht aber auch
+  geformt('kampf', ITEM.arrow, 4, ['F','|','f'], {F:ITEM.flint, '|':S, f:[ITEM.feather, ITEM.string]});
   geformt('bauen', B.BED, 1, ['WWW','###'], {W:WOLL, '#':P});
   geformt('stoffe', B.WOOL, 1, ['ff','ff'], {f:ITEM.string});
   formlos('stoffe', ITEM.string, 4, [WOLL]);
@@ -260,6 +261,7 @@ function initSmelt(){
   SMELT[B.LOG] = ITEM.coal;
   SMELT[ITEM.beef_raw] = ITEM.beef_cooked;
   SMELT[ITEM.mutton_raw] = ITEM.mutton_cooked;
+  SMELT[ITEM.chicken_raw] = ITEM.chicken_cooked;
 }
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
@@ -303,7 +305,8 @@ function beschreibung(s){
   if(it && it.food) t.push('+' + it.food + ' Hunger' + (it.heal ? ', heilt ' + it.heal : ''));
   if(SMELT[s.id] !== undefined) t.push('schmilzt zu ' + nameOf(SMELT[s.id]));
   if(fuelValue(s.id)) t.push('brennt');
-  if(s.id === ITEM.seeds) t.push('auf Ackerboden säen');
+  if(s.id === ITEM.seeds) t.push('auf Ackerboden säen, Hühner füttern');
+  if(s.id === ITEM.egg) t.push('werfen — manchmal schlüpft ein Küken');
   if(it && it.tool === 'hoe') t.push('macht aus Erde Acker');
   if(s.id === B.BED) t.push('nachts schlafen, Startpunkt');
   return t.join(' · ');

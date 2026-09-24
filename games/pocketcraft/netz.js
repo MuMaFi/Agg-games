@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 1;
+const NETZ_VERSION = 2;                  // 2: Hühner, fließendes Wasser
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -259,6 +259,7 @@ const Netz = {
       case 'truhe': this.truheEmpfangen(m, g); break;
       case 'ofen': this.ofenEmpfangen(m); break;
       case 'pfeil': this.pfeilEmpfangen(m, g); break;
+      case 'kueken': this.kuekenHost(g, m); break;
       case 'tschuess': this.gastWeg(g); setTimeout(() => { try{ g.conn.close(); }catch(e){} }, 200); break;
     }
   },
@@ -314,9 +315,17 @@ const Netz = {
   wesenAnfrageHost(g, m){
     const mob = Game.mobs.find(q => q.nid === m.n && !q.dead);
     if(!mob) return;
-    if(m.a === 'treffer') Game.mobTreffer(mob, clamp(+m.dmg || 1, 0, 20), clamp(+m.kx || 0, -1, 1), clamp(+m.kz || 0, -1, 1), g);
+    // ein Ei trifft mit 0 Schaden — das bleibt 0
+    const dmg = Number.isFinite(+m.dmg) ? clamp(+m.dmg, 0, 20) : 1;
+    if(m.a === 'treffer') Game.mobTreffer(mob, dmg, clamp(+m.kx || 0, -1, 1), clamp(+m.kz || 0, -1, 1), g);
     else if(m.a === 'futter') Game.fuettern(mob);
     else if(m.a === 'schere') Game.scheren(mob, g);
+  },
+  /** ein Gast hat mit einem Ei Glück gehabt: Küken bei ihm schlüpfen lassen */
+  kuekenHost(g, m){
+    const x = +m.x, y = +m.y, z = +m.z;
+    if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < 1 || y >= WH) return;
+    Game.kuekenSchluepfen(x, y, z, m.n === 4 ? 4 : 1);
   },
   beuteAn(g, liste, x, y, z){ if(liste.length) this.senden(g.conn, { t:'beute', l: liste, x: r2(x), y: r2(y), z: r2(z) }); },
   autsch(g, n, grund, kx, kz){ this.senden(g.conn, { t:'autsch', n, grund, kx: r2(kx), kz: r2(kz) }); },
@@ -329,7 +338,8 @@ const Netz = {
       const l = [];
       for(const m of Game.mobs){
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
-        const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0);
+        const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
+          | (m.onGround ? 0 : 64);
         l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.wolle | 0);
       }
       this.senden(g.conn, { t:'w', l });
@@ -547,6 +557,9 @@ const Netz = {
     this.senden(this.hostConn, { t:'ich', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.yaw), p: r2(p.pitch),
       f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0 });
   },
+  kuekenAnfrage(x, y, z, n){
+    if(this.istGast) this.senden(this.hostConn, { t:'kueken', x: r2(x), y: r2(y), z: r2(z), n });
+  },
   wesenAnfrage(art, m, mehr){
     if(!this.istGast) return;
     this.senden(this.hostConn, Object.assign({ t:'wesen', a: art, n: m.nid }, mehr || {}));
@@ -577,7 +590,7 @@ const Netz = {
       let m = alt.get(nid);
       if(!m || m.type !== art){ m = new Mob(art, l[i+2], l[i+3], l[i+4], jung); m.nid = nid; m.yaw = l[i+5]; }
       m.zx = l[i+2]; m.zy = l[i+3]; m.zz = l[i+4]; m.zyaw = l[i+5];
-      m.moving = !!(f & 1);
+      m.moving = !!(f & 1); m.onGround = !(f & 64);
       if(f & 2) m.hurtTimer = Math.max(m.hurtTimer, 0.25);
       m.liebe = (f & 8) ? 1 : 0; m.pause = (f & 16) ? 1 : 0;
       if(art === 'sheep'){ m.geschoren = !!(f & 4); m.wolle = l[i+7] | 0; }
@@ -655,6 +668,7 @@ const Netz = {
   /** Abbauen, Setzen, Türen der anderen — Wachsen und Ofenglut bleiben still */
   bauKlang(alt, id, x, y, z){
     if((isWheat(alt) && isWheat(id)) || ((alt === B.FURNACE || alt === B.FURNACE_LIT) && (id === B.FURNACE || id === B.FURNACE_LIT))) return;
+    if((isWasser(alt) || alt === B.AIR) && (isWasser(id) || id === B.AIR)) return;     // Wasser fließt oder versiegt
     this._toene--;
     if(isDoor(alt) && isDoor(id)){ if(doorInfo(id).oben) return; Sfx.play(doorInfo(id).offen ? 'tuer_auf' : 'tuer_zu', x + .5, y + 1, z + .5); }
     else if(id === B.AIR) Sfx.block('weg', alt, x, y, z);
@@ -717,16 +731,17 @@ const Netz = {
   /* — Pfeile: Monsterpfeile treffen, die der Spieler sind nur zu sehen — */
   pfeilSenden(a, nurBild){
     if(!this.rolle || this.rolle === 'verbinde') return;
-    const m = { t:'pfeil', a: [r2(a.x), r2(a.y), r2(a.z), r2(a.vx), r2(a.vy), r2(a.vz), a.dmg | 0], bild: nurBild ? 1 : 0 };
+    const m = { t:'pfeil', a: [r2(a.x), r2(a.y), r2(a.z), r2(a.vx), r2(a.vy), r2(a.vz), a.dmg | 0], bild: nurBild ? 1 : 0, ei: a.ei ? 1 : 0 };
     if(this.istGast) this.senden(this.hostConn, m); else this.anAlle(m);
   },
   pfeilEmpfangen(m, von){
     const a = m.a; if(!Array.isArray(a) || a.length < 7) return;
-    const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], a[6] | 0, false);
+    const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], a[6] | 0, false, !!m.ei);
     // ein Gast schießt: für alle anderen nur zu sehen, getroffen wird beim Schützen
     if(von || m.bild) pf.nurBild = true;
     Game.pfeile.push(pf);
-    if(this.istHost && von) this.anAlle({ t:'pfeil', a, bild: 1 }, von);
+    if(pf.ei) Sfx.play('werfen', pf.x, pf.y, pf.z);
+    if(this.istHost && von) this.anAlle({ t:'pfeil', a, bild: 1, ei: m.ei ? 1 : 0 }, von);
   },
 
   /* — Figuren der anderen — */

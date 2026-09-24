@@ -1115,6 +1115,31 @@ function buildTextures(){
     const rand = S.lage([P[0], P[1], P[3], P[4], P[4]], { kante: true }); S.oval(rand, 16, 11, 10.5, 2.6);
     const milch = S.lage(pal('#b8b8b0','#dcdcd4','#eeeee8','#f8f8f4','#ffffff')); S.oval(milch, 16, 11, 8.5, 1.6);
   });
+  /* — Hühner: Fleisch, Feder, Ei — */
+  const haehnchen = (name, P, K) => sprite(name, S => {
+    const L = S.lage(P);
+    S.oval(L, 14, 18, 10, 7.5);                                          // Rumpf
+    S.oval(L, 22, 12, 5, 4.5); S.oval(L, 23.5, 21, 4.5, 4);              // Keulen
+    L.muster = (x, y) => (h2(x, y >> 1, 406) < .1 ? 1 : 0);
+    L.glanz = [[8,15],[9,14],[10,14],[11,13]];
+    const k = S.lage(K); S.strich(k, [[26,9.5],[29,7]], 1.2); S.strich(k, [[27,22.5],[30,25]], 1.2);
+  });
+  haehnchen('i_chicken_raw', pal('#8a4a44','#d8948a','#eab0a4','#f4c8bc','#fce0d6'), pal('#8a826e','#cfc6ae','#e6dec8','#f6f0e0','#ffffff'));
+  haehnchen('i_chicken_cooked', pal('#4a2410','#9a5a24','#b87434','#d0904a','#e4ae68'), pal('#7a705a','#c2b89c','#dcd2b8','#eee6d0','#ffffff'));
+  sprite('i_feather', S => {
+    const F = S.lage(pal('#7c7c78','#c4c4bc','#dcdcd4','#eeeeea','#ffffff'));
+    S.poly(F, [[8,23],[10,15],[16,9],[25,4],[23,12],[18,19],[11,25]]);
+    F.muster = (x, y) => (((x - y) & 3) === 0 ? -1 : 0);
+    F.glanz = [[13,14],[16,11],[19,9]];
+    const K = S.lage(pal('#5a5a56','#8a8a84','#a8a8a2','#c8c8c2','#e0e0da'));
+    S.strich(K, [[5,28],[10,21],[17,12],[25,5]], .6);
+  });
+  sprite('i_egg', S => {
+    const L = S.lage(pal('#8a7454','#cdb68e','#e2cfaa','#efe2c4','#fbf4e2'));
+    S.oval(L, 16, 18.5, 9.5, 10.5); S.oval(L, 16, 13, 7.5, 8.5);
+    L.muster = (x, y) => (h2(x, y, 405) < .06 ? -1 : 0);
+    L.glanz = [[11,10],[12,9],[11,11],[13,8],[10,12]];
+  });
 
   /* — Wesen — */
   const haut = (P, s, anteile) => p => p.fuell((x, y) => .7*fbm(x, y, 4, 4, s, 2) + .3*vnoise(x, y, 16, 16, s+1), P, anteile || [8,22,34,26,10], .6);
@@ -1286,6 +1311,50 @@ function buildTextures(){
       p.set(26, y, [220,220,212]);
     }
     for(let y = 13; y < 19; y++) for(let x = 8; x < 12; x++) p.set(x, y, [70,44,20]);
+  });
+  /* — Huhn: weißes Gefieder mit angedeuteten Federreihen — */
+  const FEDER = pal('#a9a9a0','#c9c9c0','#dededa','#efefea','#fdfdfb');
+  const gefieder = (p, s) => {
+    p.fuell((x, y) => .55*fbm(x, y, 4, 4, s, 3) + .45*vnoise(x, y, 16, 16, s + 1), FEDER, [4,12,30,36,18], .6);
+    for(let y = 3; y < TS; y += 6) for(let x = 0; x < TS; x++) if(h2(x >> 1, y, s + 2) < .45) p.put(x, y + ((x >> 2) & 1), FEDER[1]);
+  };
+  addTex('m_huhn', p => gefieder(p, 381));
+  addTex('m_huhn_face', p => {
+    gefieder(p, 382);
+    for(const x0 of [0, 25]){ p.rect(x0, 5, 7, 5, [26,24,22]); p.put(x0 + (x0 ? 1 : 5), 6, [104,100,96]); }   // Augen außen
+  });
+  addTex('m_huhn_fluegel', p => {
+    gefieder(p, 383);
+    for(let x = 2; x < TS; x += 5) for(let y = 12; y < TS; y++) p.put(x, y, FEDER[1]);   // Schwungfedern
+    for(let x = 0; x < TS; x++){ const tief = 27 + ((h2(x >> 1, 0, 384)*4) | 0); for(let y = tief; y < TS; y++) p.put(x, y, FEDER[0]); }
+  });
+  addTex('m_huhn_schnabel', p => {
+    const S = pal('#8a5410','#c47a12','#e0981e','#f0b43a','#f8cc5a');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.quant(x, y, (y < 15 ? .75 : .45) + (vnoise(x, y, 8, 8, 385) - .5)*.3, S, .5);
+    for(let x = 0; x < TS; x++) p.put(x, 15, S[0]);
+  });
+  addTex('m_huhn_lappen', p => haut(pal('#6a0c0c','#961616','#b82020','#d23430','#e8554c'), 386)(p));
+  const HUHNBEIN = pal('#9a5c14','#c07a1c','#d8962a','#e8b040','#f4c860');
+  addTex('m_huhn_bein', p => haut(HUHNBEIN, 387)(p));
+  addTex('m_huhn_fuss', p => {
+    // drei Zehen nach vorn, eine nach hinten, dazwischen durchsichtig
+    p.klar();
+    const zeh = (x1, y1) => { for(let i = 0; i <= 24; i++){ const t = i/24; p.rect(Math.round(16 + (x1 - 16)*t) - 2, Math.round(22 + (y1 - 22)*t) - 2, 4, 4, HUHNBEIN[1 + (i & 1)]); } };
+    zeh(3, 2); zeh(16, 1); zeh(29, 2); zeh(16, 30);
+  });
+  /* — Ei im Flug, Schalen und Dotter beim Zerbrechen — */
+  addTex('m_ei', p => {
+    p.fuell((x, y) => fbm(x, y, 4, 4, 391, 2), pal('#cdb68e','#e2cfaa','#efe2c4','#f7eed8','#fbf4e2'), [6,18,34,28,14], .6);
+    for(let i = 0; i < 10; i++) p.put(p.r()*TS, p.r()*TS, [176,150,112]);
+  });
+  sprite('p_schale', S => {
+    const L = S.lage(pal('#8a7454','#cdb68e','#e2cfaa','#efe2c4','#fbf4e2'));
+    S.poly(L, [[5,12],[17,4],[28,11],[24,27],[8,24]]);
+  });
+  sprite('p_dotter', S => {
+    const L = S.lage(pal('#8a5a08','#d89010','#f0b020','#f8cc40','#fce27a'));
+    S.oval(L, 16, 16, 12, 10);
+    L.glanz = [[11,11],[12,10],[11,12]];
   });
   sprite('p_herz', S => {
     const L = S.lage(pal('#6a0c16','#b01c2c','#e0303c','#f25a5e','#ff9c9c'));

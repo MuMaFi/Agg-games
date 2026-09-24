@@ -24,6 +24,8 @@ function buildBlockTables(){
     if(!b){ OPQ[i] = 0; SOL[i] = 0; LOPQ[i] = 0; continue; }
     OPQ[i] = b.opaque ? 1 : 0;
     SOL[i] = b.solid ? 1 : 0;
+    // stehendes Wasser dämpft das Licht; fließendes ist zu flach dafür — so
+    // muss beim Fließen nur neu gezeichnet, nicht neu belichtet werden
     LOPQ[i] = b.opaque ? 15 : (i === B.WATER ? 2 : (i === B.LEAVES ? 1 : 0));
     const k = b.solid && b.box ? b.box : [0,0,0,16,16,16];
     for(let j=0; j<6; j++) COLL[i*6+j] = k[j]/16;
@@ -123,6 +125,7 @@ function buildFaceST(){
   }
 }
 const _aoV = new Int32Array(4), _skV = new Int32Array(4), _bkV = new Int32Array(4);
+const _eckeH = new Float32Array(4);             // Wasser: Höhe der vier oberen Ecken
 function buildFaceTables(){
   for(let f=0; f<6; f++){
     const F = FACES[f], t = new Int8Array(24);
@@ -254,6 +257,10 @@ class World{
     c.mods = m || null;
     c.lights = [];
     if(m) for(const [i,id] of m){ const bd = blocks[id]; if(bd && bd.light > 0) c.lights.push(i); }
+    // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —
+    // etwa nach dem Laden, oder wenn man zurückkommt
+    if(m && this.stroemung) for(const [i,id] of m) if(isWasser(id))
+      this.stroemung.naechste.add(wKey(ox + (i & 15), i >> 8, oz + ((i >> 4) & 15)));
     c.state = 1;
   }
 
@@ -346,13 +353,18 @@ class World{
     const hi = (z&15)*CS + (x&15);
     if(id !== B.AIR && y > c.hmap[hi] && isOpaqueCube(id)) c.hmap[hi] = y;
     else if(id === B.AIR && y === c.hmap[hi]){ let ny = y; while(ny > 0 && !isOpaqueCube(c.blocks[IDX(x&15,ny,z&15)])) ny--; c.hmap[hi] = ny; }
-    this.markDirty(cx, cz, x&15, z&15, blocks[id] && blocks[id].light > 0);
+    // Licht hängt nur an Dämpfung und Leuchtkraft: ändern die sich nicht
+    // (Gras weg, Weizen wächst, Wasser fließt), reicht neu zeichnen
+    const lo = blocks[old] ? blocks[old].light : 0, ln = blocks[id] ? blocks[id].light : 0;
+    // eine Fackel leuchtet weit: beim Setzen und beim Entfernen alle Nachbarn neu belichten
+    this.markDirty(cx, cz, x&15, z&15, ln > 0 || lo > 0, LOPQ[old] !== LOPQ[id] || lo !== ln);
     return true;
   }
-  markDirty(cx,cz,lx,lz,wide){
+  markDirty(cx,cz,lx,lz,wide,licht = true){
     const k = ckey(cx,cz);
-    this.dirty.add(k); this.relight.add(k);
+    this.dirty.add(k); if(licht) this.relight.add(k);
     const touch = (a,b,mesh,light) => {
+      light = light && licht;
       if(!mesh && !light) return;
       const ch = this.getChunk(a,b); if(!ch || ch.state < 1) return;
       const kk = ckey(a,b);
@@ -495,7 +507,7 @@ class World{
           if(bd.model === 'cross'){ this.emitCross(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'torch'){ this.emitTorch(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'box'){ this.emitBox(opaqueBuf, x, y, z, bd); continue; }
-          const buf = id === B.WATER ? waterBuf : opaqueBuf;
+          const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
       }
@@ -504,19 +516,44 @@ class World{
 
   pb(x,y,z){ if(y<0||y>=WH) return y<0 ? B.STONE : B.AIR; return _pb[y*PYS + z*PW + x]; }
 
+  /* Wasserhöhe einer Zelle in Sechzehnteln für die Ecken der Oberfläche:
+     16 mit Wasser darüber, sonst nach der Menge; Luft zieht die Ecke nach
+     unten (0), feste Blöcke zählen nicht (−1). Wie beim Vorbild. */
+  wasserZelle(px, y, pz){
+    const id = this.pb(px, y, pz);
+    if(isWasser(id)) return isWasser(this.pb(px, y+1, pz)) ? 16 : wasserMenge(id)*16/9;
+    return SOL[id] === 1 ? -1 : 0;
+  }
+  /** Höhe einer oberen Ecke (cx, cz ∈ {0, 1}) des Wasserblocks bei px, pz:
+      Mittel der vier Zellen an der Ecke, hohes Wasser zählt zehnfach —
+      so geht die Oberfläche von Block zu Block ohne Stufe über */
+  wasserEcke(px, y, pz, cx, cz){
+    const sx = cx ? 1 : -1, sz = cz ? 1 : -1;
+    const a = this.wasserZelle(px + sx, y, pz), b = this.wasserZelle(px, y, pz + sz);
+    if(a >= 16 || b >= 16) return 16;
+    let summe = 0, gewicht = 0;
+    const dazu = h => { if(h >= 12.8){ summe += h*10; gewicht += 10; } else if(h >= 0){ summe += h; gewicht++; } };
+    if(a > 0 || b > 0){ const d = this.wasserZelle(px + sx, y, pz + sz); if(d >= 16) return 16; dazu(d); }
+    dazu(this.wasserZelle(px, y, pz)); dazu(a); dazu(b);
+    return gewicht ? summe/gewicht : 14;
+  }
+
   emitCube(buf, x, y, z, id, bd){
     const px = x+1, pz = z+1;
-    const water = id === B.WATER;
+    const water = isWasser(id);
     const cutout = bd.model === 'cutout';
     const opaqueSelf = bd.opaque === true;
-    const topOpen = water && this.pb(px, y+1, pz) !== B.WATER;
+    // Wasser ohne Wasser darüber: die Oberfläche liegt tiefer und neigt sich zum Rand
+    const topOpen = water && !isWasser(this.pb(px, y+1, pz));
+    if(topOpen) for(let cz = 0; cz < 2; cz++) for(let cx = 0; cx < 2; cx++) _eckeH[cz*2 + cx] = this.wasserEcke(px, y, pz, cx, cz);
     for(let f=0; f<6; f++){
       const F = FACES[f];
       const nx = px + F.n[0], ny = y + F.n[1], nz = pz + F.n[2];
       const nid = this.pb(nx, ny, nz);
-      if(nid === id && (cutout || water)) continue;
+      if(nid === id && cutout) continue;
+      if(water && isWasser(nid)) continue;
       if(OPQ[nid] === 1) continue;
-      if(water && nid !== B.AIR && SOL[nid] === 0 && nid !== B.WATER) continue;
+      if(water && nid !== B.AIR && SOL[nid] === 0) continue;
 
       let texName = bd.faces[f];
       if(bd.dirFront && f === 5) texName = bd.dirFront;
@@ -545,7 +582,7 @@ class World{
       for(let i=0; i<4; i++){
         const vo = F.v[i], uv = F.uv[i];
         let vy = (y + vo[1])*16;
-        if(water && topOpen && vo[1] === 1) vy -= 2;
+        if(topOpen && vo[1] === 1) vy = y*16 + Math.round(_eckeH[vo[2]*2 + vo[0]]);
         buf.vert((x+vo[0])*16, vy, (z+vo[2])*16,
                  _aoV[i] | (f<<2), layer, _skV[i], _bkV[i], uv[0]*16, uv[1]*16);
       }
@@ -651,7 +688,7 @@ class World{
     for(let i=0; i<512 && t <= maxD; i++){
       const id = this.getBlock(x,y,z);
       const bd = blocks[id];
-      if(id !== B.AIR && bd && (liquid || id !== B.WATER) && bd.model !== 'none')
+      if(id !== B.AIR && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER))))
         return { hit:true, x, y, z, nx:fx, ny:fy, nz:fz, id, t };
       if(tmx < tmy && tmx < tmz){ x += sx; t = tmx; tmx += tdx; fx = -sx; fy = 0; fz = 0; }
       else if(tmy < tmz){ y += sy; t = tmy; tmy += tdy; fx = 0; fy = -sy; fz = 0; }

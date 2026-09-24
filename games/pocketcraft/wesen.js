@@ -74,6 +74,21 @@ function inBlockOfType(world, e, pred){
   return false;
 }
 
+/** Steckt e im Wasser? Quellen und fallendes Wasser füllen den ganzen
+    Block, fließendes nur so hoch, wie es steht. */
+function imWasser(world, e){
+  const hw = e.w/2;
+  const x0 = Math.floor(e.x-hw), x1 = Math.floor(e.x+hw);
+  const y0 = Math.floor(e.y), y1 = Math.floor(e.y+e.h-0.01);
+  const z0 = Math.floor(e.z-hw), z1 = Math.floor(e.z+hw);
+  for(let y=y0;y<=y1;y++) for(let z=z0;z<=z1;z++) for(let x=x0;x<=x1;x++){
+    const id = world.getBlock(x,y,z);
+    if(!isWasser(id)) continue;
+    if(id === B.WATER || id === B.FALL || e.y < y + wasserMenge(id)/9 || isWasser(world.getBlock(x,y+1,z))) return true;
+  }
+  return false;
+}
+
 /* ── Spieler ───────────────────────────────────────────────────────── */
 class Player{
   constructor(){
@@ -180,8 +195,36 @@ const MOBS = {
       { n:'leg0', box:[-0.19,0.0,-0.06, 0.12,0.68,0.12], tex:'m_skelett_glied', anim:'leg', ph:0 },
       { n:'leg1', box:[ 0.07,0.0,-0.06, 0.12,0.68,0.12], tex:'m_skelett_glied', anim:'leg', ph:1 },
     ]
+  },
+  /* Maße wie beim Vorbild, in Sechzehnteln: Körper 6 × 6 × 8, Kopf 4 × 6 × 3,
+     davor Schnabel und roter Kehllappen. Küken sind gelb und ohne Lappen.
+     Hühner fallen langsam und schlagen dabei mit den Flügeln; sie fressen
+     Körner statt Weizen und legen ab und zu ein Ei. */
+  chicken: {
+    name:'Huhn', w:0.45, h:0.85, health:4, speed:1.4, hostile:false, laut:'huhn', kopfPunkt:[0, 0.5625, -0.1875],
+    futter:'seeds', flattert:true,
+    beute: () => [[ITEM.feather, zufallN(0, 2)], [ITEM.chicken_raw, 1]],
+    parts:[
+      { n:'body', box:[-0.1875,0.3125,-0.25, 0.375,0.375,0.5], tex:'m_huhn', farbe: m => m.kind > 0 ? KUEKEN_GELB : null },
+      { n:'head', box:[-0.125,0.5625,-0.375, 0.25,0.375,0.1875], tex:'m_huhn', face:'m_huhn_face', anim:'head', kopf:true,
+        farbe: m => m.kind > 0 ? KUEKEN_GELB : null },
+      { n:'schnabel', box:[-0.125,0.6875,-0.5, 0.25,0.125,0.125], tex:'m_huhn_schnabel', anim:'head', kopf:true, pivot:[0, 0.75, -0.28125] },
+      { n:'lappen', box:[-0.0625,0.5625,-0.4375, 0.125,0.125,0.125], tex:'m_huhn_lappen', anim:'head', kopf:true, pivot:[0, 0.75, -0.28125],
+        wenn: m => !(m.kind > 0) },
+      { n:'f0', box:[-0.25,0.4375,-0.1875, 0.0625,0.25,0.375], tex:'m_huhn_fluegel', anim:'fluegel', ph:0, pivot:[-0.1875, 0.6875, 0],
+        farbe: m => m.kind > 0 ? KUEKEN_GELB : null },
+      { n:'f1', box:[ 0.1875,0.4375,-0.1875, 0.0625,0.25,0.375], tex:'m_huhn_fluegel', anim:'fluegel', ph:1, pivot:[0.1875, 0.6875, 0],
+        farbe: m => m.kind > 0 ? KUEKEN_GELB : null },
+      { n:'b0', box:[-0.125,0.0,-0.03125, 0.0625,0.3125,0.0625], tex:'m_huhn_bein', anim:'leg', ph:0 },
+      { n:'b1', box:[ 0.0625,0.0,-0.03125, 0.0625,0.3125,0.0625], tex:'m_huhn_bein', anim:'leg', ph:1 },
+      { n:'z0', box:[-0.1875,0.0,-0.15625, 0.1875,0.04,0.21875], tex:'m_huhn_fuss', anim:'leg', ph:0, pivot:[-0.09375, 0.3125, 0] },
+      { n:'z1', box:[ 0.0,0.0,-0.15625, 0.1875,0.04,0.21875], tex:'m_huhn_fuss', anim:'leg', ph:1, pivot:[0.09375, 0.3125, 0] },
+    ]
   }
 };
+const KUEKEN_GELB = [1.0, 0.86, 0.34];
+/** womit sich ein Tier füttern und locken lässt */
+const futterVon = m => ITEM[m.def.futter || 'wheat'];
 
 /** Schafe sind meist weiß; Grau, Schwarz und Braun kommen seltener vor */
 function wollfarbe(){
@@ -208,6 +251,7 @@ class Mob{
     this.jumpCd = 0; this.age = 0; this.headYaw = 0;
     this.schussCd = 1 + Math.random()*1.5; this.seite = Math.random() < .5 ? 1 : -1; this.seiteT = 0;
     if(type === 'sheep'){ this.wolle = wollfarbe(); this.geschoren = false; this.wolleT = 0; }
+    if(type === 'chicken') this.eiT = 300 + Math.random()*300;          // alle fünf bis zehn Minuten ein Ei
     this.nid = ++Mob.zaehler;            // Nummer, unter der Mitspieler das Wesen kennen
   }
 }
@@ -229,13 +273,15 @@ const SPIELER_MODELL = {
   ]
 };
 
-/* ── Pfeile ─────────────────────────────────────────────────────────
+/* ── Pfeile und Eier ────────────────────────────────────────────────
    Fliegen mit Schwerkraft, prüfen unterwegs Blöcke und Wesen. Pfeile des
-   Spielers, die im Boden stecken, kann man wieder aufheben. */
+   Spielers, die im Boden stecken, kann man wieder aufheben. Ein Ei (ei)
+   zerbricht, wo es auftrifft. */
 class Pfeil{
-  constructor(x, y, z, vx, vy, vz, dmg, vomSpieler){
+  constructor(x, y, z, vx, vy, vz, dmg, vomSpieler, ei){
     this.x = x; this.y = y; this.z = z; this.vx = vx; this.vy = vy; this.vz = vz;
-    this.dmg = dmg; this.vomSpieler = vomSpieler;
+    this.rx = vx; this.ry = vy; this.rz = vz;
+    this.dmg = dmg; this.vomSpieler = vomSpieler; this.ei = !!ei;
     this.alter = 0; this.steckt = false; this.weg = false;
   }
 }

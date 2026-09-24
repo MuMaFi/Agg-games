@@ -460,6 +460,8 @@ function drawMobs(fogCol, near, far){
       // Zombies und Skelette streckten die Arme nach hinten.
       else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0);
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
+      // Flügel: in der Luft schlagen sie, am Boden liegen sie an
+      else if(part.anim === 'fluegel') ang = m.onGround ? 0 : (0.25 + Math.abs(Math.sin(m.age*19))*1.05) * (part.ph ? 1 : -1);
       partMatrix(_m, m, part, ang);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined);
@@ -498,7 +500,8 @@ function drawSpieler(fogCol, near, far){
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
 }
-/* Pfeile: ein dünner, langer Kasten, entlang der Flugrichtung gedreht */
+/* Pfeile: ein dünner, langer Kasten, entlang der Flugrichtung gedreht.
+   Eier: ein kleiner, etwas höherer Kasten, der sich im Flug überschlägt. */
 function drawPfeile(fogCol, near, far){
   if(!Game.pfeile.length) return;
   const P = R.progEnt;
@@ -506,23 +509,31 @@ function drawPfeile(fogCol, near, far){
   gl.uniform1f(P.u.uUseTex, 1);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
   gl.bindVertexArray(R.cubeVAO);
-  setLayers(P, TEX['m_pfeil']);
+  let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
+    const t = a.ei ? 'm_ei' : 'm_pfeil';
+    if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
     gl.uniform1f(P.u.uLight, blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
     M4.ident(_m);
     M4.translate(_m, _m, a.x, a.y, a.z);
     M4.rotY(_m, _m, Math.atan2(-a.rx, -a.rz));
-    M4.rotX(_m, _m, Math.atan2(a.ry, hv));
-    M4.scale(_m, _m, 0.06, 0.06, 0.62);
+    if(a.ei){
+      M4.rotX(_m, _m, a.alter*14);
+      M4.scale(_m, _m, 0.15, 0.19, 0.15);
+    } else {
+      M4.rotX(_m, _m, Math.atan2(a.ry, hv));
+      M4.scale(_m, _m, 0.06, 0.06, 0.62);
+    }
     M4.translate(_m, _m, -0.5, -0.5, -0.5);
     gl.uniformMatrix4fv(P.u.uModel, false, _m);
     gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
 }
 const BABY = 0.52, BABYKOPF = 1.45;
-/* Herzen über verliebten Tieren: kleine Karten, die zur Kamera schauen */
+/* Herzen über verliebten Tieren, Schalen eines zerbrochenen Eis: kleine
+   Karten, die zur Kamera schauen */
 function drawPartikel(){
   if(!Game.partikel.length) return;
   const P = R.progEnt;
@@ -530,10 +541,14 @@ function drawPartikel(){
   gl.uniform1f(P.u.uUseTex, 1);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
   gl.bindVertexArray(R.cubeVAO);
-  setLayers(P, TEX['p_herz']);
+  let tex = '';
   for(const q of Game.partikel){
-    gl.uniform1f(P.u.uLight, 1);
-    const sc = 0.26 * Math.min(1, q.t*5) * (q.t > 1 ? Math.max(0, 1.3 - q.t)/0.3 : 1);
+    if(q.t < 0) continue;                  // noch nicht dran (Herzen kommen nacheinander)
+    const t = q.tex || 'p_herz';
+    if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
+    gl.uniform1f(P.u.uLight, q.tex ? blockLightAt(q.x, q.y, q.z) : 1);
+    const dauer = q.dauer || 1.3, gr = q.gr || 0.26;
+    const sc = gr * Math.min(1, q.t*5) * (q.t > dauer - 0.3 ? Math.max(0, dauer - q.t)/0.3 : 1);
     M4.ident(_m);
     M4.translate(_m, _m, q.x, q.y, q.z);
     M4.rotY(_m, _m, Game.player.yaw);
@@ -557,10 +572,13 @@ function partMatrix(out, mob, part, ang){
   }
   const [ox, oy, oz, w, h, d] = part.box;
   if(ang || part.gier){
-    const px = ox + w/2, py = part.anim === 'head' ? oy + h/2 : oy + h, pz = oz + d/2;
+    // Drehpunkt: Kopf in der Mitte, Glieder oben — oder wo pivot ihn hinlegt
+    // (Schnabel und Lappen drehen mit dem Kopf, Zehen mit dem Bein)
+    const pv = part.pivot;
+    const px = pv ? pv[0] : ox + w/2, py = pv ? pv[1] : (part.anim === 'head' ? oy + h/2 : oy + h), pz = pv ? pv[2] : oz + d/2;
     M4.translate(out, out, px, py, pz);
     if(part.gier) M4.rotY(out, out, part.gier);
-    if(ang) M4.rotX(out, out, ang);
+    if(ang){ if(part.anim === 'fluegel') M4.rotZ(out, out, ang); else M4.rotX(out, out, ang); }
     M4.translate(out, out, -px, -py, -pz);
   }
   M4.translate(out, out, ox, oy, oz);

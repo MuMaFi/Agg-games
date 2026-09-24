@@ -33,9 +33,17 @@ const Game = {
     // Jede Blockänderung aus dem eigenen Spiel geht an die Mitspieler; was
     // aus dem Netz kommt (Netz.eingehend), natürlich nicht zurück
     const w = this.world, setzen = w.setBlock.bind(w);
+    // Wasser: jede Änderung meldet das Wasser daneben an (gerechnet wird nur beim Host)
+    this.wasser = w.stroemung = new Stroemung(w);
+    this.wasser.wegspuelen = (x, y, z, id) => {
+      if(isWheat(id)) w.crops.delete(x + ',' + y + ',' + z);
+      const d = this.dropsFor(id, true);
+      if(d) for(const [i, n] of d) this.dropItem(i, n, x + .5, y + .3, z + .5);
+    };
     w.setBlock = (x, y, z, id, noSave) => {
       const ok = setzen(x, y, z, id, noSave);
       if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id);
+      if(ok && !Netz.istGast) this.wasser.melden(x, y, z);
       return ok;
     };
     this.player = new Player();
@@ -457,7 +465,13 @@ const Game = {
   /* ── Setzen / Benutzen ───────────────────────────────────────────── */
   useAt(t){
     const w = this.world, p = this.player;
-    if(!t) return;
+    if(!t){
+      // ins Leere: ein Ei fliegt trotzdem, und Wasser schöpft man auch, wenn dahinter nichts in Reichweite ist
+      const h = Inv.held();
+      if(h && h.id === ITEM.egg) this.eiWerfen();
+      else if(h && h.id === ITEM.bucket) this.schoepfen();
+      return;
+    }
     const id = w.getBlock(t.x,t.y,t.z), k = t.x+','+t.y+','+t.z;
     const s = Inv.held(), it = s ? items[s.id] : null;
     // Benutzbare Blöcke — geduckt baut man stattdessen daran
@@ -476,6 +490,7 @@ const Game = {
     }
     if(!s) return;
     if(it && it.food){ this.eat(); return; }
+    if(s.id === ITEM.egg){ this.eiWerfen(); return; }
     const schwing = () => { p.swinging = true; p.swing = 0; HUD.refreshHotbar(); };
     // Knochenmehl: Weizen wächst sofort ein, zwei Stufen, auf Gras sprießt es
     if(s.id === ITEM.bone_meal){
@@ -514,15 +529,7 @@ const Game = {
       return;
     }
     // Eimer schöpfen und ausgießen
-    if(s.id === ITEM.bucket){
-      const f = p.forward(), r = w.raycast(p.x, p.eyeY(), p.z, f[0], f[1], f[2], 5, true);
-      if(r.hit && r.id === B.WATER){
-        w.setBlock(r.x, r.y, r.z, B.AIR);
-        if(!p.creative){ Inv.consumeHeld(); const rest = Inv.add(ITEM.water_bucket, 1); if(rest) this.dropItem(ITEM.water_bucket, 1, p.x, p.y+1, p.z); }
-        Sfx.play('platsch', r.x + .5, r.y + .5, r.z + .5); schwing();
-      }
-      return;
-    }
+    if(s.id === ITEM.bucket){ this.schoepfen(); return; }
     if(s.id === ITEM.water_bucket){
       const bx = t.x + t.nx, by = t.y + t.ny, bz = t.z + t.nz, cur = w.getBlock(bx,by,bz);
       if(cur !== B.AIR && !(blocks[cur] && blocks[cur].replaceable)) return;
@@ -536,7 +543,7 @@ const Game = {
     if(!bd || !bd.item) return;
     let bx = t.x + t.nx, by = t.y + t.ny, bz = t.z + t.nz;
     // Gras und Blumen werden einfach ersetzt, wenn man sie selbst anklickt
-    if(blocks[id] && blocks[id].replaceable && id !== B.WATER){ bx = t.x; by = t.y; bz = t.z; }
+    if(blocks[id] && blocks[id].replaceable && !isWasser(id)){ bx = t.x; by = t.y; bz = t.z; }
     const cur = w.getBlock(bx,by,bz);
     if(cur !== B.AIR && !(blocks[cur] && blocks[cur].replaceable)) return;
     let setzId = s.id;
@@ -571,6 +578,17 @@ const Game = {
       if(bd.solid && w.getBlock(bx,by-1,bz) === B.FARMLAND) w.setBlock(bx,by-1,bz,B.DIRT);
       Sfx.block('setzen', setzId, bx, by, bz); schwing();
     }
+  },
+  /** Eimer: eine Quelle schöpfen — fließendes Wasser rinnt durch */
+  schoepfen(){
+    const w = this.world, p = this.player, f = p.forward();
+    const r = w.raycast(p.x, p.eyeY(), p.z, f[0], f[1], f[2], 5, 'quelle');
+    if(!r.hit || r.id !== B.WATER) return false;
+    w.setBlock(r.x, r.y, r.z, B.AIR);
+    if(!p.creative){ Inv.consumeHeld(); const rest = Inv.add(ITEM.water_bucket, 1); if(rest) this.dropItem(ITEM.water_bucket, 1, p.x, p.y+1, p.z); }
+    Sfx.play('platsch', r.x + .5, r.y + .5, r.z + .5);
+    p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+    return true;
   },
   tuerSchalten(x, y, z){
     const w = this.world, di = doorInfo(w.getBlock(x,y,z));
@@ -628,6 +646,8 @@ const Game = {
       return t0;
     };
     let best = null;
+    // wie weit weg, und ob der Strahl es wirklich trifft (für Körner: Huhn oder Acker?)
+    this.wesenGenau = true;
     for(const rand of [0, 0.12]){
       let bestT = maxD;
       for(const m of this.mobs){
@@ -635,7 +655,7 @@ const Game = {
         const t = strahl(m, rand);
         if(t >= 0 && t < bestT){ bestT = t; best = m; }
       }
-      if(best) return best;
+      if(best){ this.wesenT = bestT; return best; }
     }
     let bestDot = 0.9;
     for(const m of this.mobs){
@@ -643,8 +663,9 @@ const Game = {
       const d = Math.hypot(dx,dy,dz);
       if(d > maxD || m.dead) continue;
       const dot = (dx*f[0]+dy*f[1]+dz*f[2])/d;
-      if(dot > bestDot){ bestDot = dot; best = m; }
+      if(dot > bestDot){ bestDot = dot; best = m; this.wesenT = d; }
     }
+    this.wesenGenau = false;
     return best;
   },
   attack(){
@@ -694,13 +715,23 @@ const Game = {
       }
     }
   },
-  /** Benutzen auf ein Wesen: Schaf scheren, Kuh melken */
+  /** Benutzen auf ein Wesen: füttern, Schaf scheren, Kuh melken */
   benutzeWesen(){
     const s = Inv.held(); if(!s) return false;
     const m = this.wesenImBlick(3.4); if(!m) return false;
     const p = this.player;
-    // Weizen: Junge wachsen schneller, Erwachsene werden verliebt
-    if(s.id === ITEM.wheat && !m.def.hostile){
+    // Körner gehören auch aufs Feld: dann zählt, was näher unterm Fadenkreuz liegt
+    if(s.id === ITEM.seeds){
+      const t = this.targetBlock();
+      if(t && t.id === B.FARMLAND && (!this.wesenGenau || t.t < this.wesenT)) return false;
+    }
+    // Futter (Weizen, für Hühner Körner): Junge wachsen schneller, Erwachsene werden verliebt
+    const futter = m.def.hostile ? 0 : futterVon(m);
+    if(futter && s.id !== futter && (s.id === ITEM.wheat || s.id === ITEM.seeds)){
+      hint(m.def.name + ' frisst lieber ' + nameOf(futter), 1600);
+      return true;
+    }
+    if(futter && s.id === futter){
       if(!(m.kind > 0) && (m.pause > 0 || m.liebe > 0)){
         hint(m.liebe > 0 ? m.def.name + ' sucht schon einen Partner' : m.def.name + ' braucht noch etwas Zeit', 1600);
         return true;
@@ -726,7 +757,7 @@ const Game = {
     return false;
   },
 
-  /** Weizen: Junges wächst schneller, Erwachsenes wird verliebt */
+  /** Futter: Junges wächst schneller, Erwachsenes wird verliebt */
   fuettern(m){
     if(m.kind > 0) m.kind = Math.max(0, m.kind - WACHS_ZEIT*0.1);
     else if(m.pause > 0 || m.liebe > 0) return false;
@@ -768,6 +799,47 @@ const Game = {
     if(!p.creative){ Inv.take(ITEM.arrow, 1); Inv.damageHeld(1); }
     Sfx.play('bogen'); HUD.refreshHotbar();
   },
+  /** Ei werfen: fliegt im Bogen, zerbricht, wo es auftrifft */
+  eiWerfen(){
+    const s = Inv.held();
+    if(!s || s.id !== ITEM.egg) return false;
+    const jetzt = performance.now();
+    if(jetzt - (this._wurfT || 0) < 250) return true;
+    this._wurfT = jetzt;
+    const p = this.player, f = p.forward(), v = 20;
+    const ei = new Pfeil(p.x + f[0]*0.4, p.eyeY() - 0.1 + f[1]*0.4, p.z + f[2]*0.4, f[0]*v, f[1]*v + 1.5, f[2]*v, 0, true, true);
+    this.pfeile.push(ei);
+    Netz.pfeilSenden(ei, true);
+    if(!p.creative) Inv.consumeHeld();
+    Sfx.play('werfen');
+    p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+    return true;
+  },
+  /** Ein Ei zerbricht bei x, y, z: Schalen, Dotter, Geräusch. Wer es geworfen
+      hat, würfelt wie beim Vorbild: 1 zu 8 schlüpft ein Küken, und davon
+      1 zu 32 gleich vier. */
+  eiZerbricht(a, x, y, z){
+    Sfx.play('ei_kaputt', x, y, z);
+    for(let k = 0; k < 8; k++)
+      this.partikel.push({ x, y, z, t: 0, tex: k < 5 ? 'p_schale' : 'p_dotter', gr: 0.06 + Math.random()*0.05, dauer: 0.6 + Math.random()*0.35,
+        fall: true, vx: (Math.random() - .5)*2.6, vy: 1.2 + Math.random()*2.2, vz: (Math.random() - .5)*2.6 });
+    if(!a.vomSpieler || Math.random() >= 1/8) return;
+    const n = Math.random() < 1/32 ? 4 : 1;
+    if(Netz.istGast) Netz.kuekenAnfrage(x, y, z, n);
+    else this.kuekenSchluepfen(x, y, z, n);
+  },
+  /** Küken in die Luftzelle, in der das Ei zerbrach — nie halb in einer Wand */
+  kuekenSchluepfen(x, y, z, n){
+    const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
+    if(blocksMovement(this.world.getBlock(bx, by, bz))) return;
+    const nah = this.mobs.filter(m => m.bleibt && Math.hypot(m.x - x, m.z - z) < 32).length;
+    for(let k = 0; k < n && nah + k < 60; k++){
+      const m = new Mob('chicken', clamp(x + (Math.random() - .5)*.3, bx + .15, bx + .85), by + 0.01,
+                                   clamp(z + (Math.random() - .5)*.3, bz + .15, bz + .85), true);
+      this.mobs.push(m);
+      Sfx.wesen(m, 'laut');
+    }
+  },
   /** freie Sicht zwischen zwei Punkten — nur feste Blöcke halten auf */
   freieSicht(ax, ay, az, bx, by, bz){
     const d = Math.hypot(bx-ax, by-ay, bz-az), n = Math.ceil(d/0.3);
@@ -791,21 +863,26 @@ const Game = {
         if(!a.vomSpieler && a.alter > 6) this.pfeile.splice(i, 1);
         continue;
       }
-      a.vy -= 20*dt;
+      a.vy -= (a.ei ? 12 : 20)*dt;
       const k = Math.pow(0.99, dt*60); a.vx *= k; a.vy *= k; a.vz *= k;
       a.rx = a.vx; a.ry = a.vy; a.rz = a.vz;
       const weg = Math.hypot(a.vx, a.vy, a.vz)*dt, n = Math.max(1, Math.ceil(weg/0.2));
       for(let j = 0; j < n && !a.steckt && !a.weg; j++){
+        const ox = a.x, oy = a.y, oz = a.z;
         a.x += a.vx*dt/n; a.y += a.vy*dt/n; a.z += a.vz*dt/n;
         if(blocksMovement(w.getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z)))){
+          if(a.ei){ a.weg = true; this.eiZerbricht(a, ox, oy, oz); break; }
           a.steckt = true; a.alter = 0; Sfx.play('pfeil', a.x, a.y, a.z); break;
         }
         const tv = Math.hypot(a.vx, a.vz) || 1;
-        if(a.vomSpieler){
+        // eigene Pfeile und Eier treffen Wesen; fremde Eier zerbrechen dort nur fürs Auge
+        if(a.vomSpieler || a.ei){
           for(const m of this.mobs){
             if(m.dead || Math.abs(a.x - m.x) > m.w/2 + .1 || Math.abs(a.z - m.z) > m.w/2 + .1 || a.y < m.y || a.y > m.y + m.h) continue;
-            this.mobTreffer(m, a.dmg, a.vx/tv*.6, a.vz/tv*.6);
-            Sfx.wesen(m, 'au'); a.weg = true; break;
+            if(a.vomSpieler){ this.mobTreffer(m, a.dmg, a.vx/tv*.6, a.vz/tv*.6); Sfx.wesen(m, 'au'); }
+            a.weg = true;
+            if(a.ei) this.eiZerbricht(a, ox, oy, oz);
+            break;
           }
         } else if(!a.nurBild && !p.dead && Math.abs(a.x - p.x) < p.w/2 + .1 && Math.abs(a.z - p.z) < p.w/2 + .1 && a.y > p.y && a.y < p.y + p.h){
           if(p.hurt(a.dmg, 'Ein Skelett hat dich getroffen', a.vx/tv*.5, a.vz/tv*.5)){ this.hurtFlash = 1; Sfx.play('hurt'); }
@@ -867,7 +944,7 @@ const Game = {
   wasserNahe(x, y, z){
     const w = this.world;
     for(let dy = 0; dy <= 1; dy++) for(let dz = -4; dz <= 4; dz++) for(let dx = -4; dx <= 4; dx++)
-      if(w.getBlock(x+dx, y+dy, z+dz) === B.WATER) return true;
+      if(isWasser(w.getBlock(x+dx, y+dy, z+dz))) return true;
     return false;
   },
 
@@ -902,7 +979,7 @@ const Game = {
       const y = h+1;
       if(y >= WH-2) continue;
       const ground = w.getBlock(x,h,z);
-      if(!blocksMovement(ground) || ground === B.WATER) continue;
+      if(!blocksMovement(ground) || isWasser(ground)) continue;
       if(blocksMovement(w.getBlock(x,y,z)) || blocksMovement(w.getBlock(x,y+1,z))) continue;
       const lv = w.getLight(x,y,z), sky = lv & 15, blk = lv >> 4;
       const bright = Math.max(sky*dl, blk);
@@ -910,7 +987,7 @@ const Game = {
         this.mobs.push(new Mob(Math.random() < 0.4 ? 'skeleton' : 'zombie', x+0.5, y, z+0.5)); host++;
       } else if(pass < wantPass && bright > 8 && ground === B.GRASS){
         // Tiere kommen in kleinen Herden
-        const r = Math.random(), art = r < 0.3 ? 'pig' : (r < 0.62 ? 'cow' : 'sheep');
+        const art = ['pig', 'cow', 'sheep', 'chicken'][(Math.random()*4) | 0];
         for(let k = 0, n = 1 + ((Math.random()*3)|0); k < n && pass < wantPass; k++){
           const hx = x + ((Math.random()*5)|0) - 2, hz = z + ((Math.random()*5)|0) - 2, hh = w.heightAt(hx, hz);
           if(w.getBlock(hx, hh, hz) !== B.GRASS || blocksMovement(w.getBlock(hx, hh+1, hz)) || blocksMovement(w.getBlock(hx, hh+2, hz))) continue;
@@ -1046,8 +1123,8 @@ const Game = {
         const ex = eltern.x - m.x, ez = eltern.z - m.z, d = Math.hypot(ex, ez) || 1;
         if(d > 3){ tx = ex/d; tz = ez/d; m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 1.1; }
         else { m.moving = false; }
-      } else if(!m.def.hostile && heldId === ITEM.wheat && dist < 10 && dist > 2.2 && !z.dead){
-        // Weizen in der Hand: Kühe, Schafe und Schweine laufen hinterher
+      } else if(!m.def.hostile && heldId === futterVon(m) && dist < 10 && dist > 2.2 && !z.dead){
+        // Futter in der Hand: Kühe, Schafe und Schweine laufen dem Weizen hinterher, Hühner den Körnern
         const l = dist || 1; tx = dx/l; tz = dz/l;
         m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 0.8;
       } else {
@@ -1059,7 +1136,17 @@ const Game = {
         }
         if(m.moving){ m.yaw = m.wanderYaw; tx = -Math.sin(m.yaw); tz = -Math.cos(m.yaw); speed *= 0.55; }
         if(!m.def.hostile && hoerbar && Math.random() < 0.0012) Sfx.wesen(m, 'laut');
-        if(heldId === ITEM.wheat && !m.def.hostile && dist <= 2.2){ m.yaw = Math.atan2(dx, dz) + Math.PI; m.moving = false; tx = tz = 0; }
+        if(!m.def.hostile && heldId === futterVon(m) && dist <= 2.2){ m.yaw = Math.atan2(dx, dz) + Math.PI; m.moving = false; tx = tz = 0; }
+      }
+      // Hühner legen ab und zu ein Ei — es landet bei dem Spieler, der am nächsten ist
+      if(m.eiT !== undefined && !(m.kind > 0)){
+        m.eiT -= dt;
+        if(m.eiT <= 0){
+          m.eiT = 300 + Math.random()*300;
+          if(naechst.g) Netz.beuteAn(naechst.g, [[ITEM.egg, 1]], m.x, m.y + 0.3, m.z);
+          else this.dropItem(ITEM.egg, 1, m.x, m.y + 0.3, m.z);
+          if(hoerbar) Sfx.play('ei_legen', m.x, m.y + 0.3, m.z);
+        }
       }
       // geschorene Schafe fressen Gras, dann wächst die Wolle nach
       if(m.geschoren){
@@ -1072,9 +1159,11 @@ const Game = {
       }
 
       // Physik
-      const inW = inBlockOfType(w, m, id => id === B.WATER);
+      const inW = imWasser(w, m);
+      if(inW){ const zug = this.stroemungBei(m); m.vx += zug[0]*5*dt; m.vz += zug[2]*5*dt; }
       m.vy -= GRAV*dt*(inW ? 0.35 : 1);
       if(inW){ m.vy = Math.max(m.vy, -3); if(m.vy < 1.2) m.vy += 9*dt; }
+      if(m.def.flattert && m.vy < -2.4) m.vy = -2.4;            // Hühner flattern: sie fallen langsam
       m.vy = Math.max(m.vy, -TERMINAL);
       const res = moveAABB(w, m, (tx*speed + m.vx)*dt, m.vy*dt, (tz*speed + m.vz)*dt);
       if((res.bx || res.bz) && m.onGround && m.jumpCd <= 0){ m.vy = 7.6; m.jumpCd = 0.5; }
@@ -1095,8 +1184,9 @@ const Game = {
       d.age += dt; d.pickDelay -= dt;
       if(d.age > 300){ this.drops.splice(i,1); continue; }
       d.vy -= GRAV*dt;
-      const inW = inBlockOfType(w, d, id => id === B.WATER);
-      if(inW){ d.vy = Math.max(d.vy, -1.6); if(d.vy < 1) d.vy += 7*dt; }
+      const inW = imWasser(w, d);
+      if(inW){ d.vy = Math.max(d.vy, -1.6); if(d.vy < 1) d.vy += 7*dt;
+        const zug = this.stroemungBei(d); d.vx += zug[0]*1.4*dt; d.vz += zug[2]*1.4*dt; }
       moveAABB(w, d, d.vx*dt, d.vy*dt, d.vz*dt);
       if(d.onGround){ d.vx *= Math.pow(0.005, dt); d.vz *= Math.pow(0.005, dt); }
       else { d.vx *= Math.pow(0.5, dt); d.vz *= Math.pow(0.5, dt); }
@@ -1113,6 +1203,13 @@ const Game = {
     }
   },
 
+  /** Strömung, die an einem Körper zieht: an den Füßen und in der Mitte */
+  stroemungBei(e){
+    const x = Math.floor(e.x), z = Math.floor(e.z);
+    const a = this.wasser.zug(x, Math.floor(e.y + 0.05), z), b = this.wasser.zug(x, Math.floor(e.y + e.h*0.5), z);
+    return [a[0] + b[0], 0, a[2] + b[2]];
+  },
+
   /* ── Spieler ─────────────────────────────────────────────────────── */
   updatePlayer(dt, input){
     const p = this.player, w = this.world;
@@ -1121,9 +1218,15 @@ const Game = {
 
     const feetId = w.getBlock(Math.floor(p.x), Math.floor(p.y+0.1), Math.floor(p.z));
     const warImWasser = p.inWater;
-    p.inWater = inBlockOfType(w, p, id => id === B.WATER);
+    p.inWater = imWasser(w, p);
     if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
-    p.headInWater = w.getBlock(Math.floor(p.x), Math.floor(p.eyeY()), Math.floor(p.z)) === B.WATER;
+    {
+      const ey = p.eyeY(), ky = Math.floor(ey), kopf = w.getBlock(Math.floor(p.x), ky, Math.floor(p.z));
+      p.headInWater = isWasser(kopf) && (kopf === B.WATER || kopf === B.FALL || ey - ky < wasserMenge(kopf)/9 ||
+        isWasser(w.getBlock(Math.floor(p.x), ky + 1, Math.floor(p.z))));
+    }
+    // fließendes Wasser nimmt einen mit
+    if(p.inWater && !(p.creative && p.flying)){ const zug = this.stroemungBei(p); p.vx += zug[0]*5*dt; p.vz += zug[2]*5*dt; }
 
     // Bewegung
     let mx = input.mx, mz = input.mz;
@@ -1387,8 +1490,11 @@ const Input = {
       const held = performance.now() - this.holdStart;
       if(Game.bogen.aktiv) Game.bogenLos();
       if(this.pendingTap && held < 260 && this.holdMoved < 14 && e.pointerType !== 'mouse'){
-        // Tippen: erst Schere oder Eimer an einem Tier, dann Schlag, dann Block
-        if(!Game.benutzeWesen() && !Game.attack()) Game.useAt(Game.targetBlock());
+        // Tippen: erst Schere oder Eimer an einem Tier, dann Schlag, dann Block.
+        // Mit einem Ei in der Hand wird geworfen statt geschlagen.
+        const h = Inv.held();
+        if(h && h.id === ITEM.egg){ if(!Game.benutzeWesen()) Game.useAt(Game.targetBlock()); }
+        else if(!Game.benutzeWesen() && !Game.attack()) Game.useAt(Game.targetBlock());
         Game.player.swinging = true; Game.player.swing = 0;
       }
       this.lookId = null; this.digging = false; this.pendingTap = false;
@@ -1478,8 +1584,14 @@ function frame(now){
     Game.updatePfeile(dt);
     for(let i = Game.partikel.length - 1; i >= 0; i--){
       const q = Game.partikel[i]; q.t += dt;
-      if(q.t > 0) q.y += dt*0.55;
-      if(q.t > 1.3) Game.partikel.splice(i, 1);
+      if(q.fall){
+        // Eierschalen fliegen auseinander und bleiben liegen, wo sie aufkommen
+        q.vy -= 16*dt;
+        const nx = q.x + q.vx*dt, ny = q.y + q.vy*dt, nz = q.z + q.vz*dt;
+        if(blocksMovement(Game.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz)))) q.vx = q.vy = q.vz = 0;
+        else { q.x = nx; q.y = ny; q.z = nz; }
+      } else if(q.t > 0) q.y += dt*0.55;
+      if(q.t > (q.dauer || 1.3)) Game.partikel.splice(i, 1);
     }
     if(Game.bogen.aktiv){
       const s = Inv.held();
@@ -1489,7 +1601,8 @@ function frame(now){
       Game.tickFurnaces(dt);
       Game.tickFelder(dt);
       Game.spawnMobs(dt);
-    }
+      Game.wasser.tick(dt);
+    } else Game.wasser.naechste.clear();          // beim Gast fließt es, wie der Host es schickt
     if(!imMenue) handleDigging(dt);
   }
   Netz.tick(dt);

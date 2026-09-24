@@ -18,6 +18,7 @@ const KLANG_DATEIEN = {
   ruestung_leder:0, ruestung_eisen:0, ruestung_diamant:0, bogen:0, pfeil:0, schere:0, melken:0,
   kuh:0, kuh_au:0, schwein:0, schwein_au:0, schaf:0,
   zombie:0, zombie_au:0, zombie_tot:0, skelett_au:0, skelett_tot:0,
+  huhn:3, huhn_au:0, kueken:0, ei_legen:0, ei_kaputt:0, werfen:0,
 };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
@@ -39,7 +40,7 @@ const KLANG_MAT = {
   wasser:  { schritt:['schwimmen', .22],     hacken:null,                  weg:['platsch', .5],        setzen:['platsch', .5] },
 };
 function materialVon(id){
-  if(id === B.WATER) return 'wasser';
+  if(isWasser(id)) return 'wasser';
   if(isWool(id)) return 'wolle';
   if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.TORCH) return 'pflanze';
   if(id === B.LEAVES) return 'blatt';
@@ -54,13 +55,15 @@ function materialVon(id){
   if(b && (b.tool === 'axe' || isDoor(id) || isLadder(id) || id === B.BED || id === B.CACTUS)) return 'holz';
   return 'stein';
 }
-/** Wesen: [Datei, Lautstärke, Tonhöhe] für »laut«, »au« und »tot« */
+/** Wesen: [Datei, Lautstärke, Tonhöhe] für »laut«, »au« und »tot«; »kind«
+    ersetzt »laut« bei Jungen, die sonst nur höher klingen */
 const WESEN_KLANG = {
   pig:      { laut:['schwein', .6],  au:['schwein_au', .65],  tot:['schwein_au', .65, .82] },
   cow:      { laut:['kuh', .55],     au:['kuh_au', .65],      tot:['kuh_au', .65, .8] },
   sheep:    { laut:['schaf', .6],    au:['schaf', .65, 1.3],  tot:['schaf', .65, 1.05] },
   zombie:   { laut:['zombie', .55],  au:['zombie_au', .7],    tot:['zombie_tot', .75] },
   skeleton: { laut:['skelett', .8],  au:['skelett_au', .7],   tot:['skelett_tot', .75] },
+  chicken:  { laut:['huhn', .5],     au:['huhn_au', .6],      tot:['huhn_au', .6, .85], kind:['kueken', .45] },
 };
 const zufall = (a, b) => a + Math.random()*(b - a);
 
@@ -172,9 +175,10 @@ const Sfx = {
   },
   /** Wesen: art = laut · au · tot; Junge klingen höher */
   wesen(m, art){
-    const k = WESEN_KLANG[m.type], e = k && k[art];
+    const k = WESEN_KLANG[m.type], piepst = m.kind > 0 && art === 'laut' && k && k.kind;
+    const e = piepst ? k.kind : k && k[art];
     if(!e) return;
-    const rate = (e[2] || 1)*zufall(.9, 1.1)*(m.kind > 0 ? 1.35 : 1);
+    const rate = (e[2] || 1)*zufall(.9, 1.1)*(m.kind > 0 && !piepst ? 1.35 : 1);
     if(!this.probe(e[0], { gain: e[1], rate, x: m.x, y: m.y + m.h*.7, z: m.z, weit: 20 }))
       this.synth(art === 'laut' ? (m.def.laut || '') : 'hit');
   },
@@ -197,6 +201,9 @@ const Sfx = {
       case 'pfeil':   ok = mit('pfeil', .6); break;
       case 'schere':  ok = mit('schere', .75); break;
       case 'melken':  ok = mit('melken', .7); break;
+      case 'werfen':  ok = mit('werfen', .5, .75, .95); break;
+      case 'ei_kaputt': ok = mit('ei_kaputt', .6); break;
+      case 'ei_legen':  ok = mit('ei_legen', .7); break;
       case 'platsch': ok = mit('platsch', .55); break;
       case 'break':
       case 'kaputt':  ok = mit('kaputt', .7); break;
@@ -254,6 +261,10 @@ const Sfx = {
       case 'skelett': for(let i=0;i<4;i++) setTimeout(()=>this.noise(0.03, 0.08, 3200), i*55); break;
       case 'bogen': this.noise(0.12, 0.10, 2400); this.tone(220, 0.1, 'triangle', 0.05, 0.6); break;
       case 'pfeil': this.noise(0.06, 0.12, 900); break;
+      case 'huhn':  this.tone(720, 0.05, 'square', 0.035, 1.3); setTimeout(()=>this.tone(640,0.07,'square',0.035,0.8), 70); break;
+      case 'werfen': this.noise(0.08, 0.06, 2000); break;
+      case 'ei_kaputt': this.noise(0.06, 0.12, 2600); break;
+      case 'ei_legen': this.tone(500, 0.06, 'triangle', 0.06, 0.6); break;
       case 'geburt': this.tone(660, 0.08, 'triangle', 0.07, 1.3); setTimeout(()=>this.tone(990, 0.12, 'triangle', 0.07, 1.1), 90); break;
       case 'schere': this.noise(0.04, 0.10, 4000); setTimeout(()=>this.noise(0.04, 0.10, 4000), 90); break;
       case 'die':   this.tone(300, 0.7, 'sawtooth', 0.16, 0.25); break;

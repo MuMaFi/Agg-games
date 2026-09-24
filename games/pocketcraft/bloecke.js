@@ -9,7 +9,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   TABLE:17, FURNACE:18, FURNACE_LIT:19, TORCH:20, TALLGRASS:21, ROSE:22, DANDELION:23,
   CACTUS:24, STONEBRICK:25, SANDSTONE:26, SNOW:27,
   CHEST:28, LADDER:29 /* …32, je Wand */, BED:33, FARMLAND:34, WHEAT:35 /* …38, je Stufe */,
-  IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */ };
+  IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */,
+  FLUSS:62 /* …68, fließendes Wasser, Stärke 7…1 */, FALL:69 /* fallendes Wasser */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -19,6 +20,14 @@ const WOLLE = [
   { name:'Braune Wolle',    tint:[.56, .39, .26],    anteil:.06 },
 ];
 const isWool = id => id >= B.WOOL && id < B.WOOL + 4;
+
+/* Wasser: B.WATER ist eine Quelle (Meer, Eimer). Was davon wegfließt, trägt
+   seine Stärke im Block: 7 gleich neben der Quelle, 1 am Rand. Fallendes
+   Wasser ist voll, aber keine Quelle — ohne Nachschub von oben versiegt es. */
+const isWasser = id => id === B.WATER || (id >= B.FLUSS && id <= B.FALL);
+const flussId = staerke => B.FLUSS + 7 - staerke;
+/** 8 für Quelle und fallendes Wasser, sonst die Stärke, 0 ohne Wasser */
+const wasserMenge = id => id === B.WATER || id === B.FALL ? 8 : (id >= B.FLUSS && id < B.FALL ? 7 - (id - B.FLUSS) : 0);
 
 /* Seiten, wie sie Leiter und Tür benutzen: 0 +X, 1 −X, 2 +Z, 3 −Z */
 const SEITE = [[1,0],[-1,0],[0,1],[0,-1]];
@@ -66,6 +75,8 @@ function initBlocks(){
   defBlock(B.LEAVES,{name:'Laub', tex:'leaves', hardness:.2, opaque:false, model:'cutout'});
   defBlock(B.GLASS,{name:'Glas', tex:'glass', hardness:.3, opaque:false, model:'cutout', drop:B.AIR});
   defBlock(B.WATER,{name:'Wasser', tex:'water0', solid:false, opaque:false, model:'liquid', hardness:-1, replaceable:true, item:false});
+  for(let k = 0; k < 8; k++)
+    defBlock(B.FLUSS + k,{name:'Wasser', tex:'water0', solid:false, opaque:false, model:'liquid', hardness:-1, replaceable:true, item:false});
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
   defBlock(B.COAL_ORE,{name:'Kohleerz', tex:'coal_ore', hardness:3, tool:'pickaxe', tier:1, drop:'i_coal'});
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});
@@ -169,6 +180,12 @@ function initItems(){
   defItem('flint',{name:'Feuerstein'});
   const LEDER = [['helmet','Lederkappe',1,55],['chestplate','Lederjacke',3,80],['leggings','Lederhose',2,75],['boots','Lederstiefel',1,65]];
   LEDER.forEach(([rk, name, pts, dur], slot) => defItem('leather_' + rk, { name, stack:1, dur, armor:{ slot, pts } }));
+
+  // Hühner
+  defItem('chicken_raw',{name:'Rohes Hähnchen', food:2});
+  defItem('chicken_cooked',{name:'Gebratenes Hähnchen', food:6});
+  defItem('feather',{name:'Feder'});
+  defItem('egg',{name:'Ei', stack:16});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

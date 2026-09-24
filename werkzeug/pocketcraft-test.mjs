@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','handwerk.js'])
+for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','wasser.js','handwerk.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -75,6 +75,79 @@ pruef(T('texNames.length') < 256, 'höchstens 255 Texturschichten (Byte im Gitte
 // Ausbluten: keine durchsichtigen schwarzen Texel mehr
 const schwarz = T(`(() => { let n = 0; texData.forEach((d, k) => { if(texNames[k].startsWith('crack')) return; for(let i=0;i<d.length;i+=4) if(d[i+3]===0 && d[i]+d[i+1]+d[i+2]===0) n++; }); return n; })()`);
 pruef(schwarz === 0, 'durchsichtige schwarze Texel: ' + schwarz);
+
+
+// Wasser, das fließt: Raute um eine Quelle, Versiegen, Wasserfall, Eimer-Trick, Wegspülen, Strömung
+T(`
+globalThis.W = new World('wassertest');
+globalThis.S = W.stroemung = new Stroemung(W);
+for(let cx = -2; cx <= 2; cx++) for(let cz = -2; cz <= 2; cz++) W.ensureChunk(cx, cz);
+// Becken: Boden aus Stein auf y=60, Luft darüber
+globalThis.bau = () => { for(let x = -24; x <= 24; x++) for(let z = -24; z <= 24; z++){ W.setBlock(x, 60, z, B.STONE); for(let y = 61; y < 70; y++) W.setBlock(x, y, z, B.AIR); } S.naechste.clear(); };
+globalThis.laufen = n => { for(let i = 0; i < n; i++){ if(!S.naechste.size) return i; S.schritt(); } return n; };
+globalThis.zaehl = (f) => { let n = 0; for(let x = -24; x <= 24; x++) for(let z = -24; z <= 24; z++) for(let y = 55; y < 70; y++) if(f(W.getBlock(x, y, z), x, y, z)) n++; return n; };
+bau();
+`);
+// 1. eine Quelle auf flachem Boden: Raute mit Radius 7
+T(`W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0);`);
+const schritte = T('laufen(60)');
+pruef(schritte < 60, 'Fluss kommt zur Ruhe: ' + schritte + ' Schritte');
+pruef(T('W.getBlock(1, 61, 0)') === T('flussId(7)'), 'neben der Quelle Stärke 7');
+pruef(T('W.getBlock(7, 61, 0)') === T('flussId(1)'), 'sieben weiter Stärke 1');
+pruef(T('W.getBlock(8, 61, 0)') === T('B.AIR'), 'acht weiter trocken');
+pruef(T('W.getBlock(3, 61, 4)') === T('flussId(1)'), 'schräg: Abstand 7 hat Stärke 1');
+pruef(T('W.getBlock(4, 61, 4)') === T('B.AIR'), 'schräg: Abstand 8 trocken');
+pruef(T('zaehl(id => isWasser(id))') === 1 + 2*7*8, 'Raute hat 113 Wasserblöcke: ' + T('zaehl(id => isWasser(id))'));
+// 2. Quelle weg: alles versiegt
+T(`W.setBlock(0, 61, 0, B.AIR); S.melden(0, 61, 0);`);
+T('laufen(80)');
+pruef(T('zaehl(id => isWasser(id))') === 0, 'ohne Quelle versiegt alles: ' + T('zaehl(id => isWasser(id))'));
+// 3. Wasserfall: Quelle auf einem Sockel, fällt hinunter und breitet sich unten aus
+T(`bau(); for(let y = 61; y <= 65; y++) W.setBlock(0, y, 0, B.STONE); W.setBlock(0, 66, 0, B.WATER); S.melden(0, 66, 0);`);
+T('laufen(80)');
+pruef(T('W.getBlock(1, 66, 0)') === T('flussId(7)'), 'oben: Stärke 7 neben der Quelle');
+pruef(T('[65,64,63,62,61].every(y => W.getBlock(1, y, 0) === B.FALL)'), 'daneben fällt es bis zum Boden: ' + T('[66,65,64,63,62,61].map(y => W.getBlock(1, y, 0))'));
+pruef(T('W.getBlock(2, 61, 0)') === T('flussId(7)') && T('W.getBlock(8, 61, 0)') === T('flussId(1)'), 'unten breitet es sich neu mit 7 aus');
+pruef(T('W.getBlock(2, 66, 0)') === T('B.AIR'), 'oben fließt es nicht über den Rand hinaus: ' + T('[W.getBlock(2,66,0), W.getBlock(3,66,0)]'));
+// 4. Quelle am Sockel weg: Fall versiegt
+T(`W.setBlock(0, 66, 0, B.AIR); S.melden(0, 66, 0);`);
+T('laufen(100)');
+pruef(T('zaehl(id => isWasser(id))') === 0, 'Wasserfall versiegt: ' + T('zaehl(id => isWasser(id))'));
+// 5. zwei Quellen mit einer Lücke: die Lücke wird eine Quelle
+T(`bau(); for(let x = -1; x <= 3; x++) for(let z = -1; z <= 1; z++) W.setBlock(x, 61, z, B.STONE);
+   W.setBlock(0, 61, 0, B.AIR); W.setBlock(1, 61, 0, B.AIR); W.setBlock(2, 61, 0, B.AIR);
+   W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0); W.setBlock(2, 61, 0, B.WATER); S.melden(2, 61, 0);`);
+T('laufen(20)');
+pruef(T('W.getBlock(1, 61, 0)') === T('B.WATER'), 'zwei Quellen machen eine dritte: ' + T('W.getBlock(1, 61, 0)'));
+// 6. Fackel und Blume werden weggespült
+T(`bau(); globalThis.weg = []; S.wegspuelen = (x, y, z, id) => weg.push(id); W.setBlock(2, 61, 0, B.TORCH); W.setBlock(0, 61, 2, B.ROSE);
+   W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0);`);
+T('laufen(40)');
+pruef(T('weg.includes(B.TORCH) && weg.includes(B.ROSE)'), 'Fackel und Blume weggespült: ' + T('weg'));
+pruef(T('isWasser(W.getBlock(2, 61, 0)) && isWasser(W.getBlock(0, 61, 2))'), 'dort ist jetzt Wasser');
+// 7. Wände halten es auf, eine Tür auch
+T(`bau(); S.wegspuelen = null; for(let z = -3; z <= 3; z++) W.setBlock(2, 61, z, B.COBBLE); W.setBlock(2, 61, 0, doorId(0,0,0)); W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0);`);
+T('laufen(60)');
+pruef(T('W.getBlock(3, 61, 0)') === T('B.AIR') && T('isWasser(W.getBlock(1, 61, 0))'), 'Tür und Mauer halten das Wasser auf');
+// 8. Strömung zieht bergab
+T(`bau(); W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0);`); T('laufen(60)');
+const zug = T('S.zug(3, 61, 0)');
+pruef(zug[0] > 0.9, 'Strömung zieht von der Quelle weg: ' + JSON.stringify(zug));
+pruef(T('S.zug(0, 61, 0)').every(v => v === 0), 'eine Quelle zieht nicht');
+// 9. Block in fließendes Wasser setzen: hinter dem Block trocknet es aus, wenn es keinen anderen Weg gibt
+T(`bau(); for(let x = -1; x <= 10; x++){ W.setBlock(x, 61, -1, B.COBBLE); W.setBlock(x, 61, 1, B.COBBLE); } W.setBlock(-1, 61, 0, B.COBBLE);
+   W.setBlock(0, 61, 0, B.WATER); S.melden(0, 61, 0);`); T('laufen(40)');
+pruef(T('W.getBlock(7, 61, 0)') === T('flussId(1)'), 'im Graben fließt es sieben weit');
+T(`W.setBlock(3, 61, 0, B.COBBLE); S.melden(3, 61, 0);`); T('laufen(40)');
+pruef(T('[4,5,6,7].every(x => W.getBlock(x, 61, 0) === B.AIR)') && T('W.getBlock(2, 61, 0)') === T('flussId(6)'), 'hinter dem Damm trocknet der Graben: ' + T('[1,2,3,4,5,6,7].map(x => W.getBlock(x, 61, 0))'));
+// 10. gespeichertes Wasser rechnet nach dem Erzeugen weiter
+T(`globalThis.W2 = new World('wassertest'); W2.mods = W.mods; globalThis.S2 = W2.stroemung = new Stroemung(W2); for(let cx = -2; cx <= 2; cx++) for(let cz = -2; cz <= 2; cz++) W2.ensureChunk(cx, cz);`);
+pruef(T('S2.naechste.size') > 0, 'nach dem Laden ist gegossenes Wasser angemeldet: ' + T('S2.naechste.size'));
+// Hühner: Pfeil mit Feder oder Faden, gebratenes Hähnchen, Eier stapeln bis 16
+pruef(T(`rasterRezept([{id:ITEM.flint,n:1},null,null, {id:ITEM.stick,n:1},null,null, {id:ITEM.feather,n:1},null,null], 3).out === ITEM.arrow`), 'Pfeil mit Feder');
+pruef(T(`rasterRezept([{id:ITEM.flint,n:1},null,null, {id:ITEM.stick,n:1},null,null, {id:ITEM.string,n:1},null,null], 3).out === ITEM.arrow`), 'Pfeil mit Faden');
+pruef(T(`SMELT[ITEM.chicken_raw] === ITEM.chicken_cooked && items[ITEM.egg].stack === 16`), 'Hähnchen im Ofen, Eier zu 16');
+pruef(T(`ITEM.chicken_raw > ITEM.leather_boots && B.FLUSS === 62 && B.FALL === 69 && blocks[B.FALL].name === 'Wasser'`), 'neue Nummern hinten angehängt');
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);
