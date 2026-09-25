@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 4;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter
+const NETZ_VERSION = 5;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -260,6 +260,9 @@ const Netz = {
       case 'ofen': this.ofenEmpfangen(m); break;
       case 'pfeil': this.pfeilEmpfangen(m, g); break;
       case 'kueken': this.kuekenHost(g, m); break;
+      case 'chat': if(this.nichtZuSchnell(g)) Chat.verteilen({ n: g.name, f: g.farbe, text: String(m.text || '').slice(0, CHAT_MAX) }); break;
+      case 'befehl': if(this.nichtZuSchnell(g)) Befehle.vonGast(g, String(m.text || '').slice(0, CHAT_MAX)); break;
+      case 'tod': Chat.todMelden(g.name, m.grund); break;
       case 'tschuess': this.gastWeg(g); setTimeout(() => { try{ g.conn.close(); }catch(e){} }, 200); break;
     }
   },
@@ -280,15 +283,15 @@ const Netz = {
     const p = Game.player, du = Game.gaeste[id] || null;
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
-    this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du,
+    this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du, op: Game.ops.has(id),
       welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, modus: p.creative ? 'kreativ' : 'ueberleben',
-                            time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
+                            time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), regeln: Game.regeln,
+                            spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
     this.andere.set(id, this.figur(id, g.name, g.farbe, ort));
     // Öfen und Wesen gleich hinterher, nicht erst beim nächsten Takt
     this._ofenSig = {};
     this._t.pos = this._t.wesen = 1;
-    hint(g.name + ' ist beigetreten', 2400);
-    this.anAlle({ t:'hinweis', text: g.name + ' ist beigetreten' }, g);
+    Chat.system(g.name + ' ist beigetreten');
     if(typeof Menue !== 'undefined' && Menue.netzAnzeigen) Menue.netzAnzeigen();
   },
   gastWeg(g){
@@ -302,8 +305,7 @@ const Netz = {
     d.p = Object.assign(d.p || {}, { x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: g.pitch });
     this.andere.delete(g.id); this.schildWeg(g.id);
     if(this.istHost){
-      hint(g.name + ' hat die Welt verlassen', 2400);
-      this.anAlle({ t:'hinweis', text: g.name + ' hat die Welt verlassen' });
+      Chat.system(g.name + ' hat die Welt verlassen');
       if(typeof Menue !== 'undefined' && Menue.netzAnzeigen) Menue.netzAnzeigen();
     }
   },
@@ -326,6 +328,20 @@ const Netz = {
     const x = +m.x, y = +m.y, z = +m.z;
     if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < 1 || y >= WH) return;
     Game.kuekenSchluepfen(x, y, z, m.n === 4 ? 4 : 1);
+  },
+  /** höchstens acht Nachrichten oder Befehle in vier Sekunden */
+  nichtZuSchnell(g){
+    const jetzt = performance.now();
+    g._chat = (g._chat || []).filter(t => jetzt - t < 4000);
+    if(g._chat.length >= 8){ this.senden(g.conn, { t:'chat', art:'fehler', text:'Nicht so schnell!' }); return false; }
+    g._chat.push(jetzt);
+    return true;
+  },
+  /** /kick: der Gast bekommt den Grund zu sehen, dann ist die Leitung zu */
+  rauswerfen(g, grund){
+    this.senden(g.conn, { t:'zu', grund });
+    this.gastWeg(g);
+    setTimeout(() => { try{ g.conn.close(); }catch(e){} }, 400);
   },
   beuteAn(g, liste, x, y, z){ if(liste.length) this.senden(g.conn, { t:'beute', l: liste, x: r2(x), y: r2(y), z: r2(z) }); },
   autsch(g, n, grund, kx, kz){ this.senden(g.conn, { t:'autsch', n, grund, kx: r2(kx), kz: r2(kz) }); },
@@ -504,6 +520,10 @@ const Netz = {
         if(!Game.player.creative) for(const [id, n] of (m.l || [])) Game.dropItem(id, n, +m.x, +m.y, +m.z);
         break;
       case 'hinweis': hint(String(m.text || ''), 2400); break;
+      case 'chat': Chat.zeigen(m); break;
+      case 'anwenden': Befehle.anwenden(m); break;
+      case 'op': Befehle.op = !!m.an; break;
+      case 'regeln': Game.regelnSetzen(m.r); break;
       case 'zu': this.trennen(); Menue.verbindungWeg(m.grund || 'Der Host hat die Welt geschlossen.'); break;
     }
   },
@@ -511,6 +531,7 @@ const Netz = {
     clearTimeout(this._verbindeT);
     if(m.v !== NETZ_VERSION || !m.welt){ this.verbindenGescheitert('Die Welt ließ sich nicht übertragen.'); return; }
     this.rolle = 'gast'; this.istGast = true; this.istHost = false;
+    Befehle.op = !!m.op;
     this._hostZuletzt = performance.now();
     for(const k in this._t) this._t[k] = 0;
     this._behSig = {};
@@ -539,7 +560,7 @@ const Netz = {
   trennen(){
     clearTimeout(this._verbindeT);
     if(this.hostConn){ const c = this.hostConn; this.hostConn = null; try{ c.close(); }catch(e){} }
-    if(this.rolle === 'gast' || this.rolle === 'verbinde'){ this.rolle = null; this.istGast = false; }
+    if(this.rolle === 'gast' || this.rolle === 'verbinde'){ this.rolle = null; this.istGast = false; Befehle.op = false; }
     this._versuch = (this._versuch || 0) + 1;
     this.andereLeeren();
     this.ausgang = [];

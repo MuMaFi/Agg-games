@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9';                // Jahr.Nummer
+const VERSION = 'Pocketcraft 26.9.1';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '69 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -19,7 +19,8 @@ const SPRUECHE = [
   'Jetzt mit Freunden!', 'Code eingeben, mitspielen!', 'Bis zu acht Spieler!', 'Jetzt mit Musik!', 'Hör mal, Kies!', 'Knirscht wie echt!',
   'Jetzt mit Hühnern!', 'Gack!', 'Erst das Huhn, dann das Ei!', 'Küken aus dem Ei!', 'Wasser marsch!', 'Es fließt!', 'Achtung, Wasserfall!',
   'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!',
-  'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!'
+  'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!',
+  'Jetzt mit Chat!', 'Probier /hilfe!', '/gamemode kreativ!', 'Drück T zum Reden!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const MODUS_TEXT = {
@@ -27,7 +28,13 @@ const MODUS_TEXT = {
   kreativ:    ['Kreativ', 'Unbegrenzte Blöcke aus dem Katalog, fliegen mit doppeltem Sprung, keine Gefahr.'],
 };
 
-/* ── Logo aus Steinblöcken ─────────────────────────────────────────── */
+/* ── Logo ──────────────────────────────────────────────────────────────
+   Das Logo ist Pixelgrafik in Originalgröße (bilder/logo.png, 363 × 64) und
+   wird um ganze Faktoren vergrößert, damit jeder Pixel scharf bleibt. Bis es
+   geladen ist — oder wenn es gar nicht lädt —, steht das gezeichnete aus
+   Steinblöcken da. */
+const LOGO = new Image();
+LOGO.src = 'bilder/logo.png';
 const GLYPHEN = {
   T:['#####','..#..','..#..','..#..','..#..','..#..','..#..'],
   A:['.###.','#...#','#...#','#####','#...#','#...#','#...#'],
@@ -219,8 +226,21 @@ const Menue = {
     s.style.setProperty('--gross', Math.max(.62, Math.min(1, 16/s.textContent.length)).toFixed(2));
   },
   logo(){
-    const w = Math.min(window.innerWidth*0.9, 760, window.innerHeight*1.6);
-    logoZeichnen($('#logo'), 'POCKETCRAFT', w);
+    const w = Math.min(window.innerWidth*0.9, 760, window.innerHeight*1.25), cv = $('#logo');
+    if(!(LOGO.complete && LOGO.naturalWidth)){
+      logoZeichnen(cv, 'POCKETCRAFT', w);
+      if(!LOGO._warte){ LOGO._warte = true; LOGO.addEventListener('load', () => { if(this.aktiv === 'titel') this.logo(); }); }
+      return;
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 3), lw = LOGO.naturalWidth, lh = LOGO.naturalHeight;
+    let k = Math.max(1, Math.round(w*dpr/lw));
+    while(k > 1 && lw*k/dpr > window.innerWidth - 12) k--;
+    cv.width = lw*k; cv.height = lh*k;
+    cv.style.width = (cv.width/dpr) + 'px'; cv.style.height = (cv.height/dpr) + 'px';
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.drawImage(LOGO, 0, 0, cv.width, cv.height);
   },
 
   /* — Weltenliste — */

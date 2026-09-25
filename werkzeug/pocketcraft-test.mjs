@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','wetter.js','handwerk.js'])
+for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','wetter.js','handwerk.js','befehle.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -178,7 +178,7 @@ T(`globalThis.Netz = { istHost: false, istGast: false, hatGaeste(){ return false
 globalThis.RW = new World('regentest');
 for(let cx = -2; cx <= 1; cx++) for(let cz = -2; cz <= 1; cz++) RW.ensureChunk(cx, cz);
 for(let x = -20; x <= 20; x++) for(let z = -20; z <= 20; z++){ RW.setBlock(x, 60, z, B.STONE); for(let y = 61; y < WH; y++) RW.setBlock(x, y, z, B.AIR); }
-globalThis.Game = { world: RW, player: { x: 0.5, y: 61, z: 0.5, headInWater: false }, spielerOrte(){ return [this.player]; } };`);
+globalThis.Game = { world: RW, player: { x: 0.5, y: 61, z: 0.5, headInWater: false }, regeln: Object.assign({}, REGELN_START), spielerOrte(){ return [this.player]; } };`);
 pruef(T(`regenBoden(RW, 3, 3)`) === 61, 'auf freiem Feld kommt Regen am Boden an');
 T(`RW.setBlock(3, 70, 3, B.GLASS); RW.setBlock(4, 66, 4, B.LEAVES); RW.setBlock(5, 61, 5, B.WATER); RW.setBlock(6, 61, 6, B.SCHNEEDECKE); RW.setBlock(7, 61, 7, B.TORCH);`);
 pruef(T(`regenBoden(RW, 3, 3) === 71 && regenBoden(RW, 4, 4) === 67 && regenBoden(RW, 5, 5) === 61.875 && regenBoden(RW, 6, 6) === 61.125 && regenBoden(RW, 7, 7) === 61`),
@@ -220,6 +220,29 @@ pruef(T(`(() => { for(let x = -95; x <= -64; x++) for(let z = 281; z <= 312; z++
 pruef(T(`(() => { let s = 0; for(let i = 0; i < Wetter.aktiv; i++) if(Wetter.art[i] === ART_SCHNEE) s++; return s > 500; })()`), 'im Nadelwald fällt Schnee');
 pruef(T(`!Wetter.regnetAn(-79, 45, 296)`), 'Schnee gießt nicht');
 T(`Wetter.aus()`);
+
+// Befehle: Namen wie im Spiel und wie beim Vorbild, Zahlen mit Einheiten, ~-Koordinaten, Vorschläge
+T(`globalThis.DAY_LEN = 720;`);                  // steht in spiel.js
+pruef(T(`dingNummer('diamant') === ITEM.diamond && dingNummer('minecraft:diamond') === ITEM.diamond && dingNummer('Diamant') === ITEM.diamond`), 'Diamant auf Deutsch und wie beim Vorbild');
+pruef(T(`dingNummer('cobblestone') === B.COBBLE && dingNummer('bruchstein') === B.COBBLE && dingNummer('oak_log') === B.LOG && dingNummer('iron_ingot') === ITEM.iron`), 'Bruchstein, Holzstamm, Eisenbarren');
+pruef(T(`dingNummer('wheat') === ITEM.wheat && dingNummer('weizen') === ITEM.wheat`), 'wheat ist der Weizen zum Tragen, nicht das Feld');
+pruef(T(`dingNummer('löwenzahn') === B.DANDELION && dingNummer('loewenzahn') === B.DANDELION && dingNummer('hohes gras') === null`), 'Umlaute beide Male, Hohes Gras gibt es nicht');
+pruef(T(`dingNummer('luft') === B.AIR && dingNummer('water') === B.WATER && dingNummer('weisse_wolle') === B.WOOL`), 'Luft, Wasser, Wolle');
+pruef(T(`Befehle.zahl('10s', 't') === 200 && Befehle.zahl('100', 't') === 100 && Befehle.zahl('1d', 's') === DAY_LEN && Befehle.zahl('20t', 's') === 1 && Befehle.zahl('x') === null`), 'Zahlen mit Einheiten');
+pruef(JSON.stringify(T(`Befehle.koord(['~', '~5', '10'], 0, { x: 1.25, y: 60, z: 3 }, false)`)) === '[1.25,65,10.5]', 'Koordinaten: ~ relativ, ganze Zahlen in die Blockmitte');
+pruef(JSON.stringify(T(`Befehle.koord(['~', '~-1', '-3'], 0, { x: 1.75, y: 60.4, z: 3 }, true)`)) === '[1,59,-3]', 'Blockkoordinaten');
+pruef(T(`Befehle.koord(['1', 'a', '3'], 0, { x: 0, y: 0, z: 0 }, false)`) === null, 'kaputte Koordinaten');
+T(`globalThis.Netz = { istHost: false, istGast: false, hatGaeste(){ return false; }, ich: { id: 'a', name: 'Spieler 123', farbe: 0 }, gaeste: new Map(), andere: new Map() };
+   Game.player = Object.assign(Game.player, { x: 0.5, y: 61, z: 0.5 }); Game.targetBlock = () => null;`);
+const v1 = T(`Befehle.vorschlaege('/ga').liste`);
+pruef(v1.includes('gamemode') && v1.includes('gamerule'), 'Vorschläge für /ga: ' + v1);
+const v2 = T(`Befehle.vorschlaege('/give dia').liste`);
+pruef(v2.includes('diamant') && v2.includes('diamantschwert'), 'Vorschläge für /give dia: ' + v2.slice(0, 5));
+pruef(T(`Befehle.vorschlaege('/zeit set mi').liste.join()`) === 'mittag,midnight,mitternacht', 'Vorschläge für /zeit set mi');
+pruef(T(`Befehle.vorschlaege('/gamemode k').liste`).includes('kreativ'), 'Vorschläge für /gamemode k');
+pruef(T(`Befehle.vorschlaege('/tp @').liste.join()`) === '@s,@a,@p,@r', 'Ziele');
+pruef(T(`Befehle.ziele('spieler_123', Befehle.ichSelbst())[0].name`) === 'Spieler 123', 'Namen mit Leerzeichen findet man mit _');
+pruef(T(`Befehle.vorschlaege('Hallo')`) === null, 'kein Schrägstrich, keine Vorschläge');
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

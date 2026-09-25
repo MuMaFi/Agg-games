@@ -18,6 +18,8 @@ const Game = {
   meta:null, gesamtZeit:0, panoramaAktiv:false, _panoZiel:0,
   pfeile:[], bogen:{ aktiv:false, t:0 }, partikel:[],
   gaeste:{},                        // Host: Inventar und Ort der Mitspieler, mit der Welt gespeichert
+  regeln: Object.assign({}, REGELN_START),   // /gamerule
+  ops: new Set(),                   // Host: Mitspieler, die alle Befehle dürfen (/op)
 
   /** Sichtweite: das Panorama begnügt sich mit weniger */
   sicht(){ return this.panoramaAktiv ? Math.min(4, this.settings.rd) : this.settings.rd; },
@@ -31,6 +33,9 @@ const Game = {
     const seed = meta.seed;
     this.world = new World(seed, meta.gen || (saved && saved.gen) || 1);
     Wetter.laden(saved && saved.wetter);
+    this.regelnSetzen(saved && saved.regeln);
+    this.ops = new Set((saved && Array.isArray(saved.ops) && saved.ops) || []);
+    Chat.leeren();
     // Jede Blockänderung aus dem eigenen Spiel geht an die Mitspieler; was
     // aus dem Netz kommt (Netz.eingehend), natürlich nicht zurück
     const w = this.world, setzen = w.setBlock.bind(w);
@@ -123,7 +128,7 @@ const Game = {
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
       mods: w.mods || [], furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
-      time: w.time, zeit: w.zeit, tiere: [], wetter: w.wetter
+      time: w.time, zeit: w.zeit, tiere: [], wetter: w.wetter, regeln: w.regeln
     });
     const p = this.player;
     p.creative = w.modus === 'kreativ';
@@ -177,6 +182,7 @@ const Game = {
   },
   zumTitel(){
     Screens.hide();
+    Chat.leeren();
     Plattenspieler.alleAus();
     this.running = false;
     this.meta = null;
@@ -275,6 +281,7 @@ const Game = {
       const p = this.player;
       const data = Object.assign({
         seed: this.world.seedStr, gen: this.world.gen, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
+        regeln: this.regeln, ops: [...this.ops],
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
              spawnX:p.spawnX, spawnY:p.spawnY, spawnZ:p.spawnZ },
@@ -987,6 +994,7 @@ const Game = {
     return l;
   },
   spawnMobs(dt){
+    if(!this.regeln.doMobSpawning) return;
     this.mobTimer -= dt;
     if(this.mobTimer > 0) return;
     // Wesen erscheinen rund um jeden Spieler, reihum
@@ -1378,6 +1386,12 @@ const Game = {
     Screens.hide();
   },
 
+  /** Spielregeln aus dem Stand oder vom Host — Unbekanntes bleibt draußen */
+  regelnSetzen(r){
+    this.regeln = Object.assign({}, REGELN_START);
+    if(r && typeof r === 'object') for(const k of Object.keys(REGELN_START)) if(typeof r[k] === 'boolean') this.regeln[k] = r[k];
+  },
+
   /* ── Tageszeit ───────────────────────────────────────────────────── */
   sunAngle(){ return (this.time/DAY_LEN) * TAU; },
   dayLight(){
@@ -1467,6 +1481,7 @@ const Input = {
 
   down(e){
     if(!Game.running || Screens.open || this.onWidget(e)) return;
+    if(Chat.offen){ Chat.schliessen(); return; }       // Tippen in die Welt schließt den Chat
     if(this.zone(e) === 'move' && this.moveId === null){
       this.moveId = e.pointerId; this.moveOX = e.clientX; this.moveOY = e.clientY;
       const st = $('#stick');
@@ -1530,13 +1545,21 @@ const Input = {
     }
     if(e.pointerType === 'mouse') this.digging = false;
   },
+  /** alles loslassen — etwa, wenn der Chat aufgeht, während man läuft */
+  loslassen(){
+    this.keys = {}; this.mx = this.mz = 0; this.jump = this.sneak = this.sprint = false;
+    this.digging = this.attackHeld = false;
+  },
   key(e, dn){
     const k = e.key.toLowerCase();
     // Titelbild und Optionen: Escape geht einen Schritt zurück, sonst nichts
     if(Menue.aktiv){ if(dn && k === 'escape') Menue.zurueck(); return; }
     if(!Game.running) return;
+    if(Chat.offen) return;                             // Tasten gehören dem Eingabefeld
     if(dn && k === 'escape'){ if(Screens.open) Screens.hide(); else togglePause(); return; }
     if(Screens.open && Screens.open !== 'pause') { if(dn && (k === 'e')) Screens.hide(); return; }
+    // T öffnet den Chat, / gleich mit Schrägstrich — wie beim Vorbild
+    if(dn && !Screens.open && (k === 't' || e.key === '/')){ e.preventDefault(); Chat.oeffnen(e.key === '/' ? '/' : ''); return; }
     this.keys[k] = dn;
     if(dn && k >= '1' && k <= '9'){ Inv.sel = +k-1; HUD.refreshHotbar(); showItemName(); }
     if(dn && k === 'e') Screens.oeffne('inv');
@@ -1578,6 +1601,7 @@ function frame(now){
   requestAnimationFrame(frame);
   let dt = (now - lastT)/1000; lastT = now;
   if(dt > 0.1) dt = 0.1;
+  Chat.tick();
   if(Game.panoramaAktiv){
     Game.streamChunks(Game.loading ? 16 : 6);
     if(Game._panoHoehe && Game.world.getChunk(Math.floor(Game.player.x/CS), Math.floor(Game.player.z/CS))){
@@ -1602,7 +1626,7 @@ function frame(now){
   const paused = imMenue && !mitAnderen;
   Menue.ladeStand(Game.loading, Game.loadDone / Game.loadTarget);
   if(!paused){
-    Game.time = (Game.time + dt) % DAY_LEN;
+    if(Game.regeln.doDaylightCycle) Game.time = (Game.time + dt) % DAY_LEN;
     Game.gesamtZeit += dt;
     if(!Game.loading || Game.world.getChunk(Math.floor(Game.player.x/CS), Math.floor(Game.player.z/CS))){
       Game.updatePlayer(dt, imMenue ? KEINE_EINGABE : Input);
@@ -1641,6 +1665,7 @@ function frame(now){
      ohne Todesbildschirm einfach stehen. */
   if(Game.player.dead && Screens.open !== 'death'){
     Sfx.play('die'); $('#deathCause').textContent = Game.player.deathCause; Screens.show('death');
+    Chat.tod(Game.player.deathCause);
   }
   if(Game.platzSuchen && !Game.loading){
     Game.platzSuchen = false;
@@ -1759,6 +1784,7 @@ window.androidZurueck = () => {
     Menue.zurueck(); return true;
   }
   if(!Game.running) return false;
+  if(Chat.offen){ Chat.schliessen(); return true; }
   if(Screens.open === 'death') return true;
   if(Screens.open) Screens.hide(); else togglePause();
   return true;
@@ -1766,6 +1792,7 @@ window.androidZurueck = () => {
 /** Die App geht in den Hintergrund: anhalten und sichern */
 window.androidPause = () => {
   if(!Game.running) return;
+  Chat.schliessen();
   if(!Screens.open && !Menue.aktiv) Screens.show('pause');
   Game.save(true);
 };
@@ -1794,6 +1821,7 @@ function boot(){
   Input.init();
   wireSpiel();
   Netz.init();
+  Chat.init();
   Menue.init();
   symboleVorwaermen();
   $('#dbg').classList.toggle('on', Game.settings.debug);
@@ -1805,7 +1833,7 @@ boot();
    Indexpuffer behält. Genau da lag der Fehler mit den zerrissenen
    Gegenständen und Mobs. */
 window.__welt = {
-  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter,
+  R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter, Chat, Befehle,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

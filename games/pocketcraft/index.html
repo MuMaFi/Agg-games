@@ -258,6 +258,45 @@ body.mcOffen .screen{visibility:hidden}
 #hurt{position:absolute; inset:0; background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(190,30,30,.55)); opacity:0; transition:opacity .18s}
 #water{position:absolute; inset:0; background:rgba(28,86,140,.42); opacity:0; transition:opacity .2s}
 
+/* ── Chat ──────────────────────────────────────────────────────────────
+   Zu: die neuesten Zeilen über der Schnellleiste, sie verblassen von selbst.
+   Offen: der ganze Verlauf zum Blättern, darunter das Eingabefeld. Auf dem
+   Handy steht alles oben, damit die Tastatur nichts verdeckt. */
+#chat{position:fixed; z-index:30; left:max(14px, env(safe-area-inset-left)); bottom:92px; width:min(560px, calc(100% - 28px));
+  display:none; flex-direction:column; gap:4px; pointer-events:none; font-family:var(--pix); font-size:15px; line-height:1.3}
+#chat.sichtbar{display:flex}
+#chatVerlauf{display:flex; flex-direction:column; overflow:hidden; order:1}
+.chatZeile{background:rgba(0,0,0,.42); color:#fff; padding:1px 7px 2px; text-shadow:1px 1px 0 #3f3f3f; overflow-wrap:anywhere; white-space:pre-wrap}
+.chatZeile.alt{display:none}
+.chatZeile.system{color:#ffff55; text-shadow:1px 1px 0 #3f3f15}
+.chatZeile.fehler{color:#ff6b6b; text-shadow:1px 1px 0 #3f1515}
+.chatZeile.info{color:#dadada}
+.chatZeile.privat{color:#b4b4b4; font-style:italic}
+.chatZeile.me{color:#e8e8e8; font-style:italic}
+.chatName{font-weight:600}
+#chat.offen{pointer-events:auto}
+#chat.offen #chatVerlauf{max-height:min(44vh, 22em); overflow-y:auto; touch-action:pan-y; background:rgba(0,0,0,.2)}
+#chat.offen .chatZeile.alt{display:block}
+#chat.offen .chatZeile{opacity:1 !important}
+#chatVorschlag{order:2; display:none; flex-direction:column; gap:3px}
+#chat.offen #chatVorschlag{display:flex}
+.chatHilfe{font-size:13px; color:#c8c8c8; background:rgba(0,0,0,.6); padding:2px 7px; align-self:flex-start; overflow-wrap:anywhere}
+.chatWahl{display:flex; flex-wrap:wrap; gap:3px}
+.chatWahl button{font:inherit; font-size:14px; color:#fff; background:rgba(0,0,0,.66); border:2px solid #555; padding:1px 7px; cursor:pointer; touch-action:manipulation}
+.chatWahl button.an, .chatWahl button:hover{border-color:#ffff55; color:#ffff55}
+#chatForm{order:3; display:none; gap:4px; margin:0}
+#chat.offen #chatForm{display:flex}
+#chatEingabe{flex:1; min-width:0; font:inherit; font-size:16px; color:#fff; background:rgba(0,0,0,.72); border:2px solid #a0a0a0; padding:6px 8px;
+  outline:none; border-radius:0; user-select:text; -webkit-user-select:text}
+#chatEingabe:focus{border-color:#fff}
+#chatForm button{font:inherit; font-size:15px; color:#fff; background:rgba(0,0,0,.72); border:2px solid #a0a0a0; padding:0 12px; cursor:pointer; min-width:44px}
+@media (pointer:coarse){
+  #chat{top:max(118px, env(safe-area-inset-top)); bottom:auto}
+  #chatForm{order:2} #chatVorschlag{order:3}
+  #chat.offen #chatVerlauf{max-height:min(30vh, 14em)}
+}
+#btnChat{right:30px; top:78px; width:56px; height:56px; font-size:12px}
+
 /* ── Bildschirme (Inventar, Ofen, Tod, Pause) ──────────────────────── */
 .screen{position:fixed; inset:0; z-index:40; display:none; place-items:center; padding:16px; background:rgba(8,10,15,.72)}
 .screen.on{display:grid}
@@ -343,8 +382,8 @@ body.mcOffen .screen{visibility:hidden}
   #btnSneak{right:106px; bottom:24px; width:54px; height:54px}
   #btnUp{right:106px; bottom:86px; width:54px; height:54px}
   #btnAttack{right:18px; bottom:118px; width:64px; height:64px}
-  #btnInv,#btnPause,#btnMode{width:48px; height:48px}
-  #btnPause{right:84px} #btnMode{right:138px}
+  #btnInv,#btnPause,#btnMode,#btnChat{width:48px; height:48px}
+  #btnPause{right:84px} #btnMode{right:138px} #btnChat{top:68px; font-size:11px}
   #hotbar{--slot:42px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
@@ -376,7 +415,17 @@ body.mcOffen .screen{visibility:hidden}
     <div class="tbtn" id="btnInv">INV</div>
     <div class="tbtn" id="btnPause">II</div>
     <div class="tbtn" id="btnMode">ESSEN</div>
+    <div class="tbtn" id="btnChat" aria-label="Chat">CHAT</div>
   </div>
+</div>
+
+<div id="chat">
+  <div id="chatVerlauf" role="log" aria-live="polite"></div>
+  <div id="chatVorschlag"></div>
+  <form id="chatForm" autocomplete="off">
+    <input id="chatEingabe" type="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Nachricht oder /Befehl" placeholder="Nachricht oder /Befehl …">
+    <button id="chatSenden" aria-label="Senden">&gt;</button><button type="button" id="chatZu" aria-label="Chat schließen">×</button>
+  </form>
 </div>
 
 <div id="hint" role="status"></div>
@@ -586,7 +635,8 @@ body.mcOffen .screen{visibility:hidden}
   </div>
   <div class="steuerHilfe">
     <p><b>Touch:</b> links Joystick, rechts wischen zum Umsehen. Block <b>halten</b> = abbauen, <b>tippen</b> = setzen oder benutzen.</p>
-    <p><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Leertaste</kbd> springen, <kbd>Umschalt</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Schnellleiste, <kbd>Q</kbd> wegwerfen, <kbd>F3</kbd> Debug.</p>
+    <p><b>Tastatur:</b> <kbd>WASD</kbd> laufen, <kbd>Leertaste</kbd> springen, <kbd>Umschalt</kbd> schleichen, <kbd>E</kbd> Inventar, <kbd>1</kbd>–<kbd>9</kbd> Schnellleiste, <kbd>Q</kbd> wegwerfen, <kbd>T</kbd> Chat, <kbd>/</kbd> Befehl, <kbd>F3</kbd> Debug.</p>
+    <p><b>Chat und Befehle:</b> <kbd>T</kbd> oder der Knopf CHAT. Befehle beginnen mit <kbd>/</kbd>, <kbd>/hilfe</kbd> zeigt alle, <kbd>Tab</kbd> ergänzt.</p>
     <p><b>Handwerk:</b> Zutaten ins Raster legen — 2 × 2 im Inventar, 3 × 3 an der Werkbank. Das Rezeptbuch legt entdeckte Muster selbst hinein.</p>
   </div>
   <button class="mc" id="oFertig">Fertig</button>
@@ -606,6 +656,8 @@ body.mcOffen .screen{visibility:hidden}
 <script src="speicher.js"></script>
 <script src="menue.js"></script>
 <script src="netz.js"></script>
+<script src="chat.js"></script>
+<script src="befehle.js"></script>
 <script src="spiel.js"></script>
 
 <script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>

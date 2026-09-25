@@ -141,7 +141,7 @@ const Wetter = {
   /** jeden Frame, solange eine Welt läuft */
   tick(dt, angehalten){
     if(!angehalten){
-      if(!Netz.istGast){ this.rest -= dt; if(this.rest <= 0) this.wechseln(); }
+      if(!Netz.istGast && Game.regeln.doWeatherCycle){ this.rest -= dt; if(this.rest <= 0) this.wechseln(); }
       const ziel = this.regen ? 1 : 0, s = dt/WETTER_UEBERGANG;
       this.staerke = ziel > this.staerke ? Math.min(ziel, this.staerke + s) : Math.max(ziel, this.staerke - s);
       this.teilchen(dt);
