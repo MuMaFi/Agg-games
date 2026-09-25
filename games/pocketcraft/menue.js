@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9.5';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.9.6';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -24,7 +24,8 @@ const SPRUECHE = [
   'Jetzt mit Flachland!', 'Flach wie eine Flunder!', 'Platz ohne Ende!',
   'Jetzt mit Redstone!', 'Strom an!', 'Hebel umlegen!', 'Es werde Licht!', 'Nicht, und, oder!',
   'Jetzt mit Schleimen!', 'Boing!', 'Schleim-Chunks!', 'Klein, mittel, groß!',
-  'Jetzt mit Kolben!', 'Schieben und ziehen!', 'Klebrig!', 'Eine Zehntelsekunde bitte!'
+  'Jetzt mit Kolben!', 'Schieben und ziehen!', 'Klebrig!', 'Eine Zehntelsekunde bitte!',
+  'Sichtweite 16!', 'So weit das Auge reicht!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -646,7 +647,8 @@ const Menue = {
   /* — Optionen — */
   optionenZeigen(){
     const s = Game.settings;
-    $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks';
+    // ab 13 Chunks wird es für schwächere Handys eng: das sagen wir dazu
+    $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks' + (s.rd > 12 ? ' · braucht ein schnelles Gerät' : '');
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
     const pz = v => v > 0 ? v + ' %' : 'Aus';

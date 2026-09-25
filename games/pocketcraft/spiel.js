@@ -6,6 +6,9 @@
    ═══════════════════════════════════════════════════════════════════ */
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
+/** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
+    nicht mehr als bei acht, der Rest kommt beim Spielen dazu */
+const ladeZiel = rd => { const r = Math.min(rd, 8); return Math.max(9, ((r*2+1)*(r*2+1)) * 0.55 | 0); };
 const MOB_SPRUNG = 9;             // so schnell springen Wesen ab: gut einen Block hoch (früher 7,6 — zu wenig für eine Stufe)
 const SCHLEIM_MAX = 4;            // so viele Schleime höchstens um einen Spieler
 const SCHLEIM_HOEHE = 39;         // darunter erscheinen sie, wie beim Vorbild
@@ -133,8 +136,7 @@ const Game = {
       }
     }
     this.loading = true; this.loadDone = 0;
-    const rd = this.sicht();
-    this.loadTarget = Math.max(9, ((rd*2+1)*(rd*2+1)) * 0.55 | 0);
+    this.loadTarget = ladeZiel(this.sicht());
     this.running = true;
     this.lastSave = performance.now();
     HUD.build(); HUD.refreshHotbar();
@@ -176,8 +178,7 @@ const Game = {
       this.findSpawn();
       this._panoHoehe = true;
       this.loading = true; this.loadDone = 0;
-      const rd = Math.min(4, this.settings.rd);
-      this.loadTarget = Math.max(9, ((rd*2+1)*(rd*2+1)) * 0.55 | 0);
+      this.loadTarget = ladeZiel(Math.min(4, this.settings.rd));
       document.body.classList.remove('panoBereit');
     } else {
       // die gerade verlassene Welt bleibt stehen, die Kamera hebt sich über die Bäume
@@ -1250,7 +1251,8 @@ const Game = {
   },
   updateMobs(dt){
     const p = this.player, w = this.world, dl = this.dayLight();
-    const far = (this.settings.rd*CS) + 30;
+    // weiter als acht Chunks rechnet kein Wesen: bei großer Sichtweite sammelten sich sonst ferne Monster
+    const far = (Math.min(this.settings.rd, 8)*CS) + 30;
     const leute = this.spielerOrte();
     this.wesenSchieben(dt);
     for(let i=this.mobs.length-1; i>=0; i--){
