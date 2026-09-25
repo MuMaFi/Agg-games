@@ -60,6 +60,16 @@ const Game = {
     };
     this.schaltung.tuer = (x, y, z, offen) => this.tuerStellen(x, y, z, offen);
     this.schaltung.klang = (art, x, y, z) => Sfx.play('rs_' + art, x + .5, y + .5, z + .5);
+    // Kolben schieben, was in den Zellen steht, in die die Blöcke rücken — Mitspieler auf ihrem Gerät
+    this.schaltung.schieben = (zellen, dx, dy, dz) => {
+      const drin = e => { const hw = e.w/2; return zellen.some(([cx, cy, cz]) => e.x + hw > cx && e.x - hw < cx + 1 && e.z + hw > cz && e.z - hw < cz + 1 && e.y + e.h > cy && e.y < cy + 1); };
+      const schub = e => { e.x += dx; e.y += dy; e.z += dz; if(dy > 0) e.vy = Math.max(e.vy || 0, 0); };
+      const p = this.player;
+      if(p && !p.dead && drin(p)){ schub(p); p.fallFrom = null; }
+      for(const m of this.mobs) if(drin(m)) schub(m);
+      for(const g of Netz.gaeste.values())
+        if(g.bereit && !g.tot && drin({ x: g.x, y: g.y, z: g.z, w: 0.6, h: 1.8 })) Befehle.an({ ich: false, g }, 'schub', { dx, dy, dz });
+    };
     w.setBlock = (x, y, z, id, noSave) => {
       const vorher = w.getBlock(x, y, z);
       const ok = setzen(x, y, z, id, noSave);
@@ -481,6 +491,14 @@ const Game = {
       const oy = doorInfo(id).oben ? y-1 : y+1;
       if(isDoor(w.getBlock(x,oy,z))) w.setBlock(x,oy,z,B.AIR);
     }
+    // Kolben: Kopf und Fuß gehören zusammen — wer den Kopf abbaut, bekommt den Kolben
+    if(isKopf(id)){
+      const [dx, dy, dz] = RICHTUNG6[kopfRichtung(id)];
+      if(isKolben(w.getBlock(x - dx, y - dy, z - dz))) this.entfernen(x - dx, y - dy, z - dz, tierOk);
+    } else if(isKolben(id) && kolbenAus(id)){
+      const [dx, dy, dz] = RICHTUNG6[kolbenRichtung(id)];
+      if(isKopf(w.getBlock(x + dx, y + dy, z + dz))) w.setBlock(x + dx, y + dy, z + dz, B.AIR);
+    }
     this.stuetzePruefen(x, y, z);
   },
   /** Was nicht mehr gestützt wird, fällt ab */
@@ -540,6 +558,13 @@ const Game = {
       }
       if(isKnopf(id)){
         if(!rsAn(id)){ w.setBlock(t.x, t.y, t.z, knopfId(true, rsAnbau(id))); Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5); }
+        p.swinging = true; p.swing = 0;
+        return;
+      }
+      // Verstärker: jeder Klick eine Zehntelsekunde länger, nach vier wieder eine
+      if(isVerstaerker(id)){
+        w.setBlock(t.x, t.y, t.z, verstaerkerId(rsAn(id), vStufe(id) % 4 + 1, vRichtung(id)));
+        Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5);
         p.swinging = true; p.swing = 0;
         return;
       }
@@ -643,6 +668,17 @@ const Game = {
       setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a);
     }
     if(s.id === B.DRUCKPLATTE && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
+    // Verstärker: der Ausgang zeigt vom Spieler weg
+    if(s.id === B.VERSTAERKER){
+      if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Ein Verstärker braucht festen Boden'); return; }
+      const f = p.forward();
+      setzId = verstaerkerId(false, 1, Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3));
+    }
+    // Kolben: die Vorderseite schaut zum Spieler, auch nach oben oder unten
+    if(s.id === B.KOLBEN || s.id === B.KLEBKOLBEN){
+      const f = p.forward(), ax = Math.abs(f[0]), ay = Math.abs(f[1]), az = Math.abs(f[2]);
+      setzId = kolbenId(s.id === B.KLEBKOLBEN, false, ay > ax && ay > az ? (f[1] > 0 ? 1 : 0) : ax > az ? (f[0] > 0 ? 3 : 2) : (f[2] > 0 ? 5 : 4));
+    }
     if(s.id === B.DOOR){
       if(!blocksMovement(w.getBlock(bx,by-1,bz))){ hint('Eine Tür braucht festen Boden'); return; }
       const ob = w.getBlock(bx,by+1,bz);

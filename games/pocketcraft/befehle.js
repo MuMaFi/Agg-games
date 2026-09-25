@@ -35,7 +35,8 @@ const MC_NAMEN = {
   golden_leggings:'gold_leggings', golden_boots:'gold_boots', leather_tunic:'leather_chestplate', leather_cap:'leather_helmet',
   leather_pants:'leather_leggings',
   redstone_ore:'REDSTONE_ERZ', redstone_block:'REDSTONEBLOCK', redstone_lamp:'RS_LAMPE', redstone_torch:'RS_FACKEL', lever:'HEBEL',
-  stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball',
+  stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball', repeater:'VERSTAERKER', verstaerker:'VERSTAERKER',
+  piston:'KOLBEN', sticky_piston:'KLEBKOLBEN',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime' };
@@ -514,6 +515,11 @@ const Befehle = {
         w.ensureChunk(Math.floor(x) >> 4, Math.floor(z) >> 4);        // Boden unter den Füßen, bevor man fällt
         p.x = x; p.y = y; p.z = z; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
         if(weit){ Game.loading = true; Game.loadDone = 0; }
+        break;
+      }
+      case 'schub': {                    // ein Kolben hat einen geschoben
+        const dx = clamp(+m.dx || 0, -1, 1), dy = clamp(+m.dy || 0, -1, 1), dz = clamp(+m.dz || 0, -1, 1);
+        p.x += dx; p.y += dy; p.z += dz; if(dy > 0) p.vy = Math.max(p.vy, 0); p.fallFrom = null;
         break;
       }
       case 'toeten':

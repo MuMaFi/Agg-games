@@ -718,6 +718,42 @@ function buildTextures(){
   /* — Redstone — */
   addTex('rs_erz', p => malErz(p, 175, pal('#4a0606','#8a0c0c','#c41414','#f02a22','#ff8070'), 5));
   addTex('rs_block', p => malPlatte(p, pal('#4a0404','#7e0a08','#b01410','#d6251c','#ff5a44'), 176));
+  // Verstärker, von oben: glatter Stein, eine Leitung längs durch die Mitte, vorn ein Pfeil (vorn = oben im Bild)
+  const verstaerker = an => p => {
+    malStein(p, 186, pal('#6a6b70','#7a7b80','#8a8b90','#9a9ba0','#aaabb0'));
+    const R = an ? pal('#a01008','#e02a1a','#ff5a3a') : pal('#3a0606','#5a0a0a','#6e1010');
+    for(let y = 3; y < 29; y++) for(let x = 14; x < 18; x++) p.put(x, y, R[x === 14 || x === 17 ? 0 : (h2(x, y, 187) < .3 ? 2 : 1)]);
+    for(let k = 0; k < 5; k++) for(let x = 15 - k; x <= 16 + k; x++){ p.put(x, 3 + k, R[k === 4 || x === 15 - k || x === 16 + k ? 0 : 1]); }
+    for(let i = 0; i < TS; i++){ p.put(i, 0, [70,71,76]); p.put(i, TS-1, [70,71,76]); p.put(0, i, [70,71,76]); p.put(TS-1, i, [70,71,76]); }
+  };
+  addTex('rs_verstaerker', verstaerker(false));
+  addTex('rs_verstaerker_an', verstaerker(true));
+  /* — Kolben: vorn Holz im Eisenrahmen (klebrig mit Schleim), an den Seiten oben ein Holzstreifen, darunter Bruchstein — */
+  const zeilen = (p, fn, y0, y1, s) => { const q = new Pix(s); fn(q); for(let y = y0; y < y1; y++) for(let x = 0; x < TS; x++){ const c = q.get(x, y); p.put(x, y, c, c[3]); } };
+  const bruch = q => malZellen(q, 188, 4, 4, z => ({ P: PAL.stein, v: .3 + z.zufall*.45 }), PAL.fuge[0], 1.25, 3.4);
+  const kolbenOben = klebrig => p => {
+    malBretter(p, 189);
+    const E = pal('#5c5d62','#8a8b90','#b4b5ba');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const r = Math.min(x, y, TS-1-x, TS-1-y);
+      if(r < 3) p.put(x, y, E[r === 0 ? 0 : r === 1 ? 2 : 1]);
+    }
+    if(klebrig){
+      const S = pal('#3f8a32','#4f9a3c','#63b84c','#7fd264','#a4e88c');
+      for(let y = 4; y < 28; y++) for(let x = 4; x < 28; x++){
+        const d = Math.max(Math.abs(x - 15.5), Math.abs(y - 15.5)) + (h2(x, y, 190) - .5)*2.2;
+        if(d < 11.5) p.quant(x, y, clamp(.35 + fbm(x, y, 4, 4, 191, 2)*.6 - (d > 10 ? .25 : 0), 0, .99), S, .5);
+      }
+    }
+  };
+  addTex('kolben_oben', kolbenOben(false));
+  addTex('kolben_oben_klebrig', kolbenOben(true));
+  addTex('kolben_seite', p => { bruch(p); zeilen(p, q => malBretter(q, 192), 0, 8, 193); for(let x = 0; x < TS; x++) p.put(x, 8, [58,40,24]); });
+  addTex('kolben_unten', p => { bruch(p); for(let y = 9; y < 23; y++) for(let x = 9; x < 23; x++) p.put(x, y, y === 9 || x === 9 ? [40,40,44] : [60,60,66]); });
+  addTex('kolben_innen', p => {
+    bruch(p);
+    for(let y = 11; y < 21; y++) for(let x = 11; x < 21; x++) p.put(x, y, (x === 11 || y === 11 || x === 20 || y === 20) ? [120,121,126] : [36,36,40]);
+  });
   // Lampe: ein Rahmen, darin Glas in Zellen — aus dunkelbraun, an goldgelb
   const lampe = an => p => {
     const G = an ? pal('#7a4210','#c07020','#eca436','#ffd466','#fff4b8') : pal('#1c1008','#35220f','#4e3317','#66461f','#7e5a2a');
@@ -1253,6 +1289,18 @@ function buildTextures(){
     const K = S.lage(PAL.stein, { kante:true });
     S.rechteck(K, 9, 12, 14, 9);
     K.glanz = [[10,13,5],[11,13,5],[12,13,5]];
+  });
+  sprite('i_verstaerker', S => {
+    const L = S.lage(PAL.stein, { kante:true });
+    S.poly(L, [[3,19],[16,13],[29,19],[16,25]]);
+    const V = S.lage(pal('#34353a','#44454b','#54555b','#63646a','#727379'));
+    S.poly(V, [[3,19],[16,25],[16,28],[3,22]]); S.poly(V, [[16,25],[29,19],[29,22],[16,28]]);
+    const R = S.lage(pal('#5a0a0a','#a01008','#e02a1a','#ff5a3a','#ff9a80'));
+    S.strich(R, [[8,19],[24,19]], .5);
+    for(const [x, y] of [[11, 18], [20, 18]]){
+      const F = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545')); S.rechteck(F, x, y - 7, 2, 7);
+      const K = S.lage(pal('#6a0a08','#b8140e','#e8321e','#ff7250','#ffd0b8')); S.rechteck(K, x, y - 9, 2, 3);
+    }
   });
   sprite('i_druckplatte', S => {
     const L = S.lage(PAL.stein, { kante:true });

@@ -340,7 +340,59 @@ pruef(T(`flutbar(staubId(3)) && flutbar(hebelId(false, 0)) && !flutbar(B.RS_LAMP
 pruef(T(`rasterRezept([null,{id:ITEM.redstone,n:1},null, {id:ITEM.redstone,n:1},{id:B.TORCH,n:1},{id:ITEM.redstone,n:1}, null,{id:ITEM.redstone,n:1},null], 3).out === B.RS_LAMPE
   && rasterRezept([{id:ITEM.redstone,n:1},null,{id:ITEM.stick,n:1},null], 2).out === B.RS_FACKEL && SMELT[B.REDSTONE_ERZ] === ITEM.redstone`), 'Rezepte: Lampe, Redstonefackel, Erz schmelzen');
 pruef(T(`dingNummer('lever') === B.HEBEL && dingNummer('redstone_lamp') === B.RS_LAMPE && dingNummer('redstone') === ITEM.redstone && dingNummer('redstone_wire') === B.STAUB`), 'Redstone-Namen für Befehle');
-pruef(T(`B.REDSTONE_ERZ === 75 && B.STAUB + 15 === 126 && blocks[126].name === 'Redstone-Leitung' && !blocks[127]`), 'Redstone-Nummern hinten angehängt');
+pruef(T(`B.REDSTONE_ERZ === 75 && B.STAUB + 15 === 126 && blocks[126].name === 'Redstone-Leitung'`), 'Redstone-Nummern hinten angehängt');
+
+// Verstärker: gibt nach seiner Verzögerung wieder volle Stärke weiter, nur nach vorn
+T(`setz(0, 4, 40, hebelId(false, 0)); for(let x = 1; x <= 15; x++) setz(x, 4, 40, staubId(0)); setz(16, 4, 40, verstaerkerId(false, 4, 0));
+   for(let x = 17; x <= 20; x++) setz(x, 4, 40, staubId(0)); setz(21, 4, 40, B.RS_LAMPE); laufen(0.3); setz(0, 4, 40, hebelId(true, 0)); laufen(0.25);`);
+pruef(T(`ladung(15, 4, 40) === 1 && !rsAn(SW.getBlock(16, 4, 40))`), 'Verstärker (Stufe 4): nach 0,25 s noch aus');
+T(`laufen(0.4);`);
+pruef(T(`rsAn(SW.getBlock(16, 4, 40)) && ladung(17, 4, 40) === 15 && ladung(20, 4, 40) === 12 && SW.getBlock(21, 4, 40) === B.RS_LAMPE + 1`),
+  'nach 0,4 s an: die Leitung dahinter wieder bei 15, die Lampe leuchtet');
+pruef(T(`staubRichtungen(staubVerbindungen(SCH._get, 16, 4, 41, [0,0,0,0])) === 15`), 'eine Leitung neben dem Verstärker verbindet sich nicht mit ihm');
+T(`setz(0, 4, 40, hebelId(false, 0)); laufen(0.8);`);
+pruef(T(`!rsAn(SW.getBlock(16, 4, 40)) && SW.getBlock(21, 4, 40) === B.RS_LAMPE`), 'Hebel aus: Verstärker und Lampe aus');
+// kurzer Puls wird so lang wie die Verzögerung; der Verstärker lädt den Block vor sich voll
+T(`setz(0, 4, 44, knopfId(false, 0)); setz(1, 4, 44, verstaerkerId(false, 3, 0)); setz(2, 4, 44, B.STONE); setz(3, 4, 44, rsFackel(true, 2)); setz(4, 4, 44, B.RS_LAMPE); laufen(0.3);
+   setz(0, 4, 44, knopfId(true, 0)); laufen(0.05); setz(0, 4, 44, knopfId(false, 0)); laufen(0.3);`);
+pruef(T(`rsAn(SW.getBlock(1, 4, 44))`), 'ein kurzer Puls kommt trotzdem an');
+T(`laufen(0.2);`);
+pruef(T(`!rsAn(SW.getBlock(3, 4, 44))`), 'der Stein vor dem Verstärker ist voll geladen: die Fackel daran geht aus');
+T(`laufen(0.6);`);
+pruef(T(`!rsAn(SW.getBlock(1, 4, 44)) && rsAn(SW.getBlock(3, 4, 44))`), 'und nach dem Puls wieder an');
+// Kolben: schiebt Blöcke, zieht (klebrig) zurück, zerbricht Leitungen, scheitert an Truhen und am 13. Block
+T(`globalThis.geschoben = []; SCH.schieben = (z, dx, dy, dz) => geschoben.push([z.length, dx, dy, dz]);
+   setz(0, 4, 48, hebelId(false, 0)); setz(1, 4, 48, kolbenId(false, false, 2)); setz(2, 4, 48, B.COBBLE); setz(3, 4, 48, B.PLANKS); laufen(0.2);
+   setz(0, 4, 48, hebelId(true, 0)); laufen(0.2);`);
+pruef(T(`SW.getBlock(1, 4, 48) === kolbenId(false, true, 2) && SW.getBlock(2, 4, 48) === kopfId(false, 2) && SW.getBlock(3, 4, 48) === B.COBBLE && SW.getBlock(4, 4, 48) === B.PLANKS`),
+  'Kolben fährt aus und schiebt zwei Blöcke');
+pruef(T(`geschoben.length === 1 && geschoben[0].join() === '3,1,0,0'`), 'Wesen in drei Zellen werden mitgeschoben: ' + T(`JSON.stringify(geschoben)`));
+T(`setz(0, 4, 48, hebelId(false, 0)); laufen(0.2);`);
+pruef(T(`SW.getBlock(1, 4, 48) === kolbenId(false, false, 2) && SW.getBlock(2, 4, 48) === B.AIR && SW.getBlock(3, 4, 48) === B.COBBLE`), 'normal eingefahren: der Block bleibt stehen');
+T(`setz(0, 4, 52, hebelId(false, 0)); setz(1, 4, 52, kolbenId(true, false, 2)); setz(2, 4, 52, B.COBBLE); laufen(0.2);
+   setz(0, 4, 52, hebelId(true, 0)); laufen(0.2); setz(0, 4, 52, hebelId(false, 0)); laufen(0.2);`);
+pruef(T(`SW.getBlock(1, 4, 52) === kolbenId(true, false, 2) && SW.getBlock(2, 4, 52) === B.COBBLE && SW.getBlock(3, 4, 52) === B.AIR`), 'klebriger Kolben zieht den Block zurück');
+T(`fallen = []; setz(0, 4, 56, hebelId(false, 0)); setz(1, 4, 56, kolbenId(false, false, 2)); setz(2, 4, 56, B.STONE); setz(3, 4, 56, staubId(0)); laufen(0.2);
+   setz(0, 4, 56, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(3, 4, 56) === B.STONE && fallen.some(id => isStaub(id))`), 'eine Leitung im Weg zerbricht');
+T(`setz(0, 4, 60, hebelId(false, 0)); setz(1, 4, 60, kolbenId(false, false, 2)); setz(2, 4, 60, B.CHEST); laufen(0.2); setz(0, 4, 60, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(1, 4, 60) === kolbenId(false, false, 2) && SW.getBlock(2, 4, 60) === B.CHEST`), 'eine Truhe lässt sich nicht schieben');
+T(`setz(0, 4, 64, hebelId(false, 0)); setz(1, 4, 64, kolbenId(false, false, 2)); for(let x = 2; x <= 14; x++) setz(x, 4, 64, B.DIRT); laufen(0.2); setz(0, 4, 64, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(1, 4, 64) === kolbenId(false, false, 2)`), '13 Blöcke sind zu viele');
+T(`setz(14, 4, 64, B.AIR); setz(0, 4, 64, hebelId(false, 0)); laufen(0.2); setz(0, 4, 64, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(1, 4, 64) === kolbenId(false, true, 2) && SW.getBlock(14, 4, 64) === B.DIRT`), 'zwölf gehen');
+// nach oben, von einer Leitung gespeist, nicht von vorn
+T(`setz(4, 4, 68, kolbenId(false, false, 0)); setz(4, 5, 68, B.SAND); setz(4, 6, 68, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(4, 4, 68) === kolbenId(false, false, 0)`), 'von vorn schaltet man keinen Kolben');
+T(`setz(0, 4, 68, hebelId(true, 0)); for(let x = 1; x <= 3; x++) setz(x, 4, 68, staubId(0)); laufen(0.4);`);
+pruef(T(`SW.getBlock(4, 4, 68) === kolbenId(false, true, 0) && SW.getBlock(4, 5, 68) === kopfId(false, 0) && SW.getBlock(4, 6, 68) === B.SAND`),
+  'eine Leitung, die hineinzeigt, fährt ihn aus — der Sand oben drauf geht mit hoch, der Hebel darauf bricht ab');
+pruef(T(`rasterRezept([{id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}, {id:B.COBBLE,n:1},{id:ITEM.iron,n:1},{id:B.COBBLE,n:1}, {id:B.COBBLE,n:1},{id:ITEM.redstone,n:1},{id:B.COBBLE,n:1}], 3).out === B.KOLBEN
+  && rasterRezept([{id:ITEM.slimeball,n:1},null,{id:B.KOLBEN,n:1},null], 2).out === B.KLEBKOLBEN
+  && rasterRezept([{id:B.RS_FACKEL,n:1},{id:ITEM.redstone,n:1},{id:B.RS_FACKEL,n:1}, {id:B.STONE,n:1},{id:B.STONE,n:1},{id:B.STONE,n:1}, null,null,null], 3).out === B.VERSTAERKER`),
+  'Rezepte: Kolben, klebriger Kolben, Verstärker');
+pruef(T(`B.VERSTAERKER === 127 && B.KOLBENKOPF + 11 === 194 && !blocks[195] && dingNummer('sticky_piston') === B.KLEBKOLBEN && dingNummer('repeater') === B.VERSTAERKER`),
+  'Nummern hinten angehängt, Namen für Befehle');
 
 // Schleime: jeder zehnte Chunk ist ein Schleim-Chunk, fest nach dem Startwert; der Schleimball kam hinten dazu
 pruef(T(`(() => { const W1 = new World('pruefwelt', 2), W2 = new World('pruefwelt', 2), W3 = new World('anders', 2); let n = 0, gleich = true, anders = 0;

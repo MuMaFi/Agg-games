@@ -19,7 +19,7 @@ const KLANG_DATEIEN = {
   kuh:0, kuh_au:0, schwein:0, schwein_au:0, schaf:0,
   zombie:0, zombie_au:0, zombie_tot:0, skelett_au:0, skelett_tot:0,
   huhn:3, huhn_au:0, kueken:0, ei_legen:0, ei_kaputt:0, werfen:0,
-  regen:0, schleim_sprung:0, schleim_landen:0, schleim_au:0, schleim_tot:0,
+  regen:0, schleim_sprung:0, schleim_landen:0, schleim_au:0, schleim_tot:0, schalter:0, kolben_raus:0, kolben_rein:0,
 };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
@@ -55,6 +55,7 @@ function materialVon(id){
   if(id === B.IRON_BLOCK || id === B.GOLD_BLOCK || id === B.DIAMOND_BLOCK || id === B.REDSTONEBLOCK) return 'metall';
   if(isLampe(id)) return 'glas';
   if(isRSFackel(id)) return 'pflanze';
+  if(isKolben(id) || isKopf(id)) return 'holz';
   const b = blocks[id];
   if(b && (b.tool === 'axe' || isDoor(id) || isLadder(id) || id === B.BED || id === B.CACTUS)) return 'holz';
   return 'stein';
@@ -219,8 +220,10 @@ const Sfx = {
       case 'truhe_auf': ok = mit('truhe_auf', .55, .92, 1.05); break;
       case 'truhe_zu':  ok = mit('truhe_zu', .5, .92, 1.05); break;
       // Redstone: Hebel, Knopf, Druckplatte klicken — höher beim Einschalten
-      case 'rs_an':   ok = mit('setzen_hart', .32, 1.75, 1.85); break;
-      case 'rs_aus':  ok = mit('setzen_hart', .28, 1.45, 1.55); break;
+      case 'rs_an':   ok = mit('schalter', .5, 1.12, 1.18); break;
+      case 'rs_aus':  ok = mit('schalter', .45, .92, .98); break;
+      case 'rs_raus': ok = mit('kolben_raus', .55, .95, 1.05); break;
+      case 'rs_rein': ok = mit('kolben_rein', .55, .95, 1.05); break;
       case 'dig':     ok = mit('hacken_erde', .45); break;
       case 'place':   ok = mit('setzen', .7); break;
       case 'step':    ok = mit('schritt_gras', .3); break;

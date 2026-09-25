@@ -15,7 +15,9 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   SCHNEEDECKE:72, FICHTENSTAMM:73, FICHTENNADELN:74,
   REDSTONE_ERZ:75, REDSTONEBLOCK:76, RS_LAMPE:77 /* 78 an */, DRUCKPLATTE:79 /* 80 gedrückt */,
   RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
-  STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */ };
+  STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
+  VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
+  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -56,7 +58,38 @@ const staubLadung = id => id - B.STAUB;
 const rsAnbau = id => isRSFackel(id) ? (id - B.RS_FACKEL) % 5 : isHebel(id) ? (id - B.HEBEL) % 5 : isKnopf(id) ? (id - B.KNOPF) % 5 : -1;
 /** an, gedrückt, leuchtend? */
 const rsAn = id => isRSFackel(id) ? id < B.RS_FACKEL + 5 : isHebel(id) ? id >= B.HEBEL + 5 : isKnopf(id) ? id >= B.KNOPF + 5
-  : id === B.DRUCKPLATTE + 1 || id === B.RS_LAMPE + 1;
+  : isVerstaerker(id) ? id >= B.VERSTAERKER + 16 : id === B.DRUCKPLATTE + 1 || id === B.RS_LAMPE + 1;
+/* Verstärker: gibt Strom nur nach vorn weiter (Richtung wie SEITE), nach 1…4
+   Zehntelsekunden. Kolben zeigen in eine von sechs Richtungen, die erste nach oben. */
+const RICHTUNG6 = [[0,1,0],[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];
+const verstaerkerId = (an, stufe, r) => B.VERSTAERKER + (an ? 16 : 0) + (stufe - 1)*4 + r;
+const isVerstaerker = id => id >= B.VERSTAERKER && id < B.VERSTAERKER + 32;
+const vRichtung = id => (id - B.VERSTAERKER) & 3;
+const vStufe = id => (((id - B.VERSTAERKER) >> 2) & 3) + 1;
+const kolbenId = (klebrig, aus, r) => (klebrig ? B.KLEBKOLBEN : B.KOLBEN) + (aus ? 6 : 0) + r;
+const isKolben = id => id >= B.KOLBEN && id < B.KOLBEN + 24;
+const kolbenKlebrig = id => id >= B.KLEBKOLBEN;
+const kolbenAus = id => (id - B.KOLBEN) % 12 >= 6;
+const kolbenRichtung = id => (id - B.KOLBEN) % 6;
+const kopfId = (klebrig, r) => B.KOLBENKOPF + (klebrig ? 6 : 0) + r;
+const isKopf = id => id >= B.KOLBENKOPF && id < B.KOLBENKOPF + 12;
+const kopfRichtung = id => (id - B.KOLBENKOPF) % 6;
+const kopfKlebrig = id => id >= B.KOLBENKOPF + 6;
+/** Punkt eines nach oben zeigenden Modells (Sechzehntel) in Richtung r drehen — nur echte Drehungen */
+function drehe6(x, y, z, r){
+  switch(r){
+    case 1: return [x, 16 - y, 16 - z];
+    case 2: return [y, 16 - x, z];
+    case 3: return [16 - y, x, z];
+    case 4: return [x, 16 - z, y];
+    case 5: return [x, z, 16 - y];
+    default: return [x, y, z];
+  }
+}
+function drehBox(b, r){
+  const a = drehe6(b[0], b[1], b[2], r), c = drehe6(b[3], b[4], b[5], r);
+  return [Math.min(a[0], c[0]), Math.min(a[1], c[1]), Math.min(a[2], c[2]), Math.max(a[0], c[0]), Math.max(a[1], c[1]), Math.max(a[2], c[2])];
+}
 /** der Kasten eines Knopfs: 6 × 4 Pixel, 2 dick (gedrückt 1), am Boden flach */
 function knopfBox(anbau, gedrueckt){
   const d = gedrueckt ? 1 : 2;
@@ -141,6 +174,20 @@ function initBlocks(){
   for(let l = 0; l < 16; l++)
     defBlock(staubId(l),{name:'Redstone-Leitung', tex:'rs_staub' + l, model:'staub', solid:false, opaque:false, hardness:0,
       drop:'redstone', item:false, rs:true});
+  // Verstärker: flach wie eine Steinplatte, zwei Fackeln darauf
+  for(const an of [false, true]) for(let st = 1; st <= 4; st++) for(let r = 0; r < 4; r++)
+    defBlock(verstaerkerId(an, st, r),{name:'Redstone-Verstärker', tex:['rs_verstaerker','stone','stone'], model:'verstaerker',
+      solid:false, opaque:false, hardness:0, drop:B.VERSTAERKER, item:!an && st === 1 && r === 0, icon:'i_verstaerker', rs:true});
+  // Kolben: eingefahren ein voller Block; ausgefahren ein kürzerer Fuß und davor der Kopf
+  for(const kl of [false, true]) for(let r = 0; r < 6; r++){
+    const name = kl ? 'Klebriger Kolben' : 'Kolben', oben = kl ? 'kolben_oben_klebrig' : 'kolben_oben';
+    defBlock(kolbenId(kl, false, r),{name, tex:[oben,'kolben_unten','kolben_seite'], model:'kolben', hardness:1.5, tool:'pickaxe',
+      drop:kolbenId(kl, false, 0), item:r === 0, rs:true});
+    defBlock(kolbenId(kl, true, r),{name, tex:['kolben_innen','kolben_unten','kolben_seite'], model:'kolben', opaque:false,
+      box:drehBox([0,0,0,16,12,16], r), hardness:1.5, tool:'pickaxe', drop:kolbenId(kl, false, 0), item:false, rs:true});
+    defBlock(kopfId(kl, r),{name:'Kolbenkopf', tex:[oben,'kolben_oben','kolben_seite'], model:'kolben', opaque:false,
+      box:drehBox([0,12,0,16,16,16], r), hardness:1.5, tool:'pickaxe', drop:B.AIR, item:false, rs:true});
+  }
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
   defBlock(B.COAL_ORE,{name:'Kohleerz', tex:'coal_ore', hardness:3, tool:'pickaxe', tier:1, drop:'i_coal'});
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});

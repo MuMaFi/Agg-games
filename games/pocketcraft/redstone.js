@@ -34,9 +34,16 @@ const RS_SECHS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0
 /** hat mit Strom zu tun: Bauteile, Lampen, der Redstoneblock, Türen */
 const rsBlock = id => !!(blocks[id] && blocks[id].rs) || isDoor(id);
 /** braucht Halt: liegt auf dem Boden oder hängt an einer Wand */
-const rsHaengt = id => isStaub(id) || isPlatte(id) || isRSFackel(id) || isHebel(id) || isKnopf(id);
+const rsHaengt = id => isStaub(id) || isPlatte(id) || isRSFackel(id) || isHebel(id) || isKnopf(id) || isVerstaerker(id);
 /** Ziele, zu denen eine Leitung neben sich einen Arm ausstreckt */
-const rsZiel = id => isRSFackel(id) || isHebel(id) || isKnopf(id) || isPlatte(id) || isLampe(id) || id === B.REDSTONEBLOCK || isDoor(id);
+const rsZiel = id => isRSFackel(id) || isHebel(id) || isKnopf(id) || isPlatte(id) || isLampe(id) || id === B.REDSTONEBLOCK || isDoor(id)
+  || isVerstaerker(id) || isKolben(id);
+/** Kolben: was sich nicht schieben lässt (Truhen, Öfen und Plattenspieler mit ihrem Inhalt, Türen, Grundgestein, ausgefahrene Kolben) */
+const kolbenFest = id => id === B.BEDROCK || isKopf(id) || (isKolben(id) && kolbenAus(id)) || id === B.CHEST || id === B.FURNACE
+  || id === B.FURNACE_LIT || id === B.JUKEBOX || id === B.JUKEBOX_VOLL || isDoor(id) || !!(blocks[id] && blocks[id].hardness < 0 && !isWasser(id));
+/** … und was dabei zerbricht und herausfällt: alles, was man nicht anstoßen kann, dazu Betten und Kakteen */
+const kolbenBricht = id => id !== B.AIR && !isWasser(id) && (SOL[id] !== 1 || id === B.BED || id === B.CACTUS);
+const RS_KOLBEN_MAX = 12;                 // so viele Blöcke schiebt ein Kolben höchstens
 /** der Block, an dem ein Bauteil mit Anbau a hängt (0: darunter) */
 function rsStuetze(x, y, z, a){ return a === 0 ? [x, y - 1, z] : [x + SEITE[a - 1][0], y, z + SEITE[a - 1][1]]; }
 /** Seite (Nummer in SEITE) für einen Schritt dx, dz */
@@ -52,7 +59,8 @@ function staubVerbindungen(get, x, y, z, out){
   for(let s = 0; s < 4; s++){
     const nx = x + SEITE[s][0], nz = z + SEITE[s][1], n = get(nx, y, nz);
     let v = 0;
-    if(isStaub(n) || rsZiel(n)) v = 1;
+    // ein Verstärker nur von vorn und hinten
+    if(isStaub(n) || (rsZiel(n) && (!isVerstaerker(n) || (vRichtung(n) >> 1) === (s >> 1)))) v = 1;
     else if(OPQ[n] === 1){ if(!deckeZu && isStaub(get(nx, y + 1, nz))) v = 2; }
     else if(isStaub(get(nx, y - 1, nz))) v = 3;
     out[s] = v;
@@ -81,6 +89,7 @@ class Schaltung{
     this.platten = new Map();             // Ort → wann zuletzt jemand darauf stand
     this.tueren = new Map();              // Ort der unteren Türhälfte → Strom beim letzten Mal
     this.schaltzeiten = new Map();        // Fackel → wann sie zuletzt ausging (fürs Ausbrennen)
+    this.verstaerker = new Map();         // Ort → { bis, an }: so schaltet der Verstärker nach seiner Verzögerung
     this._plattenT = 0;
     this.aenderungen = 0;                 // gezählt, für Tests
     // vom Spiel gesetzt:
@@ -88,6 +97,7 @@ class Schaltung{
     this.wesen = null;                    // () → [{ x, y, z, w }]: wer auf Druckplatten treten kann
     this.tuer = null;                     // (x, y, z, offen) → ob es ging
     this.klang = null;                    // (art, x, y, z)
+    this.schieben = null;                 // (zellen, dx, dy, dz): Wesen in diesen Zellen mitschieben
     this._v = new Uint8Array(4);
     this._get = (x, y, z) => this.w.getBlock(x, y, z);
   }
@@ -143,6 +153,15 @@ class Schaltung{
       const [x, y, z] = wOrt(k);
       this.fackelSchalten(x, y, z, k);
     }
+    // Verstärker, deren Verzögerung um ist: schalten, wie es beim Anstoßen hieß —
+    // so wird auch ein kurzer Puls so lang wie die Verzögerung
+    for(const [k, v] of this.verstaerker){
+      if(jetzt < v.bis - 1e-6) continue;
+      this.verstaerker.delete(k);
+      const [x, y, z] = wOrt(k), id = w.getBlock(x, y, z);
+      if(isVerstaerker(id) && rsAn(id) !== v.an) this.setzen(x, y, z, verstaerkerId(v.an, vStufe(id), vRichtung(id)));
+      this.naechste.add(k);
+    }
     if(!this.naechste.size) return;
     const liste = this.naechste;
     this.naechste = new Set();
@@ -179,13 +198,22 @@ class Schaltung{
       if(!this.knoepfe.has(k)) this.knoepfe.set(k, this.jetzt + RS_KNOPF_ZEIT);
     } else if(id === B.DRUCKPLATTE + 1){
       if(!this.platten.has(k)) this.platten.set(k, this.jetzt);
+    } else if(isVerstaerker(id)){
+      const ein = this.vEingang(x, y, z, vRichtung(id));
+      if(ein !== rsAn(id) && !this.verstaerker.has(k)) this.verstaerker.set(k, { bis: this.jetzt + vStufe(id)*0.1, an: ein });
+    } else if(isKolben(id)){
+      this.kolbenPruefen(x, y, z, id);
+    } else if(isKopf(id)){
+      // ein Kopf ohne seinen Kolben verschwindet
+      const [dx, dy, dz] = RICHTUNG6[kopfRichtung(id)], b = w.getBlock(x - dx, y - dy, z - dz);
+      if(b !== kolbenId(kopfKlebrig(id), true, kopfRichtung(id))) this.setzen(x, y, z, B.AIR);
     }
   }
   /** liegt oder hängt das Bauteil noch an etwas? */
   haelt(x, y, z, id){
     const w = this.w;
     if(isStaub(id)) return OPQ[w.getBlock(x, y - 1, z)] === 1;
-    if(isPlatte(id)) return SOL[w.getBlock(x, y - 1, z)] === 1;
+    if(isPlatte(id) || isVerstaerker(id)) return SOL[w.getBlock(x, y - 1, z)] === 1;
     const a = rsAnbau(id), [sx, sy, sz] = rsStuetze(x, y, z, a), s = w.getBlock(sx, sy, sz);
     return a === 0 ? SOL[s] === 1 : OPQ[s] === 1;
   }
@@ -200,6 +228,10 @@ class Schaltung{
       return sx !== zx || sy !== zy || sz !== zz;        // nur nicht in den eigenen Block
     }
     if(isHebel(n) || isKnopf(n) || isPlatte(n)) return rsAn(n);
+    if(isVerstaerker(n)){
+      const r = vRichtung(n);
+      return rsAn(n) && nx + SEITE[r][0] === zx && nz + SEITE[r][1] === zz && ny === zy;      // nur nach vorn
+    }
     return false;
   }
   /** Block voll unter Strom: ein Hebel oder Knopf hängt daran, eine Platte liegt
@@ -214,6 +246,7 @@ class Schaltung{
         if(sx === bx && sy === by && sz === bz) return true;
       } else if(isPlatte(n)){ if(dy === 1) return true; }
       else if(isRSFackel(n)){ if(dy === -1) return true; }
+      else if(isVerstaerker(n)){ const r = vRichtung(n); if(dy === 0 && nx + SEITE[r][0] === bx && nz + SEITE[r][1] === bz) return true; }
     }
     return false;
   }
@@ -237,9 +270,10 @@ class Schaltung{
   /** Strom für ein Bauteil bei x, y, z (Lampe, Tür): von einer Quelle daneben,
       von einer Leitung, die darauf liegt oder hineinzeigt, oder von einem
       geladenen Block daneben */
-  hatStrom(x, y, z){
+  hatStrom(x, y, z, ohne){
     const w = this.w;
     for(const [dx, dy, dz] of RS_SECHS){
+      if(ohne && dx === ohne[0] && dy === ohne[1] && dz === ohne[2]) continue;        // (Kolben: nicht von vorn)
       const nx = x + dx, ny = y + dy, nz = z + dz, n = w.getBlock(nx, ny, nz);
       if(this.quelleZu(n, nx, ny, nz, x, y, z)) return true;
       if(isStaub(n)){
@@ -355,6 +389,71 @@ class Schaltung{
       return;
     }
     if(strom) this.tueren.set(k, true); else this.tueren.delete(k);
+  }
+
+  /* — Verstärker — */
+  /** kommt von hinten Strom? Von einer Quelle, einer Leitung oder einem geladenen Block */
+  vEingang(x, y, z, r){
+    const w = this.w, bx = x - SEITE[r][0], bz = z - SEITE[r][1], n = w.getBlock(bx, y, bz);
+    if(this.quelleZu(n, bx, y, bz, x, y, z)) return true;
+    if(isStaub(n)) return staubLadung(n) > 0;
+    return OPQ[n] === 1 && (this.stark(bx, y, bz) || this.schwach(bx, y, bz));
+  }
+
+  /* — Kolben — */
+  kolbenPruefen(x, y, z, id){
+    const w = this.w, r = kolbenRichtung(id), kl = kolbenKlebrig(id), d = RICHTUNG6[r];
+    if(kolbenAus(id) && w.getBlock(x + d[0], y + d[1], z + d[2]) !== kopfId(kl, r)){
+      this.setzen(x, y, z, kolbenId(kl, false, r));             // Kopf fehlt: eingefahren
+      return;
+    }
+    const strom = this.hatStrom(x, y, z, d);
+    if(strom && !kolbenAus(id)) this.ausfahren(x, y, z, r, kl);
+    else if(!strom && kolbenAus(id)) this.einfahren(x, y, z, r, kl);
+  }
+  /** ausfahren: bis zu zwölf Blöcke davor ein Stück weiterschieben; was im Weg
+      zerbricht, fällt heraus. Geht es nicht, bleibt der Kolben drin. */
+  ausfahren(x, y, z, r, kl){
+    const w = this.w, [dx, dy, dz] = RICHTUNG6[r], liste = [];
+    let bx = x + dx, by = y + dy, bz = z + dz, weg = null;
+    for(;;){
+      if(by < 1 || by >= WH - 1 || !this.geladen(bx, bz)) return false;
+      const b = w.getBlock(bx, by, bz);
+      if(b === B.AIR || isWasser(b)) break;
+      if(kolbenBricht(b)){ weg = b; break; }
+      if(kolbenFest(b) || liste.length >= RS_KOLBEN_MAX) return false;
+      liste.push([bx, by, bz, b]);
+      bx += dx; by += dy; bz += dz;
+    }
+    if(weg !== null){ this.setzen(bx, by, bz, B.AIR); if(this.abfallen) this.abfallen(bx, by, bz, weg); }
+    const zellen = [[x + dx, y + dy, z + dz]];
+    for(let i = liste.length - 1; i >= 0; i--){
+      const [px, py, pz, b] = liste[i];
+      this.setzen(px + dx, py + dy, pz + dz, b);
+      zellen.push([px + dx, py + dy, pz + dz]);
+    }
+    this.setzen(x, y, z, kolbenId(kl, true, r));
+    this.setzen(x + dx, y + dy, z + dz, kopfId(kl, r));
+    if(this.schieben) this.schieben(zellen, dx, dy, dz);
+    if(this.klang) this.klang('raus', x, y, z);
+    return true;
+  }
+  /** einfahren: der Kopf verschwindet; ein klebriger zieht den Block davor mit */
+  einfahren(x, y, z, r, kl){
+    const w = this.w, [dx, dy, dz] = RICHTUNG6[r], hx = x + dx, hy = y + dy, hz = z + dz;
+    if(isKopf(w.getBlock(hx, hy, hz))) this.setzen(hx, hy, hz, B.AIR);
+    this.setzen(x, y, z, kolbenId(kl, false, r));
+    if(kl){
+      const fx = hx + dx, fy = hy + dy, fz = hz + dz;
+      if(fy >= 1 && fy < WH && this.geladen(fx, fz)){
+        const b = w.getBlock(fx, fy, fz);
+        if(b !== B.AIR && !isWasser(b) && !kolbenFest(b) && !kolbenBricht(b) && w.getBlock(hx, hy, hz) === B.AIR){
+          this.setzen(fx, fy, fz, B.AIR);
+          this.setzen(hx, hy, hz, b);
+        }
+      }
+    }
+    if(this.klang) this.klang('rein', x, y, z);
   }
 
   /* — Druckplatten — */

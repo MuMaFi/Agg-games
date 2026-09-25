@@ -193,6 +193,9 @@ function initRecipes(){
   geformt('redstone', B.RS_LAMPE, 1, [' r ','rTr',' r '], {r:RS, T:B.TORCH});
   geformt('redstone', B.REDSTONEBLOCK, 1, ['###','###','###'], {'#':RS});
   formlos('redstone', RS, 9, [B.REDSTONEBLOCK]);
+  geformt('redstone', B.VERSTAERKER, 1, ['TrT','SSS'], {T:B.RS_FACKEL, r:RS, S:B.STONE});
+  geformt('redstone', B.KOLBEN, 1, ['PPP','CIC','CrC'], {P:P, C:B.COBBLE, I:ITEM.iron, r:RS});
+  geformt('redstone', B.KLEBKOLBEN, 1, ['s','K'], {s:ITEM.slimeball, K:B.KOLBEN});
 }
 const zutatenVon = r => r.formlos ? r.zutaten : r.zellen.filter(Boolean);
 

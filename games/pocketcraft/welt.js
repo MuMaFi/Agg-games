@@ -150,6 +150,7 @@ function rsAnbauLage(x, y, z, a){ return a === 0 ? [x, y, z] : rsWand(y, z, x, a
 const RS_FACKEL_UV_BODEN = f => f === 3 ? null : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
 const RS_FACKEL_UV_WAND = f => f === 3 ? [7, 14, 9, 16] : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
 const RS_HEBEL_UV = f => f === 3 ? null : f === 2 ? [7, 7, 9, 9] : [7, 7, 9, 16];
+const RS_VFACKEL_UV = f => f === 3 ? null : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 8];
 function buildFaceTables(){
   for(let f=0; f<6; f++){
     const F = FACES[f], t = new Int8Array(24);
@@ -563,6 +564,8 @@ class World{
           if(bd.model === 'staub'){ this.emitStaub(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'rsfackel'){ this.emitRSFackel(opaqueBuf, x, y, z, id, bd); continue; }
           if(bd.model === 'hebel'){ this.emitHebel(opaqueBuf, x, y, z, id); continue; }
+          if(bd.model === 'verstaerker'){ this.emitVerstaerker(opaqueBuf, x, y, z, id); continue; }
+          if(bd.model === 'kolben'){ this.emitKolben(opaqueBuf, x, y, z, id); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -734,8 +737,11 @@ class World{
      für die Fläche f ein Texturrechteck [u0,v0,u1,v1], true (zuschneiden wie beim
      Kasten) oder nichts (weglassen); ohne uv wird überall zugeschnitten. Spiegelt T,
      laufen die Ecken andersherum — sonst sähe man nur die Innenseiten. Scharfe
-     Kästen (Stäbe aus Symbolbildern) werden ohne Mip-Stufen gezeichnet, wie Fackeln. */
-  emitKasten(buf, x, y, z, k, T, layer, sky, blk, uv, scharf){
+     Kästen (Stäbe aus Symbolbildern) werden ohne Mip-Stufen gezeichnet, wie Fackeln.
+     layer darf eine Funktion der Fläche sein; licht(dx, dy, dz), wenn angegeben,
+     holt das Licht je Fläche aus dem Nachbarn, in dessen Richtung sie zeigt
+     (nötig für undurchsichtige Blöcke, in denen selbst kein Licht ist). */
+  emitKasten(buf, x, y, z, k, T, layer, sky, blk, uv, scharf, licht){
     const o = T(0, 0, 0), a = T(1, 0, 0), b = T(0, 1, 0), c = T(0, 0, 1);
     const e = [a[0]-o[0], a[1]-o[1], a[2]-o[2], b[0]-o[0], b[1]-o[1], b[2]-o[2], c[0]-o[0], c[1]-o[1], c[2]-o[2]];
     const det = e[0]*(e[4]*e[8] - e[5]*e[7]) - e[1]*(e[3]*e[8] - e[5]*e[6]) + e[2]*(e[3]*e[7] - e[4]*e[6]);
@@ -744,14 +750,17 @@ class World{
       const r = uv ? uv(f) : true;
       if(!r) continue;
       const F = FACES[f], ST = FACE_ST[f];
-      let nrm = 6;
-      if(!scharf){
+      let nrm = 6, fs = sky, fb = blk;
+      if(!scharf || licht){
         // schattiert wird nach der Richtung, in die die Fläche jetzt zeigt
         const n = F.n;
         const mx = e[0]*n[0] + e[3]*n[1] + e[6]*n[2], my = e[1]*n[0] + e[4]*n[1] + e[7]*n[2], mz = e[2]*n[0] + e[5]*n[1] + e[8]*n[2];
         const ax = Math.abs(mx), ay = Math.abs(my), az = Math.abs(mz);
-        nrm = ay >= ax && ay >= az ? (my > 0 ? 2 : 3) : ax >= az ? (mx > 0 ? 0 : 1) : (mz > 0 ? 4 : 5);
+        const w = ay >= ax && ay >= az ? (my > 0 ? 2 : 3) : ax >= az ? (mx > 0 ? 0 : 1) : (mz > 0 ? 4 : 5);
+        if(!scharf) nrm = w;
+        if(licht){ const d = FACES[w].n, lv = licht(d[0], d[1], d[2]); fs = lv & 15; fb = lv >> 4; }
       }
+      const lay = typeof layer === 'function' ? layer(f) : layer;
       for(let i = 0; i < 4; i++){
         const j = det < 0 ? 3 - i : i, vo = F.v[j], fuv = F.uv[j];
         const lx = vo[0] ? k[3] : k[0], ly = vo[1] ? k[4] : k[1], lz = vo[2] ? k[5] : k[2];
@@ -762,7 +771,7 @@ class World{
           const cc = ST.sAx === 0 ? lx : ST.sAx === 1 ? ly : lz, dd = ST.tAx === 0 ? lx : ST.tAx === 1 ? ly : lz;
           s = ST.sFlip ? 16 - cc : cc; t = ST.tFlip ? 16 - dd : dd;
         }
-        buf.vert(Math.max(0, X + p[0]), Math.max(0, Y + p[1]), Math.max(0, Z + p[2]), 3 | (nrm << 2), layer, sky, blk, s, t);
+        buf.vert(Math.max(0, X + p[0]), Math.max(0, Y + p[1]), Math.max(0, Z + p[2]), 3 | (nrm << 2), lay, fs, fb, s, t);
       }
       buf.quad(false);
     }
@@ -837,6 +846,40 @@ class World{
     const w = an ? -RS_HEBEL_W : RS_HEBEL_W, c = Math.cos(w), s = Math.sin(w);
     const T = (lx, ly, lz) => { const yy = ly - 1, zz = lz - 8; return rsAnbauLage(lx, 1 + yy*c - zz*s, 8 + yy*s + zz*c, a); };
     this.emitKasten(buf, x, y, z, [7, 1, 7, 9, 11, 9], T, TEX.rs_fackel_aus, sky, blk, RS_HEBEL_UV, true);
+  }
+
+  /* Verstärker: eine Platte, zwei Pixel hoch, darauf zwei kurze Redstonefackeln —
+     die vordere steht fest, die hintere rückt mit der Verzögerung nach hinten.
+     Gebaut mit dem Ausgang nach −Z, dann in seine Richtung gedreht. */
+  emitVerstaerker(buf, x, y, z, id){
+    const r = vRichtung(id), st = vStufe(id), an = rsAn(id);
+    const T = (lx, ly, lz) => r === 3 ? [lx, ly, lz] : r === 2 ? [16 - lx, ly, 16 - lz] : r === 0 ? [16 - lz, ly, lx] : [lz, ly, 16 - lx];
+    const lv = this.getLightLocal(x + 1, y, z + 1), sky = lv & 15, blk = lv >> 4;
+    const oben = TEX[an ? 'rs_verstaerker_an' : 'rs_verstaerker'];
+    this.emitKasten(buf, x, y, z, [0, 0, 0, 16, 2, 16], T, f => f === 2 ? oben : TEX.stone, sky, blk, f => f !== 3, false);
+    const fackel = TEX[an ? 'rs_fackel' : 'rs_fackel_aus'], fb = an ? Math.max(blk, 11) : blk;
+    for(const z0 of [2, 4 + 2*st])
+      this.emitKasten(buf, x, y, z, [7, 2, z0, 9, 7, z0 + 2], T, fackel, sky, fb, RS_VFACKEL_UV, true);
+  }
+
+  /* Kolben: nach oben gebaut und in seine Richtung gedreht. Eingefahren ein
+     voller Block, ausgefahren ein Fuß von zwölf Pixeln; der Kopf ist eine
+     Platte mit einer Stange, die in den Fuß hineinreicht. */
+  emitKolben(buf, x, y, z, id){
+    const kopf = isKopf(id), r = kopf ? kopfRichtung(id) : kolbenRichtung(id);
+    const T = (lx, ly, lz) => drehe6(lx, ly, lz, r);
+    const licht = (dx, dy, dz) => this.getLightLocal(x + 1 + dx, y + dy, z + 1 + dz);
+    const own = this.getLightLocal(x + 1, y, z + 1), sky = own & 15, blk = own >> 4;
+    if(kopf){
+      const oben = TEX[kopfKlebrig(id) ? 'kolben_oben_klebrig' : 'kolben_oben'];
+      this.emitKasten(buf, x, y, z, [0, 12, 0, 16, 16, 16], T, f => f === 2 ? oben : f === 3 ? TEX.kolben_oben : TEX.kolben_seite, sky, blk, null, false, licht);
+      this.emitKasten(buf, x, y, z, [6, -4, 6, 10, 12, 10], T, TEX.planks, sky, blk, f => f !== 2, false);
+    } else if(kolbenAus(id)){
+      this.emitKasten(buf, x, y, z, [0, 0, 0, 16, 12, 16], T, f => f === 2 ? TEX.kolben_innen : f === 3 ? TEX.kolben_unten : TEX.kolben_seite, sky, blk, null, false, licht);
+    } else {
+      const oben = TEX[kolbenKlebrig(id) ? 'kolben_oben_klebrig' : 'kolben_oben'];
+      this.emitKasten(buf, x, y, z, [0, 0, 0, 16, 16, 16], T, f => f === 2 ? oben : f === 3 ? TEX.kolben_unten : TEX.kolben_seite, sky, blk, null, false, licht);
+    }
   }
 
   getLightLocal(px,py,pz){

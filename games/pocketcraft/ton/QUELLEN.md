@@ -88,6 +88,8 @@ Lizenzen:
 | `werfen` | `mcl_throwing_throw.ogg` | kretopi, <https://freesound.org/people/kretopi/sounds/406405/> | CC0 |
 | `schleim_sprung`, `schleim_landen`, `schleim_tot` | `green_slime_jump.ogg`, `green_slime_land.ogg`, `green_slime_death.ogg` | Dr. Minky, <http://www.freesound.org/people/DrMinky/sounds/> | CC BY 3.0 |
 | `schleim_au` | `green_slime_damage.ogg` | RandomationPictures, <http://www.freesound.org/people/RandomationPictures/sounds/138481/> | CC0 |
+| `schalter` | `mesecons_button_push.ogg` (Original `btn121.ogg`) | junggle, <https://freesound.org/people/junggle/sounds/29301/> | CC BY 3.0 |
+| `kolben_raus`, `kolben_rein` | `piston_extend.ogg`, `piston_retract.ogg` (aus Mesecons) | suzenako | CC BY-SA 3.0 |
 
 ## Wetter (aus VoxeLibre)
 
