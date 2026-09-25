@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','wetter.js','handwerk.js','befehle.js'])
+for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -154,16 +154,24 @@ pruef(T(`rasterRezept([{id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}, {i
 pruef(T(`B.JUKEBOX === 70 && B.JUKEBOX_VOLL === 71 && blocks[B.JUKEBOX_VOLL].drop === B.JUKEBOX && !blocks[B.JUKEBOX_VOLL].item && items[ITEM.platte].stack === 1`), 'Plattenspieler-Blöcke und Schallplatte');
 
 // Gelände: alte Welten behalten ihres (Fassung 1), neue bekommen Berge, Nadelwald, Schnee und Höhlen (Fassung 2)
-T(`globalThis.summe = (seed, gen) => { const W = new World(seed, gen); let h = 2166136261 >>> 0;
+// Redstone-Erz kam später dazu, in beide Fassungen: es darf nur Stein ersetzen, und nur tief unten.
+// Die Prüfsumme sieht es deshalb als Stein — dann muss das alte Gelände wieder genau herauskommen.
+T(`globalThis.rsErz = { n: 0, hoch: 0 };
+globalThis.summe = (seed, gen) => { const W = new World(seed, gen); let h = 2166136261 >>> 0;
   for(const [cx, cz] of [[0,0],[1,0],[0,1],[-1,-1],[5,-3],[-12,7],[40,40],[-63,18],[100,-100],[3,250]]){
     W.ensureChunk(cx, cz); const c = W.getChunk(cx, cz);
-    for(const a of [c.blocks, c.hmap, c.biome]) for(let i = 0; i < a.length; i++){ h ^= a[i]; h = Math.imul(h, 16777619) >>> 0; }
+    for(const a of [c.blocks, c.hmap, c.biome]) for(let i = 0; i < a.length; i++){
+      let v = a[i];
+      if(a === c.blocks && v === B.REDSTONE_ERZ){ v = B.STONE; rsErz.n++; if((i >> 8) > 15) rsErz.hoch++; }
+      h ^= v; h = Math.imul(h, 16777619) >>> 0;
+    }
   }
   return h.toString(16); };`);
 for(const [seed, soll] of [['pruefwelt', '96ae74c4'], ['taschenwelt', '3f9020af']]){
   const ist = T(`summe(${JSON.stringify(seed)}, 1)`);
-  pruef(ist === soll, `altes Gelände unverändert (${seed}): ${ist} statt ${soll}`);
+  pruef(ist === soll, `altes Gelände unverändert, nur Stein wurde Redstone-Erz (${seed}): ${ist} statt ${soll}`);
 }
+pruef(T('rsErz.n') > 100 && T('rsErz.hoch') === 0, `Redstone-Erz in alten Welten, nur bis Höhe 15: ${T('rsErz.n')} Blöcke in 20 Chunks`);
 const neu1 = T(`summe('pruefwelt', 2)`), neu2 = T(`summe('pruefwelt', 2)`);
 pruef(neu1 === neu2 && neu1 !== '96ae74c4', 'neues Gelände: gleicher Startwert, gleiche Welt — und eine andere als früher');
 T(`globalThis.G = new World('pruefwelt', 2);`);
@@ -254,6 +262,85 @@ pruef(T(`(() => { for(const [cx, cz] of [[0, 0], [-7, 3], [250, -90]]){ const c 
     for(let y = 0; y < WH; y++) if(c.blocks[IDX(x, y, z)] !== (y < 4 ? s[y] : B.AIR)) return false;
     if(c.hmap[z*16 + x] !== 3 || c.kalt[z*16 + x]) return false;
   } } return true; })()`), 'jeder Chunk: Grundgestein, Erde, Erde, Gras, darüber Luft');
+
+// Redstone: eine Schaltung im Flachland (Boden bei y = 3, gebaut wird auf y = 4)
+T(`globalThis.SW = new World('rs-test', 2, 'flach');
+for(let cx = -2; cx <= 2; cx++) for(let cz = -2; cz <= 3; cz++) SW.ensureChunk(cx, cz);
+globalThis.SCH = SW.schaltung = new Schaltung(SW);
+{ const roh = SW.setBlock.bind(SW);
+  SW.setBlock = (x, y, z, id) => { const alt = SW.getBlock(x, y, z), ok = roh(x, y, z, id); if(ok) SCH.melden(x, y, z, alt, id); return ok; }; }
+globalThis.fallen = []; SCH.abfallen = (x, y, z, id) => fallen.push(id);
+globalThis.leute = []; SCH.wesen = () => leute;
+SCH.tuer = (x, y0, z, offen) => { const di = doorInfo(SW.getBlock(x, y0, z));
+  SW.setBlock(x, y0, z, doorId(0, offen, di.seite)); SW.setBlock(x, y0 + 1, z, doorId(1, offen, di.seite)); return true; };
+globalThis.laufen = s => { for(let i = 0, n = Math.round(s/RS_TAKT); i < n; i++) SCH.tick(RS_TAKT); };
+globalThis.setz = (x, y, z, id) => SW.setBlock(x, y, z, id);
+globalThis.ladung = (x, y, z) => { const id = SW.getBlock(x, y, z); return isStaub(id) ? staubLadung(id) : -1; };`);
+pruef(T(`staubRichtungen([0,0,0,0]) === 15 && staubRichtungen([1,0,0,0]) === 3 && staubRichtungen([0,0,2,0]) === 12 && staubRichtungen([1,0,3,0]) === 5`),
+  'Leitung zeigt: ohne Verbindung überallhin, mit einer geradeaus weiter');
+// Hebel → fünf Leitungen → Lampe
+T(`setz(0, 4, 0, hebelId(false, 0)); for(let x = 1; x <= 5; x++) setz(x, 4, 0, staubId(0)); setz(6, 4, 0, B.RS_LAMPE); laufen(0.3);`);
+pruef(T(`ladung(1, 4, 0) === 0 && SW.getBlock(6, 4, 0) === B.RS_LAMPE`), 'Hebel aus: kein Strom, Lampe aus');
+T(`setz(0, 4, 0, hebelId(true, 0)); laufen(0.3);`);
+pruef(T(`[1,2,3,4,5].map(x => ladung(x, 4, 0)).join()`) === '15,14,13,12,11', 'Hebel an: 15, 14, 13 … die Leitung entlang: ' + T(`[1,2,3,4,5].map(x => ladung(x, 4, 0)).join()`));
+pruef(T(`SW.getBlock(6, 4, 0) === B.RS_LAMPE + 1 && blocks[B.RS_LAMPE + 1].light === 15`), 'die Lampe leuchtet');
+T(`setz(0, 4, 0, hebelId(false, 0)); laufen(0.3);`);
+pruef(T(`[1,2,3,4,5].every(x => ladung(x, 4, 0) === 0) && SW.getBlock(6, 4, 0) === B.RS_LAMPE`), 'Hebel wieder aus: alles aus');
+// 15 Blöcke weit, nicht weiter
+T(`setz(0, 4, 4, hebelId(true, 0)); for(let x = 1; x <= 16; x++) setz(x, 4, 4, staubId(0)); setz(17, 4, 4, B.RS_LAMPE); laufen(0.5);`);
+pruef(T(`ladung(15, 4, 4) === 1 && ladung(16, 4, 4) === 0 && SW.getBlock(17, 4, 4) === B.RS_LAMPE`), 'nach 15 Blöcken ist der Strom verbraucht');
+// Nicht: Hebel an einem Stein, Fackel an seiner anderen Seite, dahinter eine Lampe
+T(`setz(0, 4, 8, B.STONE); setz(-1, 4, 8, hebelId(false, 1)); setz(1, 4, 8, rsFackel(true, 2)); setz(2, 4, 8, staubId(0)); setz(3, 4, 8, B.RS_LAMPE); laufen(0.4);`);
+pruef(T(`rsAn(SW.getBlock(1, 4, 8)) && ladung(2, 4, 8) === 15 && SW.getBlock(3, 4, 8) === B.RS_LAMPE + 1`), 'Fackel brennt, Lampe an');
+T(`setz(-1, 4, 8, hebelId(true, 1)); laufen(0.05);`);
+pruef(T(`rsAn(SW.getBlock(1, 4, 8))`), 'die Fackel braucht einen Augenblick');
+T(`laufen(0.4);`);
+pruef(T(`!rsAn(SW.getBlock(1, 4, 8)) && ladung(2, 4, 8) === 0 && SW.getBlock(3, 4, 8) === B.RS_LAMPE`), 'Hebel am Stein: Fackel aus, Lampe aus');
+// Knopf: eine Sekunde Strom
+T(`setz(0, 4, 12, knopfId(false, 0)); setz(1, 4, 12, staubId(0)); setz(2, 4, 12, B.RS_LAMPE); laufen(0.2); setz(0, 4, 12, knopfId(true, 0)); laufen(0.3);`);
+pruef(T(`SW.getBlock(2, 4, 12) === B.RS_LAMPE + 1`), 'Knopf gedrückt: Lampe an');
+T(`laufen(1.2);`);
+pruef(T(`SW.getBlock(0, 4, 12) === knopfId(false, 0) && SW.getBlock(2, 4, 12) === B.RS_LAMPE`), 'nach einer Sekunde springt der Knopf heraus');
+// Druckplatte
+T(`setz(0, 4, 16, B.DRUCKPLATTE); setz(1, 4, 16, staubId(0)); setz(2, 4, 16, B.RS_LAMPE); laufen(0.2); leute = [{ x: 0.5, y: 4, z: 16.5, w: 0.6 }]; laufen(0.3);`);
+pruef(T(`SW.getBlock(0, 4, 16) === B.DRUCKPLATTE + 1 && SW.getBlock(2, 4, 16) === B.RS_LAMPE + 1`), 'jemand steht auf der Platte: Lampe an');
+T(`leute = []; laufen(0.5);`);
+pruef(T(`SW.getBlock(2, 4, 16) === B.RS_LAMPE + 1`), 'die Platte bleibt noch kurz unten');
+T(`laufen(1);`);
+pruef(T(`SW.getBlock(0, 4, 16) === B.DRUCKPLATTE && SW.getBlock(2, 4, 16) === B.RS_LAMPE`), 'wieder oben, Lampe aus');
+// Leitung eine Stufe hinauf — und ein Block darüber versperrt den Weg
+T(`setz(0, 4, 20, hebelId(true, 0)); setz(1, 4, 20, staubId(0)); setz(2, 4, 20, B.STONE); setz(3, 4, 20, B.STONE);
+   setz(2, 5, 20, staubId(0)); setz(3, 5, 20, staubId(0)); setz(4, 5, 20, B.RS_LAMPE); laufen(0.4);`);
+pruef(T(`ladung(1, 4, 20) === 15 && ladung(2, 5, 20) === 14 && ladung(3, 5, 20) === 13 && SW.getBlock(4, 5, 20) === B.RS_LAMPE + 1`), 'die Leitung steigt eine Stufe hinauf');
+T(`setz(1, 5, 20, B.STONE); laufen(0.4);`);
+pruef(T(`ladung(2, 5, 20) === 0 && SW.getBlock(4, 5, 20) === B.RS_LAMPE`), 'ein Block über der Leitung schneidet den Weg hinauf ab');
+T(`fallen = []; setz(3, 4, 20, B.AIR); laufen(0.2);`);
+pruef(T(`!isStaub(SW.getBlock(3, 5, 20)) && fallen.length === 1 && isStaub(fallen[0])`), 'ohne Boden fällt die Leitung herunter');
+// Redstoneblock, Tür
+T(`setz(0, 4, 24, B.REDSTONEBLOCK); setz(1, 4, 24, B.RS_LAMPE); laufen(0.2);`);
+pruef(T(`SW.getBlock(1, 4, 24) === B.RS_LAMPE + 1`), 'der Redstoneblock gibt immer Strom');
+T(`setz(0, 4, 28, hebelId(false, 0)); setz(1, 4, 28, doorId(0, 0, 2)); setz(1, 5, 28, doorId(1, 0, 2)); laufen(0.2); setz(0, 4, 28, hebelId(true, 0)); laufen(0.2);`);
+pruef(T(`doorInfo(SW.getBlock(1, 4, 28)).offen && doorInfo(SW.getBlock(1, 5, 28)).offen`), 'Strom öffnet die Tür');
+T(`setz(0, 4, 28, hebelId(false, 0)); laufen(0.2);`);
+pruef(T(`!doorInfo(SW.getBlock(1, 4, 28)).offen`), 'ohne Strom geht sie wieder zu');
+// Die Fackel, die sich selbst ausschaltet, brennt aus
+T(`setz(0, 4, 32, B.STONE); setz(0, 4, 31, rsFackel(true, 3)); setz(1, 4, 31, staubId(0)); setz(1, 4, 32, staubId(0)); setz(0, 5, 32, staubId(0)); laufen(2);`);
+pruef(T(`!rsAn(SW.getBlock(0, 4, 31)) && SCH.fackeln.get(wKey(0, 4, 31)) - SCH.jetzt > 5`), 'zu schnell geschaltet: die Fackel brennt aus');
+T(`laufen(2);`);
+pruef(T(`!rsAn(SW.getBlock(0, 4, 31))`), 'und bleibt eine Weile aus');
+T(`fallen = []; setz(0, 4, 32, B.AIR); laufen(0.2);`);
+pruef(T(`SW.getBlock(0, 4, 31) === B.AIR && fallen.some(id => isRSFackel(id))`), 'ohne ihren Block fällt die Fackel ab');
+// Modelle: alle Teile lassen sich zeichnen, alle Ecken liegen im Chunk
+T(`for(const [x, a] of [[4, 1], [6, 2]]){ setz(x, 4, 36, B.STONE); } setz(5, 4, 36, rsFackel(true, 2)); setz(7, 4, 36, hebelId(true, 2)); setz(8, 4, 36, knopfId(false, 0));
+   globalThis.MB = [new MeshBuf(), new MeshBuf()];`);
+pruef(T(`(() => { const c = SW.getChunk(0, 2); SW.buildMesh(c, MB[0], MB[1]); const b = MB[0];
+  for(let i = 0; i < b.n; i++){ const x = b.u16[i*6], y = b.u16[i*6 + 1], z = b.u16[i*6 + 2]; if(x > 16*64 || z > 16*64 || y > WH*64) return false; }
+  return b.n > 1000; })()`), 'Leitungen, Fackeln, Hebel und Knöpfe werden gezeichnet');
+pruef(T(`flutbar(staubId(3)) && flutbar(hebelId(false, 0)) && !flutbar(B.RS_LAMPE)`), 'Wasser spült Redstone weg, Lampen nicht');
+pruef(T(`rasterRezept([null,{id:ITEM.redstone,n:1},null, {id:ITEM.redstone,n:1},{id:B.TORCH,n:1},{id:ITEM.redstone,n:1}, null,{id:ITEM.redstone,n:1},null], 3).out === B.RS_LAMPE
+  && rasterRezept([{id:ITEM.redstone,n:1},null,{id:ITEM.stick,n:1},null], 2).out === B.RS_FACKEL && SMELT[B.REDSTONE_ERZ] === ITEM.redstone`), 'Rezepte: Lampe, Redstonefackel, Erz schmelzen');
+pruef(T(`dingNummer('lever') === B.HEBEL && dingNummer('redstone_lamp') === B.RS_LAMPE && dingNummer('redstone') === ITEM.redstone && dingNummer('redstone_wire') === B.STAUB`), 'Redstone-Namen für Befehle');
+pruef(T(`B.REDSTONE_ERZ === 75 && B.STAUB + 15 === 126 && blocks[126].name === 'Redstone-Leitung' && !blocks[127]`), 'Redstone-Nummern hinten angehängt');
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

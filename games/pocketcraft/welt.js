@@ -57,11 +57,12 @@ class MeshBuf{
     new Uint8Array(b).set(this.u8); this.buf = b;
     this.u16 = new Uint16Array(b); this.u8 = new Uint8Array(b); }
   growI(){ this.icap *= 2; const a = new Uint32Array(this.icap); a.set(this.ind); this.ind = a; }
-  /** u, v in Sechzehnteln der Textur (0…16) */
+  /** Ort in Sechzehnteln eines Blocks (gespeichert wird auf ein Vierundsechzigstel
+      genau, für schräge Teile wie Hebel und Wandfackeln) · u, v in Sechzehnteln der Textur (0…16) */
   vert(x,y,z, pack, layer, sky, blk, u, v){
     if(this.n + 1 > this.cap) this.grow();
     const o16 = this.n*6, o8 = this.n*12;
-    this.u16[o16] = x; this.u16[o16+1] = y; this.u16[o16+2] = z;
+    this.u16[o16] = x*4 + .5; this.u16[o16+1] = y*4 + .5; this.u16[o16+2] = z*4 + .5;
     this.u8[o8+6] = pack; this.u8[o8+7] = layer; this.u8[o8+8] = sky; this.u8[o8+9] = blk;
     this.u8[o8+10] = u; this.u8[o8+11] = v;
     return this.n++;
@@ -127,6 +128,28 @@ function buildFaceST(){
 }
 const _aoV = new Int32Array(4), _skV = new Int32Array(4), _bkV = new Int32Array(4);
 const _eckeH = new Float32Array(4);             // Wasser: Höhe der vier oberen Ecken
+const _staubV = new Uint8Array(4);              // Leitung: Verbindung je Seite
+
+/* Redstone-Modelle. Hängende Teile werden im Modell gebaut, als stünden sie auf
+   dem Boden (»oben« = weg von dem, woran sie hängen), und dann an ihren Platz
+   gedreht — nur echte Drehungen, damit die Flächen nach außen zeigen. */
+const RS_GLEICH = (x, y, z) => [x, y, z];
+const RS_COS = Math.cos(-Math.PI/8), RS_SIN = Math.sin(-Math.PI/8);   // 22,5° von der Wand weg
+const RS_HEBEL_W = Math.PI/4;
+/** aus der Lage »Wand bei −X« (Anbau 2) an die Wand des Anbaus a drehen */
+function rsWand(x, y, z, a){
+  switch(a){
+    case 1: return [16 - x, y, 16 - z];
+    case 3: return [z, y, 16 - x];
+    case 4: return [16 - z, y, x];
+    default: return [x, y, z];
+  }
+}
+/** Punkt eines stehenden Modells an seinen Platz: auf dem Boden, sonst an der Wand */
+function rsAnbauLage(x, y, z, a){ return a === 0 ? [x, y, z] : rsWand(y, z, x, a); }
+const RS_FACKEL_UV_BODEN = f => f === 3 ? null : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
+const RS_FACKEL_UV_WAND = f => f === 3 ? [7, 14, 9, 16] : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
+const RS_HEBEL_UV = f => f === 3 ? null : f === 2 ? [7, 7, 9, 9] : [7, 7, 9, 16];
 function buildFaceTables(){
   for(let f=0; f<6; f++){
     const F = FACES[f], t = new Int8Array(24);
@@ -233,7 +256,8 @@ class World{
 
   /* — Terrain erzeugen — */
   generate(c){
-    if(this.typ === 'flach') erzeugenFlach(c); else if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c);
+    if(this.typ === 'flach') erzeugenFlach(c);
+    else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); }
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));
     if(m) for(const [i,id] of m) bl[i] = id;
@@ -245,6 +269,9 @@ class World{
     const ox = c.cx*CS, oz = c.cz*CS;
     if(m && this.stroemung) for(const [i,id] of m) if(isWasser(id))
       this.stroemung.naechste.add(wKey(ox + (i & 15), i >> 8, oz + ((i >> 4) & 15)));
+    // ebenso Redstone: Knöpfe springen heraus, Leitungen am Rand verbinden sich mit dem neuen Chunk
+    if(m && this.schaltung) for(const [i,id] of m) if(rsBlock(id))
+      this.schaltung.melden(ox + (i & 15), i >> 8, oz + ((i >> 4) & 15), id, id);
     c.state = 1;
   }
   /** Gelände der ersten Fassung — bleibt für alte Welten, wie es war */
@@ -533,6 +560,9 @@ class World{
           if(bd.model === 'cross'){ this.emitCross(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'torch'){ this.emitTorch(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'box'){ this.emitBox(opaqueBuf, x, y, z, bd); continue; }
+          if(bd.model === 'staub'){ this.emitStaub(opaqueBuf, x, y, z, id); continue; }
+          if(bd.model === 'rsfackel'){ this.emitRSFackel(opaqueBuf, x, y, z, id, bd); continue; }
+          if(bd.model === 'hebel'){ this.emitHebel(opaqueBuf, x, y, z, id); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -697,6 +727,116 @@ class World{
       }
       buf.quad(false);
     }
+  }
+
+  /* Kasten in beliebiger Lage: k = [x0,y0,z0,x1,y1,z1] im Modell, T bildet einen
+     Punkt des Modells in den Block ab (Sechzehntel, darf schräg liegen). uv(f) gibt
+     für die Fläche f ein Texturrechteck [u0,v0,u1,v1], true (zuschneiden wie beim
+     Kasten) oder nichts (weglassen); ohne uv wird überall zugeschnitten. Spiegelt T,
+     laufen die Ecken andersherum — sonst sähe man nur die Innenseiten. Scharfe
+     Kästen (Stäbe aus Symbolbildern) werden ohne Mip-Stufen gezeichnet, wie Fackeln. */
+  emitKasten(buf, x, y, z, k, T, layer, sky, blk, uv, scharf){
+    const o = T(0, 0, 0), a = T(1, 0, 0), b = T(0, 1, 0), c = T(0, 0, 1);
+    const e = [a[0]-o[0], a[1]-o[1], a[2]-o[2], b[0]-o[0], b[1]-o[1], b[2]-o[2], c[0]-o[0], c[1]-o[1], c[2]-o[2]];
+    const det = e[0]*(e[4]*e[8] - e[5]*e[7]) - e[1]*(e[3]*e[8] - e[5]*e[6]) + e[2]*(e[3]*e[7] - e[4]*e[6]);
+    const X = x*16, Y = y*16, Z = z*16;
+    for(let f = 0; f < 6; f++){
+      const r = uv ? uv(f) : true;
+      if(!r) continue;
+      const F = FACES[f], ST = FACE_ST[f];
+      let nrm = 6;
+      if(!scharf){
+        // schattiert wird nach der Richtung, in die die Fläche jetzt zeigt
+        const n = F.n;
+        const mx = e[0]*n[0] + e[3]*n[1] + e[6]*n[2], my = e[1]*n[0] + e[4]*n[1] + e[7]*n[2], mz = e[2]*n[0] + e[5]*n[1] + e[8]*n[2];
+        const ax = Math.abs(mx), ay = Math.abs(my), az = Math.abs(mz);
+        nrm = ay >= ax && ay >= az ? (my > 0 ? 2 : 3) : ax >= az ? (mx > 0 ? 0 : 1) : (mz > 0 ? 4 : 5);
+      }
+      for(let i = 0; i < 4; i++){
+        const j = det < 0 ? 3 - i : i, vo = F.v[j], fuv = F.uv[j];
+        const lx = vo[0] ? k[3] : k[0], ly = vo[1] ? k[4] : k[1], lz = vo[2] ? k[5] : k[2];
+        const p = T(lx, ly, lz);
+        let s, t;
+        if(r !== true){ s = fuv[0] ? r[2] : r[0]; t = fuv[1] ? r[3] : r[1]; }
+        else {
+          const cc = ST.sAx === 0 ? lx : ST.sAx === 1 ? ly : lz, dd = ST.tAx === 0 ? lx : ST.tAx === 1 ? ly : lz;
+          s = ST.sFlip ? 16 - cc : cc; t = ST.tFlip ? 16 - dd : dd;
+        }
+        buf.vert(Math.max(0, X + p[0]), Math.max(0, Y + p[1]), Math.max(0, Z + p[2]), 3 | (nrm << 2), layer, sky, blk, s, t);
+      }
+      buf.quad(false);
+    }
+  }
+
+  /* Redstone-Leitung: flach auf dem Boden, ein Fleck in der Mitte und Arme zu
+     allem, womit sie verbunden ist; eine gerade Leitung ohne Fleck. Führt sie
+     eine Stufe hinauf, läuft sie an der Wand des Nachbarblocks hoch. */
+  emitStaub(buf, x, y, z, id){
+    const px = x + 1, pz = z + 1;
+    const verb = staubVerbindungen(this._pbHol || (this._pbHol = (a, b, c) => this.pb(a, b, c)), px, y, pz, _staubV);
+    const m = staubRichtungen(verb);
+    const layer = TEX['rs_staub' + staubLadung(id)];
+    const lv = this.getLightLocal(px, y, pz), sky = lv & 15, blk = lv >> 4;
+    const X = x*16, Y = y*16, Z = z*16, H = Y + .25;
+    const flach = (x0, z0, x1, z1) => {
+      buf.vert(X + x0, H, Z + z0, 3 | (2 << 2), layer, sky, blk, x0, z0);
+      buf.vert(X + x0, H, Z + z1, 3 | (2 << 2), layer, sky, blk, x0, z1);
+      buf.vert(X + x1, H, Z + z1, 3 | (2 << 2), layer, sky, blk, x1, z1);
+      buf.vert(X + x1, H, Z + z0, 3 | (2 << 2), layer, sky, blk, x1, z0);
+      buf.quad(false);
+    };
+    if(m === 3) flach(0, 6, 16, 10);
+    else if(m === 12) flach(6, 0, 10, 16);
+    else {
+      flach(5, 5, 11, 11);
+      if(m & 1) flach(11, 6, 16, 10);
+      if(m & 2) flach(0, 6, 5, 10);
+      if(m & 4) flach(6, 11, 10, 16);
+      if(m & 8) flach(6, 0, 10, 5);
+    }
+    // hinauf: an der Wand des Nachbarn, dem eigenen Block zugewandt
+    for(let s = 0; s < 4; s++){
+      if(verb[s] !== 2) continue;
+      const q = [];
+      if(s === 0) q.push([15.75, 0, 6, 1], [15.75, 0, 10, 1], [15.75, 16, 10, 1], [15.75, 16, 6, 1]);
+      else if(s === 1) q.push([.25, 0, 6, 0], [.25, 16, 6, 0], [.25, 16, 10, 0], [.25, 0, 10, 0]);
+      else if(s === 2) q.push([6, 0, 15.75, 5], [6, 16, 15.75, 5], [10, 16, 15.75, 5], [10, 0, 15.75, 5]);
+      else q.push([6, 0, .25, 4], [10, 0, .25, 4], [10, 16, .25, 4], [6, 16, .25, 4]);
+      for(const [qx, qy, qz, nrm] of q)
+        buf.vert(X + qx, Y + qy, Z + qz, 3 | (nrm << 2), layer, sky, blk, s < 2 ? qz : qx, 16 - qy);
+      buf.quad(false);
+    }
+  }
+
+  /* Redstonefackel: auf dem Boden wie eine Fackel, an der Wand um 22,5° von ihr
+     weg geneigt, der Fuß an der Wand. Die Lage »Wand bei −X« wird gedreht. */
+  emitRSFackel(buf, x, y, z, id, bd){
+    const a = rsAnbau(id), an = rsAn(id);
+    const layer = TEX[bd.faces[0]];
+    const lv = this.getLightLocal(x + 1, y, z + 1);
+    const sky = lv & 15, blk = an ? Math.max(lv >> 4, 11) : lv >> 4;
+    if(a === 0){
+      this.emitKasten(buf, x, y, z, [7, 0, 7, 9, 10, 9], RS_GLEICH, layer, sky, blk, RS_FACKEL_UV_BODEN, true);
+      return;
+    }
+    const T = (lx, ly, lz) => {
+      const ry = ly - 3.5;
+      return rsWand(lx*RS_COS - ry*RS_SIN, 3.5 + lx*RS_SIN + ry*RS_COS, lz, a);
+    };
+    this.emitKasten(buf, x, y, z, [0, 3.5, 7, 2, 13.5, 9], T, layer, sky, blk, RS_FACKEL_UV_WAND, true);
+  }
+
+  /* Hebel: ein Fuß aus Bruchstein und ein Stab, um 45° gekippt — aus nach der
+     einen Seite, an nach der anderen. An der Wand steht der Fuß senkrecht,
+     der Stab zeigt aus nach oben und an nach unten, wie beim Vorbild. */
+  emitHebel(buf, x, y, z, id){
+    const a = rsAnbau(id), an = rsAn(id);
+    const lv = this.getLightLocal(x + 1, y, z + 1), sky = lv & 15, blk = lv >> 4;
+    const M = (lx, ly, lz) => rsAnbauLage(lx, ly, lz, a);
+    this.emitKasten(buf, x, y, z, [5, 0, 4, 11, 3, 12], M, TEX.cobble, sky, blk, f => f !== 3, false);
+    const w = an ? -RS_HEBEL_W : RS_HEBEL_W, c = Math.cos(w), s = Math.sin(w);
+    const T = (lx, ly, lz) => { const yy = ly - 1, zz = lz - 8; return rsAnbauLage(lx, 1 + yy*c - zz*s, 8 + yy*s + zz*c, a); };
+    this.emitKasten(buf, x, y, z, [7, 1, 7, 9, 11, 9], T, TEX.rs_fackel_aus, sky, blk, RS_HEBEL_UV, true);
   }
 
   getLightLocal(px,py,pz){

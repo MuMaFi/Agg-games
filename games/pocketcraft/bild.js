@@ -39,7 +39,7 @@ uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame;
 out vec3 vUV; out float vShade; out float vFog; out float vSharp;
 ${SH_COMMON}
 void main(){
-  vec3 wp = uChunk + aPos / 16.0;
+  vec3 wp = uChunk + aPos / 64.0;
   gl_Position = uVP * vec4(wp, 1.0);
   float p = aPack;
   float ao  = mod(p, 4.0);

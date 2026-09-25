@@ -34,6 +34,8 @@ const MC_NAMEN = {
   golden_sword:'gold_sword', golden_hoe:'gold_hoe', golden_helmet:'gold_helmet', golden_chestplate:'gold_chestplate',
   golden_leggings:'gold_leggings', golden_boots:'gold_boots', leather_tunic:'leather_chestplate', leather_cap:'leather_helmet',
   leather_pants:'leather_leggings',
+  redstone_ore:'REDSTONE_ERZ', redstone_block:'REDSTONEBLOCK', redstone_lamp:'RS_LAMPE', redstone_torch:'RS_FACKEL', lever:'HEBEL',
+  stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton' };

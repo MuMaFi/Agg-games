@@ -22,13 +22,13 @@ const WASSER_NACHBARN = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]
 const wKey = (x, y, z) => ((x + 1048576)*2097152 + (z + 1048576))*128 + y;
 const wOrt = k => { const y = k % 128, r = (k - y)/128, z = r % 2097152 - 1048576, x = (r - (z + 1048576))/2097152 - 1048576; return [x, y, z]; };
 
-/** Darf Wasser hinein? Luft, Gras und Blumen, Fackeln, Weizen — was
-    darin steht, spült es weg. Türen, Leitern, Betten halten es auf. */
+/** Darf Wasser hinein? Luft, Gras und Blumen, Fackeln, Weizen, Redstone —
+    was darin steht, spült es weg. Türen, Leitern, Betten halten es auf. */
 function flutbar(id){
   if(id === B.AIR) return true;
   if(isWasser(id)) return false;
   const b = blocks[id];
-  return !!b && !b.solid && (b.replaceable || b.model === 'cross' || b.model === 'torch');
+  return !!b && !b.solid && (b.replaceable || b.model === 'cross' || b.model === 'torch' || !!b.rs);
 }
 
 class Stroemung{

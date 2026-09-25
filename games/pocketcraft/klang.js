@@ -52,7 +52,9 @@ function materialVon(id){
   if(id === B.GRAVEL) return 'kies';
   if(id === B.GRASS) return 'gras';
   if(id === B.DIRT || id === B.FARMLAND) return 'erde';
-  if(id === B.IRON_BLOCK || id === B.GOLD_BLOCK || id === B.DIAMOND_BLOCK) return 'metall';
+  if(id === B.IRON_BLOCK || id === B.GOLD_BLOCK || id === B.DIAMOND_BLOCK || id === B.REDSTONEBLOCK) return 'metall';
+  if(isLampe(id)) return 'glas';
+  if(isRSFackel(id)) return 'pflanze';
   const b = blocks[id];
   if(b && (b.tool === 'axe' || isDoor(id) || isLadder(id) || id === B.BED || id === B.CACTUS)) return 'holz';
   return 'stein';
@@ -214,6 +216,9 @@ const Sfx = {
       case 'tuer_zu':   ok = mit('tuer_zu', .45, .92, 1.05); break;
       case 'truhe_auf': ok = mit('truhe_auf', .55, .92, 1.05); break;
       case 'truhe_zu':  ok = mit('truhe_zu', .5, .92, 1.05); break;
+      // Redstone: Hebel, Knopf, Druckplatte klicken — höher beim Einschalten
+      case 'rs_an':   ok = mit('setzen_hart', .32, 1.75, 1.85); break;
+      case 'rs_aus':  ok = mit('setzen_hart', .28, 1.45, 1.55); break;
       case 'dig':     ok = mit('hacken_erde', .45); break;
       case 'place':   ok = mit('setzen', .7); break;
       case 'step':    ok = mit('schritt_gras', .3); break;
@@ -254,6 +259,9 @@ const Sfx = {
       case 'craft': this.tone(660, 0.07, 'triangle', 0.10); setTimeout(()=>this.tone(880,0.09,'triangle',0.10), 60); break;
       case 'pickup':this.tone(880, 0.05, 'triangle', 0.07); break;
       case 'klick': this.tone(520, 0.03, 'triangle', 0.05); break;
+      case 'rs_an': this.tone(900, 0.03, 'square', 0.05); break;
+      case 'rs_aus': this.tone(700, 0.03, 'square', 0.045); break;
+      case 'rs_zischen': this.noise(0.35, 0.08, 3200); break;
       case 'eat':   this.noise(0.14, 0.08, 400); break;
       case 'door':  this.noise(0.12, 0.14, 500); this.tone(140, 0.08, 'square', 0.05, 0.8); break;
       case 'zombie':this.tone(110, 0.4, 'sawtooth', 0.06, 0.6); break;

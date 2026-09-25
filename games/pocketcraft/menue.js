@@ -7,9 +7,9 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9.2';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.9.3';              // Jahr.Nummer.Update
 const SPRUECHE = [
-  'Jetzt mit Werkbank!', 'Auch hochkant!', '69 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
+  'Jetzt mit Werkbank!', 'Auch hochkant!', '76 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
   'Bruchstein ist auch Stein!', 'Kein Download nötig!', 'Mit Strohbett!', 'Hack die Erde!',
   'Diamanten sind selten!', 'Nachts wird es laut!', 'Jetzt mit Rüstung!', 'Äxte auch gespiegelt!',
@@ -21,7 +21,8 @@ const SPRUECHE = [
   'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!',
   'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!',
   'Jetzt mit Chat!', 'Probier /hilfe!', '/gamemode kreativ!', 'Drück T zum Reden!',
-  'Jetzt mit Flachland!', 'Flach wie eine Flunder!', 'Platz ohne Ende!'
+  'Jetzt mit Flachland!', 'Flach wie eine Flunder!', 'Platz ohne Ende!',
+  'Jetzt mit Redstone!', 'Strom an!', 'Hebel umlegen!', 'Es werde Licht!', 'Nicht, und, oder!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {

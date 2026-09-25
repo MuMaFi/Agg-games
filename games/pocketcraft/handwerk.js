@@ -112,7 +112,7 @@ const Ruestung = {
 
 /* ── Rezepte ───────────────────────────────────────────────────────── */
 const REZEPTE = [];
-const GRUPPEN = [['alle','Alles'],['bauen','Bauen'],['werkzeug','Werkzeug'],['kampf','Kampf'],['essen','Essen'],['stoffe','Stoffe']];
+const GRUPPEN = [['alle','Alles'],['bauen','Bauen'],['werkzeug','Werkzeug'],['kampf','Kampf'],['essen','Essen'],['stoffe','Stoffe'],['redstone','Redstone']];
 
 /** geformtes Rezept: Zeilen als Zeichenketten, Leerzeichen = leeres Feld */
 function geformt(gruppe, out, n, muster, key){
@@ -184,6 +184,15 @@ function initRecipes(){
     geformt('bauen', blk, 1, ['###','###','###'], {'#':it});
     formlos('stoffe', it, 9, [blk]);
   }
+  // Redstone — wie beim Vorbild; die Lampe leuchtet mit einer Fackel statt Glowstone
+  const RS = ITEM.redstone;
+  geformt('redstone', B.RS_FACKEL, 1, ['r','|'], {r:RS, '|':S});
+  geformt('redstone', B.HEBEL, 1, ['|','#'], {'|':S, '#':B.COBBLE});
+  formlos('redstone', B.KNOPF, 1, [B.STONE]);
+  geformt('redstone', B.DRUCKPLATTE, 1, ['##'], {'#':B.STONE});
+  geformt('redstone', B.RS_LAMPE, 1, [' r ','rTr',' r '], {r:RS, T:B.TORCH});
+  geformt('redstone', B.REDSTONEBLOCK, 1, ['###','###','###'], {'#':RS});
+  formlos('redstone', RS, 9, [B.REDSTONEBLOCK]);
 }
 const zutatenVon = r => r.formlos ? r.zutaten : r.zellen.filter(Boolean);
 
@@ -264,6 +273,7 @@ function initSmelt(){
   SMELT[ITEM.beef_raw] = ITEM.beef_cooked;
   SMELT[ITEM.mutton_raw] = ITEM.mutton_cooked;
   SMELT[ITEM.chicken_raw] = ITEM.chicken_cooked;
+  SMELT[B.REDSTONE_ERZ] = ITEM.redstone;
 }
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;

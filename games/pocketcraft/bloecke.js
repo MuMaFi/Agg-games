@@ -12,7 +12,10 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   IRON_BLOCK:39, GOLD_BLOCK:40, DIAMOND_BLOCK:41, DOOR:42 /* …57 */, WOOL:58 /* …61, je Farbe */,
   FLUSS:62 /* …68, fließendes Wasser, Stärke 7…1 */, FALL:69 /* fallendes Wasser */,
   JUKEBOX:70, JUKEBOX_VOLL:71 /* mit Schallplatte */,
-  SCHNEEDECKE:72, FICHTENSTAMM:73, FICHTENNADELN:74 };
+  SCHNEEDECKE:72, FICHTENSTAMM:73, FICHTENNADELN:74,
+  REDSTONE_ERZ:75, REDSTONEBLOCK:76, RS_LAMPE:77 /* 78 an */, DRUCKPLATTE:79 /* 80 gedrückt */,
+  RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
+  STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -33,6 +36,33 @@ const wasserMenge = id => id === B.WATER || id === B.FALL ? 8 : (id >= B.FLUSS &
 
 /* Seiten, wie sie Leiter und Tür benutzen: 0 +X, 1 −X, 2 +Z, 3 −Z */
 const SEITE = [[1,0],[-1,0],[0,1],[0,-1]];
+
+/* Redstone. Fackel, Hebel und Knopf hängen irgendwo: Anbau 0 heißt auf dem
+   Boden (der tragende Block liegt darunter), 1…4 an der Wand — der tragende
+   Block liegt bei SEITE[Anbau − 1], wie bei der Leiter. Die Leitung trägt
+   ihre Ladung (0…15) in der Nummer, wie das Wasser seine Stärke. */
+const rsFackel = (an, anbau) => B.RS_FACKEL + (an ? 0 : 5) + anbau;
+const hebelId = (an, anbau) => B.HEBEL + (an ? 5 : 0) + anbau;
+const knopfId = (an, anbau) => B.KNOPF + (an ? 5 : 0) + anbau;
+const staubId = ladung => B.STAUB + ladung;
+const isRSFackel = id => id >= B.RS_FACKEL && id < B.RS_FACKEL + 10;
+const isHebel = id => id >= B.HEBEL && id < B.HEBEL + 10;
+const isKnopf = id => id >= B.KNOPF && id < B.KNOPF + 10;
+const isStaub = id => id >= B.STAUB && id < B.STAUB + 16;
+const isPlatte = id => id === B.DRUCKPLATTE || id === B.DRUCKPLATTE + 1;
+const isLampe = id => id === B.RS_LAMPE || id === B.RS_LAMPE + 1;
+const staubLadung = id => id - B.STAUB;
+/** Anbau eines hängenden Bauteils, sonst −1 */
+const rsAnbau = id => isRSFackel(id) ? (id - B.RS_FACKEL) % 5 : isHebel(id) ? (id - B.HEBEL) % 5 : isKnopf(id) ? (id - B.KNOPF) % 5 : -1;
+/** an, gedrückt, leuchtend? */
+const rsAn = id => isRSFackel(id) ? id < B.RS_FACKEL + 5 : isHebel(id) ? id >= B.HEBEL + 5 : isKnopf(id) ? id >= B.KNOPF + 5
+  : id === B.DRUCKPLATTE + 1 || id === B.RS_LAMPE + 1;
+/** der Kasten eines Knopfs: 6 × 4 Pixel, 2 dick (gedrückt 1), am Boden flach */
+function knopfBox(anbau, gedrueckt){
+  const d = gedrueckt ? 1 : 2;
+  if(anbau === 0) return [5, 0, 6, 11, d, 10];
+  return [[16-d,6,5,16,10,11], [0,6,5,d,10,11], [5,6,16-d,11,10,16], [5,6,0,11,10,d]][anbau - 1];
+}
 const ladderId = s => B.LADDER + s;
 const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
 const isWheat = id => id >= B.WHEAT && id < B.WHEAT + 4;
@@ -87,6 +117,30 @@ function initBlocks(){
     hardness:.1, tool:'shovel', replaceable:true, icon:'i_schneedecke'});
   defBlock(B.FICHTENSTAMM,{name:'Fichtenstamm', tex:['fichte_top','fichte_top','fichte_side'], hardness:2, tool:'axe'});
   defBlock(B.FICHTENNADELN,{name:'Fichtennadeln', tex:'fichtennadeln', hardness:.2, opaque:false, model:'cutout'});
+  // Redstone
+  defBlock(B.REDSTONE_ERZ,{name:'Redstone-Erz', tex:'rs_erz', hardness:3, tool:'pickaxe', tier:3});
+  defBlock(B.REDSTONEBLOCK,{name:'Redstoneblock', tex:'rs_block', hardness:5, tool:'pickaxe', tier:1, rs:true});
+  defBlock(B.RS_LAMPE,{name:'Redstonelampe', tex:'rs_lampe', hardness:.3, rs:true});
+  defBlock(B.RS_LAMPE + 1,{name:'Redstonelampe', tex:'rs_lampe_an', hardness:.3, light:15, drop:B.RS_LAMPE, item:false, rs:true});
+  defBlock(B.DRUCKPLATTE,{name:'Steindruckplatte', tex:'stone', model:'box', box:[1,0,1,15,2,15], solid:false, opaque:false,
+    hardness:.5, tool:'pickaxe', icon:'i_druckplatte', rs:true});
+  defBlock(B.DRUCKPLATTE + 1,{name:'Steindruckplatte', tex:'stone', model:'box', box:[1,0,1,15,1,15], solid:false, opaque:false,
+    hardness:.5, tool:'pickaxe', icon:'i_druckplatte', drop:B.DRUCKPLATTE, item:false, rs:true});
+  for(let a = 0; a < 5; a++){
+    defBlock(rsFackel(true, a),{name:'Redstonefackel', tex:'rs_fackel', model:'rsfackel', solid:false, opaque:false, light:7,
+      hardness:.05, drop:B.RS_FACKEL, item:a === 0, icon:'rs_fackel', rs:true});
+    defBlock(rsFackel(false, a),{name:'Redstonefackel', tex:'rs_fackel_aus', model:'rsfackel', solid:false, opaque:false,
+      hardness:.05, drop:B.RS_FACKEL, item:false, icon:'rs_fackel', rs:true});
+    for(const an of [false, true]){
+      defBlock(hebelId(an, a),{name:'Hebel', tex:'cobble', model:'hebel', solid:false, opaque:false, hardness:.5,
+        drop:B.HEBEL, item:!an && a === 0, icon:'i_hebel', rs:true});
+      defBlock(knopfId(an, a),{name:'Steinknopf', tex:'stone', model:'box', box:knopfBox(a, an), solid:false, opaque:false,
+        hardness:.5, drop:B.KNOPF, item:!an && a === 0, icon:'i_knopf', rs:true});
+    }
+  }
+  for(let l = 0; l < 16; l++)
+    defBlock(staubId(l),{name:'Redstone-Leitung', tex:'rs_staub' + l, model:'staub', solid:false, opaque:false, hardness:0,
+      drop:'redstone', item:false, rs:true});
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
   defBlock(B.COAL_ORE,{name:'Kohleerz', tex:'coal_ore', hardness:3, tool:'pickaxe', tier:1, drop:'i_coal'});
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});
@@ -198,6 +252,8 @@ function initItems(){
   defItem('egg',{name:'Ei', stack:16});
   // für den Plattenspieler
   defItem('platte',{name:'Schallplatte', stack:1});
+  // Redstone: gesetzt wird daraus eine Leitung
+  defItem('redstone',{name:'Redstone', tex:'i_redstone'});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

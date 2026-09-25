@@ -46,11 +46,22 @@ const Game = {
       const d = this.dropsFor(id, true);
       if(d) for(const [i, n] of d) this.dropItem(i, n, x + .5, y + .3, z + .5);
     };
+    // Redstone: ebenso, gerechnet wird auch nur beim Host
+    this.schaltung = w.schaltung = new Schaltung(w);
+    this.schaltung.abfallen = this.wasser.wegspuelen;
+    this.schaltung.wesen = () => {
+      const l = [], p = this.player;
+      if(p && !p.dead) l.push(p);
+      for(const s of Netz.andere.values()) if(!s.tot) l.push(s);
+      return l.concat(this.mobs);
+    };
+    this.schaltung.tuer = (x, y, z, offen) => this.tuerStellen(x, y, z, offen);
+    this.schaltung.klang = (art, x, y, z) => Sfx.play('rs_' + art, x + .5, y + .5, z + .5);
     w.setBlock = (x, y, z, id, noSave) => {
       const vorher = w.getBlock(x, y, z);
       const ok = setzen(x, y, z, id, noSave);
       if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id);
-      if(ok && !Netz.istGast) this.wasser.melden(x, y, z);
+      if(ok && !Netz.istGast){ this.wasser.melden(x, y, z); this.schaltung.melden(x, y, z, vorher, id); }
       // Plattenspieler: Platte hinein spielt, Platte heraus oder Block weg verstummt —
       // bei allen, denn auch Änderungen aus dem Netz kommen hier vorbei
       if(ok && (id === B.JUKEBOX_VOLL) !== (vorher === B.JUKEBOX_VOLL)){
@@ -408,6 +419,7 @@ const Game = {
     if(!b) return null;
     if(b.tool === 'pickaxe' && !tierOk) return null;
     if(blockId === B.GLASS) return null;
+    if(blockId === B.REDSTONE_ERZ) return [[ITEM.redstone, 4 + (Math.random() < .5 ? 1 : 0)]];
     if(blockId === B.LEAVES) return Math.random() < 0.06 ? [[ITEM.apple,1]] : (Math.random() < 0.05 ? [[B.LEAVES,1]] : null);
     if(blockId === B.FICHTENNADELN) return Math.random() < 0.05 ? [[B.FICHTENNADELN,1]] : null;
     if(blockId === B.TALLGRASS) return Math.random() < 0.14 ? [[ITEM.seeds,1]] : null;
@@ -472,11 +484,13 @@ const Game = {
   stuetzePruefen(x, y, z){
     const w = this.world;
     const oben = w.getBlock(x, y+1, z), bo = blocks[oben];
-    if(bo && (bo.model === 'cross' || bo.model === 'torch' || oben === B.CACTUS || oben === B.SCHNEEDECKE || (isDoor(oben) && !doorInfo(oben).oben)))
+    if(bo && (bo.model === 'cross' || bo.model === 'torch' || oben === B.CACTUS || oben === B.SCHNEEDECKE || (isDoor(oben) && !doorInfo(oben).oben)
+      || (rsHaengt(oben) && rsAnbau(oben) <= 0)))
       this.entfernen(x, y+1, z, true);
     for(let sIdx = 0; sIdx < 4; sIdx++){
-      const lx = x - SEITE[sIdx][0], lz = z - SEITE[sIdx][1];
-      if(w.getBlock(lx, y, lz) === ladderId(sIdx)) this.entfernen(lx, y, lz, true);
+      const lx = x - SEITE[sIdx][0], lz = z - SEITE[sIdx][1], n = w.getBlock(lx, y, lz);
+      // Leitern und Redstone-Teile, die an diesem Block hingen
+      if(n === ladderId(sIdx) || (rsHaengt(n) && rsAnbau(n) === sIdx + 1)) this.entfernen(lx, y, lz, true);
     }
   },
   /** steht jemand dort, wo der Block seinen Kollisionskasten hätte? */
@@ -513,6 +527,19 @@ const Game = {
         Screens.oeffne('truhe', k); Sfx.play('truhe_auf', t.x + .5, t.y + .5, t.z + .5); return;
       }
       if(isDoor(id)){ this.tuerSchalten(t.x, t.y, t.z); return; }
+      // Hebel umlegen, Knopf drücken (springt nach einer Sekunde von selbst heraus)
+      if(isHebel(id)){
+        const an = !rsAn(id);
+        w.setBlock(t.x, t.y, t.z, hebelId(an, rsAnbau(id)));
+        Sfx.play(an ? 'rs_an' : 'rs_aus', t.x + .5, t.y + .5, t.z + .5);
+        p.swinging = true; p.swing = 0;
+        return;
+      }
+      if(isKnopf(id)){
+        if(!rsAn(id)){ w.setBlock(t.x, t.y, t.z, knopfId(true, rsAnbau(id))); Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5); }
+        p.swinging = true; p.swing = 0;
+        return;
+      }
       if(id === B.BED){ this.schlafen(t.x, t.y, t.z); return; }
       // Plattenspieler: Schallplatte einlegen — oder die, die drin ist, herausholen
       if(id === B.JUKEBOX_VOLL){
@@ -578,6 +605,19 @@ const Game = {
       Sfx.play('platsch', bx + .5, by + .5, bz + .5); schwing();
       return;
     }
+    // Redstone: auf festen Boden gestreut wird eine Leitung daraus
+    if(s.id === ITEM.redstone){
+      let bx = t.x + t.nx, by = t.y + t.ny, bz = t.z + t.nz;
+      if(blocks[id] && blocks[id].replaceable && !isWasser(id)){ bx = t.x; by = t.y; bz = t.z; }
+      const cur = w.getBlock(bx, by, bz);
+      if(cur !== B.AIR && !(blocks[cur] && blocks[cur].replaceable)) return;
+      if(!isOpaqueCube(w.getBlock(bx, by - 1, bz))){ hint('Redstone braucht festen Boden'); return; }
+      if(w.setBlock(bx, by, bz, staubId(0))){
+        if(!p.creative) Inv.consumeHeld();
+        Sfx.block('setzen', staubId(0), bx, by, bz); schwing();
+      }
+      return;
+    }
     if(!isBlockId(s.id)) return;
     const bd = blocks[s.id];
     if(!bd || !bd.item) return;
@@ -591,6 +631,15 @@ const Game = {
       if(t.ny !== 0 || !isOpaqueCube(id)){ hint('Leitern gehören an eine Wand'); return; }
       setzId = ladderId(SEITE.findIndex(([a, b]) => a === -t.nx && b === -t.nz));
     }
+    // Redstonefackel, Hebel, Knopf: auf den Boden oder an die Wand, je nachdem, wohin man zielt
+    if(s.id === B.RS_FACKEL || s.id === B.HEBEL || s.id === B.KNOPF){
+      let a = 0;
+      if(t.ny === 0 && isOpaqueCube(id) && bx === t.x + t.nx && bz === t.z + t.nz && by === t.y)
+        a = 1 + SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz);
+      else if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint(nameOf(s.id) + ' gehört auf festen Boden oder an eine Wand'); return; }
+      setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a);
+    }
+    if(s.id === B.DRUCKPLATTE && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
     if(s.id === B.DOOR){
       if(!blocksMovement(w.getBlock(bx,by-1,bz))){ hint('Eine Tür braucht festen Boden'); return; }
       const ob = w.getBlock(bx,by+1,bz);
@@ -631,14 +680,20 @@ const Game = {
     return true;
   },
   tuerSchalten(x, y, z){
-    const w = this.world, di = doorInfo(w.getBlock(x,y,z));
-    const y0 = di.oben ? y-1 : y;
+    const di = doorInfo(this.world.getBlock(x,y,z));
+    if(!this.tuerStellen(x, di.oben ? y-1 : y, z, !di.offen)) hint('Geh erst aus der Tür');
+  },
+  /** Tür (untere Hälfte bei y0) auf oder zu — nicht, solange jemand im Weg steht */
+  tuerStellen(x, y0, z, offen){
+    const w = this.world, di = doorInfo(w.getBlock(x,y0,z));
+    if(di.offen === offen) return true;
     const neuSeite = di.offen ? DOOR_AUF.indexOf(di.seite) : DOOR_AUF[di.seite];
-    const unten = doorId(0, !di.offen, neuSeite), oben = doorId(1, !di.offen, neuSeite);
-    if(this.belegt(x,y0,z,unten) || this.belegt(x,y0+1,z,oben)){ hint('Geh erst aus der Tür'); return; }
+    const unten = doorId(0, offen, neuSeite), oben = doorId(1, offen, neuSeite);
+    if(this.belegt(x,y0,z,unten) || this.belegt(x,y0+1,z,oben)) return false;
     w.setBlock(x,y0,z,unten);
     if(isDoor(w.getBlock(x,y0+1,z))) w.setBlock(x,y0+1,z,oben);
-    Sfx.play(di.offen ? 'tuer_zu' : 'tuer_auf', x + .5, y0 + 1, z + .5);
+    Sfx.play(offen ? 'tuer_auf' : 'tuer_zu', x + .5, y0 + 1, z + .5);
+    return true;
   },
   schlafen(x, y, z){
     const p = this.player;
@@ -1659,7 +1714,8 @@ function frame(now){
       Game.tickFelder(dt);
       Game.spawnMobs(dt);
       Game.wasser.tick(dt);
-    } else Game.wasser.naechste.clear();          // beim Gast fließt es, wie der Host es schickt
+      Game.schaltung.tick(dt);
+    } else { Game.wasser.naechste.clear(); Game.schaltung.naechste.clear(); }   // beim Gast fließt und schaltet es, wie der Host es schickt
     if(!imMenue) handleDigging(dt);
   }
   Wetter.tick(dt, paused);

@@ -714,6 +714,33 @@ function buildTextures(){
   addTex('jukebox_side', plattenspieler(false, false));
   addTex('jukebox_top', plattenspieler(true, false));
   addTex('jukebox_top_voll', plattenspieler(true, true));
+
+  /* — Redstone — */
+  addTex('rs_erz', p => malErz(p, 175, pal('#4a0606','#8a0c0c','#c41414','#f02a22','#ff8070'), 5));
+  addTex('rs_block', p => malPlatte(p, pal('#4a0404','#7e0a08','#b01410','#d6251c','#ff5a44'), 176));
+  // Lampe: ein Rahmen, darin Glas in Zellen — aus dunkelbraun, an goldgelb
+  const lampe = an => p => {
+    const G = an ? pal('#7a4210','#c07020','#eca436','#ffd466','#fff4b8') : pal('#1c1008','#35220f','#4e3317','#66461f','#7e5a2a');
+    const Rahmen = pal('#24170b','#3a2612','#553a1c');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const r = Math.min(x, y, TS-1-x, TS-1-y);
+      if(r < 2){ p.put(x, y, Rahmen[r === 0 ? 0 : (x < TS/2 && y < TS/2 ? 2 : 1)]); continue; }
+      const z = zellen(x, y, 4, 4, 181, .7);
+      const v = z.d2 - z.d1 < 1.3 ? .05 : .42 + z.zufall*.3 + (fbm(x, y, 8, 8, 183, 2) - .5)*.34;
+      p.quant(x, y, clamp(v, 0, .99), G, .5);
+    }
+  };
+  addTex('rs_lampe', lampe(false));
+  addTex('rs_lampe_an', lampe(true));
+  // Leitung: Körner zu je einem Sechzehntel, Farbe nach Ladung wie beim Vorbild (0 dunkelrot … 15 leuchtend rot)
+  for(let l = 0; l < 16; l++) addTex('rs_staub' + l, p => {
+    const f = l/15;
+    const c = [(f*.6 + (l ? .4 : .3))*255, clamp(f*f*.7 - .5, 0, 1)*255, clamp(f*f*.6 - .7, 0, 1)*255];
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const n = h2(x >> 1, y >> 1, 190);
+      p.put(x, y, hell(c, n < .18 ? .5 : .72 + n*.42));
+    }
+  });
   addTex('chest_top', truhe(false, true));
   addTex('chest_side', truhe(false, false));
   addTex('chest_front', truhe(true, false));
@@ -845,6 +872,21 @@ function buildTextures(){
     flamme.muster = (x, y) => (y > 9 ? -1 : (y < 5 ? 1 : 0));
     flamme.glanz = [[15,7,4],[16,7,4],[15,8,4],[16,8,4],[16,6,4],[15,9,3],[16,9,3]];
   });
+  // Redstonefackel: der Stab wie bei der Fackel, oben ein roter Kopf statt der Flamme
+  const rsFackelBild = an => S => {
+    const holz = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545'));
+    S.rechteck(holz, 14, 12, 4, 20);
+    holz.muster = (x, y) => (x === 14 ? 1 : x === 17 ? -1 : 0);
+    const kopf = S.lage(an ? pal('#6a0a08','#b8140e','#e8321e','#ff7250','#ffd0b8') : pal('#1a0404','#380808','#520c0c','#6a1212','#801c1c'));
+    S.rechteck(kopf, 14, 6, 4, 7);
+    kopf.glanz = an ? [[15,7,4],[16,7,4],[15,8,3]] : [[15,7,4]];
+    if(an){
+      const schein = S.lage(pal('#8a1208','#d0301a','#ff5a36','#ff8a64','#ffc0a4'));
+      for(const [x, y] of [[12,4],[19,5],[11,9],[20,10],[16,2],[13,13],[19,13]]) S.punkt(schein, x, y);
+    }
+  };
+  sprite('rs_fackel', rsFackelBild(true));
+  sprite('rs_fackel_aus', rsFackelBild(false));
   addTex('tallgrass', p => {
     p.klar();
     const P = PAL.gras;
@@ -1186,6 +1228,31 @@ function buildTextures(){
     F.glanz = [[13,14],[16,11],[19,9]];
     const K = S.lage(pal('#5a5a56','#8a8a84','#a8a8a2','#c8c8c2','#e0e0da'));
     S.strich(K, [[5,28],[10,21],[17,12],[25,5]], .6);
+  });
+  sprite('i_redstone', S => {
+    const L = S.lage(pal('#4a0606','#8a0c0c','#c41414','#ee2a20','#ff7a62'), { kante:true });
+    S.poly(L, [[6,24],[9,17],[14,14],[20,13],[25,17],[27,23],[22,26],[12,27]]);
+    S.oval(L, 12, 12, 3.2, 2.6); S.oval(L, 21, 10, 2.6, 2.2); S.oval(L, 25, 25, 2.2, 2);
+    L.muster = (x, y) => (h2(x, y, 191) < .3 ? -1 : h2(x, y, 192) > .8 ? 1 : 0);
+    L.glanz = [[13,11],[20,9],[16,17],[11,20]];
+  });
+  sprite('i_hebel', S => {
+    const stab = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545'));
+    S.strich(stab, [[14,22],[22,6]], 1.4);
+    const fuss = S.lage(PAL.stein, { kante:true });
+    S.rechteck(fuss, 8, 20, 16, 7);
+    fuss.muster = (x, y) => (h2(x, y, 193) < .25 ? -1 : 0);
+  });
+  sprite('i_knopf', S => {
+    const K = S.lage(PAL.stein, { kante:true });
+    S.rechteck(K, 9, 12, 14, 9);
+    K.glanz = [[10,13,5],[11,13,5],[12,13,5]];
+  });
+  sprite('i_druckplatte', S => {
+    const L = S.lage(PAL.stein, { kante:true });
+    S.poly(L, [[3,19],[16,13],[29,19],[16,25]]);
+    const V = S.lage(pal('#34353a','#44454b','#54555b','#63646a','#727379'));
+    S.poly(V, [[3,19],[16,25],[16,28],[3,22]]); S.poly(V, [[16,25],[29,19],[29,22],[16,28]]);
   });
   sprite('i_schneedecke', S => {
     const L = S.lage(pal('#8ea0b6','#c6d3e2','#dfe8f2','#eef4fa','#ffffff'), { kante:true });

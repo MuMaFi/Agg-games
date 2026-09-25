@@ -137,6 +137,30 @@ function erz2(w, x, y, z){
   return r < 0.8 ? B.COAL_ORE : 0;
 }
 
+/** Redstone-Erz, für beide Fassungen des Geländes: in jedem Chunk drei bis
+    fünf kleine Adern tief unten (bis Höhe 15). Jede bleibt in ihrem Chunk und
+    macht nur aus Stein Erz — sonst ändert sich am Gelände nichts. */
+function redstoneAdern(w, c){
+  const bl = c.blocks, s = w.seed ^ 0x2ed5, h = (a, b) => ghash(c.cx, a*16 + b, c.cz, s);
+  const adern = 3 + Math.floor(h(0, 0)*3);
+  for(let a = 1; a <= adern; a++){
+    let x = Math.floor(h(a, 1)*16), y = 2 + Math.floor(h(a, 2)*13), z = Math.floor(h(a, 3)*16);
+    const laenge = 3 + Math.floor(h(a, 4)*6);
+    for(let i = 0; i < laenge; i++){
+      const j = IDX(x, y, z);
+      if(bl[j] === B.STONE) bl[j] = B.REDSTONE_ERZ;
+      switch(Math.floor(h(a, 5 + i)*6)){
+        case 0: if(x < 15) x++; break;
+        case 1: if(x > 0) x--; break;
+        case 2: if(y < 15) y++; break;
+        case 3: if(y > 2) y--; break;
+        case 4: if(z < 15) z++; break;
+        default: if(z > 0) z--;
+      }
+    }
+  }
+}
+
 /** einen Chunk erzeugen: Boden, Höhlen, Erze, dann Bäume und Schnee */
 function erzeugen2(w, c){
   const bl = c.blocks = new Uint8Array(CS*WH*CS);
