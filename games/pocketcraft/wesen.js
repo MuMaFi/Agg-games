@@ -313,6 +313,23 @@ const SPIELER_MODELL = {
     { n:'leg1', box:[ 0.0, 0.0,-0.125, 0.25,0.68,0.25], tex:'m_sp_hose', anim:'leg', ph:1 },
   ]
 };
+/* Rüstung darüber: etwas größere Kästen, je Platz (Kopf, Brust, Beine,
+   Füße) eine Liste. Sie drehen sich um denselben Punkt wie der Körperteil
+   darunter. Innen zwischen den Beinen wachsen Hose und Stiefel nicht mit,
+   und keine zwei Flächen liegen genau aufeinander — sonst flimmert es. */
+const SPIELER_RUESTUNG = [
+  [ { box:[-0.3,1.31,-0.3, 0.6,0.6,0.6], tex:'m_r_platte', face:'m_r_helm_vorn', unten:'m_r_helm_vorn', anim:'head', pivot:[0,1.61,0] } ],
+  [ { box:[-0.3,0.63,-0.17, 0.6,0.78,0.34], tex:'m_r_brust', oben:'m_r_platte' },
+    { box:[-0.435,1.0,-0.185, 0.245,0.42,0.37], tex:'m_r_platte', anim:'arm', ph:0, pivot:[-0.3125,1.36,0] },
+    { box:[ 0.19, 1.0,-0.185, 0.245,0.42,0.37], tex:'m_r_platte', anim:'arm', ph:1, pivot:[ 0.3125,1.36,0] } ],
+  [ { box:[-0.285,0.6,-0.16, 0.57,0.2,0.32], tex:'m_r_hose' },
+    { box:[-0.28, 0.12,-0.155, 0.278,0.59,0.31], tex:'m_r_hose', anim:'leg', ph:0, pivot:[-0.125,0.68,0] },
+    { box:[ 0.002,0.12,-0.155, 0.278,0.59,0.31], tex:'m_r_hose', anim:'leg', ph:1, pivot:[ 0.125,0.68,0] } ],
+  [ { box:[-0.305,-0.01,-0.18, 0.3,0.29,0.36], tex:'m_r_stiefel', anim:'leg', ph:0, pivot:[-0.125,0.68,0] },
+    { box:[ 0.005,-0.01,-0.18, 0.3,0.29,0.36], tex:'m_r_stiefel', anim:'leg', ph:1, pivot:[ 0.125,0.68,0] } ],
+];
+/* Leder, Eisen, Gold, Diamant — in dieser Reihenfolge zählt auch Ruestung.code */
+const RUEST_FARBE = [[0.74,0.5,0.32], [0.97,0.97,1.0], [1.18,0.92,0.32], [0.5,1.08,1.02]];
 
 /* ── Pfeile und Eier ────────────────────────────────────────────────
    Fliegen mit Schwerkraft, prüfen unterwegs Blöcke und Wesen. Pfeile des

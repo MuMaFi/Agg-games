@@ -527,16 +527,30 @@ function drawSpieler(fogCol, near, far){
     const schlag = s.schlagT > 0 ? 0.5 + Math.abs(Math.sin(s.schlagT*9))*1.1 : 0;
     figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw;
     const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
-    for(const part of d.parts){
-      if(part.hemd) gl.uniform4f(P.u.uTint, f[0], f[1], f[2], 1); else gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+    const teil = part => {
       let ang = 0;
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       else if(part.anim === 'arm') ang = (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
       else if(part.anim === 'head') ang = clamp(s.pitch, -1.2, 1.2);
       partMatrix(_m, figur, part, ang);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
-      setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined);
+      for(let i = 0; i < 6; i++) _layers[i] = TEX[part.tex];
+      if(part.oben) _layers[2] = TEX[part.oben];
+      if(part.unten) _layers[3] = TEX[part.unten];
+      if(part.face) _layers[5] = TEX[part.face];
+      gl.uniform1fv(P.u.uLayers, _layers);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    };
+    for(const part of d.parts){
+      if(part.hemd) gl.uniform4f(P.u.uTint, f[0], f[1], f[2], 1); else gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+      teil(part);
+    }
+    // Rüstung: je Platz drei Bit, 0 = nichts, sonst Material + 1
+    for(let platz = 0; platz < 4; platz++){
+      const mat = (s.ruest >> (3*platz)) & 7, c = RUEST_FARBE[mat - 1];
+      if(!c) continue;
+      gl.uniform4f(P.u.uTint, c[0], c[1], c[2], 1);
+      for(const part of SPIELER_RUESTUNG[platz]) teil(part);
     }
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);

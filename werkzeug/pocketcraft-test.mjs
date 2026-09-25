@@ -401,5 +401,13 @@ pruef(T(`(() => { const W1 = new World('pruefwelt', 2), W2 = new World('pruefwel
 pruef(T(`ITEM.slimeball === ITEM.redstone + 1 && nameOf(ITEM.slimeball) === 'Schleimball'`), 'Schleimball hinten angehängt');
 pruef(T(`dingNummer('slime_ball') === ITEM.slimeball && dingNummer('schleimball') === ITEM.slimeball && dingNummer('slimeball') === ITEM.slimeball`), 'Schleimball für /give');
 
+// Rüstung der Mitspieler: was man trägt, geht als eine Zahl übers Netz, je Platz drei Bit
+pruef(T(`(() => { Inv.ruestung.fill(null); const leer = Ruestung.code();
+  Inv.ruestung[0] = Inv.make(ITEM.iron_helmet, 1); Inv.ruestung[1] = Inv.make(ITEM.diamond_chestplate, 1);
+  Inv.ruestung[2] = Inv.make(ITEM.leather_leggings, 1); Inv.ruestung[3] = Inv.make(ITEM.gold_boots, 1);
+  const c = Ruestung.code(); Inv.ruestung.fill(null); return leer === 0 && c === (2 | 4 << 3 | 1 << 6 | 3 << 9); })()`),
+  'Rüstung als Zahl: Eisenhelm, Diamantbrust, Lederhose, Goldstiefel');
+pruef(T(`['m_r_platte','m_r_helm_vorn','m_r_brust','m_r_hose','m_r_stiefel'].every(n => TEX[n] !== undefined)`), 'Rüstungsbilder für die Figur');
+
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

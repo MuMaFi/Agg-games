@@ -1433,6 +1433,39 @@ function buildTextures(){
     const S = pal('#2a2a2e','#3a3a40','#4a4a52');
     for(let y = TS - 6; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, S[y === TS - 6 ? 2 : (x + y) % 2]);
   });
+  /* — Rüstung der Mitspieler: helles Grau, das Material (Leder, Eisen, Gold,
+     Diamant) färbt drawSpieler ein. Eine Platte hat einen dunklen Rand,
+     oben links Glanz und unten rechts Schatten. — */
+  const RG = pal('#6a6a6a','#868686','#a0a0a0','#b8b8b8','#cecece','#e6e6e6');
+  const platte = (p, s, x0, y0, x1, y1) => {
+    for(let y = y0; y <= y1; y++) for(let x = x0; x <= x1; x++){
+      let v = .48 + (vnoise(x, y, 8, 8, s) - .5)*.3;
+      if(x === x0 || y === y0 || x === x1 || y === y1) v = .05;
+      else if(x === x0 + 1 || y === y0 + 1) v = .95;
+      else if(x === x1 - 1 || y === y1 - 1) v = .25;
+      p.quant(x, y, v, RG, .3);
+    }
+  };
+  addTex('m_r_platte', p => platte(p, 371, 0, 0, TS - 1, TS - 1));
+  addTex('m_r_helm_vorn', p => {                                        // vorn offen fürs Gesicht
+    platte(p, 372, 0, 0, 5, 25); platte(p, 373, TS - 6, 0, TS - 1, 25);
+    platte(p, 374, 0, 0, TS - 1, 10);
+  });
+  addTex('m_r_brust', p => {
+    platte(p, 375, 0, 0, TS - 1, TS - 1);
+    for(let y = 3; y < 24; y++){ p.put(15, y, RG[1]); p.put(16, y, RG[5]); }          // Grat
+    for(let x = 2; x < TS - 2; x++){                                                   // Gürtel
+      p.put(x, 24, RG[0]); for(let y = 25; y < 28; y++) p.put(x, y, RG[(x + y) % 3 ? 1 : 2]); p.put(x, 28, RG[4]);
+    }
+  });
+  addTex('m_r_hose', p => {
+    platte(p, 376, 0, 0, TS - 1, TS - 1);
+    for(let x = 2; x < TS - 2; x++){ p.put(x, 5, RG[0]); p.put(x, 6, RG[4]); p.put(x, 19, RG[1]); p.put(x, 20, RG[4]); }
+  });
+  addTex('m_r_stiefel', p => {
+    platte(p, 377, 0, 0, TS - 1, TS - 1);
+    for(let y = TS - 7; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, RG[y === TS - 7 ? 0 : (x + y) % 2]);   // Sohle
+  });
 
   /* — Kuh: braun mit weißen Flecken — */
   const KUH = pal('#3b2415','#472c1a','#543420','#613c25','#6e452b'), WEISS = pal('#b3ada2','#c8c3b8','#dcd7cc','#ebe7de');

@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 9;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben
+const NETZ_VERSION = 10;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -226,7 +226,7 @@ const Netz = {
     this.statusSetzen('');
   },
   hostVerbindung(conn){
-    const g = { conn, id:null, name:'?', farbe:0, x:0, y:0, z:0, yaw:0, pitch:0, held:0, flags:0,
+    const g = { conn, id:null, name:'?', farbe:0, x:0, y:0, z:0, yaw:0, pitch:0, held:0, flags:0, ruest:0,
                 tot:false, creative:false, bereit:false, zuletzt: performance.now() };
     conn.on('data', roh => { const m = this.lesen(conn.connectionId, roh); if(m) this.hostEmpfang(g, m); });
     conn.on('close', () => this.gastWeg(g));
@@ -250,8 +250,8 @@ const Netz = {
     switch(m.t){
       case 'ich':
         g.x = +m.x || 0; g.y = +m.y || 0; g.z = +m.z || 0; g.yaw = +m.a || 0; g.pitch = +m.p || 0;
-        g.flags = m.f | 0; g.held = m.h | 0; g.tot = !!(g.flags & 4); g.creative = !!m.c;
-        this.figurZiel(this.andere.get(g.id), g.x, g.y, g.z, g.yaw, g.pitch, g.flags, g.held);
+        g.flags = m.f | 0; g.held = m.h | 0; g.tot = !!(g.flags & 4); g.creative = !!m.c; g.ruest = (m.r | 0) & 0xfff;
+        this.figurZiel(this.andere.get(g.id), g.x, g.y, g.z, g.yaw, g.pitch, g.flags, g.held, g.ruest);
         break;
       case 'stand': this.standMerken(g, m); break;
       case 'b': this.bloeckeEmpfangen(m.l); break;
@@ -363,9 +363,9 @@ const Netz = {
   },
   spielerSenden(){
     const p = Game.player, h = Inv.held();
-    const l = [[this.ich.id, this.ich.name, this.ich.farbe, r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), this.meineFlags(), h ? h.id : 0]];
+    const l = [[this.ich.id, this.ich.name, this.ich.farbe, r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), this.meineFlags(), h ? h.id : 0, Ruestung.code()]];
     for(const g of this.gaeste.values())
-      if(g.bereit) l.push([g.id, g.name, g.farbe, r2(g.x), r2(g.y), r2(g.z), r2(g.yaw), r2(g.pitch), g.flags, g.held]);
+      if(g.bereit) l.push([g.id, g.name, g.farbe, r2(g.x), r2(g.y), r2(g.z), r2(g.yaw), r2(g.pitch), g.flags, g.held, g.ruest]);
     this.anAlle({ t:'s', l });
   },
   /** Öfen: Inhalt, Glut und Fortschritt, sobald sich etwas ändert */
@@ -577,7 +577,7 @@ const Netz = {
   ichSenden(){
     const p = Game.player, h = Inv.held();
     this.senden(this.hostConn, { t:'ich', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.yaw), p: r2(p.pitch),
-      f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0 });
+      f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0, r: Ruestung.code() });
   },
   kuekenAnfrage(x, y, z, n){
     if(this.istGast) this.senden(this.hostConn, { t:'kueken', x: r2(x), y: r2(y), z: r2(z), n });
@@ -589,13 +589,13 @@ const Netz = {
   spielerEmpfangen(l){
     const da = new Set();
     for(const e of (l || [])){
-      const [id, name, farbe, x, y, z, yaw, pitch, f, held] = e;
+      const [id, name, farbe, x, y, z, yaw, pitch, f, held, ruest] = e;
       if(id === this.ich.id) continue;
       da.add(id);
       let s = this.andere.get(id);
       if(!s){ s = this.figur(id, name, farbe, { x, y, z, yaw, pitch }); this.andere.set(id, s); }
       s.name = name; s.farbe = farbe | 0;
-      this.figurZiel(s, x, y, z, yaw, pitch, f, held);
+      this.figurZiel(s, x, y, z, yaw, pitch, f, held, ruest);
     }
     for(const id of [...this.andere.keys()]) if(!da.has(id)){ this.andere.delete(id); this.schildWeg(id); }
   },
@@ -773,11 +773,12 @@ const Netz = {
     return { id, name, farbe: farbe | 0, w: 0.6, h: 1.8,
              x: +o.x || 0, y: +o.y || 0, z: +o.z || 0, yaw: +o.yaw || 0, pitch: +o.pitch || 0,
              zx: +o.x || 0, zy: +o.y || 0, zz: +o.z || 0, zyaw: +o.yaw || 0, zpitch: +o.pitch || 0,
-             flags: 0, held: 0, walkPhase: 0, schlagT: 0, tot: false };
+             flags: 0, held: 0, ruest: 0, walkPhase: 0, schlagT: 0, tot: false };
   },
-  figurZiel(s, x, y, z, yaw, pitch, f, held){
+  figurZiel(s, x, y, z, yaw, pitch, f, held, ruest){
     if(!s) return;
     s.zx = +x; s.zy = +y; s.zz = +z; s.zyaw = +yaw; s.zpitch = +pitch; s.flags = f | 0; s.held = held | 0; s.tot = !!(f & 4);
+    s.ruest = (ruest | 0) & 0xfff;
   },
   figurenNachziehen(dt){
     const k = Math.min(1, dt*12);

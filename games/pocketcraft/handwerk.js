@@ -107,6 +107,17 @@ const Ruestung = {
       if(s.dur <= 0){ Inv.ruestung[i] = null; Sfx.play('break'); hint(nameOf(s.id) + ' ist zerbrochen'); }
     }
     return dmg * (1 - Math.min(0.8, p*0.04));
+  },
+  /** Was man trägt, als eine Zahl fürs Netz: je Platz drei Bit,
+      0 = nichts, sonst 1 Leder, 2 Eisen, 3 Gold, 4 Diamant */
+  code(){
+    let c = 0;
+    Inv.ruestung.forEach((s, i) => {
+      const it = s && items[s.id];
+      const mat = it && it.armor ? ['leather', 'iron', 'gold', 'diamond'].indexOf(it.key.split('_')[0]) + 1 : 0;
+      c |= mat << (3*i);
+    });
+    return c;
   }
 };
 
