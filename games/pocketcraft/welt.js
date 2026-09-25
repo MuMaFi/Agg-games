@@ -144,10 +144,12 @@ function buildFaceTables(){
 }
 
 class World{
-  /** gen: Fassung des Geländes — 1 für Welten von früher, 2 für neue (gelaende.js) */
-  constructor(seedStr, gen){
+  /** gen: Fassung des Geländes — 1 für Welten von früher, 2 für neue (gelaende.js);
+      typ: 'flach' für Flachland, sonst das normale Gelände */
+  constructor(seedStr, gen, typ){
     this.seedStr = seedStr;
     this.gen = gen === 2 ? 2 : 1;
+    this.typ = typ === 'flach' ? 'flach' : 'normal';
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
     this.nCont = new Noise(s);
@@ -176,6 +178,7 @@ class World{
 
   /* — Spalteninfo: Höhe + Biom — */
   column(wx,wz){
+    if(this.typ === 'flach') return FLACH_SPALTE;
     if(this.gen === 2) return spalte2(this, wx, wz);
     const cont = this.nCont.fbm2(wx*0.0032, wz*0.0032, 4, 2, .5);
     const hill = this.nHill.fbm2(wx*0.014, wz*0.014, 4, 2, .5);
@@ -230,7 +233,7 @@ class World{
 
   /* — Terrain erzeugen — */
   generate(c){
-    if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c);
+    if(this.typ === 'flach') erzeugenFlach(c); else if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c);
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));
     if(m) for(const [i,id] of m) bl[i] = id;

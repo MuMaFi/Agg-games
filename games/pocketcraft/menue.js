@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9.1';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.9.2';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '69 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -20,9 +20,14 @@ const SPRUECHE = [
   'Jetzt mit Hühnern!', 'Gack!', 'Erst das Huhn, dann das Ei!', 'Küken aus dem Ei!', 'Wasser marsch!', 'Es fließt!', 'Achtung, Wasserfall!',
   'Jetzt mit Plattenspieler!', 'Leg eine Platte auf!',
   'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!',
-  'Jetzt mit Chat!', 'Probier /hilfe!', '/gamemode kreativ!', 'Drück T zum Reden!'
+  'Jetzt mit Chat!', 'Probier /hilfe!', '/gamemode kreativ!', 'Drück T zum Reden!',
+  'Jetzt mit Flachland!', 'Flach wie eine Flunder!', 'Platz ohne Ende!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
+const TYP_TEXT = {
+  normal: ['Normal', 'Berge, Wälder, Flüsse, Höhlen — eine ganze Welt zum Entdecken.'],
+  flach:  ['Flachland', 'Eine flache Wiese ohne Ende: Grundgestein, zwei Lagen Erde, Gras. Viel Platz zum Bauen.'],
+};
 const MODUS_TEXT = {
   ueberleben: ['Überleben', 'Suche Rohstoffe, stelle Werkzeuge her, pass auf Hunger und Gesundheit auf. Nachts kommen Zombies.'],
   kreativ:    ['Kreativ', 'Unbegrenzte Blöcke aus dem Katalog, fliegen mit doppeltem Sprung, keine Gefahr.'],
@@ -113,7 +118,7 @@ function logoZeichnen(cv, wort, maxBreite){
 /* ── Menüs ─────────────────────────────────────────────────────────── */
 const Menue = {
   aktiv: null, vonPause: false,
-  welten: [], gewaehlt: null, neuModus: 'ueberleben', bearbeiteId: null, loeschId: null,
+  welten: [], gewaehlt: null, neuModus: 'ueberleben', neuTyp: 'normal', bearbeiteId: null, loeschId: null,
   serverGewaehlt: null, serverStatus: {}, formModus: null, formIndex: -1,
   _letzterTipp: { id: null, t: 0 },
 
@@ -140,6 +145,7 @@ const Menue = {
     $('#wDatei').addEventListener('change', e => this.einlesen(e.target.files && e.target.files[0]));
     $('#wSuche').addEventListener('input', () => this.listeZeichnen());
     knopf('#nModus', () => { this.neuModus = this.neuModus === 'ueberleben' ? 'kreativ' : 'ueberleben'; this.modusZeigen(); });
+    knopf('#nTyp', () => { this.neuTyp = this.neuTyp === 'flach' ? 'normal' : 'flach'; this.modusZeigen(); });
     knopf('#nLos', () => this.erstellen());
     knopf('#nAbbruch', () => this.zuWelten());
     knopf('#bSichern', () => this.umbenennen());
@@ -273,7 +279,8 @@ const Menue = {
       const n = el('b'); n.textContent = w.name; t.appendChild(n);
       const d = el('span'); d.textContent = 'Zuletzt gespielt: ' + datum(w.gespielt); t.appendChild(d);
       const i = el('span');
-      i.textContent = MODUS_TEXT[w.modus || 'ueberleben'][0] + ' · Tag ' + (w.tag || 1) + ' · Startwert „' + w.seed + '“ · ' + groesse(w.groesse);
+      i.textContent = MODUS_TEXT[w.modus || 'ueberleben'][0] + ' · ' + (w.typ === 'flach' ? 'Flachland' : 'Startwert „' + w.seed + '“') +
+        ' · Tag ' + (w.tag || 1) + ' · ' + groesse(w.groesse);
       t.appendChild(i);
       e.appendChild(t);
       e.addEventListener('click', ev => {
@@ -300,7 +307,7 @@ const Menue = {
     while(namen.has(name)) name = 'Neue Welt (' + (k++) + ')';
     $('#nName').value = name;
     $('#nSeed').value = '';
-    this.neuModus = 'ueberleben';
+    this.neuModus = 'ueberleben'; this.neuTyp = 'normal';
     this.modusZeigen();
     this.zeige('neu');
   },
@@ -308,6 +315,9 @@ const Menue = {
     const [n, t] = MODUS_TEXT[this.neuModus];
     $('#nModus').textContent = 'Spielmodus: ' + n;
     $('#nModusText').textContent = t;
+    const [tn, tt] = TYP_TEXT[this.neuTyp || 'normal'];
+    $('#nTyp').textContent = 'Welttyp: ' + tn;
+    $('#nTypText').textContent = tt;
   },
   async erstellen(){
     await this.bereit;
@@ -315,11 +325,14 @@ const Menue = {
     let seed = ($('#nSeed').value || '').trim();
     if(!seed) seed = STARTWORTE[(Math.random()*STARTWORTE.length)|0] + '-' + ((Math.random()*9000 + 1000)|0);
     const meta = { id: neueWeltId(), name, seed, modus: this.neuModus, gen: WELT_FASSUNG, erstellt: Date.now(), gespielt: Date.now(), tag: 1, groesse: 0, bild: null };
+    if(this.neuTyp === 'flach') meta.typ = 'flach';
     Sfx.init();
     this.alleZu();
     Game.start(meta, null);
     this.gewaehlt = meta.id;
-    hint(this.neuModus === 'kreativ' ? 'Kreativmodus — flieg mit doppeltem Sprung-Tipp' : 'Schlag Holz, bau eine Werkbank, überleb die Nacht', 4200);
+    hint(this.neuModus === 'kreativ' ? 'Kreativmodus — flieg mit doppeltem Sprung-Tipp'
+       : this.neuTyp === 'flach' ? 'Flachland: Hier wächst kein Baum — im Kreativmodus baut es sich leichter'
+       : 'Schlag Holz, bau eine Werkbank, überleb die Nacht', 4200);
     Game.save();                     // gleich in die Liste, auch wenn man sofort wieder geht
   },
 

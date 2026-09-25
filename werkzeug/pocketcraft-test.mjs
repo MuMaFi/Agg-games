@@ -244,5 +244,16 @@ pruef(T(`Befehle.vorschlaege('/tp @').liste.join()`) === '@s,@a,@p,@r', 'Ziele')
 pruef(T(`Befehle.ziele('spieler_123', Befehle.ichSelbst())[0].name`) === 'Spieler 123', 'Namen mit Leerzeichen findet man mit _');
 pruef(T(`Befehle.vorschlaege('Hallo')`) === null, 'kein Schrägstrich, keine Vorschläge');
 
+// Flachland: Grundgestein, zwei Lagen Erde, Gras — und sonst nur Luft, überall gleich
+T(`globalThis.FW = new World('flach-1', 2, 'flach');`);
+pruef(T(`FW.typ === 'flach' && new World('x', 2).typ === 'normal' && new World('x', 2, 'quatsch').typ === 'normal'`), 'Welttyp flach, sonst normal');
+pruef(T(`FW.column(12345, -6789).h === FLACH_H && FW.column(0, 0).biome === BIO.PLAINS && FLACH_H === 3`), 'flache Spalten auf Höhe 3, Ebene');
+pruef(T(`(() => { for(const [cx, cz] of [[0, 0], [-7, 3], [250, -90]]){ const c = FW.ensureChunk(cx, cz);
+  for(let z = 0; z < 16; z++) for(let x = 0; x < 16; x++){
+    const s = [B.BEDROCK, B.DIRT, B.DIRT, B.GRASS];
+    for(let y = 0; y < WH; y++) if(c.blocks[IDX(x, y, z)] !== (y < 4 ? s[y] : B.AIR)) return false;
+    if(c.hmap[z*16 + x] !== 3 || c.kalt[z*16 + x]) return false;
+  } } return true; })()`), 'jeder Chunk: Grundgestein, Erde, Erde, Gras, darüber Luft');
+
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

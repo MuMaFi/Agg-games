@@ -10,9 +10,14 @@
 <title>Pocketcraft</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230e1118'/%3E%3Crect x='2' y='4' width='12' height='3' fill='%2378a84e'/%3E%3Crect x='2' y='7' width='12' height='6' fill='%236b4b2f'/%3E%3C/svg%3E">
 <style>
-/* Pixelify Sans (SIL OFL 1.1, siehe schrift/OFL.txt) liegt bei, damit die
-   Schrift auch offline und in der Android-App stimmt. Variable Schrift:
-   eine Datei deckt 400–700 ab. */
+/* Pocketcraft Pixel: Pixelschrift nach Monocraft, proportional wie beim
+   Vorbild, mit gut unterscheidbaren Ziffern (SIL OFL 1.1, siehe
+   schrift/OFL-Pocketcraft-Pixel.txt; gebaut mit werkzeug/schrift-bauen.py).
+   Was ihr fehlt, kommt aus Pixelify Sans (SIL OFL 1.1, schrift/OFL.txt).
+   Beide liegen bei, damit die Schrift auch offline und in der App stimmt.
+   400–700 zeigt dieselbe Datei — eine Pixelschrift wird nicht künstlich fett. */
+@font-face{ font-family:"Pocketcraft Pixel"; font-style:normal; font-weight:400 700; font-display:swap;
+  src:url(schrift/pocketcraft-pixel.woff2) format("woff2") }
 @font-face{ font-family:"Pixelify Sans"; font-style:normal; font-weight:400 700; font-display:swap;
   src:url(schrift/pixelify-sans-latin.woff2) format("woff2");
   unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD }
@@ -33,7 +38,7 @@
   --meat:#c8873a; --meat-dk:#57381a;
   --air:#5ec8e8;
   --shadow:0 6px 0 rgba(0,0,0,.35), 0 0 0 2px var(--edge) inset;
-  --pix:"Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
+  --pix:"Pocketcraft Pixel", "Pixelify Sans", ui-monospace, "DejaVu Sans Mono", monospace;
   --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -493,6 +498,8 @@ body.mcOffen .screen{visibility:hidden}
     <div style="height:12px"></div>
     <button class="mc" id="nModus">Spielmodus: Überleben</button>
     <p class="mc-hinweis" id="nModusText"></p>
+    <button class="mc" id="nTyp">Welttyp: Normal</button>
+    <p class="mc-hinweis" id="nTypText"></p>
     <label class="mc-lbl" for="nSeed">Startwert für den Weltgenerator</label>
     <input id="nSeed" class="mc-feld" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Leer lassen für einen zufälligen">
   </div>
@@ -614,7 +621,9 @@ body.mcOffen .screen{visibility:hidden}
     </ul>
     <p class="klein">Alle Dateien mit Original, Link und Lizenz: <code>games/pocketcraft/ton/QUELLEN.md</code> im Quellcode.</p>
     <h3>Schrift</h3>
-    <p><b>Pixelify Sans</b> von The Pixelify Sans Project Authors · SIL Open Font License 1.1</p>
+    <p><b>Pocketcraft Pixel</b>, eine Pixelschrift nach <b>Monocraft</b> von Idrees Hassan · SIL Open Font License 1.1</p>
+    <p>Seltene Zeichen: <b>Pixelify Sans</b> von The Pixelify Sans Project Authors · SIL Open Font License 1.1</p>
+    <p class="klein">Lizenzen: <code>games/pocketcraft/schrift/</code> im Quellcode.</p>
     <h3>Mitspieler-Technik</h3>
     <p><b>PeerJS</b> von Michelle Bu, Eric Zhang und Mitwirkenden · MIT</p>
   </div>

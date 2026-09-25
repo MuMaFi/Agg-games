@@ -17,6 +17,17 @@ const WELT_FASSUNG = 2;                       // neue Welten
 const SCHNEEGRENZE = SEA + 34;                // darüber liegt Schnee
 const GIPFEL = SEA + 44;                      // darüber Schneeblöcke
 
+/* Flachland wie beim Vorbild: Grundgestein, zwei Lagen Erde, Gras — sonst
+   nichts, nur Platz. Keine Bäume, keine Höhlen, kein Wasser. */
+const FLACH_SCHICHTEN = [B.BEDROCK, B.DIRT, B.DIRT, B.GRASS];
+const FLACH_H = FLACH_SCHICHTEN.length - 1;       // oberster Block, man steht darüber
+const FLACH_SPALTE = Object.freeze({ h: FLACH_H, biome: BIO.PLAINS, kalt: false, berg: 0 });
+function erzeugenFlach(c){
+  const bl = c.blocks = new Uint8Array(CS*WH*CS);
+  for(let y = 0; y < FLACH_SCHICHTEN.length; y++) bl.fill(FLACH_SCHICHTEN[y], y*CS*CS, (y + 1)*CS*CS);
+  c.hmap.fill(FLACH_H); c.biome.fill(BIO.PLAINS); c.kalt.fill(0);
+}
+
 const glatt = (a, b, x) => { const t = clamp((x - a)/(b - a), 0, 1); return t*t*(3 - 2*t); };
 /** schneller Ganzzahl-Hash, 0 … 1 */
 function ghash(x, y, z, s){
