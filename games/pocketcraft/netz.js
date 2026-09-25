@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 10;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar
+const NETZ_VERSION = 11;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -520,6 +520,7 @@ const Netz = {
         if(!Game.player.creative) for(const [id, n] of (m.l || [])) Game.dropItem(id, n, +m.x, +m.y, +m.z);
         break;
       case 'hinweis': hint(String(m.text || ''), 2400); break;
+      case 'schlaf': if(Game.bett && !Game.schlafT) Game.schlafT = 0.001; break;     // alle liegen: die Nacht vergeht
       case 'chat': Chat.zeigen(m); break;
       case 'anwenden': Befehle.anwenden(m); break;
       case 'op': Befehle.op = !!m.an; break;
@@ -646,7 +647,7 @@ const Netz = {
     const p = Game.player, l = this._letzt;
     const bewegt = !!l && Math.hypot(p.x - l[0], p.z - l[1]) > 0.02;
     this._letzt = [p.x, p.z];
-    return (p.sneaking ? 1 : 0) | (p.swinging ? 2 : 0) | (p.dead ? 4 : 0) | (bewegt ? 8 : 0);
+    return (p.sneaking ? 1 : 0) | (p.swinging ? 2 : 0) | (p.dead ? 4 : 0) | (bewegt ? 8 : 0) | (Game.bett ? 16 : 0);
   },
   /** jede Blockänderung aus dem eigenen Spiel */
   blockGeaendert(x, y, z, id){ this.ausgang.push(x, y, z, id); },
@@ -777,8 +778,11 @@ const Netz = {
   },
   figurZiel(s, x, y, z, yaw, pitch, f, held, ruest){
     if(!s) return;
+    const lag = s.flags & 16;
     s.zx = +x; s.zy = +y; s.zz = +z; s.zyaw = +yaw; s.zpitch = +pitch; s.flags = f | 0; s.held = held | 0; s.tot = !!(f & 4);
     s.ruest = (ruest | 0) & 0xfff;
+    // jemand legt sich hin: alle erfahren, wie viele schon liegen
+    if((s.flags & 16) && !lag && Game.running){ const [n, alle] = Game.schlaefer(); hint(s.name + ' liegt im Bett · ' + n + ' von ' + alle, 2600); }
   },
   figurenNachziehen(dt){
     const k = Math.min(1, dt*12);
@@ -801,7 +805,8 @@ const Netz = {
       let e = document.getElementById('schild-' + s.id);
       if(!e){ e = document.createElement('div'); e.className = 'schild'; e.id = 'schild-' + s.id; box.appendChild(e); }
       if(e.textContent !== s.name) e.textContent = s.name;
-      const x = s.x, y = s.y + ((s.flags & 1) ? 1.95 : 2.1), z = s.z;
+      const liegt = s.flags & 16;                          // im Bett: das Schild über dem Kopfkissen
+      const x = s.x, y = s.y + (liegt ? 0.75 : (s.flags & 1) ? 1.95 : 2.1), z = s.z - (liegt ? 0.3 : 0);
       const cw = vp[3]*x + vp[7]*y + vp[11]*z + vp[15];
       const weit = Math.hypot(x - p.x, z - p.z);
       if(cw < 0.1 || s.tot || weit > 64){ e.style.display = 'none'; continue; }

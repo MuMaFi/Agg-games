@@ -319,6 +319,11 @@ body.mcOffen .screen{visibility:hidden}
 .pip.arm::before,.pip.arm::after{clip-path:polygon(0 0,35% 0,50% 14%,65% 0,100% 0,100% 55%,78% 55%,78% 100%,22% 100%,22% 55%,0 55%)}
 .pip.arm::after{--full:#c9ced8}
 #schlaf{position:absolute; inset:0; background:#05070b; opacity:0; transition:opacity .9s; pointer-events:none}
+/* im Bett: wer schon liegt, und ein Knopf zum Aufstehen (Bewegen geht auch) */
+#bett{position:absolute; left:50%; bottom:96px; transform:translateX(-50%); display:none; flex-direction:column; align-items:center; gap:10px;
+  width:min(440px, calc(100vw - 32px)); font-family:var(--pix); font-size:16px; line-height:1.3; color:var(--ink); text-shadow:2px 2px 0 #000; text-align:center}
+#bett.on{display:flex}
+#bett .mc{pointer-events:auto; width:auto; min-width:180px}
 
 /* ── Behälter: Inventar, Werkbank, Truhe, Ofen ─────────────────────── */
 #beh{padding:12px; align-items:center}
@@ -399,6 +404,7 @@ body.mcOffen .screen{visibility:hidden}
 <div id="hud">
   <div id="water"></div>
   <div id="schlaf"></div>
+  <div id="bett"><span id="bettText"></span><button class="mc" id="bettAuf">Aufstehen</button></div>
   <div id="hurt"></div>
   <div id="crosshair"><i></i><i></i></div>
   <div id="spannung"><i></i></div>

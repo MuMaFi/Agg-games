@@ -12,6 +12,7 @@ const ladeZiel = rd => { const r = Math.min(rd, 8); return Math.max(9, ((r*2+1)*
 const MOB_SPRUNG = 9;             // so schnell springen Wesen ab: gut einen Block hoch (früher 7,6 — zu wenig für eine Stufe)
 const SCHLEIM_MAX = 4;            // so viele Schleime höchstens um einen Spieler
 const SCHLEIM_HOEHE = 39;         // darunter erscheinen sie, wie beim Vorbild
+const BETT_HOEHE = 9/16;          // so hoch ist das Strohbett: darauf liegt man
 
 const Game = {
   world:null, player:null, mobs:[], drops:[],
@@ -21,6 +22,7 @@ const Game = {
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
   hurtFlash:0, mobTimer:0, camShake:0,
+  bett:null, schlafT:0,             // im Bett: wo, und wo man vorher stand · schlafT: Abblenden über Nacht
   meta:null, gesamtZeit:0, panoramaAktiv:false, _panoZiel:0,
   pfeile:[], bogen:{ aktiv:false, t:0 }, partikel:[],
   gaeste:{},                        // Host: Inventar und Ort der Mitspieler, mit der Welt gespeichert
@@ -34,6 +36,7 @@ const Game = {
   /** meta: Steckbrief der Welt · saved: Datenteil oder null für eine neue */
   start(meta, saved){
     this.meta = meta;
+    this.bett = null; this.schlafT = 0;
     this.panoramaAktiv = false;
     document.body.classList.remove('imMenue');
     const seed = meta.seed;
@@ -447,6 +450,7 @@ const Game = {
 
   /* ── Abbauen ─────────────────────────────────────────────────────── */
   targetBlock(){
+    if(this.bett) return null;                        // im Bett baut man nicht
     const p = this.player, f = p.forward();
     const r = this.world.raycast(p.x, p.eyeY(), p.z, f[0], f[1], f[2], p.creative ? 7 : 5, false);
     return r.hit ? r : null;
@@ -735,16 +739,62 @@ const Game = {
     Sfx.play(offen ? 'tuer_auf' : 'tuer_zu', x + .5, y0 + 1, z + .5);
     return true;
   },
+  /** Ins Bett: nachts, ohne Monster in der Nähe, und nur, wenn dort noch
+      niemand liegt. Die Nacht vergeht erst, wenn alle Spieler im Bett
+      liegen (schlafPruefen); bis dahin kann man wieder aufstehen. */
   schlafen(x, y, z){
     const p = this.player;
     p.spawnX = x + 0.5; p.spawnY = y + 0.6; p.spawnZ = z + 0.5;
-    if(Netz.istGast){ hint('Die Nacht überspringen kann nur der Host — dein Startpunkt ist jetzt hier', 2800); return; }
-    if(Math.sin(this.sunAngle()) > 0.06){ hint('Schlafen geht nur nachts — dein Startpunkt ist jetzt hier', 2600); return; }
+    if(this.bett) return;
+    if(!this.istNacht()){ hint('Schlafen geht nur nachts — dein Startpunkt ist jetzt hier', 2600); return; }
     if(this.mobs.some(m => m.def.hostile && Math.hypot(m.x - x, m.z - z) < 10 && Math.abs(m.y - y) < 5)){
-      hint('Du kannst nicht schlafen, Zombies sind in der Nähe', 2400); return;
+      hint('Du kannst nicht schlafen, Monster sind in der Nähe', 2400); return;
     }
+    for(const s of Netz.andere.values())
+      if((s.flags & 16) && Math.floor(s.zx) === x && Math.floor(s.zy) === y && Math.floor(s.zz) === z){ hint('In diesem Bett liegt schon ' + s.name, 2400); return; }
+    this.bett = { x, y, z, vorher: [p.x, p.y, p.z, p.flying], hp: p.health };
+    p.liegt = true; p.flying = false; p.sneaking = false; p.pitch = 0.45;
+    p.x = x + 0.5; p.y = y + BETT_HOEHE; p.z = z + 0.5; p.vx = p.vy = p.vz = 0;
+    const [n, alle] = this.schlaefer();
+    hint(alle > 1 ? 'Gute Nacht · ' + n + ' von ' + alle + ' liegen im Bett' : 'Gute Nacht …', 2000);
+  },
+  /** Raus aus dem Bett, dorthin, wo man vorher stand (wenn es dort noch frei ist) */
+  aufstehen(grund){
+    const b = this.bett, p = this.player, w = this.world;
+    if(!b) return;
+    this.bett = null; p.liegt = false;
+    const [vx, vy, vz, flog] = b.vorher;
+    const frei = y => !blocksMovement(w.getBlock(Math.floor(vx), Math.floor(y), Math.floor(vz)));
+    if(frei(vy) && frei(vy + 1)){ p.x = vx; p.y = vy; p.z = vz; } else p.y = b.y + BETT_HOEHE;
+    p.flying = !!flog && p.creative; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
+    if(grund) hint(grund, 2200);
+  },
+  /** Im Bett: liegen bleiben, bis man sich bewegt, das Bett weg ist, einen
+      etwas trifft oder es hell wird */
+  imBett(input){
+    const p = this.player, b = this.bett;
+    p.x = b.x + 0.5; p.y = b.y + BETT_HOEHE; p.z = b.z + 0.5; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
+    if(this.schlafT > 0) return;                             // gleich ist Morgen
+    if(input.mx || input.mz || input.jump || input.sneak) this.aufstehen();
+    else if(this.world.getBlock(b.x, b.y, b.z) !== B.BED) this.aufstehen('Dein Bett ist weg');
+    else if(p.health < b.hp) this.aufstehen('Aua — du bist aufgewacht');
+    else if(!this.istNacht()) this.aufstehen('Es ist schon hell');
+    b.hp = p.health;
+  },
+  istNacht(){ return Math.sin(this.sunAngle()) <= 0.06; },
+  /** [wie viele im Bett liegen, wie viele mitspielen] — wer gerade tot ist, zählt nicht */
+  schlaefer(){
+    let n = this.bett && !this.player.dead ? 1 : 0, alle = this.player.dead ? 0 : 1;
+    for(const s of Netz.andere.values()) if(!s.tot){ alle++; if(s.flags & 16) n++; }
+    return [n, alle];
+  },
+  /** Beim Host (oder allein): liegen alle im Bett, vergeht die Nacht — für alle */
+  schlafPruefen(){
+    if(Netz.istGast || this.schlafT > 0 || !this.istNacht()) return;
+    const [n, alle] = this.schlaefer();
+    if(!n || n < alle) return;
     this.schlafT = 0.001;
-    hint('Gute Nacht …', 1600);
+    if(Netz.istHost) Netz.anAlle({ t:'schlaf' });
   },
   eat(){
     const p = this.player, s = Inv.held();
@@ -804,6 +854,7 @@ const Game = {
     return best;
   },
   attack(){
+    if(this.bett) return false;
     const best = this.wesenImBlick(3.4);
     if(!best) return false;
     const p = this.player, s = Inv.held();
@@ -853,7 +904,7 @@ const Game = {
   },
   /** Benutzen auf ein Wesen: füttern, Schaf scheren, Kuh melken */
   benutzeWesen(){
-    const s = Inv.held(); if(!s) return false;
+    const s = Inv.held(); if(!s || this.bett) return false;
     const m = this.wesenImBlick(3.4); if(!m) return false;
     const p = this.player;
     // Körner gehören auch aufs Feld: dann zählt, was näher unterm Fadenkreuz liegt
@@ -914,7 +965,7 @@ const Game = {
   hatPfeile(){ return this.player.creative || Inv.countOf(ITEM.arrow) > 0; },
   bogenStart(){
     const s = Inv.held();
-    if(!s || s.id !== ITEM.bow) return false;
+    if(!s || s.id !== ITEM.bow || this.bett) return false;
     if(!this.hatPfeile()){ hint('Keine Pfeile'); return true; }
     this.bogen.aktiv = true; this.bogen.t = 0;
     return true;
@@ -1436,6 +1487,7 @@ const Game = {
     const p = this.player, w = this.world;
     if(p.dead) return;
     if(p.hurtTimer > 0) p.hurtTimer -= dt;
+    if(this.bett){ this.imBett(input); return; }
 
     const feetId = w.getBlock(Math.floor(p.x), Math.floor(p.y+0.1), Math.floor(p.z));
     const warImWasser = p.inWater;
@@ -1555,6 +1607,7 @@ const Game = {
   },
   respawn(){
     const p = this.player;
+    this.bett = null; p.liegt = false;
     p.health = p.maxHealth; p.food = 20; p.saturation = 5; p.air = p.maxAir;
     p.dead = false; p.vx = p.vy = p.vz = 0; p.exhaustion = 0;
     p.x = p.spawnX; p.y = p.spawnY; p.z = p.spawnZ;
@@ -1647,6 +1700,7 @@ const Input = {
     $('#btnInv').addEventListener('pointerdown', e => { e.preventDefault();
       if(Screens.open){ Screens.hide(); } else Screens.oeffne('inv'); });
     $('#btnPause').addEventListener('pointerdown', e => { e.preventDefault(); togglePause(); });
+    $('#bettAuf').addEventListener('click', () => Game.aufstehen());
 
     // Hotbar
     $('#hotbar').addEventListener('pointerdown', e => {
@@ -1856,21 +1910,37 @@ function frame(now){
     Game.platzSuchen = false;
     Game.freierPlatz(Game.player.x, Game.player.z, true);
   }
-  // Schlafen: abblenden, die Nacht überspringen, aufblenden
+  // Schlafen: liegen alle im Bett, abblenden, die Nacht überspringen (das
+  // macht der Host, die Gäste bekommen die Zeit von ihm), aufblenden, aufstehen
+  Game.schlafPruefen();
   if(Game.schlafT > 0){
     const vorher = Game.schlafT;
     Game.schlafT += dt;
     if(vorher < 1 && Game.schlafT >= 1){
-      // die übersprungene Nacht zählt als Spielzeit: ein neuer Tag
-      Game.gesamtZeit += (DAY_LEN - Game.time + DAY_LEN*0.01) % DAY_LEN;
-      Game.time = DAY_LEN*0.01; hint('Guten Morgen', 1800);
-      if(Wetter.regen) Wetter.klar();          // wer die Nacht verschläft, verschläft auch den Regen
-      Game.save();
-      if(Netz.istHost) Netz.zeitSenden();
+      if(!Netz.istGast){
+        // die übersprungene Nacht zählt als Spielzeit: ein neuer Tag
+        Game.gesamtZeit += (DAY_LEN - Game.time + DAY_LEN*0.01) % DAY_LEN;
+        Game.time = DAY_LEN*0.01;
+        if(Wetter.regen) Wetter.klar();          // wer die Nacht verschläft, verschläft auch den Regen
+        Game.save();
+        if(Netz.istHost) Netz.zeitSenden();
+      }
+      hint('Guten Morgen', 1800);
     }
-    const t = Game.schlafT;
-    $('#schlaf').style.opacity = t < 1 ? t : Math.max(0, 1 - (t - 1.5)/0.9);
-    if(t > 2.4){ Game.schlafT = 0; $('#schlaf').style.opacity = 0; }
+    if(Game.schlafT > 2.4){ Game.schlafT = 0; Game.aufstehen(); }
+  }
+  {
+    // im Bett etwas dunkler, beim Schlafen ganz dunkel; dazu, wer schon liegt
+    const t = Game.schlafT, b = $('#bett');
+    const o = t > 0 ? (t < 1 ? Math.max(t, 0.4) : Math.max(0, 1 - (t - 1.5)/0.9)) : (Game.bett ? 0.4 : 0);
+    if(Game._schlafO !== o){ Game._schlafO = o; $('#schlaf').style.opacity = o; }
+    const zeigen = !!Game.bett && !t;
+    if(zeigen){
+      const [n, alle] = Game.schlaefer();
+      const text = alle > 1 ? n + ' von ' + alle + ' liegen im Bett — die Nacht vergeht, wenn alle schlafen' : 'Gute Nacht …';
+      if($('#bettText').textContent !== text) $('#bettText').textContent = text;
+    }
+    if(b.classList.contains('on') !== zeigen) b.classList.toggle('on', zeigen);
   }
   if(Game.camShake > 0) Game.camShake = Math.max(0, Game.camShake - dt*0.4);
   if(Game.hurtFlash > 0){ Game.hurtFlash -= dt*2.4; $('#hurt').style.opacity = Math.max(0, Game.hurtFlash*0.9); }

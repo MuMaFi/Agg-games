@@ -511,7 +511,9 @@ function drawHuellen(fogCol, near, far){
   _huellen.length = 0;
 }
 /* Mitspieler: Kästen wie die Wesen; Kopf nickt mit dem Blick, der rechte
-   Arm schlägt beim Abbauen, geduckt geht die Figur etwas in die Knie. */
+   Arm schlägt beim Abbauen, geduckt geht die Figur etwas in die Knie. Im
+   Bett liegt sie auf dem Rücken, den Kopf auf dem Kissen (Bett-Seite −Z),
+   die Beine schauen am Fußende heraus: das Strohbett ist nur einen Block lang. */
 function drawSpieler(fogCol, near, far){
   if(!Netz.andere.size) return;
   const P = R.progEnt;
@@ -521,17 +523,20 @@ function drawSpieler(fogCol, near, far){
   const d = SPIELER_MODELL, figur = { x:0, y:0, z:0, yaw:0, kind:0, def:d };
   for(const s of Netz.andere.values()){
     if(s.tot) continue;
-    if(!R.boxVisible(s.x-1, s.y-0.2, s.z-1, s.x+1, s.y+2.1, s.z+1)) continue;
-    gl.uniform1f(P.u.uLight, blockLightAt(s.x, s.y + 1.4, s.z));
-    const geht = (s.flags & 8) !== 0, sw = Math.sin(s.walkPhase) * (geht ? 0.62 : 0);
-    const schlag = s.schlagT > 0 ? 0.5 + Math.abs(Math.sin(s.schlagT*9))*1.1 : 0;
-    figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw;
+    if(!R.boxVisible(s.x-1, s.y-0.2, s.z-1, s.x+1, s.y+2.1, s.z+1.5)) continue;
+    const liegt = (s.flags & 16) !== 0;
+    gl.uniform1f(P.u.uLight, blockLightAt(s.x, s.y + (liegt ? 0.5 : 1.4), s.z));
+    const geht = !liegt && (s.flags & 8) !== 0, sw = Math.sin(s.walkPhase) * (geht ? 0.62 : 0);
+    const schlag = !liegt && s.schlagT > 0 ? 0.5 + Math.abs(Math.sin(s.schlagT*9))*1.1 : 0;
+    figur.liegt = liegt;
+    if(liegt){ figur.x = s.x; figur.y = s.y + 0.13; figur.z = s.z + 1.31; figur.yaw = Math.PI; }
+    else { figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw; }
     const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
     const teil = part => {
       let ang = 0;
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       else if(part.anim === 'arm') ang = (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
-      else if(part.anim === 'head') ang = clamp(s.pitch, -1.2, 1.2);
+      else if(part.anim === 'head' && !liegt) ang = clamp(s.pitch, -1.2, 1.2);
       partMatrix(_m, figur, part, ang);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       for(let i = 0; i < 6; i++) _layers[i] = TEX[part.tex];
@@ -616,6 +621,7 @@ function drawPartikel(){
 function partMatrix(out, mob, part, ang){
   M4.ident(out);
   M4.translate(out, out, mob.x, mob.y, mob.z);
+  if(mob.liegt) M4.rotX(out, out, -Math.PI/2);               // Mitspieler im Bett: auf dem Rücken
   M4.rotY(out, out, mob.yaw);
   // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
   if(mob.groesse){
@@ -781,7 +787,7 @@ function render(dt){
   drawPartikel();
   drawDrops(fog, near, far);
   drawHuellen(fog, near, far);
-  const ohne = Game.panoramaAktiv || Game._ohneHand;
+  const ohne = Game.panoramaAktiv || Game._ohneHand || !!Game.bett;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);
   if(!Game.panoramaAktiv) Wetter.zeichnen();

@@ -106,8 +106,9 @@ class Player{
     this.dead = false; this.deathCause = '';
     this.bob = 0; this.swing = 0; this.swinging = false;
     this.spawnX = 0; this.spawnY = 70; this.spawnZ = 0;
+    this.liegt = false;                  // im Bett (Game.bett)
   }
-  eyeY(){ return this.y + this.eye - (this.sneaking ? 0.22 : 0); }
+  eyeY(){ return this.liegt ? this.y + 0.3 : this.y + this.eye - (this.sneaking ? 0.22 : 0); }
   forward(){
     const cp = Math.cos(this.pitch);
     return [-Math.sin(this.yaw)*cp, Math.sin(this.pitch), -Math.cos(this.yaw)*cp];
