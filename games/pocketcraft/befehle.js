@@ -35,10 +35,10 @@ const MC_NAMEN = {
   golden_leggings:'gold_leggings', golden_boots:'gold_boots', leather_tunic:'leather_chestplate', leather_cap:'leather_helmet',
   leather_pants:'leather_leggings',
   redstone_ore:'REDSTONE_ERZ', redstone_block:'REDSTONEBLOCK', redstone_lamp:'RS_LAMPE', redstone_torch:'RS_FACKEL', lever:'HEBEL',
-  stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB',
+  stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
-  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton' };
+  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };
@@ -262,13 +262,14 @@ befehl('clear', { alias:['leeren'], syntax:'[spieler]', text:'leert das Inventar
   } });
 
 befehl('summon', { alias:['beschwören'], syntax:'<wesen> [x y z]', text:'lässt ein Wesen erscheinen',
-  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett'] : i <= 3 ? V_KOORD(i - 1) : [],
+  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett', 'schleim'] : i <= 3 ? V_KOORD(i - 1) : [],
   lauf(a, wer){
     const art = WESEN_NAMEN[bNorm(a[0])];
-    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett' : 'Welches Wesen? /summon <wesen> [x y z]');
+    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett, schleim' : 'Welches Wesen? /summon <wesen> [x y z]');
     const ort = a.length >= 4 ? Befehle.koord(a, 1, wer, false) : [wer.x, wer.y, wer.z];
     if(!ort) return Befehle.fehler(wer, 'Keine Koordinaten: ' + a.slice(1).join(' '));
     const m = new Mob(art, ort[0], ort[1], ort[2], false);
+    if(art === 'slime') schleimGroesse(m, [1, 2, 4][(Math.random()*3) | 0]);
     if(!m.def.hostile) m.bleibt = true;          // wie gezüchtete Tiere: sie bleiben
     Game.mobs.push(m);
     Befehle.antwort(wer, m.def.name + ' ist erschienen');

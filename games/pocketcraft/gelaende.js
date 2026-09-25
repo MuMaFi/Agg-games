@@ -161,6 +161,9 @@ function redstoneAdern(w, c){
   }
 }
 
+/** Schleim-Chunk: jeder zehnte, fest nach dem Startwert der Welt (wie beim Vorbild) */
+function schleimChunk(w, cx, cz){ return ghash(cx, 987, cz, w.seed ^ 0x5eed5) < 0.1; }
+
 /** einen Chunk erzeugen: Boden, Höhlen, Erze, dann Bäume und Schnee */
 function erzeugen2(w, c){
   const bl = c.blocks = new Uint8Array(CS*WH*CS);

@@ -342,5 +342,12 @@ pruef(T(`rasterRezept([null,{id:ITEM.redstone,n:1},null, {id:ITEM.redstone,n:1},
 pruef(T(`dingNummer('lever') === B.HEBEL && dingNummer('redstone_lamp') === B.RS_LAMPE && dingNummer('redstone') === ITEM.redstone && dingNummer('redstone_wire') === B.STAUB`), 'Redstone-Namen für Befehle');
 pruef(T(`B.REDSTONE_ERZ === 75 && B.STAUB + 15 === 126 && blocks[126].name === 'Redstone-Leitung' && !blocks[127]`), 'Redstone-Nummern hinten angehängt');
 
+// Schleime: jeder zehnte Chunk ist ein Schleim-Chunk, fest nach dem Startwert; der Schleimball kam hinten dazu
+pruef(T(`(() => { const W1 = new World('pruefwelt', 2), W2 = new World('pruefwelt', 2), W3 = new World('anders', 2); let n = 0, gleich = true, anders = 0;
+  for(let x = -40; x < 40; x++) for(let z = -40; z < 40; z++){ const a = schleimChunk(W1, x, z); if(a) n++; if(a !== schleimChunk(W2, x, z)) gleich = false; if(a !== schleimChunk(W3, x, z)) anders++; }
+  return n > 450 && n < 830 && gleich && anders > 300; })()`), 'etwa jeder zehnte Chunk ist ein Schleim-Chunk, je Welt verschieden');
+pruef(T(`ITEM.slimeball === ITEM.redstone + 1 && nameOf(ITEM.slimeball) === 'Schleimball'`), 'Schleimball hinten angehängt');
+pruef(T(`dingNummer('slime_ball') === ITEM.slimeball && dingNummer('schleimball') === ITEM.slimeball && dingNummer('slimeball') === ITEM.slimeball`), 'Schleimball für /give');
+
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

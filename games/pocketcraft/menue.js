@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9.3';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.9.4';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '76 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -22,7 +22,8 @@ const SPRUECHE = [
   'Jetzt mit Bergen!', 'Es regnet!', 'Schnee auf den Gipfeln!', 'Tief in der Höhle!', 'Regenschirm vergessen!',
   'Jetzt mit Chat!', 'Probier /hilfe!', '/gamemode kreativ!', 'Drück T zum Reden!',
   'Jetzt mit Flachland!', 'Flach wie eine Flunder!', 'Platz ohne Ende!',
-  'Jetzt mit Redstone!', 'Strom an!', 'Hebel umlegen!', 'Es werde Licht!', 'Nicht, und, oder!'
+  'Jetzt mit Redstone!', 'Strom an!', 'Hebel umlegen!', 'Es werde Licht!', 'Nicht, und, oder!',
+  'Jetzt mit Schleimen!', 'Boing!', 'Schleim-Chunks!', 'Klein, mittel, groß!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {

@@ -254,6 +254,8 @@ function initItems(){
   defItem('platte',{name:'Schallplatte', stack:1});
   // Redstone: gesetzt wird daraus eine Leitung
   defItem('redstone',{name:'Redstone', tex:'i_redstone'});
+  // Schleime lassen ihn fallen
+  defItem('slimeball',{name:'Schleimball', tex:'i_schleimball'});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

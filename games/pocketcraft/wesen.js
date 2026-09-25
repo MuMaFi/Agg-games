@@ -222,8 +222,46 @@ const MOBS = {
       { n:'z0', box:[-0.1875,0.0,-0.15625, 0.1875,0.04,0.21875], tex:'m_huhn_fuss', anim:'leg', ph:0, pivot:[-0.09375, 0.3125, 0] },
       { n:'z1', box:[ 0.0,0.0,-0.15625, 0.1875,0.04,0.21875], tex:'m_huhn_fuss', anim:'leg', ph:1, pivot:[0.09375, 0.3125, 0] },
     ]
+  },
+  /* Schleim wie beim Vorbild, Maße für die kleinste Größe (in Sechzehnteln: Hülle
+     8 × 8 × 8, darin ein Kern 6 × 6 × 6 mit Augen und Mund). Größere sind
+     zwei- oder viermal so groß (groesse, siehe schleimGroesse). Die Hülle ist
+     durchscheinend und wird zuletzt gezeichnet. Schleime hüpfen, statt zu gehen,
+     brennen nicht in der Sonne und teilen sich, wenn man sie besiegt. */
+  slime: {
+    name:'Schleim', w:0.52, h:0.52, health:1, speed:0, hostile:true, dmg:0, schleim:true, feuerfest:true,
+    beute: m => m.groesse === 1 ? [[ITEM.slimeball, zufallN(0, 2)]] : [],
+    parts:[
+      { n:'kern', box:[-0.1875,0.0625,-0.1875, 0.375,0.375,0.375], tex:'m_schleim_kern' },
+      { n:'auge0', box:[-0.203125,0.25,-0.21875, 0.125,0.125,0.125], tex:'m_schleim_auge' },
+      { n:'auge1', box:[ 0.078125,0.25,-0.21875, 0.125,0.125,0.125], tex:'m_schleim_auge' },
+      { n:'mund', box:[0,0.125,-0.21875, 0.0625,0.0625,0.0625], tex:'m_schleim_auge' },
+      { n:'huelle', box:[-0.25,0,-0.25, 0.5,0.5,0.5], tex:'m_schleim', huelle:true },
+    ]
   }
 };
+/** Schleime strecken sich beim Absprung und werden beim Landen platt, dann
+    federn sie zurück (wie beim Vorbild). Dabei klingt es — beim Host wie
+    beim Gast, der nur sieht, ob der Schleim am Boden ist. */
+function schleimQuetschen(m, dt){
+  const boden = m.onGround;
+  if(m._boden !== undefined && boden !== m._boden){
+    m.qZiel = boden ? -0.5 : 1;
+    const p = Game.player;
+    if(p && Math.hypot(p.x - m.x, p.y - m.y, p.z - m.z) < 20) Sfx.wesen(m, boden ? 'landen' : 'sprung');
+  }
+  m._boden = boden;
+  const k = dt*20;
+  m.qZiel = (m.qZiel || 0)*Math.pow(0.6, k);
+  m.quetsch = (m.quetsch || 0) + (m.qZiel - (m.quetsch || 0))*(1 - Math.pow(0.5, k));
+}
+/** Schleime gibt es in drei Größen: 1, 2 und 4. Leben wie beim Vorbild
+    (Größe zum Quadrat); je kleiner, desto höher klingen sie. */
+function schleimGroesse(m, g){
+  m.groesse = g; m.w = m.h = 0.52*g; m.health = g*g;
+  m.tonhoehe = g === 1 ? 1.45 : g === 2 ? 1.15 : 0.85;
+  return m;
+}
 const KUEKEN_GELB = [1.0, 0.86, 0.34];
 /** womit sich ein Tier füttern und locken lässt */
 const futterVon = m => ITEM[m.def.futter || 'wheat'];
@@ -254,6 +292,7 @@ class Mob{
     this.schussCd = 1 + Math.random()*1.5; this.seite = Math.random() < .5 ? 1 : -1; this.seiteT = 0;
     if(type === 'sheep'){ this.wolle = wollfarbe(); this.geschoren = false; this.wolleT = 0; }
     if(type === 'chicken') this.eiT = 300 + Math.random()*300;          // alle fünf bis zehn Minuten ein Ei
+    if(type === 'slime'){ schleimGroesse(this, 1); this.hopT = Math.random(); this.quetsch = 0; }
     this.nid = ++Mob.zaehler;            // Nummer, unter der Mitspieler das Wesen kennen
   }
 }

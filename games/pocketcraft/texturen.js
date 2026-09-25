@@ -1236,6 +1236,12 @@ function buildTextures(){
     L.muster = (x, y) => (h2(x, y, 191) < .3 ? -1 : h2(x, y, 192) > .8 ? 1 : 0);
     L.glanz = [[13,11],[20,9],[16,17],[11,20]];
   });
+  sprite('i_schleimball', S => {
+    const L = S.lage(pal('#2f7424','#4c9a3b','#63b84c','#7fd264','#b4f0a0'), { kante:true });
+    S.oval(L, 16, 17, 9.5, 8.5);
+    L.muster = (x, y) => (h2(x, y, 356) < .18 ? -1 : 0);
+    L.glanz = [[12,11],[13,11],[12,12],[11,13],[14,10]];
+  });
   sprite('i_hebel', S => {
     const stab = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545'));
     S.strich(stab, [[14,22],[22,6]], 1.4);
@@ -1326,6 +1332,19 @@ function buildTextures(){
     p.rect(4, 20, 6, 5, [70,78,140]); for(let x = 4; x < 10; x++) p.put(x, 20, [110,118,176]);
   });
   addTex('m_skin', p => haut(pal('#a8764f','#bb865d','#cc966b','#d9a679','#e4b688'), 341)(p));
+  /* — Schleim: eine grüne, durchscheinende Hülle, darin ein dunklerer Kern — */
+  const SCHLEIM = pal('#4f9a3c','#5cae46','#6cc253','#7fd264','#9be07e');
+  addTex('m_schleim', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const n = .6*fbm(x, y, 4, 4, 351, 2) + .4*h2(x >> 1, y >> 1, 352);
+      const rand = x < 2 || y < 2 || x >= TS - 2 || y >= TS - 2;
+      p.quant(x, y, clamp(n + (rand ? .18 : 0), 0, .99), SCHLEIM, .5, rand ? 175 : 105 + (n*45|0));
+    }
+    for(let i = 0; i < 7; i++){ const x = 3 + p.r()*26 | 0, y = 3 + p.r()*26 | 0; p.put(x, y, SCHLEIM[4], 165); p.put(x + 1, y, SCHLEIM[3], 150); }
+  });
+  addTex('m_schleim_kern', p => p.fuell((x, y) => .6*fbm(x, y, 4, 4, 353, 2) + .4*vnoise(x, y, 8, 8, 354),
+    pal('#2f6a24','#377a2b','#418a33','#4c9a3b'), [15, 35, 35, 15], .6));
+  addTex('m_schleim_auge', p => p.fuell((x, y) => vnoise(x, y, 8, 8, 355), pal('#122010','#18291a','#1f3320'), null, .5));
 
   /* — Mitspieler: Haare, Gesicht, ein helles Hemd (wird eingefärbt), Hose — */
   const SP_HAUT = pal('#b07c55','#c28b62','#d09a70','#dcaa7e','#e7ba8e');

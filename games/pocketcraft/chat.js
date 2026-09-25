@@ -25,6 +25,7 @@ const TOD_TEXT = {
   'Ein Kaktus war stärker': '{n} wurde von einem Kaktus zu Tode gestochen',
   'Du bist ertrunken': '{n} ist ertrunken',
   'Durch einen Befehl getötet': '{n} wurde getötet',
+  'Ein Schleim hat dich erwischt': '{n} wurde von einem Schleim erwischt',
 };
 
 /** Farbe eines Spielers als CSS-Farbe (die Farben sind für das Licht der Welt etwas überhöht) */

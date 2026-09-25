@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 7;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone
+const NETZ_VERSION = 8;                  // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -356,7 +356,7 @@ const Netz = {
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
         const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
           | (m.onGround ? 0 : 64);
-        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.wolle | 0);
+        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle | 0);
       }
       this.senden(g.conn, { t:'w', l });
     }
@@ -616,6 +616,7 @@ const Netz = {
       if(f & 2) m.hurtTimer = Math.max(m.hurtTimer, 0.25);
       m.liebe = (f & 8) ? 1 : 0; m.pause = (f & 16) ? 1 : 0;
       if(art === 'sheep'){ m.geschoren = !!(f & 4); m.wolle = l[i+7] | 0; }
+      if(art === 'slime' && m.groesse !== (l[i+7] | 0) && [1, 2, 4].includes(l[i+7])) schleimGroesse(m, l[i+7]);
       if(jung && !(m.kind > 0)){ m.kind = 1; m.w = m.def.w*BABY; m.h = m.def.h*BABY; }
       else if(!jung && m.kind > 0){ m.kind = 0; m.w = m.def.w; m.h = m.def.h; }
       neu.push(m);
@@ -634,6 +635,7 @@ const Netz = {
       m.age += dt;
       if(m.hurtTimer > 0) m.hurtTimer -= dt;
       if(m.moving) m.walkPhase += dt*m.def.speed*3.2*0.8;
+      if(m.def.schleim) schleimQuetschen(m, dt);
       if(m.liebe > 0){ m.herzT -= dt; if(m.herzT <= 0){ m.herzT = 0.7 + Math.random()*0.4; Game.herz(m); } }
       if(Math.hypot(m.x - p.x, m.z - p.z) < 20 && Math.random() < (m.def.hostile ? 0.003 : 0.0012)) Sfx.wesen(m, 'laut');
     }

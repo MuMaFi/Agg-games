@@ -19,7 +19,7 @@ const KLANG_DATEIEN = {
   kuh:0, kuh_au:0, schwein:0, schwein_au:0, schaf:0,
   zombie:0, zombie_au:0, zombie_tot:0, skelett_au:0, skelett_tot:0,
   huhn:3, huhn_au:0, kueken:0, ei_legen:0, ei_kaputt:0, werfen:0,
-  regen:0,
+  regen:0, schleim_sprung:0, schleim_landen:0, schleim_au:0, schleim_tot:0,
 };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
@@ -68,6 +68,7 @@ const WESEN_KLANG = {
   zombie:   { laut:['zombie', .55],  au:['zombie_au', .7],    tot:['zombie_tot', .75] },
   skeleton: { laut:['skelett', .8],  au:['skelett_au', .7],   tot:['skelett_tot', .75] },
   chicken:  { laut:['huhn', .5],     au:['huhn_au', .6],      tot:['huhn_au', .6, .85], kind:['kueken', .45] },
+  slime:    { au:['schleim_au', .55], tot:['schleim_tot', .6], sprung:['schleim_sprung', .4], landen:['schleim_landen', .45] },
 };
 const zufall = (a, b) => a + Math.random()*(b - a);
 
@@ -182,8 +183,9 @@ const Sfx = {
     const k = WESEN_KLANG[m.type], piepst = m.kind > 0 && art === 'laut' && k && k.kind;
     const e = piepst ? k.kind : k && k[art];
     if(!e) return;
-    const rate = (e[2] || 1)*zufall(.9, 1.1)*(m.kind > 0 && !piepst ? 1.35 : 1);
-    if(!this.probe(e[0], { gain: e[1], rate, x: m.x, y: m.y + m.h*.7, z: m.z, weit: 20 }))
+    const rate = (e[2] || 1)*zufall(.9, 1.1)*(m.kind > 0 && !piepst ? 1.35 : 1)*(m.tonhoehe || 1);
+    const gain = e[1]*(m.groesse ? 0.7 + 0.15*m.groesse : 1);           // große Schleime klingen lauter
+    if(!this.probe(e[0], { gain, rate, x: m.x, y: m.y + m.h*.7, z: m.z, weit: 20 }))
       this.synth(art === 'laut' ? (m.def.laut || '') : 'hit');
   },
   ruestung(id){

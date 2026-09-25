@@ -86,6 +86,8 @@ Lizenzen:
 | `ei_legen` | `mobs_mc_chicken_lay_egg.ogg` | PilzAdam und Wuzzy | CC0 |
 | `ei_kaputt` | `mcl_throwing_egg_impact.ogg` | dav0r, <https://freesound.org/people/dav0r/sounds/176760/> | CC0 |
 | `werfen` | `mcl_throwing_throw.ogg` | kretopi, <https://freesound.org/people/kretopi/sounds/406405/> | CC0 |
+| `schleim_sprung`, `schleim_landen`, `schleim_tot` | `green_slime_jump.ogg`, `green_slime_land.ogg`, `green_slime_death.ogg` | Dr. Minky, <http://www.freesound.org/people/DrMinky/sounds/> | CC BY 3.0 |
+| `schleim_au` | `green_slime_damage.ogg` | RandomationPictures, <http://www.freesound.org/people/RandomationPictures/sounds/138481/> | CC0 |
 
 ## Wetter (aus VoxeLibre)
 

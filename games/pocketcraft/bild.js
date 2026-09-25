@@ -445,19 +445,23 @@ function blockLightAt(x,y,z){
   return 0.09 + 0.91 * Math.pow(clamp(l, 0, 1), 1.35);
 }
 
+const _huellen = [];
 function drawMobs(fogCol, near, far){
   const P = R.progEnt;
+  _huellen.length = 0;
   entUniforms(P, fogCol, near, far);
   gl.uniform1f(P.u.uUseTex, 1);
   gl.bindVertexArray(R.cubeVAO);
   for(const m of Game.mobs){
-    if(!R.boxVisible(m.x-1, m.y-0.5, m.z-1, m.x+1, m.y+m.h+0.5, m.z+1)) continue;
+    const rr = Math.max(1, m.w);
+    if(!R.boxVisible(m.x-rr, m.y-0.5, m.z-rr, m.x+rr, m.y+m.h+0.5, m.z+rr)) continue;
     const light = blockLightAt(m.x, m.y+m.h*0.6, m.z);
     const hurt = m.hurtTimer > 0;
     gl.uniform1f(P.u.uLight, light);
     const sw = Math.sin(m.walkPhase) * (m.moving || m.def.hostile ? 0.62 : 0.06);
     for(const part of m.def.parts){
       if(part.wenn && !part.wenn(m)) continue;
+      if(part.huelle){ _huellen.push(m, part, light); continue; }   // durchscheinend: nach allem anderen
       const f = part.farbe ? part.farbe(m) : null;
       const tr = f ? f[0] : 1, tg = f ? f[1] : 1, tb = f ? f[2] : 1;
       gl.uniform4f(P.u.uTint, hurt ? 1.6*tr : tr, hurt ? 0.45*tg : tg, hurt ? 0.45*tb : tb, 1);
@@ -475,6 +479,36 @@ function drawMobs(fogCol, near, far){
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     }
   }
+}
+/* Durchscheinende Hüllen (Schleime): gemischt mit dem, was dahinter liegt,
+   von hinten nach vorn. Sie schreiben die Tiefe, damit Wasser dahinter sie
+   nicht übermalt. */
+function drawHuellen(fogCol, near, far){
+  if(!_huellen.length) return;
+  const P = R.progEnt, cam = Game.player, ey = cam.eyeY(), l = [];
+  for(let i = 0; i < _huellen.length; i += 3){
+    const m = _huellen[i];
+    l.push({ m, part: _huellen[i + 1], light: _huellen[i + 2], d: (m.x - cam.x)**2 + (m.y - ey)**2 + (m.z - cam.z)**2 });
+  }
+  l.sort((a, b) => b.d - a.d);
+  entUniforms(P, fogCol, near, far);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.uniform1f(P.u.uAlpha, 0.02);
+  gl.bindVertexArray(R.cubeVAO);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  for(const { m, part, light } of l){
+    const hurt = m.hurtTimer > 0;
+    gl.uniform1f(P.u.uLight, light);
+    gl.uniform4f(P.u.uTint, hurt ? 1.6 : 1, hurt ? 0.45 : 1, hurt ? 0.45 : 1, 1);
+    partMatrix(_m, m, part, 0);
+    gl.uniformMatrix4fv(P.u.uModel, false, _m);
+    setLayers(P, TEX[part.tex]);
+    gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+  }
+  gl.disable(gl.BLEND);
+  gl.uniform1f(P.u.uAlpha, 0.35);
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+  _huellen.length = 0;
 }
 /* Mitspieler: Kästen wie die Wesen; Kopf nickt mit dem Blick, der rechte
    Arm schlägt beim Abbauen, geduckt geht die Figur etwas in die Knie. */
@@ -569,6 +603,11 @@ function partMatrix(out, mob, part, ang){
   M4.ident(out);
   M4.translate(out, out, mob.x, mob.y, mob.z);
   M4.rotY(out, out, mob.yaw);
+  // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
+  if(mob.groesse){
+    const g = mob.groesse, q = (mob.quetsch || 0)/(g*0.5 + 1), f = 1/(q + 1);
+    M4.scale(out, out, f*g, g/f, f*g);
+  }
   // Junge: kleiner, mit verhältnismäßig großem Kopf
   if(mob.kind > 0){
     M4.scale(out, out, BABY, BABY, BABY);
@@ -727,6 +766,7 @@ function render(dt){
   drawPfeile(fog, near, far);
   drawPartikel();
   drawDrops(fog, near, far);
+  drawHuellen(fog, near, far);
   const ohne = Game.panoramaAktiv || Game._ohneHand;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);

@@ -6,6 +6,9 @@
    ═══════════════════════════════════════════════════════════════════ */
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
+const MOB_SPRUNG = 9;             // so schnell springen Wesen ab: gut einen Block hoch (früher 7,6 — zu wenig für eine Stufe)
+const SCHLEIM_MAX = 4;            // so viele Schleime höchstens um einen Spieler
+const SCHLEIM_HOEHE = 39;         // darunter erscheinen sie, wie beim Vorbild
 
 const Game = {
   world:null, player:null, mobs:[], drops:[],
@@ -802,6 +805,7 @@ const Game = {
     if(!m.def.hostile){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
     if(m.health <= 0){
       m.dead = true;
+      if(m.def.schleim && m.groesse > 1) this.schleimTeilen(m);
       if(!(m.kind > 0)){
         const beute = m.def.beute(m).filter(([, n]) => n > 0);
         // die Beute bekommt, wer getroffen hat — ein Mitspieler auf seinem Gerät
@@ -1063,7 +1067,9 @@ const Game = {
     const p = leute[(Math.random()*leute.length) | 0], w = this.world;
     let host = 0, pass = 0;
     // gezählt wird nur, was in der Nähe ist — ferne Weiden verhindern keine neuen Tiere
-    for(const m of this.mobs){ if(Math.hypot(m.x - p.x, m.z - p.z) < 48) (m.def.hostile ? host++ : pass++); }
+    let schleime = 0;
+    for(const m of this.mobs){ if(Math.hypot(m.x - p.x, m.z - p.z) < 48) (m.def.schleim ? schleime++ : m.def.hostile ? host++ : pass++); }
+    if(schleime < SCHLEIM_MAX) this.schleimeSpawnen(p);
     const dl = this.dayLight();
     const wantHost = dl < 0.42 ? 14 : 5, wantPass = 12;
     for(let a=0; a<6; a++){
@@ -1090,6 +1096,82 @@ const Game = {
           this.mobs.push(new Mob(art, hx+0.5, hh+1, hz+0.5)); pass++;
         }
       }
+    }
+  },
+  /** Schleime erscheinen wie beim Vorbild tief unten (unter Höhe 40) in
+      Schleim-Chunks — jedem zehnten Chunk einer Welt. Sümpfe gibt es hier
+      nicht; dafür nur, wo kein Himmel zu sehen ist: in Höhlen und unter Dächern. */
+  schleimeSpawnen(p){
+    const w = this.world;
+    for(let a = 0; a < 3; a++){
+      const ang = Math.random()*TAU, r = 12 + Math.random()*24;
+      const x = Math.floor(p.x + Math.cos(ang)*r), z = Math.floor(p.z + Math.sin(ang)*r);
+      if(!schleimChunk(w, x >> 4, z >> 4)) continue;
+      const ch = w.chunks.get(ckey(x >> 4, z >> 4));
+      if(!ch || ch.state < 2) continue;
+      // eine Höhe nahe beim Spieler, von dort abwärts den Boden suchen
+      let y = Math.min(SCHLEIM_HOEHE, Math.floor(p.y) + ((Math.random()*16)|0) - 8);
+      for(let k = 0; k < 16 && y > 1; k++, y--){
+        const unten = w.getBlock(x, y - 1, z);
+        if(!blocksMovement(unten) || isWasser(unten)) continue;
+        if(blocksMovement(w.getBlock(x, y, z)) || blocksMovement(w.getBlock(x, y + 1, z)) || isWasser(w.getBlock(x, y, z))) break;
+        if((w.getLight(x, y, z) & 15) >= 8) break;          // unter freiem Himmel nicht
+        const g = [1, 2, 4][(Math.random()*3) | 0];
+        const m = schleimGroesse(new Mob('slime', x + 0.5, y, z + 0.5), g);
+        if(this.frei(m)) this.mobs.push(m);
+        break;
+      }
+    }
+  },
+  /** hat ein Wesen an seinem Platz genug Luft? */
+  frei(e){
+    const w = this.world, hw = e.w/2;
+    for(let y = Math.floor(e.y); y <= Math.floor(e.y + e.h - 0.01); y++)
+      for(let z = Math.floor(e.z - hw); z <= Math.floor(e.z + hw); z++)
+        for(let x = Math.floor(e.x - hw); x <= Math.floor(e.x + hw); x++)
+          if(blocksMovement(w.getBlock(x, y, z)) || isWasser(w.getBlock(x, y, z))) return false;
+    return true;
+  },
+  /** Schleime hüpfen, statt zu gehen: am Boden sammeln sie sich kurz, dann
+      springen sie — auf den nächsten Spieler zu, wenn einer nah ist, sonst
+      irgendwohin. Wer einen mittleren oder großen berührt, nimmt Schaden;
+      die kleinen tun nichts. Gibt [Richtung x, Richtung z, Tempo] zurück. */
+  schleimDenken(m, dt, opfer, od){
+    const g = m.groesse;
+    m.hopT -= dt;
+    const jagt = !!opfer && od < 16 && Math.abs(opfer.y - m.y) < 8;
+    if(m.onGround){
+      if(m.imFlug){ m.imFlug = false; m.moving = false; }
+      if(jagt) m.yaw = Math.atan2(-(opfer.x - m.x), -(opfer.z - m.z));
+      if(m.hopT <= 0){
+        m.hopT = jagt ? 0.5 + Math.random()*0.7 : 1.2 + Math.random()*2.5;
+        if(jagt || Math.random() < 0.7){
+          if(!jagt) m.yaw = Math.random()*TAU;
+          m.vy = MOB_SPRUNG*(g === 1 ? 0.85 : 1); m.imFlug = true; m.moving = true;
+        }
+      }
+    }
+    if(jagt && g > 1 && m.attackCd <= 0){
+      const rw = m.w/2 + 0.35, dx = opfer.x - m.x, dz = opfer.z - m.z;
+      if(Math.abs(dx) < rw && Math.abs(dz) < rw && opfer.y < m.y + m.h && opfer.y + 1.8 > m.y){
+        const l = Math.hypot(dx, dz) || 1, dmg = g === 4 ? 4 : 2;
+        if(opfer.ich){
+          if(this.player.hurt(dmg, 'Ein Schleim hat dich erwischt', dx/l, dz/l)){ this.hurtFlash = 1; Sfx.play('hurt'); }
+        } else Netz.autsch(opfer.g, dmg, 'Ein Schleim hat dich erwischt', dx/l, dz/l);
+        m.attackCd = 1;
+      }
+    }
+    if(!m.imFlug) return [0, 0, 0];
+    return [-Math.sin(m.yaw), -Math.cos(m.yaw), 1.3 + 0.45*g];
+  },
+  /** ein großer Schleim zerfällt in zwei bis vier halb so große */
+  schleimTeilen(m){
+    const g = m.groesse/2, n = 2 + ((Math.random()*3) | 0);
+    for(let i = 0; i < n; i++){
+      const a = Math.random()*TAU, r = g*0.25;
+      const k = schleimGroesse(new Mob('slime', m.x + Math.cos(a)*r, m.y + 0.1, m.z + Math.sin(a)*r), g);
+      k.vx = Math.cos(a)*2; k.vz = Math.sin(a)*2; k.vy = 4; k.yaw = Math.random()*TAU; k.hopT = 0.5 + Math.random();
+      this.mobs.push(k);
     }
   },
   partnerFuer(m){
@@ -1171,7 +1253,9 @@ const Game = {
       let tx = 0, tz = 0, speed = m.def.speed, partner = null, eltern = null;
       const jagt = m.def.hostile && !!opfer && dist < 22;
       const heldId = z.held;
-      if(jagt && m.def.fernkampf){
+      if(m.def.schleim){
+        [tx, tz, speed] = this.schleimDenken(m, dt, opfer, od);
+      } else if(jagt && m.def.fernkampf){
         // Skelett: Abstand halten, seitlich ausweichen, schießen, wenn es freie Sicht hat
         const l = dist || 1, ux = dx/l, uz = dz/l;
         m.yaw = Math.atan2(-ux, -uz);
@@ -1201,8 +1285,9 @@ const Game = {
         m.moving = true;
         if(dist < 1.5 && Math.abs(z.y - m.y) < 2 && m.attackCd <= 0){
           if(z.ich){
-            if(p.hurt(m.def.dmg, 'Ein Zombie hat dich erwischt', -tx, -tz)){ m.attackCd = 1.1; this.hurtFlash = 1; Sfx.play('hurt'); }
-          } else { Netz.autsch(z.g, m.def.dmg, 'Ein Zombie hat dich erwischt', -tx, -tz); m.attackCd = 1.1; }
+            // der Stoß geht vom Zombie weg (früher zog er einen zu sich heran)
+            if(p.hurt(m.def.dmg, 'Ein Zombie hat dich erwischt', tx, tz)){ m.attackCd = 1.1; this.hurtFlash = 1; Sfx.play('hurt'); }
+          } else { Netz.autsch(z.g, m.def.dmg, 'Ein Zombie hat dich erwischt', tx, tz); m.attackCd = 1.1; }
         }
         if(Math.random() < 0.004) Sfx.wesen(m, 'laut');
       } else if(!m.def.hostile && m.flucht > 0){
@@ -1262,12 +1347,14 @@ const Game = {
       if(m.def.flattert && m.vy < -2.4) m.vy = -2.4;            // Hühner flattern: sie fallen langsam
       m.vy = Math.max(m.vy, -TERMINAL);
       const res = moveAABB(w, m, (tx*speed + m.vx)*dt, m.vy*dt, (tz*speed + m.vz)*dt);
-      if((res.bx || res.bz) && m.onGround && m.jumpCd <= 0){ m.vy = 7.6; m.jumpCd = 0.5; }
+      // gegen eine Stufe gelaufen: hochspringen — so hoch, dass ein ganzer Block reicht
+      if((res.bx || res.bz) && m.onGround && m.jumpCd <= 0){ m.vy = MOB_SPRUNG; m.jumpCd = 0.5; }
+      if(m.def.schleim) schleimQuetschen(m, dt);
       m.vx *= Math.pow(0.02, dt); m.vz *= Math.pow(0.02, dt);
       if(m.moving || tx || tz) m.walkPhase += dt*speed*3.2;
 
       // Sonnenbrand — nicht bei Regen, da ist der Tag zu trüb
-      if(m.def.hostile && dl > 0.6 && Wetter.staerke < 0.5){
+      if(m.def.hostile && !m.def.feuerfest && dl > 0.6 && Wetter.staerke < 0.5){
         const lv = w.getLight(Math.floor(m.x), Math.floor(m.y+m.h), Math.floor(m.z));
         if((lv & 15) >= 14){ m.health -= dt*3.2; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
       }
@@ -1807,7 +1894,7 @@ function updateDebug(){
   $('#dbg').textContent =
     'FPS ' + Game.fps.toFixed(0) + '   Chunks ' + Game.meshes.size + '\n' +
     'XYZ ' + p.x.toFixed(1) + ' / ' + p.y.toFixed(1) + ' / ' + p.z.toFixed(1) + '\n' +
-    'Biom ' + BIO_NAME[w.biomeAt(x,z)] + '   Höhe ' + w.heightAt(x,z) + '\n' +
+    'Biom ' + BIO_NAME[w.biomeAt(x,z)] + '   Höhe ' + w.heightAt(x,z) + (schleimChunk(w, x >> 4, z >> 4) ? '   Schleim-Chunk' : '') + '\n' +
     'Licht Sonne ' + (lv & 15) + ' Block ' + (lv >> 4) + '   Tag ' + Game.dayLight().toFixed(2) + '\n' +
     'Zeit ' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') +
     '   Mobs ' + Game.mobs.length + '   Objekte ' + Game.drops.length + '\n' +
@@ -1894,6 +1981,7 @@ boot();
    Gegenständen und Mobs. */
 window.__welt = {
   R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter, Chat, Befehle,
+  schleimGroesse, schleimChunk,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);
