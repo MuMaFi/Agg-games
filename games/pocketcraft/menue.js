@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.10.01';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.10.02';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -30,7 +30,8 @@ const SPRUECHE = [
   'Alle ins Bett!', 'Gute Nacht zusammen!',
   'Zeig dein Schwert!', 'Was hast du da in der Hand?',
   'Pixel Perfection!', 'Neue alte Texturen!', '16 × 16!',
-  'Grüner Zombie, blaue Hose!', 'Muh!', 'Wie früher!'
+  'Grüner Zombie, blaue Hose!', 'Muh!', 'Wie früher!',
+  'SUPER DUPER!', 'Jetzt mit Schatten!', 'Das Laub wiegt sich!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -178,6 +179,14 @@ const Menue = {
     knopf('#lJa', () => this.loeschen());
     knopf('#lNein', () => this.zuWelten());
     knopf('#oFertig', () => this.optionenZu());
+    knopf('#oSuper', () => {
+      const an = !Game.settings.superGrafik;
+      Game.settings.superGrafik = an && Super.setzen(true);
+      if(!an) Super.setzen(false);
+      if(an && !Game.settings.superGrafik) hint('Dieses Gerät schafft das SUPER DUPER GRAFIK PAKET leider nicht', 3200);
+      else if(an) hint('SUPER DUPER GRAFIK PAKET an — braucht ein schnelles Gerät', 2600);
+      Game.saveOpts(); this.optionenZeigen();
+    });
     knopf('#oSprung', () => { Game.settings.autojump = !Game.settings.autojump; Game.saveOpts(); this.optionenZeigen(); });
     $('#oGer').addEventListener('input', e => { Game.settings.geraeusche = +e.target.value; Sfx.lautSetzen(Game.settings.geraeusche/100); Game.saveOpts(); this.optionenZeigen(); });
     $('#oGer').addEventListener('change', () => Sfx.play('pickup'));      // hören, wie laut es jetzt ist
@@ -670,6 +679,7 @@ const Menue = {
     // ab 13 Chunks wird es für schwächere Handys eng: das sagen wir dazu
     $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks' + (s.rd > 12 ? ' · braucht ein schnelles Gerät' : '');
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
+    $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
     const pz = v => v > 0 ? v + ' %' : 'Aus';
     $('#oGer').value = s.geraeusche; $('#oGerText').textContent = 'Geräusche: ' + pz(s.geraeusche);

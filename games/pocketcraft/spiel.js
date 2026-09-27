@@ -17,7 +17,7 @@ const BETT_HOEHE = 9/16;          // so hoch ist das Strohbett: darauf liegt man
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70 },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -429,6 +429,7 @@ const Game = {
     const d = new Drop(id, n, x, y, z);
     if(dur) d.dur = dur;
     this.drops.push(d);
+    return d;
   },
   /** was ein abgebauter Block fallen lässt: Liste aus [id, anzahl] */
   dropsFor(blockId, tierOk){
@@ -1692,6 +1693,13 @@ const Input = {
     hold('#btnJump', () => { this.jump = true; }, () => { this.jump = false; });
     hold('#btnSneak', () => { this.sneak = true; }, () => { this.sneak = false; });
     hold('#btnUp', () => { this.jump = true; }, () => { this.jump = false; });
+    // WERFEN wie Q: eins fällt vor einem auf den Boden; wer hält, wirft eins nach dem anderen
+    let werfT = null;
+    hold('#btnWerfen', () => {
+      dropHeld(); clearTimeout(werfT);
+      const weiter = () => { dropHeld(); werfT = Inv.held() ? setTimeout(weiter, 140) : null; };
+      werfT = setTimeout(weiter, 420);
+    }, () => { clearTimeout(werfT); werfT = null; });
     // SCHLAG: mit dem Bogen in der Hand spannt Halten, Loslassen schießt
     hold('#btnAttack', () => { if(Game.bogenStart()) return;
                                this.attackHeld = true; if(!Game.attack()) this.digging = true; Game.player.swinging = true; Game.player.swing = 0; },
@@ -1816,10 +1824,14 @@ const Input = {
   }
 };
 
+/** Q oder WERFEN: eins aus der Hand. Wie beim Vorbild fliegt es ein Stück
+    nach vorn und lässt sich erst nach zwei Sekunden wieder aufheben — sonst
+    sammelte man es gleich wieder ein. Werkzeug behält seine Abnutzung. */
 function dropHeld(){
   const s = Inv.held(); if(!s) return;
   const p = Game.player, f = p.forward();
-  Game.dropItem(s.id, 1, p.x + f[0]*0.6, p.eyeY()-0.3, p.z + f[2]*0.6);
+  const d = Game.dropItem(s.id, 1, p.x + f[0]*0.5, p.eyeY() - 0.3, p.z + f[2]*0.5, s.dur);
+  if(d){ d.vx = f[0]*4.2; d.vz = f[2]*4.2; d.vy = 2.2 + f[1]*3; d.pickDelay = 2; }
   Inv.consumeHeld(); HUD.refreshHotbar();
 }
 function togglePause(){
@@ -2068,6 +2080,7 @@ function boot(){
   }
   buildWire();
   Game.loadOpts();
+  if(Game.settings.superGrafik && !Super.setzen(true)) Game.settings.superGrafik = false;
   // früher gab es nur »Ton an/aus«
   if(Game.settings.ton === false){ Game.settings.geraeusche = 0; delete Game.settings.ton; Game.saveOpts(); }
   Sfx.lautSetzen(Game.settings.geraeusche/100);
@@ -2089,7 +2102,7 @@ boot();
    Gegenständen und Mobs. */
 window.__welt = {
   R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter, Chat, Befehle,
-  schleimGroesse, schleimChunk,
+  schleimGroesse, schleimChunk, Super,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

@@ -13,10 +13,12 @@ function compile(src, type){
   if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
   return s;
 }
-function program(vs, fs){
+/** orte: Attribut-Plätze eines anderen Programms, damit dessen VAOs auch hier passen */
+function program(vs, fs, orte){
   const p = gl.createProgram();
   gl.attachShader(p, compile(vs, gl.VERTEX_SHADER));
   gl.attachShader(p, compile(fs, gl.FRAGMENT_SHADER));
+  if(orte) for(const n in orte) gl.bindAttribLocation(p, orte[n], n);
   gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = {}, a = {};
@@ -361,8 +363,9 @@ function sunDir(){
 
 /* ── Zeichnen ──────────────────────────────────────────────────────── */
 function drawSky(){
-  const P = R.progSky;
+  const P = Super.an ? Super.sky : R.progSky;
   gl.useProgram(P.p);
+  if(Super.an) Super.skyUniforms(P);
   gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
   invert4(R.invVP, R.vp);
   const p = Game.player;
@@ -390,9 +393,10 @@ function chunkUniforms(P, fogCol, near, far){
 }
 
 function drawChunks(waterPass, fogCol, near, far){
-  const P = R.progChunk;
+  const P = Super.an ? Super.chunk : R.progChunk;
   gl.useProgram(P.p);
   chunkUniforms(P, fogCol, near, far);
+  if(Super.an) Super.chunkUniforms(P);
   gl.uniform1f(P.u.uAlpha, waterPass ? 0.02 : 0.35);
   const uw = Game.player.headInWater;
   gl.uniform3f(P.u.uWaterTint, uw ? 0.55 : 1, uw ? 0.72 : 1, uw ? 0.95 : 1);
@@ -433,6 +437,7 @@ function entUniforms(P, fogCol, near, far){
   gl.uniform1f(P.u.uAlpha, 0.35);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.texArr);
+  if(Super.an) Super.entUniforms(P);
 }
 function setLayers(P, all, faceTex){
   for(let i=0;i<6;i++) _layers[i] = all;
@@ -447,7 +452,7 @@ function blockLightAt(x,y,z){
 
 const _huellen = [];
 function drawMobs(fogCol, near, far){
-  const P = R.progEnt;
+  const P = entProg();
   _huellen.length = 0;
   entUniforms(P, fogCol, near, far);
   gl.uniform1f(P.u.uUseTex, 1);
@@ -485,7 +490,7 @@ function drawMobs(fogCol, near, far){
    nicht übermalt. */
 function drawHuellen(fogCol, near, far){
   if(!_huellen.length) return;
-  const P = R.progEnt, cam = Game.player, ey = cam.eyeY(), l = [];
+  const P = entProg(), cam = Game.player, ey = cam.eyeY(), l = [];
   for(let i = 0; i < _huellen.length; i += 3){
     const m = _huellen[i];
     l.push({ m, part: _huellen[i + 1], light: _huellen[i + 2], d: (m.x - cam.x)**2 + (m.y - ey)**2 + (m.z - cam.z)**2 });
@@ -516,7 +521,7 @@ function drawHuellen(fogCol, near, far){
    die Beine schauen am Fußende heraus: das Strohbett ist nur einen Block lang. */
 function drawSpieler(fogCol, near, far){
   if(!Netz.andere.size) return;
-  const P = R.progEnt;
+  const P = entProg();
   entUniforms(P, fogCol, near, far);
   gl.uniform1f(P.u.uUseTex, 1);
   gl.bindVertexArray(R.cubeVAO);
@@ -594,7 +599,7 @@ function drawSpieler(fogCol, near, far){
    Eier: ein kleiner, etwas höherer Kasten, der sich im Flug überschlägt. */
 function drawPfeile(fogCol, near, far){
   if(!Game.pfeile.length) return;
-  const P = R.progEnt;
+  const P = entProg();
   gl.useProgram(P.p);
   gl.uniform1f(P.u.uUseTex, 1);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -626,7 +631,7 @@ const BABY = 0.52, BABYKOPF = 1.45;
    Karten, die zur Kamera schauen */
 function drawPartikel(){
   if(!Game.partikel.length) return;
-  const P = R.progEnt;
+  const P = entProg();
   gl.useProgram(P.p);
   gl.uniform1f(P.u.uUseTex, 1);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -685,7 +690,7 @@ function partMatrix(out, mob, part, ang, bisGelenk){
 }
 
 function drawDrops(fogCol, near, far){
-  const P = R.progEnt;
+  const P = entProg();
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
   gl.bindVertexArray(R.cubeVAO);
   for(const d of Game.drops){
@@ -711,7 +716,7 @@ function drawDrops(fogCol, near, far){
 
 function drawSelection(target, fogCol, near, far){
   if(!target) return;
-  const P = R.progEnt;
+  const P = entProg();
   gl.useProgram(P.p);
   gl.uniform1f(P.u.uLight, 1);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -746,7 +751,7 @@ function drawHeld(fogCol){
   const p = Game.player;
   const s = Inv.held();
   gl.clear(gl.DEPTH_BUFFER_BIT);
-  const P = R.progEnt;
+  const P = entProg();
   gl.useProgram(P.p);
   gl.uniform1f(P.u.uUseTex, 1);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -809,6 +814,7 @@ function render(dt){
   const bobY = p.onGround ? Math.sin(p.bob*2)*0.022 : 0;
   const shake = Game.camShake > 0 ? (Math.random()-0.5)*Game.camShake : 0;
   R.setCamera(p.x, p.eyeY() + bobY + shake, p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh);
+  if(Super.an){ Super.schattenPass(); gl.viewport(0, 0, vw, vh); }
 
   gl.clearColor(fog[0], fog[1], fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
