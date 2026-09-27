@@ -116,9 +116,33 @@ class Pix{
   }
 }
 
+/* Vorlagen (vorlage.js, von werkzeug/pp-texturen.py): Bilder nach Art des
+   Vorbilds, die an Stelle der hier gemalten treten. Je Bild Breite, Höhe,
+   Zahl der Farben, die Farben, dann je Pixel eine Nummer (bei 0 Farben roh
+   RGBA). Vergrößert wird ohne Glätten, so bleiben die Pixel scharf. Was es
+   dort nicht gibt (die Spielerfigur), bleibt gemalt. */
+const _B64 = new Uint8Array(128);
+'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach((c, i) => { _B64[c.charCodeAt(0)] = i; });
+function b64Bytes(s){
+  const pad = s.endsWith('==') ? 2 : s.endsWith('=') ? 1 : 0, out = new Uint8Array(s.length/4*3 - pad);
+  for(let i = 0, j = 0; i < s.length; i += 4){
+    const v = _B64[s.charCodeAt(i)] << 18 | _B64[s.charCodeAt(i+1)] << 12 | _B64[s.charCodeAt(i+2)] << 6 | _B64[s.charCodeAt(i+3)];
+    for(const b of [v >> 16, v >> 8, v]) if(j < out.length) out[j++] = b & 255;
+  }
+  return out;
+}
+function vorlageMalen(p, s){
+  const d = b64Bytes(s), w = d[0], h = d[1], n = d[2], basis = 3 + n*4;
+  for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+    const q = ((y*h/TS) | 0)*w + ((x*w/TS) | 0);
+    const k = n ? 3 + d[basis + q]*4 : 3 + q*4;
+    p.put(x, y, [d[k], d[k+1], d[k+2]], d[k+3]);
+  }
+}
 function addTex(name, fn, seed){
   const p = new Pix(seed !== undefined ? seed : hashStr(name));
-  fn(p);
+  const v = typeof VORLAGE !== 'undefined' ? VORLAGE[name] : undefined;
+  if(v) vorlageMalen(p, v); else fn(p);
   ausbluten(p.d);
   TEX[name] = texNames.length; texNames.push(name); texData.push(p.d);
   return TEX[name];
@@ -923,6 +947,7 @@ function buildTextures(){
   };
   sprite('rs_fackel', rsFackelBild(true));
   sprite('rs_fackel_aus', rsFackelBild(false));
+  sprite('hebel', rsFackelBild(false));           // der Stab des Hebels; nach Vorbild ein eigenes Bild
   addTex('tallgrass', p => {
     p.klar();
     const P = PAL.gras;

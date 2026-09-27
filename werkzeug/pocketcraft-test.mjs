@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js'])
+for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -408,6 +408,13 @@ pruef(T(`(() => { Inv.ruestung.fill(null); const leer = Ruestung.code();
   const c = Ruestung.code(); Inv.ruestung.fill(null); return leer === 0 && c === (2 | 4 << 3 | 1 << 6 | 3 << 9); })()`),
   'Rüstung als Zahl: Eisenhelm, Diamantbrust, Lederhose, Goldstiefel');
 pruef(T(`['m_r_platte','m_r_helm_vorn','m_r_brust','m_r_hose','m_r_stiefel'].every(n => TEX[n] !== undefined)`), 'Rüstungsbilder für die Figur');
+
+// Texturen nach Minecraft-Art (vorlage.js): jede Vorlage gehört zu einer Textur, die Spielerfigur bleibt gemalt
+pruef(T(`Object.keys(VORLAGE).filter(k => TEX[k] === undefined).join(',')`) === '', 'Vorlagen ohne Textur: ' + T(`Object.keys(VORLAGE).filter(k => TEX[k] === undefined).join(',')`));
+pruef(T(`!Object.keys(VORLAGE).some(k => /^m_(sp_|r_|skin)/.test(k))`), 'Spielerfigur und ihre Rüstung sind nicht ersetzt');
+pruef(T(`(() => { const d = b64Bytes(VORLAGE.stone), w = d[0], n = d[2], k = 3 + d[3 + n*4]*4, t = texData[TEX.stone];
+  return w === 16 && d[1] === 16 && t[0] === d[k] && t[1] === d[k+1] && t[2] === d[k+2] && t[3] === 255; })()`), 'Stein kommt aus der Vorlage, Pixel scharf vergrößert');
+pruef(T(`['grass_top','leaves','water0','rs_staub15','chest_front','bed_side','i_diamond_sword','i_iron_helmet','crack7','hebel'].every(k => VORLAGE[k])`), 'wichtige Vorlagen da');
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

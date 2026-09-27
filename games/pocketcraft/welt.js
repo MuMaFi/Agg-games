@@ -147,10 +147,11 @@ function rsWand(x, y, z, a){
 }
 /** Punkt eines stehenden Modells an seinen Platz: auf dem Boden, sonst an der Wand */
 function rsAnbauLage(x, y, z, a){ return a === 0 ? [x, y, z] : rsWand(y, z, x, a); }
-const RS_FACKEL_UV_BODEN = f => f === 3 ? null : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
-const RS_FACKEL_UV_WAND = f => f === 3 ? [7, 14, 9, 16] : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 16];
-const RS_HEBEL_UV = f => f === 3 ? null : f === 2 ? [7, 7, 9, 9] : [7, 7, 9, 16];
-const RS_VFACKEL_UV = f => f === 3 ? null : f === 2 ? [7, 4, 9, 6] : [7, 3, 9, 8];
+// Ausschnitte wie beim Vorbild: der Stab ist zwei Pixel breit, zehn hoch (Zeile 6 bis 16)
+const RS_FACKEL_UV_BODEN = f => f === 3 ? null : f === 2 ? [7, 6, 9, 8] : [7, 6, 9, 16];
+const RS_FACKEL_UV_WAND = f => f === 3 ? [7, 14, 9, 16] : f === 2 ? [7, 6, 9, 8] : [7, 6, 9, 16];
+const RS_HEBEL_UV = f => f === 3 ? null : f === 2 ? [7, 6, 9, 8] : [7, 6, 9, 16];
+const RS_VFACKEL_UV = f => f === 3 ? null : f === 2 ? [7, 6, 9, 8] : [7, 6, 9, 11];
 function buildFaceTables(){
   for(let f=0; f<6; f++){
     const F = FACES[f], t = new Int8Array(24);
@@ -676,7 +677,7 @@ class World{
     const lv = this.getLightLocal(x+1, y+1, z+1);
     const sky = lv & 15, blk = Math.max(lv >> 4, 14);
     const X = x*16, Y = y*16, Z = z*16;
-    const a = 7, b = 9, top = 10, v0 = 3;
+    const a = 7, b = 9, top = 10, v0 = 6;          // wie beim Vorbild: Zeile 6 bis 16 des Bildes
     const sides = [
       [[b,0,a],[b,top,a],[b,top,b],[b,0,b], 0],
       [[a,0,b],[a,top,b],[a,top,a],[a,0,a], 1],
@@ -694,7 +695,7 @@ class World{
       buf.quad(false);
     }
     const tp = [[a,top,a],[a,top,b],[b,top,b],[b,top,a]];
-    const uvt = [[a,4],[a,6],[b,6],[b,4]];
+    const uvt = [[a,6],[a,8],[b,8],[b,6]];
     for(let i=0; i<4; i++) buf.vert(X+tp[i][0], Y+tp[i][1], Z+tp[i][2], 3|(2<<2), layer, sky, blk, uvt[i][0], uvt[i][1]);
     buf.quad(false);
   }
@@ -845,7 +846,7 @@ class World{
     this.emitKasten(buf, x, y, z, [5, 0, 4, 11, 3, 12], M, TEX.cobble, sky, blk, f => f !== 3, false);
     const w = an ? -RS_HEBEL_W : RS_HEBEL_W, c = Math.cos(w), s = Math.sin(w);
     const T = (lx, ly, lz) => { const yy = ly - 1, zz = lz - 8; return rsAnbauLage(lx, 1 + yy*c - zz*s, 8 + yy*s + zz*c, a); };
-    this.emitKasten(buf, x, y, z, [7, 1, 7, 9, 11, 9], T, TEX.rs_fackel_aus, sky, blk, RS_HEBEL_UV, true);
+    this.emitKasten(buf, x, y, z, [7, 1, 7, 9, 11, 9], T, TEX.hebel, sky, blk, RS_HEBEL_UV, true);
   }
 
   /* Verstärker: eine Platte, zwei Pixel hoch, darauf zwei kurze Redstonefackeln —
