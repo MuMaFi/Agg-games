@@ -178,8 +178,8 @@ const MOBS = {
     parts:[
       { n:'head', box:[-0.25,1.42,-0.25, 0.5,0.5,0.5], tex:'m_zsk', face:'m_zface', anim:'head' },
       { n:'body', box:[-0.25,0.67,-0.13, 0.5,0.75,0.25], tex:'m_zshirt' },
-      { n:'arm0', box:[-0.38,0.67,-0.13, 0.13,0.75,0.25], tex:'m_zsk', anim:'arm', ph:0 },
-      { n:'arm1', box:[ 0.25,0.67,-0.13, 0.13,0.75,0.25], tex:'m_zsk', anim:'arm', ph:1 },
+      { n:'arm0', box:[-0.38,0.67,-0.13, 0.13,0.75,0.25], tex:'m_zarm', anim:'arm', ph:0 },
+      { n:'arm1', box:[ 0.25,0.67,-0.13, 0.13,0.75,0.25], tex:'m_zarm', anim:'arm', ph:1 },
       { n:'leg0', box:[-0.25,0.0,-0.13, 0.25,0.68,0.25], tex:'m_zpants', anim:'leg', ph:0 },
       { n:'leg1', box:[ 0.0, 0.0,-0.13, 0.25,0.68,0.25], tex:'m_zpants', anim:'leg', ph:1 },
     ]

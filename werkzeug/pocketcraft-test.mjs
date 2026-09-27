@@ -415,6 +415,7 @@ pruef(T(`!Object.keys(VORLAGE).some(k => /^m_(sp_|r_|skin)/.test(k))`), 'Spieler
 pruef(T(`(() => { const d = b64Bytes(VORLAGE.stone), w = d[0], n = d[2], k = 3 + d[3 + n*4]*4, t = texData[TEX.stone];
   return w === 16 && d[1] === 16 && t[0] === d[k] && t[1] === d[k+1] && t[2] === d[k+2] && t[3] === 255; })()`), 'Stein kommt aus der Vorlage, Pixel scharf vergrößert');
 pruef(T(`['grass_top','leaves','water0','rs_staub15','chest_front','bed_side','i_diamond_sword','i_iron_helmet','crack7','hebel'].every(k => VORLAGE[k])`), 'wichtige Vorlagen da');
+pruef(T(`['m_pig','m_pig_face','m_kuh','m_kuh_face','m_schaf_wolle','m_huhn','m_zface','m_zarm','m_skelett_brust','m_schleim','m_pfeil','p_herz'].every(k => VORLAGE[k])`), 'Tiere und Monster aus der Vorlage');
 
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

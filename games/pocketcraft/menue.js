@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.9.11';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.10.01';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -29,7 +29,8 @@ const SPRUECHE = [
   'Zeig, was du trägst!', 'Glänzt wie Gold!',
   'Alle ins Bett!', 'Gute Nacht zusammen!',
   'Zeig dein Schwert!', 'Was hast du da in der Hand?',
-  'Pixel Perfection!', 'Neue alte Texturen!', '16 × 16!'
+  'Pixel Perfection!', 'Neue alte Texturen!', '16 × 16!',
+  'Grüner Zombie, blaue Hose!', 'Muh!', 'Wie früher!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -124,6 +125,19 @@ function logoZeichnen(cv, wort, maxBreite){
 }
 
 /* ── Menüs ─────────────────────────────────────────────────────────── */
+/** Fläche der Knöpfe: Grau mit feinem Rauschen, ein Pixel des Bildes sind
+    zwei auf dem Schirm (wie beim Vorbild in doppelter Größe) */
+function knopfBild(){
+  const cv = document.createElement('canvas'); cv.width = 96; cv.height = 20;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(96, 20), r = mulberry32(4711);
+  for(let i = 0; i < 96*20; i++){
+    const v = 111 + ((r()*3) | 0)*3 - 3;
+    img.data[i*4] = img.data[i*4 + 1] = img.data[i*4 + 2] = v; img.data[i*4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv.toDataURL();
+}
+
 const Menue = {
   aktiv: null, vonPause: false,
   welten: [], gewaehlt: null, neuModus: 'ueberleben', neuTyp: 'normal', bearbeiteId: null, loeschId: null,
@@ -133,10 +147,12 @@ const Menue = {
   init(){
     document.documentElement.style.setProperty('--steinbild', 'url(' + iconURL('stone') + ')');
     document.documentElement.style.setProperty('--erdbild', 'url(' + iconURL('dirt') + ')');
+    document.documentElement.style.setProperty('--knopfbild', 'url(' + knopfBild() + ')');
     $('#tVersion').textContent = VERSION;
     const knopf = (id, fn) => $(id).addEventListener('click', e => { Sfx.play('klick'); fn(e); });
     knopf('#tEinzel', () => this.zuWelten());
     knopf('#tOptionen', () => this.zeige('optionen'));
+    knopf('#tMitw', () => this.zuMitwirkende('titel'));
     knopf('#tMehr', () => this.zuMitspieler());
     knopf('#wSpielen', () => this.spielen(this.gewaehlt));
     knopf('#wNeu', () => this.zuNeu());
@@ -167,7 +183,7 @@ const Menue = {
     $('#oGer').addEventListener('change', () => Sfx.play('pickup'));      // hören, wie laut es jetzt ist
     $('#oMusik').addEventListener('input', e => { Game.settings.musik = +e.target.value; Musik.lautSetzen(Game.settings.musik/100); Game.saveOpts(); this.optionenZeigen(); });
     knopf('#oMitw', () => this.zuMitwirkende());
-    knopf('#mwFertig', () => this.zeige('optionen'));
+    knopf('#mwFertig', () => this.zeige(this._mwZurueck || 'optionen'));
     knopf('#oDebug', () => { Game.settings.debug = !Game.settings.debug; $('#dbg').classList.toggle('on', Game.settings.debug); Game.saveOpts(); this.optionenZeigen(); });
     $('#oRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     $('#oSens').addEventListener('input', e => { Game.settings.sens = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
@@ -662,7 +678,8 @@ const Menue = {
     $('#oDebug').textContent = 'Debug-Anzeige: ' + (s.debug ? 'An' : 'Aus');
   },
   /* — Mitwirkende — */
-  zuMitwirkende(){
+  zuMitwirkende(zurueck){
+    this._mwZurueck = zurueck || 'optionen';            // vom Titel zurück zum Titel, sonst zu den Optionen
     this.zeige('mitwirkende');
     $('.mitw').scrollTop = 0;
   },

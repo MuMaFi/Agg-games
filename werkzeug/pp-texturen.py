@@ -210,7 +210,71 @@ def bilder():
             f = 0.7 if (y == 9 or x == 10) else (1.15 if (y == 6 or x == 5) else 1)
             kn.putpixel((x, y), (min(255, int(r * f)), min(255, int(g * f)), min(255, int(b * f)), 255))
     B['i_knopf'] = kn
+    wesen(B)
     return B
+
+
+def gedreht(im):
+    """Rumpf der Vierbeiner: beim Vorbild steht er im Bild hochkant"""
+    return im.rotate(90, expand=True)
+
+
+def wesen(B):
+    """Tiere und Monster: je Körperteil ein Ausschnitt aus dem Modell-Bild
+    (Seite für den Rumpf, Vorderseite für Gesicht, Brust, Beine). Die
+    Spielerfigur bleibt gemalt."""
+    s = lade('mobs_mc_pig')
+    B['m_pig'] = gedreht(ausschnitt(s, 28, 16, 8, 16))
+    g = ausschnitt(s, 8, 8, 8, 8)
+    g.paste(ausschnitt(s, 17, 17, 4, 3), (2, 4))                          # Rüssel aufs Gesicht
+    B['m_pig_face'] = g
+    B['m_pig_leg'] = ausschnitt(s, 4, 20, 4, 6)
+
+    s = lade('mobs_mc_cow')
+    B['m_kuh'] = gedreht(ausschnitt(s, 18, 14, 10, 18))
+    B['m_kuh_face'] = ausschnitt(s, 6, 6, 8, 8)
+    B['m_kuh_bein'] = ausschnitt(s, 4, 20, 4, 12)
+    B['m_horn'] = ausschnitt(s, 23, 1, 1, 3)
+    B['m_euter'] = ausschnitt(s, 53, 1, 4, 6)
+
+    s, fell = lade('mobs_mc_sheep'), lade('mobs_mc_sheep_fur')
+    B['m_schaf_haut'] = gedreht(ausschnitt(s, 28, 14, 6, 16))
+    B['m_schaf_face'] = ausschnitt(s, 8, 8, 6, 6)
+    B['m_schaf_bein'] = ausschnitt(s, 4, 20, 4, 12)
+    B['m_schaf_wolle'] = gedreht(ausschnitt(fell, 28, 14, 6, 16))          # hell: das Spiel färbt nach der Wolle
+
+    s = lade('mobs_mc_chicken')
+    B['m_huhn'] = gedreht(ausschnitt(s, 0, 15, 6, 8))
+    B['m_huhn_face'] = ausschnitt(s, 3, 3, 4, 6)
+    B['m_huhn_fluegel'] = ausschnitt(s, 24, 19, 6, 4)
+    B['m_huhn_schnabel'] = ausschnitt(s, 16, 2, 4, 2)
+    B['m_huhn_lappen'] = ausschnitt(s, 16, 6, 2, 2)
+    B['m_huhn_bein'] = ausschnitt(s, 36, 3, 1, 5)
+    B['m_huhn_fuss'] = ausschnitt(s, 32, 0, 3, 3)
+
+    s = lade('mobs_mc_zombie')                                             # Kopf: Grundbild und die Lage darüber
+    B['m_zsk'] = ueber(ausschnitt(s, 0, 8, 8, 8), ausschnitt(s, 32, 8, 8, 8))
+    B['m_zface'] = ueber(ausschnitt(s, 8, 8, 8, 8), ausschnitt(s, 40, 8, 8, 8))
+    B['m_zshirt'] = ausschnitt(s, 20, 20, 8, 12)
+    B['m_zpants'] = ausschnitt(s, 4, 20, 4, 12)
+    B['m_zarm'] = ausschnitt(s, 44, 20, 4, 12)
+
+    s = lade('mobs_mc_skeleton')
+    B['m_skelett'] = ausschnitt(s, 0, 8, 8, 8)
+    B['m_skelett_face'] = ausschnitt(s, 8, 8, 8, 8)
+    B['m_skelett_brust'] = ausschnitt(s, 20, 20, 8, 12)
+    B['m_skelett_glied'] = ausschnitt(s, 42, 18, 2, 12)
+    B['m_bogen'] = lade('mcl_bows_bow')
+
+    s = lade('mobs_mc_slime')                                              # doppelt so fein wie die anderen
+    B['m_schleim'] = ausschnitt(s, 16, 16, 16, 16)
+    B['m_schleim_kern'] = ausschnitt(s, 12, 44, 12, 12)
+    B['m_schleim_auge'] = ausschnitt(s, 3, 5, 2, 2)
+
+    # Pfeil im Flug: Spitze links wie in texturen.js; Ei im Flug; Herzen über verliebten Tieren
+    B['m_pfeil'] = ausschnitt(lade('mcl_bows_arrow'), 0, 2, 31, 6).transpose(Image.FLIP_LEFT_RIGHT)
+    B['m_ei'] = ausschnitt(lade('mcl_throwing_egg'), 6, 5, 4, 6)
+    B['p_herz'] = rand_auf(lade('heart'), 11, 11)
 
 
 def packen(im):

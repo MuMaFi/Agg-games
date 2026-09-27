@@ -1383,6 +1383,7 @@ function buildTextures(){
   });
   const ZH = pal('#35592b','#406a34','#4c7b3e','#598c48','#679c54');
   addTex('m_zsk', p => { haut(ZH, 311)(p); for(let i = 0; i < 5; i++){ const x = p.r()*TS, y = p.r()*TS; p.rect(x, y, 2, 2, hell(ZH[0], .75)); } });
+  addTex('m_zarm', p => p.d.set(texData[TEX.m_zsk]));           // Arme: gemalt wie die Haut, nach Vorbild eigenes Bild
   addTex('m_zface', p => {
     haut(ZH, 312)(p);
     for(const x0 of [5, 19]){ p.rect(x0, 11, 8, 5, [16,26,14]); p.rect(x0 + 1, 12, 6, 3, [8,14,8]); p.put(x0 + (x0 < 16 ? 5 : 2), 13, [140,40,30]); }
