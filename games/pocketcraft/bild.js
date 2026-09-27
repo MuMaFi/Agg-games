@@ -569,9 +569,11 @@ function drawSpieler(fogCol, near, far){
       partMatrix(_m, figur, arm, winkel(arm), true);
       M4.translate(_m, _m, 0.3125, 0.74, 0);                   // die Faust
       if(isFlat(h)){
-        // Griff (unten links im Bild) in der Faust, der Kopf zeigt nach vorn oben
+        // Nur der Griff (im Bild bei etwa 22 %, 78 %) steckt in der Faust,
+        // vorn an ihrer Unterseite: der Knauf schaut unten heraus, die
+        // Klinge oder der Kopf ganz vor dem Arm, schräg nach vorn oben
         M4.rotY(_m, _m, Math.PI);
-        M4.translate(_m, _m, -0.0175, -0.12, -0.12);
+        M4.translate(_m, _m, -0.0175, -0.172, -0.072);
         M4.scale(_m, _m, 0.035, 0.6, 0.6);
         setLayers(P, TEX[flatTexOf(h)]);
       } else {
