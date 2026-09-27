@@ -17,6 +17,21 @@ function aabbBlocks(world, x0,y0,z0, x1,y1,z1, cb){
   return true;
 }
 
+/* Treppen haben keinen festen Kasten: ihre Form hängt an den Nachbarn */
+const _treppeK = new Float32Array(30);
+let _treppeWelt = null;
+const _treppeHol = (x, y, z) => _treppeWelt.getBlock(x, y, z);
+function treppeTrifft(world, id, x, y, z, ax0, ax1, ay0, ay1, az0, az1, E){
+  _treppeWelt = world;
+  const n = treppeKaesten(treppeForm(_treppeHol, x, y, z, id), treppeOben(id), _treppeK), k = _treppeK;
+  for(let i = 0; i < n; i++){
+    const o = i*6;
+    if(ax0 < x + k[o+3]/16 - E && ax1 > x + k[o]/16 + E && ay0 < y + k[o+4]/16 - E && ay1 > y + k[o+1]/16 + E &&
+       az0 < z + k[o+5]/16 - E && az1 > z + k[o+2]/16 + E) return true;
+  }
+  return false;
+}
+
 /** Achsenweise Kollisionsauflösung für eine AABB (Mitte x/z, Fuß y) */
 function moveAABB(world, e, dx, dy, dz){
   const hw = e.w/2, h = e.h, E = 1e-6;
@@ -31,6 +46,7 @@ function moveAABB(world, e, dx, dy, dz){
       const id = world.getBlock(x,y,z);
       if(SOL[id] !== 1) continue;
       if(VOLL[id] === 1) return true;
+      if(isTreppe(id)){ if(treppeTrifft(world, id, x, y, z, ax0, ax1, py, ay1, az0, az1, E)) return true; continue; }
       const o = id*6;
       if(ax0 < x+COLL[o+3]-E && ax1 > x+COLL[o]+E && py < y+COLL[o+4]-E && ay1 > y+COLL[o+1]+E &&
          az0 < z+COLL[o+5]-E && az1 > z+COLL[o+2]+E) return true;
@@ -59,9 +75,23 @@ function moveAABB(world, e, dx, dy, dz){
   };
   e.onGround = false;
   if(dy !== 0){ if(step(dy,1)){ if(dy < 0) e.onGround = true; e.vy = 0; } }
-  const bx = step(dx,0);
-  const bz = step(dz,2);
-  return { bx, bz };
+  const x0 = e.x, y0 = e.y, z0 = e.z;
+  let bx = step(dx,0), bz = step(dz,2), gestiegen = 0;
+  /* Wer am Boden gegen eine niedrige Kante läuft (die Stufe einer Treppe),
+     steigt ohne Sprung hinauf, wie beim Vorbild: erst hoch, dann weiter,
+     dann wieder hinab auf die Stufe — aber nur, wenn man so weiter kommt. */
+  if((bx || bz) && e.onGround && e.stufe > 0){
+    const x1 = e.x, y1 = e.y, z1 = e.z;
+    e.x = x0; e.z = z0;
+    step(e.stufe, 1);
+    const hoch = e.y - y0;
+    const sbx = step(dx,0), sbz = step(dz,2);
+    step(-hoch, 1);
+    const vorher = (x1-x0)*(x1-x0) + (z1-z0)*(z1-z0), jetzt = (e.x-x0)*(e.x-x0) + (e.z-z0)*(e.z-z0);
+    if(hoch > 0 && jetzt > vorher + 1e-7 && e.y > y1){ bx = sbx; bz = sbz; gestiegen = e.y - y1; }
+    else { e.x = x1; e.y = y1; e.z = z1; }
+  }
+  return { bx, bz, gestiegen };
 }
 
 function inBlockOfType(world, e, pred){
@@ -96,7 +126,7 @@ class Player{
     this.vx = 0; this.vy = 0; this.vz = 0;
     this.yaw = 0; this.pitch = 0;
     this.w = 0.6; this.h = 1.8; this.eye = 1.62;
-    this.onGround = false; this.stepUp = true;
+    this.onGround = false; this.stepUp = true; this.stufe = 0.55;
     this.health = 20; this.maxHealth = 20;
     this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 20; this.maxAir = 20;
@@ -286,7 +316,7 @@ class Mob{
     this.vx = 0; this.vy = 0; this.vz = 0;
     this.kind = jung ? WACHS_ZEIT : 0; this.liebe = 0; this.pause = 0; this.herzT = 0; this.bleibt = !!jung;
     this.w = d.w * (jung ? BABY : 1); this.h = d.h * (jung ? BABY : 1); this.yaw = Math.random()*TAU;
-    this.health = d.health; this.onGround = false; this.stepUp = true;
+    this.health = d.health; this.onGround = false; this.stepUp = true; this.stufe = 0.55;
     this.wander = 0; this.wanderYaw = this.yaw; this.moving = false;
     this.hurtTimer = 0; this.attackCd = 0; this.walkPhase = 0; this.dead = false;
     this.jumpCd = 0; this.age = 0; this.headYaw = 0;

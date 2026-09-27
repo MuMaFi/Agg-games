@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js'])
+for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js','wesen.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -391,7 +391,7 @@ pruef(T(`rasterRezept([{id:B.PLANKS,n:1},{id:B.PLANKS,n:1},{id:B.PLANKS,n:1}, {i
   && rasterRezept([{id:ITEM.slimeball,n:1},null,{id:B.KOLBEN,n:1},null], 2).out === B.KLEBKOLBEN
   && rasterRezept([{id:B.RS_FACKEL,n:1},{id:ITEM.redstone,n:1},{id:B.RS_FACKEL,n:1}, {id:B.STONE,n:1},{id:B.STONE,n:1},{id:B.STONE,n:1}, null,null,null], 3).out === B.VERSTAERKER`),
   'Rezepte: Kolben, klebriger Kolben, Verstärker');
-pruef(T(`B.VERSTAERKER === 127 && B.KOLBENKOPF + 11 === 194 && !blocks[195] && dingNummer('sticky_piston') === B.KLEBKOLBEN && dingNummer('repeater') === B.VERSTAERKER`),
+pruef(T(`B.VERSTAERKER === 127 && B.KOLBENKOPF + 11 === 194 && B.TREPPE === 195 && dingNummer('sticky_piston') === B.KLEBKOLBEN && dingNummer('repeater') === B.VERSTAERKER`),
   'Nummern hinten angehängt, Namen für Befehle');
 
 // Schleime: jeder zehnte Chunk ist ein Schleim-Chunk, fest nach dem Startwert; der Schleimball kam hinten dazu
@@ -417,5 +417,51 @@ pruef(T(`(() => { const d = b64Bytes(VORLAGE.stone), w = d[0], n = d[2], k = 3 +
 pruef(T(`['grass_top','leaves','water0','rs_staub15','chest_front','bed_side','i_diamond_sword','i_iron_helmet','crack7','hebel'].every(k => VORLAGE[k])`), 'wichtige Vorlagen da');
 pruef(T(`['m_pig','m_pig_face','m_kuh','m_kuh_face','m_schaf_wolle','m_huhn','m_zface','m_zarm','m_skelett_brust','m_schleim','m_pfeil','p_herz'].every(k => VORLAGE[k])`), 'Tiere und Monster aus der Vorlage');
 
+// Treppen: Nummern hinten angehängt, nur die Grundform ist ein Gegenstand, alle fallen als sie ab
+pruef(T(`B.TREPPE === 195 && treppeId(3, 3, true) === 226 && isTreppe(226) && !isTreppe(227) && !blocks[227]
+  && TREPPEN.every((t, a) => blocks[treppeId(a, 0, false)].item && blocks[treppeId(a, 0, false)].name === t.name && blocks[treppeId(a, 0, false)].hardness === blocks[t.stoff].hardness)
+  && [1, 2, 3, 4, 5, 6, 7].every(k => !blocks[B.TREPPE + k].item && blocks[B.TREPPE + k].drop === B.TREPPE)
+  && treppeRichtung(treppeId(2, 3, true)) === 3 && treppeOben(treppeId(2, 3, true)) && treppeArt(treppeId(2, 3, true)) === 2`), 'Treppen: Nummern, Arten, Abbau');
+pruef(T(`dingNummer('oak_stairs') === B.TREPPE && dingNummer('cobblestone_stairs') === treppeId(1, 0, false) && dingNummer('holztreppe') === B.TREPPE
+  && dingNummer('sandsteintreppe') === treppeId(3, 0, false)`), 'Treppen für /give und /setblock');
+pruef(T(`(() => { const P = {id:B.PLANKS,n:1}, C = {id:B.COBBLE,n:1};
+  const h = rasterRezept([P,null,null, P,P,null, P,P,P], 3), g = rasterRezept([null,null,P, null,P,P, P,P,P], 3), c = rasterRezept([C,null,null, C,C,null, C,C,C], 3);
+  return h.out === B.TREPPE && h.n === 4 && g === h && c.out === treppeId(1, 0, false) && fuelValue(B.TREPPE) === 300 && fuelValue(c.out) === 0; })()`),
+  'Rezept: sechs Bretter geben vier Holztreppen, auch gespiegelt; Bruchstein genauso; Holz brennt');
+// Form nach den Nachbarn: gerade, Außenecke, Innenecke — wie beim Vorbild
+T(`globalThis.tWelt = liste => { const m = new Map(liste.map(([x, y, z, id]) => [x + ',' + y + ',' + z, id])); return (x, y, z) => m.get(x + ',' + y + ',' + z) || B.AIR; };`);
+pruef(T(`treppeForm(tWelt([]), 0, 0, 0, treppeId(0, 0, false)) === 0b1010 && treppeForm(tWelt([]), 0, 0, 0, treppeId(0, 3, true)) === 0b0011`), 'gerade Treppe: die Stufe ist die hintere Hälfte');
+pruef(T(`treppeForm(tWelt([[1, 0, 0, treppeId(1, 2, false)]]), 0, 0, 0, treppeId(0, 0, false)) === 0b1000`), 'Außenecke: dahinter eine Treppe quer — nur ein Viertel');
+pruef(T(`treppeForm(tWelt([[-1, 0, 0, treppeId(2, 2, false)]]), 0, 0, 0, treppeId(0, 0, false)) === 0b1110`), 'Innenecke: davor eine Treppe quer — drei Viertel');
+pruef(T(`treppeForm(tWelt([[1, 0, 0, treppeId(0, 2, true)]]), 0, 0, 0, treppeId(0, 0, false)) === 0b1010
+  && treppeForm(tWelt([[1, 0, 0, treppeId(0, 1, false)]]), 0, 0, 0, treppeId(0, 0, false)) === 0b1010`), 'umgedreht oder gleichlaufend: keine Ecke');
+pruef(T(`treppeForm(tWelt([[1, 0, 0, treppeId(0, 2, false)], [0, 0, -1, treppeId(0, 0, false)]]), 0, 0, 0, treppeId(0, 0, false)) === 0b1010`),
+  'eine gerade Reihe daneben verhindert die Außenecke');
+pruef(T(`(() => { const k = new Float32Array(30); const a = treppeKaesten(0b1010, false, k), s1 = Array.from(k.slice(0, 18));
+  const b = treppeKaesten(0b1110, true, k), s2 = Array.from(k.slice(0, 6));
+  return a === 3 && s1.join() === [0,0,0,16,8,16, 8,8,0,16,16,8, 8,8,8,16,16,16].join() && b === 4 && s2.join() === [0,8,0,16,16,16].join(); })()`),
+  'Kästen: Platte und je Viertel der Stufe einer');
+// Laufen: gegen die Stufe ohne Sprung hinauf, eine volle Wand bleibt eine Wand
+T(`globalThis.TW = new World('treppen-test', 2, 'flach'); globalThis.um = (a, b) => Math.abs(a - b) < 0.01;
+for(let cx = -1; cx <= 1; cx++) for(let cz = -1; cz <= 1; cz++) TW.ensureChunk(cx, cz);
+globalThis.gehen = (e, dx, dz, s) => { for(let i = 0; i < s*60; i++){ e.vy -= GRAV/60; moveAABB(TW, e, dx/60, e.vy/60, dz/60); } };
+globalThis.neuSpieler = (x, z) => { const p = new Player(); p.x = x; p.y = 4; p.z = z; p.vy = 0; return p; };`);
+pruef(T(`(() => { TW.setBlock(3, 4, 0, treppeId(0, 0, false)); TW.setBlock(4, 4, 0, B.STONE); TW.setBlock(4, 5, 0, treppeId(0, 0, false)); TW.setBlock(5, 5, 0, B.STONE); TW.setBlock(5, 6, 0, B.STONE);
+  const p = neuSpieler(0.5, 0.5); gehen(p, 4.3, 0, 2); return p.x > 4 && um(p.y, 6) && p.onGround; })()`), 'Treppe hinauf: Stufe für Stufe, zwei Blöcke hoch, ohne Sprung');
+pruef(T(`(() => { const p = neuSpieler(0.5, 3.5); TW.setBlock(3, 4, 3, B.STONE); gehen(p, 4.3, 0, 1); return p.x < 2.71 && um(p.y, 4); })()`), 'vor einem ganzen Block bleibt man stehen');
+pruef(T(`(() => { const p = neuSpieler(0.5, 5.5); TW.setBlock(3, 4, 5, treppeId(0, 0, false)); TW.setBlock(3, 6, 5, B.STONE); gehen(p, 4.3, 0, 1); return p.x < 2.71 && um(p.y, 4); })()`),
+  'unter einer niedrigen Decke kommt man nicht auf die Stufe');
+pruef(T(`(() => { const p = neuSpieler(0.5, 7.19); TW.setBlock(3, 4, 7, treppeId(0, 2, false)); gehen(p, 4.3, 0, 0.65); const a = p.x > 3 && um(p.y, 4.5);
+  TW.setBlock(8, 4, 7, B.PLANKS); const d = new Drop(1, 1, 5.5, 4, 9.5); d.vy = 0; TW.setBlock(7, 4, 9, treppeId(0, 0, false)); for(let i = 0; i < 60; i++){ d.vy -= GRAV/60; moveAABB(TW, d, 2/60, d.vy/60, 0); }
+  return a && d.x < 6.9 && d.y < 4.2; })()`), 'seitlich auf die Stufe; Gegenstände am Boden steigen nicht');
+pruef(T(`(() => { const p = neuSpieler(3.2, 11.5); p.y = 7; TW.setBlock(3, 4, 11, treppeId(0, 0, false)); gehen(p, 0, 0, 1); const unten = um(p.y, 4.5);
+  const q = neuSpieler(3.8, 13.5); q.y = 7; TW.setBlock(3, 4, 13, treppeId(0, 0, false)); gehen(q, 0, 0, 1);
+  const r = neuSpieler(3.5, 15.5); r.y = 7; TW.setBlock(3, 4, 15, treppeId(0, 0, true)); gehen(r, 0, 0, 1);
+  return unten && um(q.y, 5) && um(r.y, 5); })()`), 'man steht auf der Platte, auf der Stufe und auf einer umgedrehten Treppe oben');
+// Licht: fällt auf die Treppe, aber nicht hindurch
+T(`globalThis.neuLicht = () => { for(const c of [...TW.chunks.values()]) if(Math.abs(c.cx) <= 1 && Math.abs(c.cz) <= 1) TW.computeLight(c); };`);
+pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.setBlock(x, 9, z - 20 + 16, treppeId(0, 0, false)); neuLicht();
+  const drauf = TW.getLight(0, 9, -4) & 15, drunter = TW.getLight(0, 8, -4) & 15, frei = TW.getLight(0, 8, -10) & 15;
+  return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

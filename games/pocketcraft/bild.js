@@ -142,7 +142,7 @@ void main(){
 /* ── Renderer ──────────────────────────────────────────────────────── */
 const R = {
   progChunk:null, progEnt:null, progSky:null, texArr:null,
-  skyVAO:null, cubeVAO:null, cubeCount:0, quadVAO:null,
+  skyVAO:null, cubeVAO:null, cubeCount:0, quadVAO:null, treppeVAO:null, treppeCount:0,
   vp: M4.create(), proj: M4.create(), view: M4.create(), invVP: M4.create(),
   planes: new Float32Array(24),
 
@@ -155,7 +155,7 @@ const R = {
     this.progSky   = program(VS_SKY, FS_SKY);
     this.buildTexArray();
     this.buildSky();
-    this.buildCube();
+    this.buildCube(); this.buildTreppe();
     return true;
   },
 
@@ -209,6 +209,38 @@ const R = {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
     gl.bindVertexArray(null);
     this.cubeVAO = vao; this.cubeVB = vb; this.cubeIB = ib; this.cubeCount = idx.length;
+  },
+
+  /** Treppe als Gegenstand (Hand, am Boden): unten die Platte, hinten (−Z)
+      die Stufe; die Bilder werden zugeschnitten wie im Chunk */
+  buildTreppe(){
+    const verts = [], idx = [];
+    const shades = [0.74, 0.74, 1.0, 0.48, 0.87, 0.87];
+    const kasten = (k, flaechen) => {
+      for(const f of flaechen){
+        const F = FACES[f], ST = FACE_ST[f], base = verts.length / 7;
+        for(let i=0; i<4; i++){
+          const v = F.v[i], q = [v[0] ? k[3] : k[0], v[1] ? k[4] : k[1], v[2] ? k[5] : k[2]];
+          verts.push(q[0], q[1], q[2], ST.sFlip ? 1 - q[ST.sAx] : q[ST.sAx], ST.tFlip ? 1 - q[ST.tAx] : q[ST.tAx], f, shades[f]);
+        }
+        idx.push(base, base+1, base+2, base, base+2, base+3);
+      }
+    };
+    kasten([0, 0, 0, 1, .5, 1], [0, 1, 3, 4, 5]);
+    kasten([0, .5, .5, 1, .5, 1], [2]);
+    kasten([0, .5, 0, 1, 1, .5], [0, 1, 2, 4, 5]);
+    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+    const A = this.progEnt.a;
+    gl.enableVertexAttribArray(A.aPos);   gl.vertexAttribPointer(A.aPos, 3, gl.FLOAT, false, 28, 0);
+    gl.enableVertexAttribArray(A.aUV);    gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 28, 12);
+    gl.enableVertexAttribArray(A.aLayer); gl.vertexAttribPointer(A.aLayer, 1, gl.FLOAT, false, 28, 20);
+    gl.enableVertexAttribArray(A.aShade); gl.vertexAttribPointer(A.aShade, 1, gl.FLOAT, false, 28, 24);
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+    gl.bindVertexArray(null);
+    this.treppeVAO = vao; this.treppeCount = idx.length;
   },
 
   uploadChunk(mesh, buf){
@@ -590,7 +622,7 @@ function drawSpieler(fogCol, near, far){
         gl.uniform1fv(P.u.uLayers, _layers);
       }
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
-      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+      blockDingZeichnen(isFlat(h) ? 0 : h);
     }
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -689,6 +721,16 @@ function partMatrix(out, mob, part, ang, bisGelenk){
   M4.scale(out, out, w, h, d);
 }
 
+/** ein Block als Gegenstand: ein Würfel, eine Treppe mit ihrer Stufe —
+    danach ist wieder der Würfel gebunden. 0 zeichnet einfach den Würfel. */
+function blockDingZeichnen(id){
+  if(isTreppe(id)){
+    gl.bindVertexArray(R.treppeVAO);
+    gl.drawElements(gl.TRIANGLES, R.treppeCount, gl.UNSIGNED_SHORT, 0);
+    gl.bindVertexArray(R.cubeVAO);
+  } else gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+}
+
 function drawDrops(fogCol, near, far){
   const P = entProg();
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -710,7 +752,7 @@ function drawDrops(fogCol, near, far){
       if(b.dirFront) _layers[5] = TEX[b.dirFront];
       gl.uniform1fv(P.u.uLayers, _layers);
     } else setLayers(P, TEX[flatTexOf(d.id)]);
-    gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    blockDingZeichnen(flach ? 0 : d.id);
   }
 }
 
@@ -760,7 +802,7 @@ function drawHeld(fogCol){
   gl.uniform1f(P.u.uLight, Math.max(0.42, blockLightAt(p.x, p.eyeY(), p.z)));
 
   M4.ident(_cam);
-  M4.translate(_cam, _cam, p.x, p.eyeY(), p.z);
+  M4.translate(_cam, _cam, p.x, p.eyeY() + (p.stufeGlatt || 0), p.z);
   M4.rotY(_cam, _cam, p.yaw);
   M4.rotX(_cam, _cam, p.pitch);
 
@@ -779,6 +821,7 @@ function drawHeld(fogCol){
   } else if(!isFlat(s.id)){
     M4.rotY(_cam, _cam, 0.22); M4.rotX(_cam, _cam, 0.16);
     M4.scale(_cam, _cam, 0.21, 0.21, 0.21);
+    if(isTreppe(s.id)) M4.rotY(_cam, _cam, Math.PI/2);        // Treppe: das Profil nach vorn, die Stufe links
     M4.translate(_cam, _cam, -0.5, -0.5, -0.5);
     gl.uniformMatrix4fv(P.u.uModel, false, _cam);
     const b = blocks[s.id];
@@ -793,7 +836,7 @@ function drawHeld(fogCol){
     setLayers(P, TEX[flatTexOf(s.id)]);
   }
   gl.bindVertexArray(R.cubeVAO);
-  gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+  blockDingZeichnen(s && !isFlat(s.id) ? s.id : 0);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
 }
 
@@ -813,7 +856,7 @@ function render(dt){
   let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0) - (Game.bogen.aktiv ? Math.min(1, Game.bogen.t)*0.14 : 0);
   const bobY = p.onGround ? Math.sin(p.bob*2)*0.022 : 0;
   const shake = Game.camShake > 0 ? (Math.random()-0.5)*Game.camShake : 0;
-  R.setCamera(p.x, p.eyeY() + bobY + shake, p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh);
+  R.setCamera(p.x, p.eyeY() + bobY + shake + (p.stufeGlatt || 0), p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh);
   if(Super.an){ Super.schattenPass(); gl.viewport(0, 0, vw, vh); }
 
   gl.clearColor(fog[0], fog[1], fog[2], 1);

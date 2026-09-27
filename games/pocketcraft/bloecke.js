@@ -17,7 +17,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
   STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
-  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */ };
+  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */,
+  TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -95,6 +96,53 @@ function knopfBox(anbau, gedrueckt){
   const d = gedrueckt ? 1 : 2;
   if(anbau === 0) return [5, 0, 6, 11, d, 10];
   return [[16-d,6,5,16,10,11], [0,6,5,d,10,11], [5,6,16-d,11,10,16], [5,6,0,11,10,d]][anbau - 1];
+}
+/* Treppen: je Art acht Nummern — die Richtung (wie SEITE: dorthin liegt die
+   hohe Stufe) und ob sie umgedreht an der Decke hängt. Ob eine Treppe gerade
+   ist oder eine Ecke bildet, ergibt sich wie beim Vorbild aus den Nachbarn. */
+const TREPPEN = [
+  { name:'Holztreppe',        stoff:B.PLANKS,     mc:'oak_stairs' },
+  { name:'Bruchsteintreppe',  stoff:B.COBBLE,     mc:'cobblestone_stairs' },
+  { name:'Steinziegeltreppe', stoff:B.STONEBRICK, mc:'stone_brick_stairs' },
+  { name:'Sandsteintreppe',   stoff:B.SANDSTONE,  mc:'sandstone_stairs' },
+];
+const treppeId = (art, r, oben) => B.TREPPE + art*8 + (oben ? 4 : 0) + r;
+const isTreppe = id => id >= B.TREPPE && id < B.TREPPE + TREPPEN.length*8;
+const treppeArt = id => (id - B.TREPPE) >> 3;
+const treppeRichtung = id => (id - B.TREPPE) & 3;
+const treppeOben = id => ((id - B.TREPPE) & 4) !== 0;
+/* Die Stufe besteht aus Vierteln, Bit qz·2 + qx (qx = 1: die Hälfte bei +X).
+   HALB[r]: die Hälfte zur Seite SEITE[r]. */
+const TREPPE_HALB = [0b1010, 0b0101, 0b1100, 0b0011];
+/** welche Viertel die Stufe füllt: gerade eine Hälfte; steht hinter ihr eine
+    Treppe quer, nur ein Viertel (Außenecke), steht sie davor, drei (Innenecke) */
+function treppeForm(get, x, y, z, id){
+  const r = treppeRichtung(id), oben = treppeOben(id), [dx, dz] = SEITE[r];
+  const quer = n => isTreppe(n) && treppeOben(n) === oben && (treppeRichtung(n) >> 1) !== (r >> 1);
+  const gleich = n => isTreppe(n) && treppeRichtung(n) === r && treppeOben(n) === oben;
+  const hinten = get(x + dx, y, z + dz);
+  if(quer(hinten)){
+    const r2 = treppeRichtung(hinten), [ex, ez] = SEITE[r2];
+    if(!gleich(get(x - ex, y, z - ez))) return TREPPE_HALB[r] & TREPPE_HALB[r2];
+  }
+  const vorn = get(x - dx, y, z - dz);
+  if(quer(vorn)){
+    const r2 = treppeRichtung(vorn), [ex, ez] = SEITE[r2];
+    if(!gleich(get(x + ex, y, z + ez))) return TREPPE_HALB[r] | TREPPE_HALB[r2];
+  }
+  return TREPPE_HALB[r];
+}
+/** Kästen einer Treppe in Sechzehnteln nach out: erst die Platte, dann je
+    Viertel der Stufe einer; gibt die Anzahl zurück */
+function treppeKaesten(form, oben, out){
+  let n = 0;
+  const put = (x0, y0, z0, x1, y1, z1) => { const o = n++*6; out[o] = x0; out[o+1] = y0; out[o+2] = z0; out[o+3] = x1; out[o+4] = y1; out[o+5] = z1; };
+  put(0, oben ? 8 : 0, 0, 16, oben ? 16 : 8, 16);
+  for(let q = 0; q < 4; q++) if(form >> q & 1){
+    const qx = (q & 1)*8, qz = (q >> 1)*8;
+    put(qx, oben ? 0 : 8, qz, qx + 8, oben ? 8 : 16, qz + 8);
+  }
+  return n;
 }
 const ladderId = s => B.LADDER + s;
 const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
@@ -225,6 +273,13 @@ function initBlocks(){
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
       hardness:2, tool:'axe', drop:B.DOOR, item:!oben && !offen && s === 0, icon:'i_door'});
   }
+  // Treppen: so hart wie ihr Stoff, mit denselben Bildern; fest, aber nicht undurchsichtig
+  TREPPEN.forEach((t, art) => {
+    const st = blocks[t.stoff];
+    for(let oben = 0; oben < 2; oben++) for(let r = 0; r < 4; r++)
+      defBlock(treppeId(art, r, oben),{name:t.name, tex:st.faces, model:'treppe', opaque:false, hardness:st.hardness,
+        tool:st.tool, tier:st.tier, drop:treppeId(art, 0, false), item:!oben && r === 0});
+  });
 }
 
 /* ── Gegenstände (ID ≥ 256) ────────────────────────────────────────── */
@@ -324,5 +379,6 @@ function flatTexOf(id){
 function iconFor(id){
   if(isFlat(id)) return iconURL(flatTexOf(id));
   const b = blocks[id];
+  if(isTreppe(id)) return isoTreppeURL(b.faces[2], b.faces[4]);
   return isoIconURL(b.faces[2], b.dirFront || b.faces[4], b.faces[0]);
 }

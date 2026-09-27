@@ -155,6 +155,8 @@ function initRecipes(){
   geformt('bauen', B.STONEBRICK, 4, ['##','##'], {'#':B.STONE});
   geformt('bauen', B.SANDSTONE, 1, ['##','##'], {'#':B.SAND});
   geformt('bauen', B.JUKEBOX, 1, ['###','#D#','###'], {'#':P, D:ITEM.diamond});
+  // Treppen: aus sechs Blöcken werden vier, wie beim Vorbild
+  TREPPEN.forEach((t, art) => geformt('bauen', treppeId(art, 0, false), 4, ['#  ','## ','###'], {'#':t.stoff}));
   const MATS = [['wood',P],['stone',B.COBBLE],['iron',ITEM.iron],['gold',ITEM.gold],['diamond',ITEM.diamond]];
   for(const [m, mat] of MATS){
     const k = { M:mat, '|':S };
@@ -292,6 +294,7 @@ function initSmelt(){
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
   if(id === B.PLANKS || id === B.LOG || id === B.FICHTENSTAMM || id === B.TABLE || id === B.CHEST || id === B.LADDER) return 300;
+  if(isTreppe(id) && TREPPEN[treppeArt(id)].stoff === B.PLANKS) return 300;
   return 0;
 }
 

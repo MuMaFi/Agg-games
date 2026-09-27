@@ -15,7 +15,10 @@ const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald'
    Mesh- und Licht-Kern millionenfach abgefragt werden */
 const OPQ  = new Uint8Array(256);   // blockt Sicht vollständig
 const SOL  = new Uint8Array(256);   // blockt Bewegung
-const LOPQ = new Uint8Array(256);   // Licht-Dämpfung 0…15
+const LOPQ = new Uint8Array(256);   // Licht-Dämpfung 0…15 — oder LICHT_STAU
+/* Treppen: Licht fällt hinein, geht aber nicht hindurch. So ist die Treppe
+   selbst hell (und was auf ihr steht), unter einem Treppendach aber dunkel. */
+const LICHT_STAU = 16;
 const COLL = new Float32Array(256*6); // Kollisionskasten je Block, in Blockeinheiten
 const VOLL = new Uint8Array(256);     // Kollision füllt den ganzen Block
 function buildBlockTables(){
@@ -26,10 +29,10 @@ function buildBlockTables(){
     SOL[i] = b.solid ? 1 : 0;
     // stehendes Wasser dämpft das Licht; fließendes ist zu flach dafür — so
     // muss beim Fließen nur neu gezeichnet, nicht neu belichtet werden
-    LOPQ[i] = b.opaque ? 15 : (i === B.WATER ? 2 : (i === B.LEAVES || i === B.FICHTENNADELN ? 1 : 0));
+    LOPQ[i] = b.opaque ? 15 : b.model === 'treppe' ? LICHT_STAU : (i === B.WATER ? 2 : (i === B.LEAVES || i === B.FICHTENNADELN ? 1 : 0));
     const k = b.solid && b.box ? b.box : [0,0,0,16,16,16];
     for(let j=0; j<6; j++) COLL[i*6+j] = k[j]/16;
-    VOLL[i] = b.solid && !b.box ? 1 : 0;
+    VOLL[i] = b.solid && !b.box && b.model !== 'treppe' ? 1 : 0;   // Treppen: siehe treppeKaesten
   }
   OPQ[B.AIR] = 0; SOL[B.AIR] = 0; LOPQ[B.AIR] = 0;
 }
@@ -456,8 +459,11 @@ class World{
           const i = LIDX(x,y,z);
           _lop[i] = op;
           if(l > 0){
-            l = op >= 15 ? 0 : Math.max(0, l - op);
-            if(l > 0){ _lsk[i] = l; _lq[qt++] = i; }
+            if(op === LICHT_STAU){ _lsk[i] = l; l = 0; }
+            else {
+              l = op >= 15 ? 0 : Math.max(0, l - op);
+              if(l > 0){ _lsk[i] = l; _lq[qt++] = i; }
+            }
           }
         }
       }
@@ -511,7 +517,7 @@ class World{
   }
   push(arr, i, nb){
     const op = _lop[i];
-    if(op >= 15) return false;
+    if(op >= 15){ if(op === LICHT_STAU && nb > arr[i]) arr[i] = nb; return false; }
     const v = Math.max(0, nb - op);
     if(v <= arr[i]) return false;
     arr[i] = v; return true;
@@ -567,6 +573,7 @@ class World{
           if(bd.model === 'hebel'){ this.emitHebel(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'verstaerker'){ this.emitVerstaerker(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'kolben'){ this.emitKolben(opaqueBuf, x, y, z, id); continue; }
+          if(bd.model === 'treppe'){ this.emitTreppe(opaqueBuf, x, y, z, id, bd); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -703,11 +710,13 @@ class World{
   /* Kasten kleiner als ein Block: Bett, Acker, Tür, Leiter. Die Textur wird
      zugeschnitten, nicht gestaucht — ein halbhohes Bett zeigt die untere
      Hälfte seiner Seitentextur. Flächen auf dem Blockrand werden wie beim
-     Würfel gegen undurchsichtige Nachbarn verworfen. */
-  emitBox(buf, x, y, z, bd){
-    const bx = bd.box, px = x+1, pz = z+1;
+     Würfel gegen undurchsichtige Nachbarn verworfen. bx: ein anderer Kasten
+     als bd.box; weg: Bitmaske der Flächen, die ganz wegfallen. */
+  emitBox(buf, x, y, z, bd, bx = bd.box, weg = 0){
+    const px = x+1, pz = z+1;
     const own = this.getLightLocal(px, y, pz);
     for(let f=0; f<6; f++){
+      if(weg >> f & 1) continue;
       const F = FACES[f], ST = FACE_ST[f];
       const ax = F.nAx, pos = F.n[ax] > 0;
       const amRand = pos ? bx[ax+3] === 16 : bx[ax] === 0;
@@ -730,6 +739,26 @@ class World{
         buf.vert(x*16 + cx, y*16 + cy, z*16 + cz, 3 | (f<<2), layer, sky, blk, s, t);
       }
       buf.quad(false);
+    }
+  }
+
+  /* Treppe: eine Platte und darüber (umgedreht darunter) die Stufe aus
+     Vierteln. Flächen zwischen zwei Vierteln der Stufe fallen weg, der Deckel
+     der Platte bleibt nur, wo keine Stufe auf ihm steht. */
+  emitTreppe(buf, x, y, z, id, bd){
+    const oben = treppeOben(id);
+    const form = treppeForm(this._pbHol || (this._pbHol = (a, b, c) => this.pb(a, b, c)), x + 1, y, z + 1, id);
+    const py0 = oben ? 8 : 0, sy0 = oben ? 0 : 8;
+    const deckel = oben ? 3 : 2, fuss = oben ? 2 : 3;     // Fläche der Platte zur Stufe hin, und umgekehrt
+    this.emitBox(buf, x, y, z, bd, [0, py0, 0, 16, py0 + 8, 16], 1 << deckel);
+    for(let q = 0; q < 4; q++){
+      const qx = (q & 1)*8, qz = (q >> 1)*8;
+      if(form >> q & 1){
+        let weg = 1 << fuss;
+        if(form >> (q ^ 1) & 1) weg |= 1 << (qx ? 1 : 0);
+        if(form >> (q ^ 2) & 1) weg |= 1 << (qz ? 5 : 4);
+        this.emitBox(buf, x, y, z, bd, [qx, sy0, qz, qx + 8, sy0 + 8, qz + 8], weg);
+      } else this.emitBox(buf, x, y, z, bd, [qx, py0, qz, qx + 8, py0 + 8, qz + 8], 63 & ~(1 << deckel));
     }
   }
 

@@ -71,6 +71,7 @@ function dingeIndex(){
   for(const [k, v] of Object.entries(ITEM)) neu(bNorm(k), v, false);
   for(const [k, v] of Object.entries(B)) if(blocks[v] && blocks[v].item !== false) neu(bNorm(k), v, false);
   for(const [k, v] of Object.entries(MC_NAMEN)){ const id = B[v] !== undefined ? B[v] : ITEM[v]; if(id !== undefined) neu(k, id, false); }
+  TREPPEN.forEach((t, art) => neu(t.mc, treppeId(art, 0, false), false));
   return _dinge;
 }
 function dingNummer(s){ const id = dingeIndex().get(bNorm(s)); return id === undefined ? null : id; }

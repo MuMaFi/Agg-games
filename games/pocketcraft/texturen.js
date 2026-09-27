@@ -1662,6 +1662,39 @@ function iconURL(texName){
  * werden abgedunkelt wie im Spiel, damit der Block im Inventar so aussieht
  * wie in der Welt. hoehe < 1 für flache Blöcke.
  */
+/** Symbol einer Treppe in derselben Ansicht wie isoIconURL: hinten die Stufe,
+    vorn die Platte — links sieht man die Stufen, rechts das Profil */
+function isoTreppeURL(oben, seite){
+  const k = 't:' + oben + '|' + seite;
+  if(_iconCache.has(k)) return _iconCache.get(k);
+  const S = 96, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+  const c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  const e = S/2 - 2, q = e/2, H = S - 4 - e, k32 = 1/TS;
+  // Punkt (x, y, z) im Block (0…1) → Bild; x läuft nach rechts vorn, z nach links vorn
+  const P = (x, y, z) => [S/2 + e*x - e*z, 2 + q*x + q*z + H*(1 - y)];
+  /* Ausschnitt [u0, v0]…[u1, v1] (0…1) des Bildes name; o ist der Bildpunkt
+     von (u0, v0), du und dv die Wege für ein ganzes Bild in u und v */
+  const flaeche = (name, o, du, dv, u0, v0, u1, v1, dunkel) => {
+    const sx = u0*TS, sy = v0*TS, sw = (u1 - u0)*TS, sh = (v1 - v0)*TS;
+    c.save();
+    c.setTransform(du[0]*k32, du[1]*k32, dv[0]*k32, dv[1]*k32, o[0], o[1]);
+    c.drawImage(layerCanvas(name), sx, sy, sw, sh, 0, 0, sw, sh);
+    if(dunkel){ c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(0,0,0,' + dunkel + ')'; c.fillRect(0, 0, sw, sh); }
+    c.restore();
+  };
+  const kasten = (x0, y0, z0, x1, y1, z1) => {
+    flaeche(seite, P(x0, y1, z1), [e, q], [0, H], x0, 1 - y1, x1, 1 - y0, .26);          // +Z, links
+    flaeche(seite, P(x1, y1, z1), [e, -q], [0, H], 1 - z1, 1 - y1, 1 - z0, 1 - y0, .42);  // +X, rechts
+    flaeche(oben, P(x0, y1, z0), [e, q], [-e, q], x0, z0, x1, z1, 0);                      // Deckel
+  };
+  kasten(0, .5, 0, 1, 1, .5);
+  kasten(0, 0, 0, 1, .5, 1);
+  const url = cv.toDataURL();
+  _iconCache.set(k, url);
+  return url;
+}
+
 function isoIconURL(oben, links, rechts, hoehe = 1){
   const k = 'i:' + oben + '|' + links + '|' + rechts + '|' + hoehe;
   if(_iconCache.has(k)) return _iconCache.get(k);

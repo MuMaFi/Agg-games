@@ -674,6 +674,14 @@ const Game = {
       setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a);
     }
     if(s.id === B.DRUCKPLATTE && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
+    // Treppen steigen vom Spieler weg an; an einer Decke oder der oberen Hälfte
+    // einer Wand gesetzt, hängen sie umgedreht — wie beim Vorbild
+    if(isTreppe(s.id)){
+      const f = p.forward();
+      const r = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3);
+      const hy = p.eyeY() + f[1]*t.t;
+      setzId = treppeId(treppeArt(s.id), r, t.ny < 0 || (t.ny === 0 && hy - Math.floor(hy) > 0.5));
+    }
     // Verstärker: der Ausgang zeigt vom Spieler weg
     if(s.id === B.VERSTAERKER){
       if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Ein Verstärker braucht festen Boden'); return; }
@@ -1516,6 +1524,7 @@ const Game = {
     if(p.inWater) speed *= 0.62;
     if(p.food <= 0) speed *= 0.7;
     p.stepUp = this.settings.autojump && !p.sneaking;
+    if(p.stufeGlatt) p.stufeGlatt = Math.min(0, p.stufeGlatt + dt*3.2);
 
     if(p.creative && p.flying){
       p.vy = 0;
@@ -1545,6 +1554,8 @@ const Game = {
 
       const wasAir = !p.onGround;
       const res = moveAABB(w, p, (wx*speed + p.vx)*dt, p.vy*dt, (wz*speed + p.vz)*dt);
+      // eine Stufe hinauf: der Blick folgt weich statt mit einem Ruck
+      if(res.gestiegen) p.stufeGlatt = Math.max(-0.6, (p.stufeGlatt || 0) - res.gestiegen);
       this._gegenWand = (res.bx || res.bz) && (wx !== 0 || wz !== 0);
       p.vx *= Math.pow(0.02, dt); p.vz *= Math.pow(0.02, dt);
       // Auto-Sprung: genau eine Stufe hoch, Kopffreiheit vorausgesetzt
