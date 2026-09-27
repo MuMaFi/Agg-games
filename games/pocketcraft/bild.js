@@ -532,12 +532,14 @@ function drawSpieler(fogCol, near, far){
     if(liegt){ figur.x = s.x; figur.y = s.y + 0.13; figur.z = s.z + 1.31; figur.yaw = Math.PI; }
     else { figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw; }
     const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
+    const winkel = part => {
+      if(part.anim === 'leg') return part.ph ? -sw : sw;
+      if(part.anim === 'arm') return (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
+      if(part.anim === 'head' && !liegt) return clamp(s.pitch, -1.2, 1.2);
+      return 0;
+    };
     const teil = part => {
-      let ang = 0;
-      if(part.anim === 'leg') ang = part.ph ? -sw : sw;
-      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
-      else if(part.anim === 'head' && !liegt) ang = clamp(s.pitch, -1.2, 1.2);
-      partMatrix(_m, figur, part, ang);
+      partMatrix(_m, figur, part, winkel(part));
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       for(let i = 0; i < 6; i++) _layers[i] = TEX[part.tex];
       if(part.oben) _layers[2] = TEX[part.oben];
@@ -556,6 +558,32 @@ function drawSpieler(fogCol, near, far){
       if(!c) continue;
       gl.uniform4f(P.u.uTint, c[0], c[1], c[2], 1);
       for(const part of SPIELER_RUESTUNG[platz]) teil(part);
+    }
+    // In der rechten Hand (dem Arm, der schlägt): was der Spieler hält.
+    // Blöcke als kleiner Würfel, alles andere als flaches Bild, das aus der
+    // Faust schräg nach vorn oben zeigt. Es schwingt mit dem Arm.
+    const h = s.held;
+    if(h && !liegt && (isBlockId(h) ? blocks[h] : items[h])){
+      const arm = d.parts.find(p => p.n === 'arm1');
+      gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+      partMatrix(_m, figur, arm, winkel(arm), true);
+      M4.translate(_m, _m, 0.3125, 0.74, 0);                   // die Faust
+      if(isFlat(h)){
+        // Griff (unten links im Bild) in der Faust, der Kopf zeigt nach vorn oben
+        M4.rotY(_m, _m, Math.PI);
+        M4.translate(_m, _m, -0.0175, -0.12, -0.12);
+        M4.scale(_m, _m, 0.035, 0.6, 0.6);
+        setLayers(P, TEX[flatTexOf(h)]);
+      } else {
+        M4.translate(_m, _m, -0.14, -0.2, -0.26);
+        M4.scale(_m, _m, 0.28, 0.28, 0.28);
+        const b = blocks[h];
+        for(let i = 0; i < 6; i++) _layers[i] = TEX[b.faces[i]];
+        if(b.dirFront) _layers[5] = TEX[b.dirFront];
+        gl.uniform1fv(P.u.uLayers, _layers);
+      }
+      gl.uniformMatrix4fv(P.u.uModel, false, _m);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     }
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -618,7 +646,9 @@ function drawPartikel(){
     gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
 }
-function partMatrix(out, mob, part, ang){
+/** bisGelenk: nur bis zum Drehpunkt, ohne den Kasten selbst — daran hängt
+    drawSpieler, was eine Figur in der Hand hält */
+function partMatrix(out, mob, part, ang, bisGelenk){
   M4.ident(out);
   M4.translate(out, out, mob.x, mob.y, mob.z);
   if(mob.liegt) M4.rotX(out, out, -Math.PI/2);               // Mitspieler im Bett: auf dem Rücken
@@ -647,6 +677,7 @@ function partMatrix(out, mob, part, ang){
     if(ang){ if(part.anim === 'fluegel') M4.rotZ(out, out, ang); else M4.rotX(out, out, ang); }
     M4.translate(out, out, -px, -py, -pz);
   }
+  if(bisGelenk) return;
   M4.translate(out, out, ox, oy, oz);
   M4.scale(out, out, w, h, d);
 }
