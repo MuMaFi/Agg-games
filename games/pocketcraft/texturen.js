@@ -409,6 +409,16 @@ class Skizze{
   }
 }
 function sprite(name, fn){ return addTex(name, p => { const S = new Skizze(p); fn(S, p); S.fertig(); }); }
+/** ein fertiges Bild umfärben: was trifft(r, g, b) erfüllt, bekommt die Farbe
+    ziel, so hell, wie es vorher war (gemessen am Rot, 180 = die Farbe selbst) */
+function umfaerben(p, quelle, trifft, ziel){
+  for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+    const i = (y*TS + x)*4, r = quelle[i], g = quelle[i+1], b = quelle[i+2], a = quelle[i+3];
+    if(a && trifft(r, g, b)){ const k = r/180; p.put(x, y, ziel.map(c => Math.min(255, Math.round(c*k))), a); }
+    else p.put(x, y, [r, g, b], a);
+  }
+}
+const istRot = (r, g, b) => r > g*1.6 && r > b*1.4;
 
 /* ── Die Welt ──────────────────────────────────────────────────────── */
 function buildTextures(){
@@ -1634,6 +1644,10 @@ function buildTextures(){
       else p.put(x, y, (x + y) % 3 ? [236,236,232] : [200,200,196]);
     }
   });
+  /* — aus fertigen Bildern umgefärbt: Kornblume (die Blüte des Mohns in Blau)
+     und die Decken der farbigen Betten — */
+  addTex('kornblume', p => umfaerben(p, texData[TEX.rose], istRot, [74, 112, 238]));
+  for(const b of BETTEN) addTex('bett_' + b.key, p => umfaerben(p, texData[TEX.bed_top], istRot, b.farbe));
 }
 
 /* ── Symbole für die Oberfläche ────────────────────────────────────── */
@@ -1662,11 +1676,13 @@ function iconURL(texName){
  * werden abgedunkelt wie im Spiel, damit der Block im Inventar so aussieht
  * wie in der Welt. hoehe < 1 für flache Blöcke.
  */
-/** Symbol einer Treppe in derselben Ansicht wie isoIconURL: hinten die Stufe,
-    vorn die Platte — links sieht man die Stufen, rechts das Profil */
-function isoTreppeURL(oben, seite){
-  const k = 't:' + oben + '|' + seite;
-  if(_iconCache.has(k)) return _iconCache.get(k);
+/** Symbol aus Kästen in derselben Ansicht wie isoIconURL. Jeder Kasten:
+    k = [x0, y0, z0, x1, y1, z1] im Block (0…1), dazu die Bilder für oben,
+    links (+Z) und rechts (+X), zugeschnitten wie im Chunk; ohne Bild bleibt
+    eine Fläche weg. Hinten liegende Kästen zuerst angeben. */
+function isoKaestenURL(schluessel, kaesten){
+  const k0 = 'k:' + schluessel;
+  if(_iconCache.has(k0)) return _iconCache.get(k0);
   const S = 96, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
   const c = cv.getContext('2d');
   c.imageSmoothingEnabled = false;
@@ -1683,17 +1699,25 @@ function isoTreppeURL(oben, seite){
     if(dunkel){ c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(0,0,0,' + dunkel + ')'; c.fillRect(0, 0, sw, sh); }
     c.restore();
   };
-  const kasten = (x0, y0, z0, x1, y1, z1) => {
-    flaeche(seite, P(x0, y1, z1), [e, q], [0, H], x0, 1 - y1, x1, 1 - y0, .26);          // +Z, links
-    flaeche(seite, P(x1, y1, z1), [e, -q], [0, H], 1 - z1, 1 - y1, 1 - z0, 1 - y0, .42);  // +X, rechts
-    flaeche(oben, P(x0, y1, z0), [e, q], [-e, q], x0, z0, x1, z1, 0);                      // Deckel
-  };
-  kasten(0, .5, 0, 1, 1, .5);
-  kasten(0, 0, 0, 1, .5, 1);
+  for(const { k: [x0, y0, z0, x1, y1, z1], oben, links, rechts } of kaesten){
+    if(links) flaeche(links, P(x0, y1, z1), [e, q], [0, H], x0, 1 - y1, x1, 1 - y0, .26);             // +Z, links
+    if(rechts) flaeche(rechts, P(x1, y1, z1), [e, -q], [0, H], 1 - z1, 1 - y1, 1 - z0, 1 - y0, .42);  // +X, rechts
+    if(oben) flaeche(oben, P(x0, y1, z0), [e, q], [-e, q], x0, z0, x1, z1, 0);                          // Deckel
+  }
   const url = cv.toDataURL();
-  _iconCache.set(k, url);
+  _iconCache.set(k0, url);
   return url;
 }
+/** Treppe: hinten die Stufe, vorn die Platte — links sieht man die Stufen, rechts das Profil */
+const isoTreppeURL = (oben, seite) => isoKaestenURL('t|' + oben + '|' + seite, [
+  { k:[0, .5, 0, 1, 1, .5], oben, links:seite, rechts:seite },
+  { k:[0, 0, 0, 1, .5, 1], oben, links:seite, rechts:seite }]);
+/** Stufe: die untere Hälfte eines Blocks */
+const isoStufeURL = (oben, links, rechts) => isoKaestenURL('s|' + oben + '|' + links + '|' + rechts, [{ k:[0, 0, 0, 1, .5, 1], oben, links, rechts }]);
+/** Bett: Rahmen mit Beinen, darauf die Decke, ihr Rand im Bild der Decke */
+const isoBettURL = (decke, seite) => isoKaestenURL('b|' + decke, [
+  { k:[0, 0, 0, 1, 6/16, 1], links:seite, rechts:seite },
+  { k:[0, 6/16, 0, 1, 9/16, 1], oben:decke, links:decke, rechts:decke }]);
 
 function isoIconURL(oben, links, rechts, hoehe = 1){
   const k = 'i:' + oben + '|' + links + '|' + rechts + '|' + hoehe;

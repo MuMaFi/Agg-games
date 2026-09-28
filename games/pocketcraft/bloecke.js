@@ -18,7 +18,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
   KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */,
-  TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */ };
+  TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
+  BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -144,6 +145,37 @@ function treppeKaesten(form, oben, out){
   }
   return n;
 }
+/* Stufen (halbe Blöcke): unten oder oben im Block. Zwei gleiche übereinander
+   werden der volle Block ihres Stoffs — zwei Steinstufen also Stein. */
+const STUFEN = [
+  { name:'Holzstufe',         stoff:B.PLANKS,     mc:'oak_slab' },
+  { name:'Bruchsteinstufe',   stoff:B.COBBLE,     mc:'cobblestone_slab' },
+  { name:'Steinstufe',        stoff:B.STONE,      mc:'stone_slab' },
+  { name:'Steinziegelstufe',  stoff:B.STONEBRICK, mc:'stone_brick_slab' },
+  { name:'Sandsteinstufe',    stoff:B.SANDSTONE,  mc:'sandstone_slab' },
+];
+const stufeId = (art, oben) => B.STUFE + art*2 + (oben ? 1 : 0);
+const isStufe = id => id >= B.STUFE && id < B.STUFE + STUFEN.length*2;
+const stufeArt = id => (id - B.STUFE) >> 1;
+const stufeOben = id => ((id - B.STUFE) & 1) === 1;
+
+/* Betten in Farben. Das rote ist das alte (B.BED); gefärbt wird ein Bett mit
+   Blumen, Kaktus, Knochenmehl, Kohle oder Erde, oder man baut es gleich aus
+   Wolle in ihrer Farbe. farbe: die Decke, in 0…255. */
+const BETTEN = [
+  { key:'weiss',   name:'Weißes Bett',     farbe:[236, 236, 230], mc:'white_bed' },
+  { key:'grau',    name:'Hellgraues Bett', farbe:[160, 160, 156], mc:'light_gray_bed' },
+  { key:'schwarz', name:'Schwarzes Bett',  farbe:[52, 50, 58],    mc:'black_bed' },
+  { key:'braun',   name:'Braunes Bett',    farbe:[128, 82, 48],   mc:'brown_bed' },
+  { key:'gelb',    name:'Gelbes Bett',     farbe:[246, 206, 52],  mc:'yellow_bed' },
+  { key:'orange',  name:'Oranges Bett',    farbe:[246, 128, 30],  mc:'orange_bed' },
+  { key:'gruen',   name:'Grünes Bett',     farbe:[96, 170, 40],   mc:'green_bed' },
+  { key:'blau',    name:'Blaues Bett',     farbe:[58, 88, 214],   mc:'blue_bed' },
+  { key:'lila',    name:'Lila Bett',       farbe:[146, 58, 196],  mc:'purple_bed' },
+  { key:'rosa',    name:'Rosa Bett',       farbe:[246, 142, 180], mc:'pink_bed' },
+];
+const bettId = key => B.BETT + BETTEN.findIndex(b => b.key === key);
+const isBett = id => id === B.BED || (id >= B.BETT && id < B.BETT + BETTEN.length);
 const ladderId = s => B.LADDER + s;
 const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
 const isWheat = id => id >= B.WHEAT && id < B.WHEAT + 4;
@@ -257,8 +289,8 @@ function initBlocks(){
   for(let s = 0; s < 4; s++)
     defBlock(ladderId(s),{name:'Leiter', tex:'ladder', model:'box', box:blattBox(s, 1), solid:false, opaque:false,
       climbable:true, hardness:.4, tool:'axe', drop:B.LADDER, item:s === 0, icon:'ladder', wand:s});
-  defBlock(B.BED,{name:'Strohbett', tex:['bed_top','planks','bed_side'], model:'box', box:[0,0,0,16,9,16], opaque:false,
-    hardness:.3, icon:'i_bed'});
+  defBlock(B.BED,{name:'Rotes Bett', tex:['bed_top','planks','bed_side'], model:'bett', box:[0,0,0,16,9,16], opaque:false,
+    hardness:.3, mc:'red_bed'});
   defBlock(B.FARMLAND,{name:'Ackerboden', tex:['farmland','dirt','dirt'], model:'box', box:[0,0,0,16,15,16], opaque:false,
     hardness:.6, tool:'shovel', drop:B.DIRT, item:false});
   for(let s = 0; s < 4; s++)
@@ -273,11 +305,21 @@ function initBlocks(){
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
       hardness:2, tool:'axe', drop:B.DOOR, item:!oben && !offen && s === 0, icon:'i_door'});
   }
+  BETTEN.forEach((b, i) => defBlock(B.BETT + i,{name:b.name, tex:['bett_' + b.key,'planks','bed_side'], model:'bett', box:[0,0,0,16,9,16],
+    opaque:false, hardness:.3}));
+  defBlock(B.KORNBLUME,{name:'Kornblume', tex:'kornblume', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});
+  // Stufen: wie ihr Stoff, aber nur halb so hoch; Licht fällt hinein, nicht hindurch
+  STUFEN.forEach((t, art) => {
+    const st = blocks[t.stoff];
+    for(const oben of [false, true])
+      defBlock(stufeId(art, oben),{name:t.name, tex:st.faces, model:'box', box: oben ? [0,8,0,16,16,16] : [0,0,0,16,8,16], opaque:false,
+        lichtStau:true, hardness:st.hardness, tool:st.tool, tier:st.tier, drop:stufeId(art, false), item:!oben});
+  });
   // Treppen: so hart wie ihr Stoff, mit denselben Bildern; fest, aber nicht undurchsichtig
   TREPPEN.forEach((t, art) => {
     const st = blocks[t.stoff];
     for(let oben = 0; oben < 2; oben++) for(let r = 0; r < 4; r++)
-      defBlock(treppeId(art, r, oben),{name:t.name, tex:st.faces, model:'treppe', opaque:false, hardness:st.hardness,
+      defBlock(treppeId(art, r, oben),{name:t.name, tex:st.faces, model:'treppe', opaque:false, lichtStau:true, hardness:st.hardness,
         tool:st.tool, tier:st.tier, drop:treppeId(art, 0, false), item:!oben && r === 0});
   });
 }
@@ -380,5 +422,7 @@ function iconFor(id){
   if(isFlat(id)) return iconURL(flatTexOf(id));
   const b = blocks[id];
   if(isTreppe(id)) return isoTreppeURL(b.faces[2], b.faces[4]);
+  if(isStufe(id)) return isoStufeURL(b.faces[2], b.faces[4], b.faces[0]);
+  if(isBett(id)) return isoBettURL(b.faces[2], b.faces[4]);
   return isoIconURL(b.faces[2], b.dirFront || b.faces[4], b.faces[0]);
 }

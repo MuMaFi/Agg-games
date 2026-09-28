@@ -43,7 +43,7 @@ const KLANG_MAT = {
 function materialVon(id){
   if(isWasser(id)) return 'wasser';
   if(isWool(id)) return 'wolle';
-  if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.TORCH) return 'pflanze';
+  if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.KORNBLUME || id === B.TORCH) return 'pflanze';
   if(id === B.LEAVES || id === B.FICHTENNADELN) return 'blatt';
   if(id === B.SCHNEEDECKE) return 'schnee';
   if(id === B.GLASS) return 'glas';
@@ -57,7 +57,7 @@ function materialVon(id){
   if(isRSFackel(id)) return 'pflanze';
   if(isKolben(id) || isKopf(id)) return 'holz';
   const b = blocks[id];
-  if(b && (b.tool === 'axe' || isDoor(id) || isLadder(id) || id === B.BED || id === B.CACTUS)) return 'holz';
+  if(b && (b.tool === 'axe' || isDoor(id) || isLadder(id) || isBett(id) || id === B.CACTUS)) return 'holz';
   return 'stein';
 }
 /** Wesen: [Datei, Lautstärke, Tonhöhe] für »laut«, »au« und »tot«; »kind«

@@ -42,7 +42,7 @@ const rsZiel = id => isRSFackel(id) || isHebel(id) || isKnopf(id) || isPlatte(id
 const kolbenFest = id => id === B.BEDROCK || isKopf(id) || (isKolben(id) && kolbenAus(id)) || id === B.CHEST || id === B.FURNACE
   || id === B.FURNACE_LIT || id === B.JUKEBOX || id === B.JUKEBOX_VOLL || isDoor(id) || !!(blocks[id] && blocks[id].hardness < 0 && !isWasser(id));
 /** … und was dabei zerbricht und herausfällt: alles, was man nicht anstoßen kann, dazu Betten und Kakteen */
-const kolbenBricht = id => id !== B.AIR && !isWasser(id) && (SOL[id] !== 1 || id === B.BED || id === B.CACTUS);
+const kolbenBricht = id => id !== B.AIR && !isWasser(id) && (SOL[id] !== 1 || isBett(id) || id === B.CACTUS);
 const RS_KOLBEN_MAX = 12;                 // so viele Blöcke schiebt ein Kolben höchstens
 /** der Block, an dem ein Bauteil mit Anbau a hängt (0: darunter) */
 function rsStuetze(x, y, z, a){ return a === 0 ? [x, y - 1, z] : [x + SEITE[a - 1][0], y, z + SEITE[a - 1][1]]; }

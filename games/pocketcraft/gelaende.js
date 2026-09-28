@@ -244,7 +244,7 @@ function schmuecken2(w, c, S, steilAn){
   const setze = (x, y, z, id, weich) => {
     if(x < 0 || z < 0 || x >= CS || z >= CS || y < 0 || y >= WH) return;
     const i = IDX(x, y, z), cur = bl[i];
-    if(cur === B.AIR || cur === B.TALLGRASS || cur === B.ROSE || cur === B.DANDELION ||
+    if(cur === B.AIR || cur === B.TALLGRASS || cur === B.ROSE || cur === B.DANDELION || cur === B.KORNBLUME ||
        (weich && (cur === B.LEAVES || cur === B.FICHTENNADELN))) bl[i] = id;
   };
   for(let dz = -3; dz < CS + 3; dz++) for(let dx = -3; dx < CS + 3; dx++){
@@ -284,7 +284,7 @@ function schmuecken2(w, c, S, steilAn){
       const dicht = (s.biome === BIO.PLAINS || s.biome === BIO.FOREST) ? 0.26 : (s.biome === BIO.TAIGA ? 0.1 : 0);
       if(rr < dicht){
         const rb = r();
-        setze(dx, h + 1, dz, rb < 0.955 || s.biome === BIO.TAIGA ? B.TALLGRASS : (rb < 0.978 ? B.ROSE : B.DANDELION));
+        setze(dx, h + 1, dz, rb < 0.955 || s.biome === BIO.TAIGA ? B.TALLGRASS : (rb < 0.978 ? B.ROSE : rb < 0.99 ? B.DANDELION : B.KORNBLUME));
       }
     }
   }

@@ -17,8 +17,9 @@
 const FUELLEN_MAX = 32768;             // Blöcke je /fill, wie beim Vorbild
 const MC_TAG = 24000;                  // ein Tag des Vorbilds in Ticks
 const GEBEN_MAX = 36*64;               // mehr passt nicht ins Inventar
-const REGELN_START = { doDaylightCycle: true, doWeatherCycle: true, doMobSpawning: true };
-const REGEL_TEXT = { doDaylightCycle: 'die Tageszeit läuft', doWeatherCycle: 'das Wetter wechselt', doMobSpawning: 'Wesen erscheinen von selbst' };
+const REGELN_START = { doDaylightCycle: true, doWeatherCycle: true, doMobSpawning: true, pvp: true };
+const REGEL_TEXT = { doDaylightCycle: 'die Tageszeit läuft', doWeatherCycle: 'das Wetter wechselt', doMobSpawning: 'Wesen erscheinen von selbst',
+  pvp: 'Spieler können einander schaden' };
 
 /** Namen des Vorbilds, die hier anders heißen: → Schlüssel in B (groß) oder ITEM (klein) */
 const MC_NAMEN = {
@@ -72,6 +73,9 @@ function dingeIndex(){
   for(const [k, v] of Object.entries(B)) if(blocks[v] && blocks[v].item !== false) neu(bNorm(k), v, false);
   for(const [k, v] of Object.entries(MC_NAMEN)){ const id = B[v] !== undefined ? B[v] : ITEM[v]; if(id !== undefined) neu(k, id, false); }
   TREPPEN.forEach((t, art) => neu(t.mc, treppeId(art, 0, false), false));
+  STUFEN.forEach((t, art) => neu(t.mc, stufeId(art, false), false));
+  BETTEN.forEach((b, i) => neu(b.mc, B.BETT + i, false));
+  neu('red_bed', B.BED, false); neu('bed', B.BED, false); neu('cornflower', B.KORNBLUME, false);
   return _dinge;
 }
 function dingNummer(s){ const id = dingeIndex().get(bNorm(s)); return id === undefined ? null : id; }
@@ -463,7 +467,7 @@ const Befehle = {
   },
 
   /* — Blöcke setzen (/setblock, /fill) — */
-  setzbar(id){ return !isDoor(id) && id !== B.BED && id !== B.JUKEBOX_VOLL && (id === B.AIR || id === B.WATER || (blocks[id] && blocks[id].item !== false)); },
+  setzbar(id){ return !isDoor(id) && !isBett(id) && id !== B.JUKEBOX_VOLL && (id === B.AIR || id === B.WATER || (blocks[id] && blocks[id].item !== false)); },
   geladen(x, z){ const c = Game.world.getChunk(x >> 4, z >> 4); return !!c && c.state >= 1; },
   setzen(x, y, z, id){
     const w = Game.world;

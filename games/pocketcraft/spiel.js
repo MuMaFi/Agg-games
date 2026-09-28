@@ -11,13 +11,23 @@ const DAY_LEN  = 720;             // Sekunden je voller Tag
 const ladeZiel = rd => { const r = Math.min(rd, 8); return Math.max(9, ((r*2+1)*(r*2+1)) * 0.55 | 0); };
 const MOB_SPRUNG = 9;             // so schnell springen Wesen ab: gut einen Block hoch (früher 7,6 — zu wenig für eine Stufe)
 const SCHLEIM_MAX = 4;            // so viele Schleime höchstens um einen Spieler
+/* Wie viele Monster um einen Spieler herum sein dürfen — nachts, tagsüber
+   (in Höhlen und im Dunkeln) und Schleime. Einstellbar in den Optionen;
+   beim Mitspielen gilt, was der Host eingestellt hat. */
+const MONSTER_MENGE = {
+  keine:  { name:'Keine',  nacht:0,  tag:0, schleime:0 },
+  wenige: { name:'Wenige', nacht:3,  tag:1, schleime:1 },
+  normal: { name:'Normal', nacht:7,  tag:2, schleime:2 },
+  viele:  { name:'Viele',  nacht:14, tag:5, schleime:SCHLEIM_MAX },
+};
+const MONSTER_REIHE = ['normal', 'wenige', 'keine', 'viele'];
 const SCHLEIM_HOEHE = 39;         // darunter erscheinen sie, wie beim Vorbild
 const BETT_HOEHE = 9/16;          // so hoch ist das Strohbett: darauf liegt man
 
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal' },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -423,11 +433,16 @@ const Game = {
   },
 
   /* ── Gegenstände in der Welt ─────────────────────────────────────── */
-  dropItem(id, n, x, y, z, dur){
-    if(!id || n <= 0) return;
+  /** Etwas fällt in die Welt. wurf: [vx, vy, vz, Sperre in Sekunden] für
+      Geworfenes. Liegende Gegenstände gehören dem Host: als Gast wird nur
+      gefragt, er legt es hin — so sehen es alle und jeder kann es aufheben. */
+  dropItem(id, n, x, y, z, dur, wurf){
+    if(!id || n <= 0) return null;
+    if(Netz.istGast){ Netz.dropAnfrage(id, n, x, y, z, dur, wurf); return null; }
     if(this.drops.length > 90) this.drops.shift();
     const d = new Drop(id, n, x, y, z);
     if(dur) d.dur = dur;
+    if(wurf){ d.vx = wurf[0]; d.vy = wurf[1]; d.vz = wurf[2]; d.pickDelay = wurf[3]; }
     this.drops.push(d);
     return d;
   },
@@ -574,7 +589,7 @@ const Game = {
         p.swinging = true; p.swing = 0;
         return;
       }
-      if(id === B.BED){ this.schlafen(t.x, t.y, t.z); return; }
+      if(isBett(id)){ this.schlafen(t.x, t.y, t.z); return; }
       // Plattenspieler: Schallplatte einlegen — oder die, die drin ist, herausholen
       if(id === B.JUKEBOX_VOLL){
         w.setBlock(t.x, t.y, t.z, B.JUKEBOX);
@@ -601,7 +616,7 @@ const Game = {
         for(let i = 0; i < 12; i++){
           const x = t.x + ((Math.random()*5)|0) - 2, z = t.z + ((Math.random()*5)|0) - 2, y = w.heightAt(x, z);
           if(w.getBlock(x, y, z) === B.GRASS && w.getBlock(x, y+1, z) === B.AIR)
-            w.setBlock(x, y+1, z, Math.random() < .8 ? B.TALLGRASS : (Math.random() < .5 ? B.ROSE : B.DANDELION));
+            w.setBlock(x, y+1, z, Math.random() < .8 ? B.TALLGRASS : [B.ROSE, B.DANDELION, B.KORNBLUME][(Math.random()*3) | 0]);
         }
       } else return;
       if(!p.creative) Inv.consumeHeld();
@@ -658,6 +673,20 @@ const Game = {
     let bx = t.x + t.nx, by = t.y + t.ny, bz = t.z + t.nz;
     // Gras und Blumen werden einfach ersetzt, wenn man sie selbst anklickt
     if(blocks[id] && blocks[id].replaceable && !isWasser(id)){ bx = t.x; by = t.y; bz = t.z; }
+    // Stufe auf die offene Seite einer Stufe derselben Art: ein ganzer Block
+    if(isStufe(s.id)){
+      const art = stufeArt(s.id), n = w.getBlock(bx, by, bz);
+      const ziel = isStufe(id) && stufeArt(id) === art && t.ny === (stufeOben(id) ? -1 : 1) ? [t.x, t.y, t.z]
+        : isStufe(n) && stufeArt(n) === art ? [bx, by, bz] : null;
+      if(ziel){
+        const voll = STUFEN[art].stoff;
+        if(this.belegt(ziel[0], ziel[1], ziel[2], voll)) return;
+        w.setBlock(ziel[0], ziel[1], ziel[2], voll);
+        if(!p.creative) Inv.consumeHeld();
+        Sfx.block('setzen', voll, ziel[0], ziel[1], ziel[2]); schwing();
+        return;
+      }
+    }
     const cur = w.getBlock(bx,by,bz);
     if(cur !== B.AIR && !(blocks[cur] && blocks[cur].replaceable)) return;
     let setzId = s.id;
@@ -681,6 +710,11 @@ const Game = {
       const r = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3);
       const hy = p.eyeY() + f[1]*t.t;
       setzId = treppeId(treppeArt(s.id), r, t.ny < 0 || (t.ny === 0 && hy - Math.floor(hy) > 0.5));
+    }
+    // Stufen: an eine Decke oder die obere Hälfte einer Wand gesetzt, sitzen sie oben
+    if(isStufe(s.id)){
+      const hy = p.eyeY() + p.forward()[1]*t.t;
+      setzId = stufeId(stufeArt(s.id), t.ny < 0 || (t.ny === 0 && hy - Math.floor(hy) > 0.5));
     }
     // Verstärker: der Ausgang zeigt vom Spieler weg
     if(s.id === B.VERSTAERKER){
@@ -709,7 +743,7 @@ const Game = {
       return;
     }
     // Pflanzen, Fackeln und Betten brauchen Boden
-    if((bd.model === 'cross' || s.id === B.TORCH || s.id === B.BED || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
+    if((bd.model === 'cross' || s.id === B.TORCH || isBett(s.id) || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
     if(bd.solid && this.belegt(bx,by,bz,setzId)) return;
     if(w.setBlock(bx,by,bz,setzId)){
       if(!p.creative) Inv.consumeHeld();
@@ -785,7 +819,7 @@ const Game = {
     p.x = b.x + 0.5; p.y = b.y + BETT_HOEHE; p.z = b.z + 0.5; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
     if(this.schlafT > 0) return;                             // gleich ist Morgen
     if(input.mx || input.mz || input.jump || input.sneak) this.aufstehen();
-    else if(this.world.getBlock(b.x, b.y, b.z) !== B.BED) this.aufstehen('Dein Bett ist weg');
+    else if(!isBett(this.world.getBlock(b.x, b.y, b.z))) this.aufstehen('Dein Bett ist weg');
     else if(p.health < b.hp) this.aufstehen('Aua — du bist aufgewacht');
     else if(!this.istNacht()) this.aufstehen('Es ist schon hell');
     b.hp = p.health;
@@ -824,8 +858,14 @@ const Game = {
       eines näheren Wesens — sonst bekommt beim Füttern eines Kalbs dicht
       neben den Eltern ein Elternteil den Weizen. Trifft der Strahl gar
       nichts, zählt das, was dem Fadenkreuz am nächsten liegt. */
-  wesenImBlick(maxD){
+  /** Mitspieler, die man treffen darf: PvP an, nicht tot, nicht im Bett */
+  gegner(){
+    if(!this.regeln.pvp || !(Netz.istGast || Netz.istHost)) return [];
+    return [...Netz.andere.values()].filter(s => !s.tot && !(s.flags & 16));
+  },
+  wesenImBlick(maxD, auchSpieler){
     const p = this.player, f = p.forward(), o = [p.x, p.eyeY(), p.z];
+    const ziele = auchSpieler ? this.mobs.concat(this.gegner()) : this.mobs;
     const strahl = (m, rand) => {
       const r = m.w/2 + rand;
       const lo = [m.x - r, m.y - rand*0.4, m.z - r], hi = [m.x + r, m.y + m.h + rand, m.z + r];
@@ -844,7 +884,7 @@ const Game = {
     this.wesenGenau = true;
     for(const rand of [0, 0.12]){
       let bestT = maxD;
-      for(const m of this.mobs){
+      for(const m of ziele){
         if(m.dead) continue;
         const t = strahl(m, rand);
         if(t >= 0 && t < bestT){ bestT = t; best = m; }
@@ -852,7 +892,7 @@ const Game = {
       if(best){ this.wesenT = bestT; return best; }
     }
     let bestDot = 0.9;
-    for(const m of this.mobs){
+    for(const m of ziele){
       const dx = m.x-o[0], dy = (m.y+m.h*0.6)-o[1], dz = m.z-o[2];
       const d = Math.hypot(dx,dy,dz);
       if(d > maxD || m.dead) continue;
@@ -864,11 +904,21 @@ const Game = {
   },
   attack(){
     if(this.bett) return false;
-    const best = this.wesenImBlick(3.4);
+    const best = this.wesenImBlick(3.4, true);
     if(!best) return false;
     const p = this.player, s = Inv.held();
     const dmg = s && items[s.id] ? items[s.id].dmg : 1;
     const l = Math.hypot(best.x-p.x, best.z-p.z) || 1;
+    // ein Mitspieler: der Treffer geht übers Netz, hier blitzt er nur rot auf
+    if(!(best instanceof Mob)){
+      if(best.schlagCd > 0) return true;
+      best.schlagCd = 0.45; best.rotT = 0.4;
+      Netz.pvpTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
+      if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
+      this.player.addExhaustion(0.1);
+      Sfx.play('hurt', best.x, best.y + 1, best.z);
+      return true;
+    }
     this.mobTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
     if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
     this.player.addExhaustion(0.1);
@@ -905,9 +955,8 @@ const Game = {
       if(m.def.schleim && m.groesse > 1) this.schleimTeilen(m);
       if(!(m.kind > 0)){
         const beute = m.def.beute(m).filter(([, n]) => n > 0);
-        // die Beute bekommt, wer getroffen hat — ein Mitspieler auf seinem Gerät
-        if(von) Netz.beuteAn(von, beute, m.x, m.y + 0.4, m.z);
-        else if(!this.player.creative) for(const [id, n] of beute) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
+        // die Beute fällt für alle hin — außer, wer getroffen hat, spielt kreativ
+        if(!(von ? von.creative : this.player.creative)) for(const [id, n] of beute) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
       }
     }
   },
@@ -966,8 +1015,7 @@ const Game = {
     if(m.geschoren || m.kind > 0) return;
     m.geschoren = true; m.wolleT = 30 + Math.random()*60;
     const n = zufallN(1, 3);
-    if(von) Netz.beuteAn(von, [[B.WOOL + m.wolle, n]], m.x, m.y + 1, m.z);
-    else for(let i = 0; i < n; i++) this.dropItem(B.WOOL + m.wolle, 1, m.x, m.y + 1, m.z);
+    for(let i = 0; i < n; i++) this.dropItem(B.WOOL + m.wolle, 1, m.x, m.y + 1, m.z);
   },
 
   /* ── Bogen und Pfeile ────────────────────────────────────────────── */
@@ -1072,6 +1120,10 @@ const Game = {
         }
         const tv = Math.hypot(a.vx, a.vz) || 1;
         // eigene Pfeile und Eier treffen Wesen; fremde Eier zerbrechen dort nur fürs Auge
+        if(a.vomSpieler && !a.ei){
+          const s = this.gegner().find(q => Math.abs(a.x - q.x) < q.w/2 + .1 && Math.abs(a.z - q.z) < q.w/2 + .1 && a.y > q.y && a.y < q.y + q.h);
+          if(s){ s.rotT = 0.4; Netz.pvpTreffer(s, a.dmg, a.vx/tv*.6, a.vz/tv*.6); Sfx.play('hurt', s.x, s.y + 1, s.z); a.weg = true; break; }
+        }
         if(a.vomSpieler || a.ei){
           for(const m of this.mobs){
             if(m.dead || Math.abs(a.x - m.x) > m.w/2 + .1 || Math.abs(a.z - m.z) > m.w/2 + .1 || a.y < m.y || a.y > m.y + m.h) continue;
@@ -1154,6 +1206,9 @@ const Game = {
     return l;
   },
   spawnMobs(dt){
+    const menge = MONSTER_MENGE[this.settings.monster] || MONSTER_MENGE.normal;
+    // »Keine«: auch die, die schon da sind, verschwinden — wie friedlich beim Vorbild
+    if(!menge.nacht && this.mobs.some(m => m.def.hostile)) this.mobs = this.mobs.filter(m => !m.def.hostile);
     if(!this.regeln.doMobSpawning) return;
     this.mobTimer -= dt;
     if(this.mobTimer > 0) return;
@@ -1166,9 +1221,10 @@ const Game = {
     // gezählt wird nur, was in der Nähe ist — ferne Weiden verhindern keine neuen Tiere
     let schleime = 0;
     for(const m of this.mobs){ if(Math.hypot(m.x - p.x, m.z - p.z) < 48) (m.def.schleim ? schleime++ : m.def.hostile ? host++ : pass++); }
-    if(schleime < SCHLEIM_MAX) this.schleimeSpawnen(p);
+    if(schleime < menge.schleime) this.schleimeSpawnen(p);
     const dl = this.dayLight();
-    const wantHost = dl < 0.42 ? 14 : 5, wantPass = 12;
+    const wantHost = dl < 0.42 ? menge.nacht : menge.tag, wantPass = 12;
+    let neuHost = 0;                              // je Runde höchstens ein neues Monster
     for(let a=0; a<6; a++){
       const ang = Math.random()*TAU, r = 22 + Math.random()*22;
       const x = Math.floor(p.x + Math.cos(ang)*r), z = Math.floor(p.z + Math.sin(ang)*r);
@@ -1183,7 +1239,8 @@ const Game = {
       const lv = w.getLight(x,y,z), sky = lv & 15, blk = lv >> 4;
       const bright = Math.max(sky*dl, blk);
       if(host < wantHost && bright < 6.5){
-        this.mobs.push(new Mob(Math.random() < 0.4 ? 'skeleton' : 'zombie', x+0.5, y, z+0.5)); host++;
+        if(neuHost) continue;
+        this.mobs.push(new Mob(Math.random() < 0.4 ? 'skeleton' : 'zombie', x+0.5, y, z+0.5)); host++; neuHost++;
       } else if(pass < wantPass && bright > 8 && ground === B.GRASS){
         // Tiere kommen in kleinen Herden
         const art = ['pig', 'cow', 'sheep', 'chicken'][(Math.random()*4) | 0];
@@ -1422,8 +1479,7 @@ const Game = {
         m.eiT -= dt;
         if(m.eiT <= 0){
           m.eiT = 300 + Math.random()*300;
-          if(naechst.g) Netz.beuteAn(naechst.g, [[ITEM.egg, 1]], m.x, m.y + 0.3, m.z);
-          else this.dropItem(ITEM.egg, 1, m.x, m.y + 0.3, m.z);
+          this.dropItem(ITEM.egg, 1, m.x, m.y + 0.3, m.z);
           if(hoerbar) Sfx.play('ei_legen', m.x, m.y + 0.3, m.z);
         }
       }
@@ -1460,6 +1516,7 @@ const Game = {
   },
   updateDrops(dt){
     const p = this.player, w = this.world;
+    if(Netz.istGast){ Netz.dropsNachziehen(dt); return; }      // beim Gast liegen sie, wie der Host sie schickt
     for(let i=this.drops.length-1; i>=0; i--){
       const d = this.drops[i];
       d.age += dt; d.pickDelay -= dt;
@@ -1841,8 +1898,7 @@ const Input = {
 function dropHeld(){
   const s = Inv.held(); if(!s) return;
   const p = Game.player, f = p.forward();
-  const d = Game.dropItem(s.id, 1, p.x + f[0]*0.5, p.eyeY() - 0.3, p.z + f[2]*0.5, s.dur);
-  if(d){ d.vx = f[0]*4.2; d.vz = f[2]*4.2; d.vy = 2.2 + f[1]*3; d.pickDelay = 2; }
+  Game.dropItem(s.id, 1, p.x + f[0]*0.5, p.eyeY() - 0.3, p.z + f[2]*0.5, s.dur, [f[0]*4.2, 2.2 + f[1]*3, f[2]*4.2, 2]);
   Inv.consumeHeld(); HUD.refreshHotbar();
 }
 function togglePause(){

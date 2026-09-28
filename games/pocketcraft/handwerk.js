@@ -151,7 +151,7 @@ function initRecipes(){
   geformt('bauen', B.FURNACE, 1, ['###','# #','###'], {'#':B.COBBLE});
   geformt('bauen', B.LADDER, 3, ['| |','|||','| |'], {'|':S});
   geformt('bauen', B.DOOR, 3, ['##','##','##'], {'#':P});
-  geformt('bauen', B.BED, 1, ['www','###'], {w:ITEM.wheat, '#':P});
+  geformt('bauen', bettId('gelb'), 1, ['www','###'], {w:ITEM.wheat, '#':P});   // aus Stroh: gelb
   geformt('bauen', B.STONEBRICK, 4, ['##','##'], {'#':B.STONE});
   geformt('bauen', B.SANDSTONE, 1, ['##','##'], {'#':B.SAND});
   geformt('bauen', B.JUKEBOX, 1, ['###','#D#','###'], {'#':P, D:ITEM.diamond});
@@ -180,7 +180,19 @@ function initRecipes(){
   geformt('kampf', ITEM.bow, 1, [' |f','| f',' |f'], {'|':S, f:ITEM.string});
   // Pfeile: mit Feder wie beim Vorbild, Faden geht aber auch
   geformt('kampf', ITEM.arrow, 4, ['F','|','f'], {F:ITEM.flint, '|':S, f:[ITEM.feather, ITEM.string]});
-  geformt('bauen', B.BED, 1, ['WWW','###'], {W:WOLL, '#':P});
+  // Betten aus Wolle haben ihre Farbe; hellgraue gibt ein hellgraues
+  [['weiss', 0], ['grau', 1], ['schwarz', 2], ['braun', 3]].forEach(([f, k]) => geformt('bauen', bettId(f), 1, ['WWW','###'], {W:B.WOOL + k, '#':P}));
+  {
+    // Betten färben: ein Bett und was färbt — Blumen, Kaktus, Knochenmehl, Kohle, Erde; gemischt geht auch
+    const alle = [B.BED, ...BETTEN.map((b, i) => B.BETT + i)];
+    const R = B.ROSE, G = B.DANDELION, K = B.KORNBLUME, W = ITEM.bone_meal, C = ITEM.coal;
+    for(const [ziel, farben] of [[B.BED, [R]], [bettId('gelb'), [G]], [bettId('blau'), [K]], [bettId('gruen'), [B.CACTUS]],
+        [bettId('weiss'), [W]], [bettId('schwarz'), [C]], [bettId('braun'), [B.DIRT]], [bettId('orange'), [R, G]],
+        [bettId('lila'), [R, K]], [bettId('rosa'), [R, W]], [bettId('grau'), [C, W]]])
+      formlos('bauen', ziel, 1, [alle, ...farben]);
+  }
+  // Stufen: drei Blöcke nebeneinander ergeben sechs
+  STUFEN.forEach((t, art) => geformt('bauen', stufeId(art, false), 6, ['###'], {'#':t.stoff}));
   geformt('stoffe', B.WOOL, 1, ['ff','ff'], {f:ITEM.string});
   formlos('stoffe', ITEM.string, 4, [WOLL]);
   formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
@@ -295,6 +307,7 @@ function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
   if(id === B.PLANKS || id === B.LOG || id === B.FICHTENSTAMM || id === B.TABLE || id === B.CHEST || id === B.LADDER) return 300;
   if(isTreppe(id) && TREPPEN[treppeArt(id)].stoff === B.PLANKS) return 300;
+  if(isStufe(id) && STUFEN[stufeArt(id)].stoff === B.PLANKS) return 150;
   return 0;
 }
 
@@ -339,7 +352,7 @@ function beschreibung(s){
   if(s.id === ITEM.platte) t.push('in einen Plattenspieler legen');
   if(s.id === B.JUKEBOX) t.push('spielt Schallplatten');
   if(it && it.tool === 'hoe') t.push('macht aus Erde Acker');
-  if(s.id === B.BED) t.push('nachts schlafen, Startpunkt');
+  if(isBett(s.id)) t.push('nachts schlafen, Startpunkt');
   return t.join(' · ');
 }
 
@@ -883,7 +896,7 @@ const Screens = {
   werfen(){
     const c = Inv.cursor; if(!c) return;
     const p = Game.player, f = p.forward();
-    Game.dropItem(c.id, c.n, p.x + f[0]*0.8, p.eyeY() - 0.3, p.z + f[2]*0.8, c.dur);
+    Game.dropItem(c.id, c.n, p.x + f[0]*0.5, p.eyeY() - 0.3, p.z + f[2]*0.5, c.dur, [f[0]*4.2, 2.2 + f[1]*3, f[2]*4.2, 2]);
     Inv.cursor = null;
     this.info(nameOf(c.id) + ' weggeworfen');
   }

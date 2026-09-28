@@ -418,7 +418,7 @@ pruef(T(`['grass_top','leaves','water0','rs_staub15','chest_front','bed_side','i
 pruef(T(`['m_pig','m_pig_face','m_kuh','m_kuh_face','m_schaf_wolle','m_huhn','m_zface','m_zarm','m_skelett_brust','m_schleim','m_pfeil','p_herz'].every(k => VORLAGE[k])`), 'Tiere und Monster aus der Vorlage');
 
 // Treppen: Nummern hinten angehängt, nur die Grundform ist ein Gegenstand, alle fallen als sie ab
-pruef(T(`B.TREPPE === 195 && treppeId(3, 3, true) === 226 && isTreppe(226) && !isTreppe(227) && !blocks[227]
+pruef(T(`B.TREPPE === 195 && treppeId(3, 3, true) === 226 && isTreppe(226) && !isTreppe(227) && B.STUFE === 227
   && TREPPEN.every((t, a) => blocks[treppeId(a, 0, false)].item && blocks[treppeId(a, 0, false)].name === t.name && blocks[treppeId(a, 0, false)].hardness === blocks[t.stoff].hardness)
   && [1, 2, 3, 4, 5, 6, 7].every(k => !blocks[B.TREPPE + k].item && blocks[B.TREPPE + k].drop === B.TREPPE)
   && treppeRichtung(treppeId(2, 3, true)) === 3 && treppeOben(treppeId(2, 3, true)) && treppeArt(treppeId(2, 3, true)) === 2`), 'Treppen: Nummern, Arten, Abbau');
@@ -463,5 +463,36 @@ T(`globalThis.neuLicht = () => { for(const c of [...TW.chunks.values()]) if(Math
 pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.setBlock(x, 9, z - 20 + 16, treppeId(0, 0, false)); neuLicht();
   const drauf = TW.getLight(0, 9, -4) & 15, drunter = TW.getLight(0, 8, -4) & 15, frei = TW.getLight(0, 8, -10) & 15;
   return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
+// 26.10.04: Stufen, farbige Betten, Kornblume — Nummern hinten angehängt, alle unter 256, genug Bildlagen
+pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && !blocks[248]
+  && texNames.length <= 256`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
+pruef(T(`STUFEN.every((t, a) => blocks[stufeId(a, false)].item && !blocks[stufeId(a, true)].item && blocks[stufeId(a, true)].drop === stufeId(a, false)
+  && blocks[stufeId(a, false)].box[4] === 8 && blocks[stufeId(a, true)].box[1] === 8 && LOPQ[stufeId(a, false)] === LICHT_STAU && SOL[stufeId(a, true)] === 1)`),
+  'Stufen: unten und oben, nur die untere ist ein Gegenstand, beide fallen als sie ab, halten Licht auf');
+pruef(T(`(() => { const P = {id:B.PLANKS,n:1}, S = {id:B.STONE,n:1};
+  const h = rasterRezept([P,P,P, null,null,null, null,null,null], 3), st = rasterRezept([null,null,null, S,S,S, null,null,null], 3);
+  return h.out === stufeId(0, false) && h.n === 6 && st.out === stufeId(2, false) && fuelValue(stufeId(0, false)) === 150 && fuelValue(st.out) === 0; })()`),
+  'Rezept: drei Blöcke nebeneinander geben sechs Stufen; Holzstufen brennen halb so lang');
+pruef(T(`dingNummer('oak_slab') === stufeId(0, false) && dingNummer('stone_slab') === stufeId(2, false) && dingNummer('holzstufe') === stufeId(0, false)
+  && dingNummer('blue_bed') === bettId('blau') && dingNummer('red_bed') === B.BED && dingNummer('kornblume') === B.KORNBLUME && dingNummer('cornflower') === B.KORNBLUME`),
+  'Stufen, Betten und Kornblume für /give');
+pruef(T(`isBett(B.BED) && BETTEN.every((b, i) => isBett(B.BETT + i) && blocks[B.BETT + i].model === 'bett' && blocks[B.BETT + i].name === b.name && TEX['bett_' + b.key] !== undefined)
+  && !isBett(B.KORNBLUME) && !isBett(B.BETT - 1) && blocks[B.BED].name === 'Rotes Bett'`), 'Betten in zehn Farben und das rote');
+pruef(T(`(() => { const r = (a) => { const g = new Array(9).fill(null); a.forEach((id, i) => { if(id) g[i] = {id, n:1}; }); return rasterRezept(g, 3); };
+  const P = B.PLANKS, H = (w) => [w,w,w, P,P,P, null,null,null];
+  return r(H(B.WOOL)).out === bettId('weiss') && r(H(B.WOOL + 2)).out === bettId('schwarz') && r(H(ITEM.wheat)).out === bettId('gelb')
+    && r([B.BED, B.KORNBLUME]).out === bettId('blau') && r([bettId('weiss'), B.ROSE]).out === B.BED
+    && r([B.ROSE, bettId('gelb'), B.DANDELION]).out === bettId('orange') && r([bettId('blau'), ITEM.bone_meal, B.ROSE]).out === bettId('rosa')
+    && r([B.BED, ITEM.coal]).out === bettId('schwarz') && r([B.BED, B.CACTUS]).out === bettId('gruen')
+    && r(H(B.WOOL + 1)).out === bettId('grau') && r([B.BED, ITEM.coal, ITEM.bone_meal]).out === bettId('grau'); })()`),
+  'Betten: aus Wolle in ihrer Farbe, aus Stroh gelb, gefärbt mit Blumen, Kaktus, Knochenmehl und Kohle, auch gemischt');
+pruef(T(`(() => { const d = texData[TEX.bett_blau], r = texData[TEX.bed_top]; let blau = 0, gleich = 0;
+  for(let i = 0; i < d.length; i += 4){ if(d[i+2] > d[i]*1.5 && r[i] > r[i+1]*1.6) blau++; if(d[i] === r[i] && d[i+1] === r[i+1] && d[i+2] === r[i+2]) gleich++; }
+  return blau > 300 && gleich > 300; })()`), 'blaue Decke aus der roten gefärbt, Kissen und Rahmen bleiben');
+// Stufe: man steigt hinauf und steht darauf; oben sitzend ist sie eine Decke
+pruef(T(`(() => { TW.setBlock(3, 4, 30, stufeId(2, false)); TW.setBlock(4, 4, 30, stufeId(2, false)); TW.setBlock(5, 4, 30, B.STONE); for(let y = 4; y <= 7; y++) TW.setBlock(6, y, 30, B.STONE);
+  const p = neuSpieler(0.5, 30.5); gehen(p, 4.3, 0, 1.5); const a = p.x > 5.4 && um(p.y, 5);
+  const q = neuSpieler(3.5, 33.5); q.y = 7; TW.setBlock(3, 4, 33, stufeId(2, true)); gehen(q, 0, 0, 1); return a && um(q.y, 5); })()`),
+  'auf die Stufe hinauf und auf den Block dahinter; auf einer oberen Stufe steht man oben');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

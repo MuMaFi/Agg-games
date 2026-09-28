@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.10.03';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.10.04';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -32,7 +32,8 @@ const SPRUECHE = [
   'Pixel Perfection!', 'Neue alte Texturen!', '16 × 16!',
   'Grüner Zombie, blaue Hose!', 'Muh!', 'Wie früher!',
   'SUPER DUPER!', 'Jetzt mit Schatten!', 'Das Laub wiegt sich!',
-  'Jetzt mit Treppen!', 'Stufe für Stufe!', 'Auch um die Ecke!'
+  'Jetzt mit Treppen!', 'Stufe für Stufe!', 'Auch um die Ecke!',
+  'Jetzt mit Stufen!', 'Halbe Sachen!', 'Betten in Farbe!', 'Kornblumenblau!', 'Teilen macht Spaß!', 'Achtung, PvP!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -188,6 +189,12 @@ const Menue = {
       else if(an) hint('SUPER DUPER GRAFIK PAKET an — braucht ein schnelles Gerät', 2600);
       Game.saveOpts(); this.optionenZeigen();
     });
+    knopf('#oMonster', () => {
+      const i = MONSTER_REIHE.indexOf(Game.settings.monster);
+      Game.settings.monster = MONSTER_REIHE[(i + 1) % MONSTER_REIHE.length];
+      if(Netz.istGast) hint('Beim Mitspielen bestimmt der Host, wie viele Monster kommen', 2600);
+      Game.saveOpts(); this.optionenZeigen();
+    });
     knopf('#oSprung', () => { Game.settings.autojump = !Game.settings.autojump; Game.saveOpts(); this.optionenZeigen(); });
     $('#oGer').addEventListener('input', e => { Game.settings.geraeusche = +e.target.value; Sfx.lautSetzen(Game.settings.geraeusche/100); Game.saveOpts(); this.optionenZeigen(); });
     $('#oGer').addEventListener('change', () => Sfx.play('pickup'));      // hören, wie laut es jetzt ist
@@ -215,6 +222,12 @@ const Menue = {
     knopf('#pOeffnen', () => this.zuOeffnen());
     knopf('#oeLos', () => this.oeffnenUmschalten());
     knopf('#oeAuto', () => this.oeffnenAuto());
+    knopf('#oePvp', () => {
+      Game.regeln.pvp = !Game.regeln.pvp;
+      if(Netz.istHost && Netz.hatGaeste()) Netz.anAlle({ t:'regeln', r: Game.regeln });
+      Chat.system('PvP ist jetzt ' + (Game.regeln.pvp ? 'an: Spieler können einander treffen' : 'aus'));
+      this.oeffnenZeigen();
+    });
     knopf('#oeKopie', () => this.codeKopieren());
     knopf('#oeTeilen', () => this.codeTeilen());
     knopf('#oeZurueck', () => this.optionenZu());
@@ -626,6 +639,7 @@ const Menue = {
     $('#oeCode').classList.toggle('blass', !offen);
     $('#oeLos').textContent = offen ? 'Welt schließen' : 'Welt öffnen';
     $('#oeAuto').textContent = 'Immer öffnen, wenn ich sie spiele: ' + (m.netzAuto ? 'An' : 'Aus');
+    $('#oePvp').textContent = 'PvP (Spieler gegen Spieler): ' + (Game.regeln.pvp ? 'An' : 'Aus');
     $('#oeTeilen').style.display = navigator.share ? '' : 'none';
     $('#oeKopie').parentElement.style.gridTemplateColumns = navigator.share ? '' : '1fr';
     let st;
@@ -682,6 +696,7 @@ const Menue = {
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
+    $('#oMonster').textContent = 'Monster: ' + (MONSTER_MENGE[s.monster] || MONSTER_MENGE.normal).name;
     const pz = v => v > 0 ? v + ' %' : 'Aus';
     $('#oGer').value = s.geraeusche; $('#oGerText').textContent = 'Geräusche: ' + pz(s.geraeusche);
     $('#oMusik').value = s.musik;

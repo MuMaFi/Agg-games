@@ -24,11 +24,11 @@ const SD_WEITE = 44;            // so weit um den Spieler fallen Schatten (Blöc
 
 const SD_WIEGEN = `
 uniform float uZeit, uWind;
-uniform float uWiegen[9];
+uniform float uWiegen[10];
 // Laub schwankt ganz, Pflanzen nur oben (dort ist v = 0)
 vec3 wiegen(vec3 wp, float layer, vec2 uv){
   float w = 0.0;
-  for(int i = 0; i < 9; i++) if(abs(layer - uWiegen[i]) < 0.5) w = i < 2 ? 0.45 : 1.0 - uv.y / 16.0;
+  for(int i = 0; i < 10; i++) if(abs(layer - uWiegen[i]) < 0.5) w = i < 2 ? 0.45 : 1.0 - uv.y / 16.0;
   if(w > 0.0){
     float t = uZeit * 1.7;
     wp.x += (sin(t + wp.z * 0.7 + wp.y * 0.3) * 0.045 + sin(t * 2.3 + wp.x * 1.9) * 0.015) * w * uWind;
@@ -235,7 +235,7 @@ const Super = {
   chunk: null, ent: null, sky: null, tiefe: null, tiefeEnt: null,
   fbo: null, karte: null,
   lichtVP: new Float32Array(16), lichtDir: [0, 1, 0], lichtFarbe: [0, 0, 0], umgebung: [0, 0, 0], sonne: 0,
-  wiegen: new Float32Array(9),
+  wiegen: new Float32Array(10),
 
   /** einschalten oder aus; false, wenn das Gerät es nicht kann */
   setzen(an){
@@ -275,7 +275,7 @@ const Super = {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     if(!ok) throw new Error('Schattenkarte unvollständig');
     this.karte = t; this.fbo = fb;
-    ['leaves', 'fichtennadeln', 'tallgrass', 'rose', 'dandelion', 'wheat0', 'wheat1', 'wheat2', 'wheat3']
+    ['leaves', 'fichtennadeln', 'tallgrass', 'rose', 'dandelion', 'wheat0', 'wheat1', 'wheat2', 'wheat3', 'kornblume']
       .forEach((n, i) => { this.wiegen[i] = TEX[n] !== undefined ? TEX[n] : -99; });
   },
 

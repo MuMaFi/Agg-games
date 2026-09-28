@@ -383,5 +383,7 @@ class Drop{
     this.vx = (Math.random()-.5)*2; this.vy = 2.4; this.vz = (Math.random()-.5)*2;
     this.w = 0.28; this.h = 0.28; this.onGround = false; this.stepUp = false;
     this.age = 0; this.pickDelay = 0.5; this.dead = false;
+    this.nid = ++Drop.zaehler;           // Nummer, unter der Mitspieler ihn kennen
   }
 }
+Drop.zaehler = 0;

@@ -142,7 +142,7 @@ void main(){
 /* ── Renderer ──────────────────────────────────────────────────────── */
 const R = {
   progChunk:null, progEnt:null, progSky:null, texArr:null,
-  skyVAO:null, cubeVAO:null, cubeCount:0, quadVAO:null, treppeVAO:null, treppeCount:0,
+  skyVAO:null, cubeVAO:null, cubeCount:0, quadVAO:null, modelle:null,
   vp: M4.create(), proj: M4.create(), view: M4.create(), invVP: M4.create(),
   planes: new Float32Array(24),
 
@@ -155,7 +155,7 @@ const R = {
     this.progSky   = program(VS_SKY, FS_SKY);
     this.buildTexArray();
     this.buildSky();
-    this.buildCube(); this.buildTreppe();
+    this.buildCube(); this.buildModelle();
     return true;
   },
 
@@ -211,24 +211,21 @@ const R = {
     this.cubeVAO = vao; this.cubeVB = vb; this.cubeIB = ib; this.cubeCount = idx.length;
   },
 
-  /** Treppe als Gegenstand (Hand, am Boden): unten die Platte, hinten (−Z)
-      die Stufe; die Bilder werden zugeschnitten wie im Chunk */
-  buildTreppe(){
+  /** Blöcke als Gegenstand, die kein Würfel sind (in der Hand, am Boden): aus
+      Kästen, die Bilder zugeschnitten wie im Chunk. Jeder Kasten: k (0…1), die
+      Flächen, die er zeigt, und platz(f) — aus welchem der sechs Bilder des
+      Blocks (Reihenfolge der Flächen) eine Fläche ihr Bild nimmt */
+  modellBauen(kaesten){
     const verts = [], idx = [];
     const shades = [0.74, 0.74, 1.0, 0.48, 0.87, 0.87];
-    const kasten = (k, flaechen) => {
-      for(const f of flaechen){
-        const F = FACES[f], ST = FACE_ST[f], base = verts.length / 7;
-        for(let i=0; i<4; i++){
-          const v = F.v[i], q = [v[0] ? k[3] : k[0], v[1] ? k[4] : k[1], v[2] ? k[5] : k[2]];
-          verts.push(q[0], q[1], q[2], ST.sFlip ? 1 - q[ST.sAx] : q[ST.sAx], ST.tFlip ? 1 - q[ST.tAx] : q[ST.tAx], f, shades[f]);
-        }
-        idx.push(base, base+1, base+2, base, base+2, base+3);
+    for(const { k, flaechen, platz } of kaesten) for(const f of flaechen){
+      const F = FACES[f], ST = FACE_ST[f], base = verts.length / 7;
+      for(let i=0; i<4; i++){
+        const v = F.v[i], q = [v[0] ? k[3] : k[0], v[1] ? k[4] : k[1], v[2] ? k[5] : k[2]];
+        verts.push(q[0], q[1], q[2], ST.sFlip ? 1 - q[ST.sAx] : q[ST.sAx], ST.tFlip ? 1 - q[ST.tAx] : q[ST.tAx], platz ? platz(f) : f, shades[f]);
       }
-    };
-    kasten([0, 0, 0, 1, .5, 1], [0, 1, 3, 4, 5]);
-    kasten([0, .5, .5, 1, .5, 1], [2]);
-    kasten([0, .5, 0, 1, 1, .5], [0, 1, 2, 4, 5]);
+      idx.push(base, base+1, base+2, base, base+2, base+3);
+    }
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
@@ -240,7 +237,21 @@ const R = {
     const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    this.treppeVAO = vao; this.treppeCount = idx.length;
+    return { vao, n: idx.length };
+  },
+  buildModelle(){
+    this.modelle = {
+      // Treppe: unten die Platte, hinten (−Z) die Stufe
+      treppe: this.modellBauen([
+        { k:[0, 0, 0, 1, .5, 1], flaechen:[0, 1, 3, 4, 5] },
+        { k:[0, .5, .5, 1, .5, 1], flaechen:[2] },
+        { k:[0, .5, 0, 1, 1, .5], flaechen:[0, 1, 2, 4, 5] }]),
+      stufe: this.modellBauen([{ k:[0, 0, 0, 1, .5, 1], flaechen:[0, 1, 2, 3, 4, 5] }]),
+      // Bett: Rahmen mit Beinen, darauf die Decke — ihr Rand aus dem Bild der Decke
+      bett: this.modellBauen([
+        { k:[0, 0, 0, 1, 6/16, 1], flaechen:[0, 1, 3, 4, 5] },
+        { k:[0, 6/16, 0, 1, 9/16, 1], flaechen:[0, 1, 2, 4, 5], platz: () => 2 }]),
+    };
   },
 
   uploadChunk(mesh, buf){
@@ -569,6 +580,8 @@ function drawSpieler(fogCol, near, far){
     if(liegt){ figur.x = s.x; figur.y = s.y + 0.13; figur.z = s.z + 1.31; figur.yaw = Math.PI; }
     else { figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw; }
     const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
+    // getroffen: kurz rot, wie die Wesen
+    const rot = s.rotT > 0 || (s.flags & 32) ? [1.6, 0.45, 0.45] : [1, 1, 1];
     const winkel = part => {
       if(part.anim === 'leg') return part.ph ? -sw : sw;
       if(part.anim === 'arm') return (part.ph ? -sw : sw)*0.7 + (part.ph && schlag ? schlag : 0);
@@ -586,14 +599,14 @@ function drawSpieler(fogCol, near, far){
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     };
     for(const part of d.parts){
-      if(part.hemd) gl.uniform4f(P.u.uTint, f[0], f[1], f[2], 1); else gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+      if(part.hemd) gl.uniform4f(P.u.uTint, f[0]*rot[0], f[1]*rot[1], f[2]*rot[2], 1); else gl.uniform4f(P.u.uTint, rot[0], rot[1], rot[2], 1);
       teil(part);
     }
     // Rüstung: je Platz drei Bit, 0 = nichts, sonst Material + 1
     for(let platz = 0; platz < 4; platz++){
       const mat = (s.ruest >> (3*platz)) & 7, c = RUEST_FARBE[mat - 1];
       if(!c) continue;
-      gl.uniform4f(P.u.uTint, c[0], c[1], c[2], 1);
+      gl.uniform4f(P.u.uTint, c[0]*rot[0], c[1]*rot[1], c[2]*rot[2], 1);
       for(const part of SPIELER_RUESTUNG[platz]) teil(part);
     }
     // In der rechten Hand (dem Arm, der schlägt): was der Spieler hält.
@@ -721,12 +734,13 @@ function partMatrix(out, mob, part, ang, bisGelenk){
   M4.scale(out, out, w, h, d);
 }
 
-/** ein Block als Gegenstand: ein Würfel, eine Treppe mit ihrer Stufe —
-    danach ist wieder der Würfel gebunden. 0 zeichnet einfach den Würfel. */
+/** ein Block als Gegenstand: ein Würfel, eine Treppe, Stufe oder ein Bett in
+    ihrer Form — danach ist wieder der Würfel gebunden. 0 zeichnet den Würfel. */
 function blockDingZeichnen(id){
-  if(isTreppe(id)){
-    gl.bindVertexArray(R.treppeVAO);
-    gl.drawElements(gl.TRIANGLES, R.treppeCount, gl.UNSIGNED_SHORT, 0);
+  const m = !id ? null : isTreppe(id) ? R.modelle.treppe : isStufe(id) ? R.modelle.stufe : isBett(id) ? R.modelle.bett : null;
+  if(m){
+    gl.bindVertexArray(m.vao);
+    gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
     gl.bindVertexArray(R.cubeVAO);
   } else gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
 }

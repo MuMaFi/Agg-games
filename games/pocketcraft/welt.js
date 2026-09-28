@@ -16,9 +16,11 @@ const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald'
 const OPQ  = new Uint8Array(256);   // blockt Sicht vollständig
 const SOL  = new Uint8Array(256);   // blockt Bewegung
 const LOPQ = new Uint8Array(256);   // Licht-Dämpfung 0…15 — oder LICHT_STAU
-/* Treppen: Licht fällt hinein, geht aber nicht hindurch. So ist die Treppe
-   selbst hell (und was auf ihr steht), unter einem Treppendach aber dunkel. */
+/* Treppen und Stufen: Licht fällt hinein, geht aber nicht hindurch. So ist
+   die Treppe selbst hell (und was auf ihr steht), unter einem Dach aus
+   Treppen oder Stufen aber dunkel. */
 const LICHT_STAU = 16;
+const _formK = new Float32Array(30);      // Kästen einer Stufe oder Treppe für den Blick-Strahl
 const COLL = new Float32Array(256*6); // Kollisionskasten je Block, in Blockeinheiten
 const VOLL = new Uint8Array(256);     // Kollision füllt den ganzen Block
 function buildBlockTables(){
@@ -29,7 +31,7 @@ function buildBlockTables(){
     SOL[i] = b.solid ? 1 : 0;
     // stehendes Wasser dämpft das Licht; fließendes ist zu flach dafür — so
     // muss beim Fließen nur neu gezeichnet, nicht neu belichtet werden
-    LOPQ[i] = b.opaque ? 15 : b.model === 'treppe' ? LICHT_STAU : (i === B.WATER ? 2 : (i === B.LEAVES || i === B.FICHTENNADELN ? 1 : 0));
+    LOPQ[i] = b.opaque ? 15 : b.lichtStau ? LICHT_STAU : (i === B.WATER ? 2 : (i === B.LEAVES || i === B.FICHTENNADELN ? 1 : 0));
     const k = b.solid && b.box ? b.box : [0,0,0,16,16,16];
     for(let j=0; j<6; j++) COLL[i*6+j] = k[j]/16;
     VOLL[i] = b.solid && !b.box && b.model !== 'treppe' ? 1 : 0;   // Treppen: siehe treppeKaesten
@@ -357,7 +359,7 @@ class World{
     if(x<0||z<0||x>=CS||z>=CS||y<0||y>=WH) return;
     const i = IDX(x,y,z);
     const cur = c.blocks[i];
-    if(cur !== B.AIR && !(soft && cur === B.LEAVES)) { if(!(cur===B.TALLGRASS||cur===B.ROSE||cur===B.DANDELION)) return; }
+    if(cur !== B.AIR && !(soft && cur === B.LEAVES)) { if(!(cur===B.TALLGRASS||cur===B.ROSE||cur===B.DANDELION||cur===B.KORNBLUME)) return; }
     c.blocks[i] = id;
   }
 
@@ -574,6 +576,7 @@ class World{
           if(bd.model === 'verstaerker'){ this.emitVerstaerker(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'kolben'){ this.emitKolben(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'treppe'){ this.emitTreppe(opaqueBuf, x, y, z, id, bd); continue; }
+          if(bd.model === 'bett'){ this.emitBett(opaqueBuf, x, y, z, bd); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -740,6 +743,14 @@ class World{
       }
       buf.quad(false);
     }
+  }
+
+  /* Bett: oben die Decke, an den Seiten ihr Rand aus dem Bild der Decke
+     (so braucht jede Farbe nur ein Bild), darunter Rahmen und Beine. */
+  emitBett(buf, x, y, z, bd){
+    if(!bd.decke){ const t = bd.faces[2]; bd.decke = { faces:[t, t, t, bd.faces[3], t, t] }; }
+    this.emitBox(buf, x, y, z, bd.decke, [0, 6, 0, 16, 9, 16], 1 << 3);
+    this.emitBox(buf, x, y, z, bd, [0, 0, 0, 16, 6, 16], 1 << 2);
   }
 
   /* Treppe: eine Platte und darüber (umgedreht darunter) die Stufe aus
@@ -917,6 +928,32 @@ class World{
     return _plt[py*PYS + pz*PW + px];
   }
 
+  /** Wo trifft der Strahl die echte Form einer Stufe oder Treppe in der Zelle
+      x, y, z? → { t, nx, ny, nz } oder null, wenn er durch die leeren Teile geht */
+  formTreffer(ox, oy, oz, dx, dy, dz, x, y, z, id, maxD){
+    const K = _formK;
+    let n = 1;
+    if(isStufe(id)) K.set(blocks[id].box);
+    else n = treppeKaesten(treppeForm(this._hol || (this._hol = (a, b, c) => this.getBlock(a, b, c)), x, y, z, id), treppeOben(id), K);
+    const o = [ox, oy, oz], d = [dx, dy, dz], w = [x, y, z];
+    let best = null;
+    for(let i = 0; i < n; i++){
+      let t0 = 0, t1 = maxD, achse = -1, seite = 0, ok = true;
+      for(let a = 0; a < 3 && ok; a++){
+        const lo = w[a] + K[i*6 + a]/16, hi = w[a] + K[i*6 + a + 3]/16;
+        if(Math.abs(d[a]) < 1e-12){ if(o[a] < lo || o[a] > hi) ok = false; continue; }
+        let ta = (lo - o[a])/d[a], tb = (hi - o[a])/d[a], s = -1;
+        if(ta > tb){ const q = ta; ta = tb; tb = q; s = 1; }        // von oben/hinten hinein: die Fläche zeigt nach +
+        if(ta > t0){ t0 = ta; achse = a; seite = s; }
+        if(tb < t1) t1 = tb;
+        if(t0 > t1) ok = false;
+      }
+      if(!ok || achse < 0) continue;
+      if(!best || t0 < best.t) best = { t: t0, nx: achse === 0 ? seite : 0, ny: achse === 1 ? seite : 0, nz: achse === 2 ? seite : 0 };
+    }
+    return best;
+  }
+
   /* — Strahl-Abfrage (Amanatides & Woo) — */
   raycast(ox,oy,oz, dx,dy,dz, maxD, liquid){
     let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
@@ -929,8 +966,12 @@ class World{
     for(let i=0; i<512 && t <= maxD; i++){
       const id = this.getBlock(x,y,z);
       const bd = blocks[id];
-      if(id !== B.AIR && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER))))
-        return { hit:true, x, y, z, nx:fx, ny:fy, nz:fz, id, t };
+      if(id !== B.AIR && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER)))){
+        // Stufen und Treppen: nur, wo sie wirklich sind — durch die leere Hälfte sieht man hindurch
+        if(!isStufe(id) && !isTreppe(id)) return { hit:true, x, y, z, nx:fx, ny:fy, nz:fz, id, t };
+        const h = this.formTreffer(ox, oy, oz, dx, dy, dz, x, y, z, id, maxD);
+        if(h) return { hit:true, x, y, z, nx:h.nx, ny:h.ny, nz:h.nz, id, t:h.t };
+      }
       if(tmx < tmy && tmx < tmz){ x += sx; t = tmx; tmx += tdx; fx = -sx; fy = 0; fz = 0; }
       else if(tmy < tmz){ y += sy; t = tmy; tmy += tdy; fx = 0; fy = -sy; fz = 0; }
       else { z += sz; t = tmz; tmz += tdz; fx = 0; fy = 0; fz = -sz; }

@@ -128,7 +128,8 @@ const Chat = {
     this.todMelden(Netz.ich.name, grund);
   },
   todMelden(name, grund){
-    const g = String(grund || '');
+    const g = String(grund || ''), pvp = /^(.{1,24}) hat dich besiegt$/.exec(g);
+    if(pvp){ this.system(name + ' wurde von ' + pvp[1] + ' besiegt'); return; }
     this.system((TOD_TEXT[g] || '{n} ist gestorben').replace('{n}', name));
   },
 

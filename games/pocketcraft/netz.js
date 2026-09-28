@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 12;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen
+const NETZ_VERSION = 13;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -63,7 +63,7 @@ const Netz = {
   ausgang: [],              // Blockänderungen, flach: x, y, z, id, …
   eingehend: false,         // gerade wird etwas aus dem Netz eingespielt
   ich: null,
-  _t: { pos:0, wesen:0, ofen:0, zeit:0, stand:0, umgebung:0, aufraeumen:0 },
+  _t: { pos:0, wesen:0, drops:0, ofen:0, zeit:0, stand:0, umgebung:0, aufraeumen:0 },
   _teile: new Map(), _teilNr: 0, _pings: new Map(), _behSig: {}, _ofenSig: {},
   _gastPeer: null, _gastPeerWarte: null, _hostZuletzt: 0, _letzt: null,
 
@@ -260,6 +260,9 @@ const Netz = {
       case 'ofen': this.ofenEmpfangen(m); break;
       case 'pfeil': this.pfeilEmpfangen(m, g); break;
       case 'kueken': this.kuekenHost(g, m); break;
+      case 'drop': this.dropHost(g, m); break;
+      case 'pvp': this.pvpHost(g, m); break;
+      case 'aufheben': this.aufhebenHost(g, m); break;
       case 'chat': if(this.nichtZuSchnell(g)) Chat.verteilen({ n: g.name, f: g.farbe, text: String(m.text || '').slice(0, CHAT_MAX) }); break;
       case 'befehl': if(this.nichtZuSchnell(g)) Befehle.vonGast(g, String(m.text || '').slice(0, CHAT_MAX)); break;
       case 'tod': Chat.todMelden(g.name, m.grund); break;
@@ -329,6 +332,68 @@ const Netz = {
     if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < 1 || y >= WH) return;
     Game.kuekenSchluepfen(x, y, z, m.n === 4 ? 4 : 1);
   },
+  /* ── Liegende Gegenstände ────────────────────────────────────────
+     Sie liegen beim Host, in seiner Welt, mit seiner Physik. Die Gäste
+     sehen sie, fragen, wenn sie etwas fallen lassen, und fragen, ob sie
+     etwas aufheben dürfen — wer zuerst fragt, bekommt es. */
+  dropHost(g, m){
+    const [id, n, dur] = Array.isArray(m.l) ? m.l : [];
+    const x = +m.x, y = +m.y, z = +m.z;
+    if(!(isBlockId(id) ? blocks[id] : items[id]) || !Number.isInteger(n) || n < 1 || n > 64*36) return;
+    if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < -8 || y > WH + 8) return;
+    const w = Array.isArray(m.w) && m.w.length === 4 && m.w.every(Number.isFinite)
+      ? [clamp(m.w[0], -8, 8), clamp(m.w[1], -8, 12), clamp(m.w[2], -8, 8), clamp(m.w[3], 0, 5)] : null;
+    Game.dropItem(id, n, x, y, z, dur | 0, w);
+  },
+  aufhebenHost(g, m){
+    const i = Game.drops.findIndex(d => d.nid === m.n);
+    if(i < 0 || g.tot) return;
+    const d = Game.drops[i];
+    if(d.pickDelay > 0 || Math.hypot(d.x - g.x, d.y + 0.14 - (g.y + 0.9), d.z - g.z) > 3.2) return;
+    Game.drops.splice(i, 1);
+    this.senden(g.conn, { t:'bekommen', n: d.nid, l: [d.id, d.count, d.dur | 0] });
+    this.dropsSenden();                      // gleich allen Bescheid: weg ist weg
+  },
+  /* ── Spieler gegen Spieler ─────────────────────────────────────────
+     Auch hier rechnet der Host: Trifft er selbst, bekommt der Gast »autsch«;
+     trifft ein Gast, fragt er den Host, und der trifft sich selbst oder
+     reicht es an den getroffenen Gast weiter. */
+  gastMitId(id){ for(const g of this.gaeste.values()) if(g.bereit && g.id === id) return g; return null; },
+  pvpTreffer(s, dmg, kx, kz){
+    if(this.istGast){ this.senden(this.hostConn, { t:'pvp', z: s.id, n: dmg, kx: r2(kx), kz: r2(kz) }); return; }
+    const g = this.istHost && Game.regeln.pvp ? this.gastMitId(s.id) : null;
+    if(g) this.autsch(g, dmg, this.ich.name + ' hat dich besiegt', kx, kz);
+  },
+  pvpHost(g, m){
+    if(!Game.regeln.pvp || g.tot) return;
+    const n = Number.isFinite(+m.n) ? clamp(+m.n, 0, 20) : 1, kx = clamp(+m.kx || 0, -1, 1), kz = clamp(+m.kz || 0, -1, 1);
+    const grund = g.name + ' hat dich besiegt';
+    if(m.z === this.ich.id){
+      const p = Game.player;
+      if(Math.hypot(p.x - g.x, p.z - g.z) > 64) return;             // so weit fliegt kein Pfeil
+      if(p.hurt(n, grund, kx, kz)){ Game.hurtFlash = 1; Sfx.play('hurt'); }
+      return;
+    }
+    const z = this.gastMitId(m.z);
+    if(z && z !== g && Math.hypot(z.x - g.x, z.z - g.z) <= 64) this.autsch(z, n, grund, kx, kz);
+  },
+
+  /** was um jeden Gast herum liegt — nur, wenn sich etwas geändert hat */
+  dropsSenden(){
+    for(const g of this.gaeste.values()){
+      if(!g.bereit) continue;
+      const l = [];
+      for(const d of Game.drops){
+        if(Math.abs(d.x - g.x) > 64 || Math.abs(d.z - g.z) > 64) continue;
+        l.push(d.nid, d.id, r2(d.x), r2(d.y), r2(d.z), d.pickDelay > 0 ? 0 : 1);
+      }
+      const sig = l.join(',');
+      if(sig === g._dropSig) continue;
+      g._dropSig = sig;
+      this.senden(g.conn, { t:'d', l });
+    }
+  },
+
   /** höchstens acht Nachrichten oder Befehle in vier Sekunden */
   nichtZuSchnell(g){
     const jetzt = performance.now();
@@ -343,7 +408,6 @@ const Netz = {
     this.gastWeg(g);
     setTimeout(() => { try{ g.conn.close(); }catch(e){} }, 400);
   },
-  beuteAn(g, liste, x, y, z){ if(liste.length) this.senden(g.conn, { t:'beute', l: liste, x: r2(x), y: r2(y), z: r2(z) }); },
   autsch(g, n, grund, kx, kz){ this.senden(g.conn, { t:'autsch', n, grund, kx: r2(kx), kz: r2(kz) }); },
   zeitSenden(){ this.anAlle({ t:'zeit', a: Game.time, z: Game.gesamtZeit, w: Wetter.regen ? 1 : 0 }); },
 
@@ -516,9 +580,8 @@ const Netz = {
         if(p.hurt(+m.n || 1, m.grund || '', +m.kx || 0, +m.kz || 0)){ Game.hurtFlash = 1; Sfx.play('hurt'); }
         break;
       }
-      case 'beute':
-        if(!Game.player.creative) for(const [id, n] of (m.l || [])) Game.dropItem(id, n, +m.x, +m.y, +m.z);
-        break;
+      case 'd': this.dropsEmpfangen(m.l); break;
+      case 'bekommen': this.bekommen(m); break;
       case 'hinweis': hint(String(m.text || ''), 2400); break;
       case 'schlaf': if(Game.bett && !Game.schlafT) Game.schlafT = 0.001; break;     // alle liegen: die Nacht vergeht
       case 'chat': Chat.zeigen(m); break;
@@ -579,6 +642,48 @@ const Netz = {
     const p = Game.player, h = Inv.held();
     this.senden(this.hostConn, { t:'ich', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.yaw), p: r2(p.pitch),
       f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0, r: Ruestung.code() });
+  },
+  dropAnfrage(id, n, x, y, z, dur, wurf){
+    if(this.hostConn) this.senden(this.hostConn, { t:'drop', l: [id, n, dur | 0], x: r2(x), y: r2(y), z: r2(z), w: wurf ? wurf.map(r2) : 0 });
+  },
+  dropsEmpfangen(l){
+    if(!Array.isArray(l)) return;
+    const alt = new Map();
+    for(const d of Game.drops) alt.set(d.nid, d);
+    const neu = [];
+    for(let i = 0; i + 5 < l.length; i += 6){
+      const nid = l[i], id = l[i+1];
+      if(!(isBlockId(id) ? blocks[id] : items[id])) continue;
+      let d = alt.get(nid);
+      if(!d || d.id !== id){ d = new Drop(id, 1, +l[i+2], +l[i+3], +l[i+4]); d.nid = nid; d.age = Math.random()*3; }
+      d.zx = +l[i+2]; d.zy = +l[i+3]; d.zz = +l[i+4]; d.frei = l[i+5] === 1;
+      neu.push(d);
+    }
+    Game.drops = neu;
+  },
+  /** Gast: nachziehen, was der Host schickt, und fragen, ob man es aufheben darf */
+  dropsNachziehen(dt){
+    const k = Math.min(1, dt*12), p = Game.player;
+    for(const d of Game.drops){
+      d.age += dt;
+      if(Math.abs(d.zx - d.x) > 6 || Math.abs(d.zy - d.y) > 6 || Math.abs(d.zz - d.z) > 6){ d.x = d.zx; d.y = d.zy; d.z = d.zz; }
+      else { d.x += (d.zx - d.x)*k; d.y += (d.zy - d.y)*k; d.z += (d.zz - d.z)*k; }
+      if(d.gefragt > 0){ d.gefragt -= dt; continue; }
+      if(!d.frei || p.dead) continue;
+      if(Math.hypot(p.x - d.x, p.y + 0.9 - (d.y + 0.14), p.z - d.z) < 1.6 && Inv.platzFuer(d.id, 1)){
+        d.gefragt = 0.5;
+        this.senden(this.hostConn, { t:'aufheben', n: d.nid });
+      }
+    }
+  },
+  /** der Host gibt, was man aufheben wollte; passt nicht alles, fällt der Rest wieder hin */
+  bekommen(m){
+    Game.drops = Game.drops.filter(d => d.nid !== m.n);
+    const [id, n, dur] = Array.isArray(m.l) ? m.l : [];
+    if(!(isBlockId(id) ? blocks[id] : items[id]) || !(n > 0)) return;
+    const r = Inv.addStack(Inv.make(id, n, dur || undefined)), p = Game.player;
+    Sfx.play('pickup'); HUD.refreshHotbar(); if(Screens.open) Screens.render();
+    if(r) Game.dropItem(r.id, r.n, p.x, p.y + 1, p.z, r.dur, [0, 2, 0, 2]);
   },
   kuekenAnfrage(x, y, z, n){
     if(this.istGast) this.senden(this.hostConn, { t:'kueken', x: r2(x), y: r2(y), z: r2(z), n });
@@ -647,7 +752,7 @@ const Netz = {
     const p = Game.player, l = this._letzt;
     const bewegt = !!l && Math.hypot(p.x - l[0], p.z - l[1]) > 0.02;
     this._letzt = [p.x, p.z];
-    return (p.sneaking ? 1 : 0) | (p.swinging ? 2 : 0) | (p.dead ? 4 : 0) | (bewegt ? 8 : 0) | (Game.bett ? 16 : 0);
+    return (p.sneaking ? 1 : 0) | (p.swinging ? 2 : 0) | (p.dead ? 4 : 0) | (bewegt ? 8 : 0) | (Game.bett ? 16 : 0) | (p.hurtTimer > 0 ? 32 : 0);
   },
   /** jede Blockänderung aus dem eigenen Spiel */
   blockGeaendert(x, y, z, id){ this.ausgang.push(x, y, z, id); },
@@ -790,6 +895,8 @@ const Netz = {
       if(Math.abs(s.zx - s.x) > 10 || Math.abs(s.zz - s.z) > 10 || Math.abs(s.zy - s.y) > 10){ s.x = s.zx; s.y = s.zy; s.z = s.zz; }
       else { s.x += (s.zx - s.x)*k; s.y += (s.zy - s.y)*k; s.z += (s.zz - s.z)*k; }
       s.yaw = winkelNach(s.yaw, s.zyaw, k); s.pitch += (s.zpitch - s.pitch)*k;
+      if(s.rotT > 0) s.rotT -= dt;
+      if(s.schlagCd > 0) s.schlagCd -= dt;
       if(s.flags & 8) s.walkPhase += dt*7.5;
       s.schlagT = (s.flags & 2) ? s.schlagT + dt : 0;
     }
@@ -836,6 +943,7 @@ const Netz = {
     if(this.ausgang.length){ this.anAlle({ t:'b', l: this.ausgang }); this.ausgang = []; }
     if(T.pos >= 0.1){ T.pos = 0; this.spielerSenden(); }
     if(T.wesen >= 0.125){ T.wesen = 0; this.wesenSenden(); }
+    if(T.drops >= 0.1){ T.drops = 0; this.dropsSenden(); }
     if(T.ofen >= 0.5){ T.ofen = 0; this.oefenSenden(false); }
     if(T.zeit >= 5){ T.zeit = 0; this.zeitSenden(); }
     if(T.umgebung >= 0.25){ T.umgebung = 0; this.gastUmgebung(); }
