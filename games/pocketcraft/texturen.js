@@ -613,6 +613,45 @@ function buildTextures(){
   addTex('diamond_ore', p => malErz(p, 154, PAL.diaerz, 3));
 
   /* — Speicherblöcke — */
+  /* — Kürbis: gerippt, oben ein Stiel; geschnitzt mit Dreiecksaugen und Zahnlücken — */
+  const KUERBIS = pal('#7e3606','#a44c0a','#c46212','#dc781a','#ec902a','#f8ae46');
+  const kuerbisSeite = p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const rip = (x + 3) % 8, rille = rip === 0 ? -.42 : rip === 1 ? -.16 : rip === 7 ? .08 : 0;
+      const bauch = Math.sin((rip + .5)/8*Math.PI)*.2;
+      let v = .44 + bauch + rille + (fbm(x, y, 4, 8, 391, 2) - .5)*.24 - Math.abs(y - 15.5)/15.5*.12;
+      if(y === 0 || y === TS - 1) v -= .18;
+      p.quant(x, y, clamp(v, 0, .99), KUERBIS, .5);
+    }
+  };
+  addTex('kuerbis', kuerbisSeite);
+  addTex('kuerbis_oben', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const dx = x + .5 - 16, dy = y + .5 - 16, r = Math.hypot(dx, dy), rip = ((Math.atan2(dy, dx)/TAU*8) % 1 + 1) % 1;
+      const v = .5 + Math.sin(rip*Math.PI)*.2 - (rip < .07 || rip > .93 ? .34 : 0) + (fbm(x, y, 8, 8, 392, 2) - .5)*.2 - r/22*.16;
+      p.quant(x, y, clamp(v, 0, .99), KUERBIS, .5);
+    }
+    const ST = pal('#34420f','#4c621a','#668226','#84a236');
+    for(let y = 13; y < 19; y++) for(let x = 13; x < 19; x++){
+      if((x === 13 || x === 18) && (y === 13 || y === 18)) continue;
+      p.quant(x, y, clamp(.35 + (x < 16 && y < 16 ? .3 : 0) + (h2(x, y, 393) - .5)*.2, 0, .99), ST, .4);
+    }
+  });
+  addTex('kuerbis_gesicht', p => {
+    kuerbisSeite(p);
+    const loch = (x, y) => {
+      for(const cx of [9.5, 22.5]) if(y >= 8 && y <= 14 && Math.abs(x + .5 - cx) <= (y - 7.5)/6.5*3.6) return true;   // Augen
+      if(y >= 19 && y <= 24 && x >= 6 && x <= 25){                                                                 // Mund
+        if(y <= 20 && (x === 11 || x === 12 || x === 19 || x === 20)) return false;                               // Zähne oben
+        if(y >= 23 && (x === 15 || x === 16)) return false;                                                        // Zahn unten
+        if((x < 8 || x > 23) && y > 21) return false;                                                              // Mundwinkel hoch
+        return true;
+      }
+      return false;
+    };
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) if(loch(x, y))
+      p.put(x, y, !loch(x, y - 1) || !loch(x - 1, y) ? [222, 164, 64] : ((x + y) & 3 ? [44, 20, 8] : [58, 28, 10]));
+  });
   addTex('iron_block', p => malPlatte(p, pal('#6f7076','#9b9ca3','#c3c4ca','#dfe0e5','#f7f7fa'), 161));
   /* — Wolle: weiche Locken, in jeder der vier Schaffarben — */
   const WOLL_PAL = [
@@ -1196,15 +1235,6 @@ function buildTextures(){
     S.rechteck(f, 11, 5, 4, 6); S.rechteck(f, 17, 5, 4, 6);
     const g = S.lage(MAT.iron); S.rechteck(g, 19, 18, 2, 2);
   });
-  sprite('i_bed', S => {
-    const holz = S.lage(pal('#2e1d0c','#6b4a26','#8b6234','#a57a45','#c49a60'));
-    S.rechteck(holz, 3, 16, 26, 6); S.rechteck(holz, 3, 22, 3, 5); S.rechteck(holz, 26, 22, 3, 5);
-    const decke = S.lage(pal('#3a0a0e','#7c1c21','#a8282c','#c8403f','#e0706a'), { kante: true });
-    S.rechteck(decke, 11, 12, 18, 5);
-    const kissen = S.lage(pal('#6a6456','#cfc8b8','#e2dccd','#f1ecdf','#ffffff'), { kante: true });
-    S.rechteck(kissen, 4, 12, 7, 5);
-  });
-
   /* — Pocketcraft: Beute und Werkzeug der neuen Tiere — */
   MAT.leather = pal('#3a2010','#6e4424','#8a5a33','#a47244','#bd8c5a');
   for(const k of Object.keys(RUEST)) sprite('i_leather_' + k, S => RUEST[k](S, MAT.leather));
@@ -1430,6 +1460,30 @@ function buildTextures(){
     p.rect(4, 20, 6, 5, [70,78,140]); for(let x = 4; x < 10; x++) p.put(x, 20, [110,118,176]);
   });
   addTex('m_skin', p => haut(pal('#a8764f','#bb865d','#cc966b','#d9a679','#e4b688'), 341)(p));
+  /* — Eisengolem: helles, rissiges Eisen mit Rost und einer Ranke; im
+     Gesicht ein schwerer Brauenwulst und kleine rote Augen — */
+  const GOLEM = pal('#8c8781','#a6a19a','#bcb7af','#cec9c1','#dedad3','#ebe8e2');
+  const golemEisen = (p, s) => {
+    p.fuell((x, y) => .6*fbm(x, y, 4, 4, s, 3) + .4*vnoise(x, y, 16, 16, s + 1), GOLEM, [6,14,28,30,16,6], .5);
+    for(let i = 0; i < 4; i++){ const x = p.r()*TS | 0, y = p.r()*TS | 0; p.weg(x, y, 4 + (p.r()*5 | 0), p.r() < .5 ? 1 : -1, 1, hell(GOLEM[0], .78), 255, .5); }
+    for(let i = 0; i < 6; i++){ const x = p.r()*TS | 0, y = p.r()*TS | 0; p.put(x, y, [150, 98, 62]); p.put(x + 1, y, [126, 80, 50]); }
+  };
+  addTex('m_golem', p => {
+    golemEisen(p, 394);
+    let x = 6 + (p.r()*20 | 0);
+    for(let y = 0; y < 22; y++){
+      p.put(x, y, [50, 108, 34]);
+      if(y % 4 === 1){ p.put(x + 1, y, [72, 142, 46]); p.put(x - 1, y + 1, [60, 124, 40]); }
+      if(p.r() < .3) x += p.r() < .5 ? 1 : -1;
+    }
+  });
+  addTex('m_golem_face', p => {
+    golemEisen(p, 396);
+    for(let x = 3; x < 29; x++){ p.put(x, 8, GOLEM[1]); p.put(x, 9, hell(GOLEM[0], .8)); p.put(x, 10, hell(GOLEM[0], .9)); p.put(x, 11, GOLEM[4]); }
+    for(const x0 of [6, 21]){ p.rect(x0, 12, 5, 3, [44, 40, 38]); p.rect(x0 + 1, 13, 3, 1, [200, 44, 32]); p.put(x0 + 2, 13, [240, 90, 60]); }
+    p.rect(11, 29, 10, 1, GOLEM[0]);
+    for(let y = 15; y < TS; y++) if(h2(y, 3, 397) < .7) p.put(27 + ((y >> 3) & 1), y, [50, 108, 34]);
+  });
   /* — Dorfbewohner: Haut, ein Gesicht mit durchgehender Braue und grünen
      Augen (die Nase ist ein eigener Kasten), eine helle Kutte, die der Beruf färbt — */
   const DORF_HAUT = pal('#9c6a48','#b07a54','#c08962','#cd9870','#d9a880');

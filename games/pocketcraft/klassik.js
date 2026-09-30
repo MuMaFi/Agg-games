@@ -316,6 +316,23 @@ klassik('craft_side', K => kPixel(K, [
   'lmqrqqHqqqqqqrmn',
   'nngggggggggggggn',
 ], WERKBANK, .08));
+/* Kürbis: senkrechte Rippen, oben ein Stiel, geschnitzt mit Augen und Mund */
+const kKuerbis = K => K.jedes((x, y) => {
+  const r = (x + 1) & 3, c = r === 0 ? [168, 84, 12] : r === 2 ? [236, 150, 40] : [214, 118, 24];
+  return kHell(c, (y === 0 || y === 15 ? .85 : 1) * (K.r() < .12 ? .94 : 1));
+});
+klassik('kuerbis', kKuerbis);
+klassik('kuerbis_oben', K => {
+  K.jedes((x, y) => { const d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5)); return kHell([214, 118, 24], d > 6.5 ? .85 : ((Math.round(d) & 1) ? 1.08 : .96)); });
+  for(const [x, y] of [[7, 7], [8, 7], [7, 8], [8, 8]]) K.put(x, y, [86, 106, 30]);
+  K.put(8, 6, [110, 134, 40]);
+});
+klassik('kuerbis_gesicht', K => {
+  kKuerbis(K);
+  const loch = [[3, 4], [4, 4], [11, 4], [12, 4], [3, 5], [4, 5], [5, 5], [10, 5], [11, 5], [12, 5],
+    [3, 10], [4, 10], [6, 10], [7, 10], [8, 10], [9, 10], [11, 10], [12, 10], [4, 11], [5, 11], [6, 11], [9, 11], [10, 11], [11, 11]];
+  for(const [x, y] of loch) K.put(x, y, (x + y) & 1 ? [40, 18, 6] : [60, 28, 8]);
+});
 /* Ofen: gemauerter Stein mit einem Sims rundherum und einem Sockel. Vorn
    oben ein schmales Zugloch, unter dem Sims das Feuerloch mit Rundbogen und
    Rost; brennt er, glühen beide und der Bogen bekommt Widerschein. */
@@ -535,6 +552,14 @@ klassik('m_dorf_haut', K => kFell(K, TIER.dorf, .92, 1.05, .2));
 klassik('m_dorf_face', K => kFelder(K, ['HHHHHHHH', 'HBBBBBBH', 'HWGHHGWH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHMMHHH', 'HHHHHHHH'],
   { H: TIER.dorf, B: [66, 42, 28], W: [240, 240, 236], G: [40, 140, 64], M: [128, 78, 56] }));
 klassik('m_dorf_kutte', K => { kFell(K, [232, 232, 226], .9, 1.04, .3); for(let x = 0; x < 16; x++) K.put(x, 15, [160, 160, 156]); for(let y = 0; y < 3; y++){ K.put(7 - y, y, [170, 170, 166]); K.put(8 + y, y, [170, 170, 166]); } });
+klassik('m_golem', K => {
+  kFell(K, [212, 206, 198], .9, 1.05, .3);
+  for(let i = 0; i < 4; i++){ const x = K.zahl(16), y = K.zahl(16); K.put(x, y, [150, 100, 64]); }
+  for(let y = 0; y < 11; y++) K.put(4 + (y > 5 ? 1 : 0), y, [58, 118, 38]);
+  K.put(5, 3, [80, 150, 50]); K.put(3, 8, [80, 150, 50]);
+});
+klassik('m_golem_face', K => kFelder(K, ['GGGGGGGG', 'GBBBBBBG', 'GARGGRAG', 'GGGGGGGG', 'GGGGGGGG', 'GGGGGGGG', 'GGGGGGGG', 'GGGDDGGG'],
+  { G: [212, 206, 198], B: [120, 116, 110], A: [52, 48, 46], R: [196, 44, 32], D: [170, 166, 158] }));
 klassik('m_skelett_glied', K => K.jedes((x, y) => (x === 0 || x === 15) ? kHell(TIER.knochen, .7) : kHell(TIER.knochen, K.r() < .15 ? .9 : 1)));
 
 /* ── Umschalten ──────────────────────────────────────────────────── */

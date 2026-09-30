@@ -24,6 +24,8 @@ const MONSTER_REIHE = ['normal', 'wenige', 'keine', 'viele'];
 const SCHLEIM_HOEHE = 39;         // darunter erscheinen sie, wie beim Vorbild
 const BETT_HOEHE = 9/16;          // so hoch ist das Strohbett: darauf liegt man
 
+/** wer so trifft, ist ein Golem: die Beute fällt, niemand wird zornig */
+const GOLEM_HAND = Object.freeze({ creative: false, golem: true });
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
@@ -91,6 +93,7 @@ const Game = {
       const ok = setzen(x, y, z, id, noSave);
       if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id);
       if(ok && !Netz.istGast){ this.wasser.melden(x, y, z); this.schaltung.melden(x, y, z, vorher, id); }
+      if(ok && !Netz.istGast && isGeschnitzt(id) && !isGeschnitzt(vorher)) setTimeout(() => this.golemBauen(x, y, z), 0);
       // Plattenspieler: Platte hinein spielt, Platte heraus oder Block weg verstummt —
       // bei allen, denn auch Änderungen aus dem Netz kommen hier vorbei
       if(ok && (id === B.JUKEBOX_VOLL) !== (vorher === B.JUKEBOX_VOLL)){
@@ -561,6 +564,15 @@ const Game = {
     // Benutzbare Blöcke — geduckt baut man stattdessen daran
     if(!Input.sneak){
       if(id === B.TABLE){ Screens.oeffne('werkbank'); Sfx.block('hacken', B.TABLE, t.x, t.y, t.z, .6); return; }
+      if(id === B.KUERBIS && s && s.id === ITEM.shears){
+        // geschnitzt wird die Seite, auf die man zielt — von oben die, die zum Spieler schaut
+        let r = SEITE.findIndex(([sx, sz]) => sx === t.nx && sz === t.nz);
+        if(r < 0){ const f = p.forward(); r = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 1 : 0) : (f[2] > 0 ? 3 : 2); }
+        w.setBlock(t.x, t.y, t.z, B.GESCHNITZT + r);
+        if(!p.creative) Inv.damageHeld(1);
+        Sfx.play('schere', t.x + .5, t.y + .5, t.z + .5); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+        return;
+      }
       if(id === B.FURNACE || id === B.FURNACE_LIT){
         if(!w.furnaces.has(k)) w.furnaces.set(k, { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x:t.x, y:t.y, z:t.z });
         Screens.oeffne('ofen', k); return;
@@ -711,6 +723,11 @@ const Game = {
       const r = Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3);
       const hy = p.eyeY() + f[1]*t.t;
       setzId = treppeId(treppeArt(s.id), r, t.ny < 0 || (t.ny === 0 && hy - Math.floor(hy) > 0.5));
+    }
+    // geschnitzter Kürbis: das Gesicht schaut zum Spieler
+    if(isGeschnitzt(s.id)){
+      const f = p.forward();
+      setzId = B.GESCHNITZT + (Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 1 : 0) : (f[2] > 0 ? 3 : 2));
     }
     // Stufen: an eine Decke oder die obere Hälfte einer Wand gesetzt, sitzen sie oben
     if(isStufe(s.id)){
@@ -943,14 +960,15 @@ const Game = {
     for(let k = 0; k < 6; k++) this.herz(jung, k*0.08);
     Sfx.play('geburt');
   },
-  /** Treffer auf ein Wesen, vom Schlag oder vom Pfeil */
+  /** Treffer auf ein Wesen, vom Schlag oder vom Pfeil; von: der Mitspieler, der traf */
   mobTreffer(m, dmg, kx, kz, von){
     if(m.dead) return;
     // Als Gast rechnet der Host: nur fragen, aufblitzen lassen
     if(Netz.istGast){ Netz.wesenAnfrage('treffer', m, { dmg, kx: r2(kx), kz: r2(kz) }); m.hurtTimer = 0.4; return; }
     m.health -= dmg; m.hurtTimer = 0.4;
-    m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5);
-    if(!m.def.hostile){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
+    if(!m.def.golem){ m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5); }
+    if(!m.def.hostile && !m.def.golem){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
+    if(von !== GOLEM_HAND && (m.def.golem || m.def.dorf)) this.golemZorn(m, von);
     if(m.health <= 0){
       m.dead = true;
       if(m.def.schleim && m.groesse > 1) this.schleimTeilen(m);
@@ -960,6 +978,85 @@ const Game = {
         if(!(von ? von.creative : this.player.creative)) for(const [id, n] of beute) this.dropItem(id, n, m.x, m.y + 0.4, m.z);
       }
     }
+  },
+  /** wer einen Golem oder einen Dorfbewohner schlägt, den verfolgen die Golems in der Nähe eine Weile */
+  golemZorn(m, von){
+    for(const g of this.mobs){
+      if(!g.def.golem || g.dead || (g !== m && Math.hypot(g.x - m.x, g.z - m.z) > 32)) continue;
+      g.zorn = von || 'ich'; g.zornT = 40;
+    }
+  },
+  /** ein Golem mit Eisen geflickt */
+  golemFlicken(m){
+    if(!m.def.golem || m.dead || m.health >= m.def.health) return false;
+    m.health = Math.min(m.def.health, m.health + 25);
+    return true;
+  },
+  /** Golem aus vier Eisenblöcken in T-Form und einem geschnitzten Kürbis obendrauf.
+      Die Arme dürfen quer in x oder in z stehen, unter ihnen muss Platz sein. */
+  golemBauen(x, y, z){
+    const w = this.world, E = B.IRON_BLOCK;
+    if(!isGeschnitzt(w.getBlock(x, y, z)) || w.getBlock(x, y - 1, z) !== E || w.getBlock(x, y - 2, z) !== E) return false;
+    for(const [ax, az] of [[1, 0], [0, 1]]){
+      if(w.getBlock(x + ax, y - 1, z + az) !== E || w.getBlock(x - ax, y - 1, z - az) !== E) continue;
+      if(blocksMovement(w.getBlock(x + ax, y - 2, z + az)) || blocksMovement(w.getBlock(x - ax, y - 2, z - az))) continue;
+      for(const [bx, by, bz] of [[x, y, z], [x, y - 1, z], [x, y - 2, z], [x + ax, y - 1, z + az], [x - ax, y - 1, z - az]]) w.setBlock(bx, by, bz, B.AIR);
+      const m = new Mob('golem', x + 0.5, y - 2, z + 0.5);
+      const p = this.player;
+      m.yaw = Math.atan2(-(p.x - m.x), -(p.z - m.z)) + Math.PI;
+      m.bleibt = true; m.heimX = m.x; m.heimZ = m.z; m.heimR = 20;
+      this.mobs.push(m);
+      Sfx.wesen(m, 'laut');
+      Chat.system('Ein Eisengolem ist erwacht!');
+      return true;
+    }
+    return false;
+  },
+  /** Eisengolem: geht auf Monster los (oder auf den, der ihn gereizt hat), schlägt
+      sie hoch in die Luft; sonst schlendert er um sein Dorf oder den Ort, wo er
+      gebaut wurde. Gibt [Richtung x, Richtung z, Tempo] zurück. */
+  golemDenken(m, dt, leute, speed, hoerbar){
+    if(m.schlagT > 0) m.schlagT -= dt;
+    let ziel = null, zd = 18;
+    if(m.zornT > 0){
+      m.zornT -= dt;
+      const q = leute.find(q => (m.zorn === 'ich' ? q.ich : q.g === m.zorn) && !q.dead && !q.creative);
+      if(q){ const d = Math.hypot(q.x - m.x, q.z - m.z); if(d < 28){ ziel = q; zd = d; } }
+    }
+    if(!ziel) for(const o of this.mobs){
+      if(!o.def.hostile || o.dead) continue;
+      const d = Math.hypot(o.x - m.x, o.z - m.z);
+      if(d < zd && Math.abs(o.y - m.y) < 6){ zd = d; ziel = o; }
+    }
+    if(ziel){
+      const dx = ziel.x - m.x, dz = ziel.z - m.z, l = zd || 1;
+      m.yaw = Math.atan2(-dx/l, -dz/l); m.moving = true;
+      const reich = m.w/2 + (ziel.w || 0.6)/2 + 0.9;
+      if(zd < reich && Math.abs(ziel.y - m.y) < 2.5 && m.attackCd <= 0){
+        m.attackCd = 1.25; m.schlagT = 0.5;
+        const dmg = 7 + ((Math.random()*14) | 0);
+        if(ziel instanceof Mob){ this.mobTreffer(ziel, dmg, dx/l, dz/l, GOLEM_HAND); ziel.vy = 9.5; Sfx.wesen(ziel, 'au'); }
+        else if(ziel.ich){ if(this.player.hurt(dmg, 'Ein Eisengolem hat dich erwischt', dx/l, dz/l)){ this.player.vy = 9.5; this.hurtFlash = 1; Sfx.play('hurt'); } }
+        else Netz.autsch(ziel.g, dmg, 'Ein Eisengolem hat dich erwischt', dx/l, dz/l);
+        Sfx.wesen(m, 'schlag');
+      }
+      if(zd < reich - 0.3){ m.moving = false; return [0, 0, 0]; }
+      return [dx/l, dz/l, speed*1.25];
+    }
+    m.wander -= dt;
+    if(m.wander <= 0){
+      m.wander = 3 + Math.random()*6;
+      m.moving = Math.random() < 0.45;
+      m.wanderYaw = Math.random()*TAU;
+      if(m.heimX !== undefined){
+        const ex = m.heimX - m.x, ez = m.heimZ - m.z;
+        if(Math.hypot(ex, ez) > (m.heimR || 16)){ m.wanderYaw = Math.atan2(-ex, -ez); m.moving = true; }
+      }
+    }
+    if(hoerbar && Math.random() < 0.0008) Sfx.wesen(m, 'laut');
+    if(!m.moving) return [0, 0, 0];
+    m.yaw = m.wanderYaw;
+    return [-Math.sin(m.yaw), -Math.cos(m.yaw), speed*0.5];
   },
   /** Benutzen auf ein Wesen: mit Dorfbewohnern tauschen, füttern, Schaf scheren,
       Kuh melken. tipp: auf dem Telefon getippt — mit einer Waffe wird dann geschlagen */
@@ -975,6 +1072,14 @@ const Game = {
     }
     if(!s) return false;
     const p = this.player;
+    if(m.def.golem){
+      if(s.id !== ITEM.iron) return false;
+      if(m.health >= m.def.health){ hint('Der Eisengolem ist heil', 1400); return true; }
+      if(Netz.istGast) Netz.wesenAnfrage('eisen', m); else this.golemFlicken(m);
+      if(!p.creative) Inv.consumeHeld();
+      Sfx.wesen(m, 'schlag'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+      return true;
+    }
     // Körner gehören auch aufs Feld: dann zählt, was näher unterm Fadenkreuz liegt
     if(s.id === ITEM.seeds){
       const t = this.targetBlock();
@@ -1057,6 +1162,16 @@ const Game = {
     const ruhe = this._dorfRuhe || (this._dorfRuhe = new Map());
     for(const q of this.spielerOrte()) for(const d of doerferBei(w, q.x - 72, q.z - 72, q.x + 72, q.z + 72)){
       if(Math.hypot(d.cx - q.x, d.cz - q.z) > 72) continue;
+      if(d.spawn.length >= 3 && !this.mobs.some(m => m.golemDorf === d.key && !m.dead) && (ruhe.get(d.key + '#golem') || 0) <= this.gesamtZeit)
+        for(const [gx, gz] of [[d.cx + 3, d.cz + 3], [d.cx - 4, d.cz - 4], [d.cx + 3, d.cz - 4], [d.cx - 4, d.cz + 3]]){
+          const k = ckey(gx >> 4, gz >> 4), ch = w.chunks.get(k);
+          if(!this.meshes.has(k) || !(ch && ch.state >= 1)) continue;
+          const g = new Mob('golem', gx + 0.5, d.hoehe(gx, gz) + 1, gz + 0.5);
+          if(!this.frei(g)) continue;
+          g.golemDorf = d.key; g.heimX = d.cx + 0.5; g.heimZ = d.cz + 0.5; g.heimR = Math.max(12, d.radius - 4);
+          this.mobs.push(g);
+          return;
+        }
       const da = new Set();
       for(const m of this.mobs) if(m.dorfKey === d.key && !m.dead) da.add(m.dorfSlot);
       for(let i = 0; i < d.spawn.length; i++){
@@ -1459,6 +1574,7 @@ const Game = {
       if(m.dead || (nd > far && !m.bleibt) || m.y < -4){
         if(m.dead) Sfx.wesen(m, 'tot');
         if(m.dead && m.dorfKey) (this._dorfRuhe || (this._dorfRuhe = new Map())).set(m.dorfKey + '#' + m.dorfSlot, this.gesamtZeit + 300);
+        if(m.dead && m.golemDorf) (this._dorfRuhe || (this._dorfRuhe = new Map())).set(m.golemDorf + '#golem', this.gesamtZeit + 300);
         this.mobs.splice(i,1); continue;
       }
       // Bleibende Tiere in ungeladenen Chunks warten, statt ins Nichts zu fallen
@@ -1482,6 +1598,8 @@ const Game = {
       const heldId = z.held;
       if(m.def.schleim){
         [tx, tz, speed] = this.schleimDenken(m, dt, opfer, od);
+      } else if(m.def.golem){
+        [tx, tz, speed] = this.golemDenken(m, dt, leute, speed, hoerbar);
       } else if(jagt && m.def.fernkampf){
         // Skelett: Abstand halten, seitlich ausweichen, schießen, wenn es freie Sicht hat
         const l = dist || 1, ux = dx/l, uz = dz/l;

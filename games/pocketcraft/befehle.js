@@ -37,10 +37,11 @@ const MC_NAMEN = {
   leather_pants:'leather_leggings',
   redstone_ore:'REDSTONE_ERZ', redstone_block:'REDSTONEBLOCK', redstone_lamp:'RS_LAMPE', redstone_torch:'RS_FACKEL', lever:'HEBEL',
   stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball', repeater:'VERSTAERKER', verstaerker:'VERSTAERKER',
-  piston:'KOLBEN', sticky_piston:'KLEBKOLBEN',
+  piston:'KOLBEN', sticky_piston:'KLEBKOLBEN', pumpkin:'KUERBIS', carved_pumpkin:'GESCHNITZT',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
-  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager' };
+  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager',
+  eisengolem:'golem', golem:'golem', iron_golem:'golem' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };
@@ -280,10 +281,10 @@ befehl('clear', { alias:['leeren'], syntax:'[spieler]', text:'leert das Inventar
   } });
 
 befehl('summon', { alias:['beschwören'], syntax:'<wesen> [x y z]', text:'lässt ein Wesen erscheinen',
-  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett', 'schleim', 'dorfbewohner'] : i <= 3 ? V_KOORD(i - 1) : [],
+  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett', 'schleim', 'dorfbewohner', 'eisengolem'] : i <= 3 ? V_KOORD(i - 1) : [],
   lauf(a, wer){
     const art = WESEN_NAMEN[bNorm(a[0])];
-    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett, schleim, dorfbewohner' : 'Welches Wesen? /summon <wesen> [x y z]');
+    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett, schleim, dorfbewohner, eisengolem' : 'Welches Wesen? /summon <wesen> [x y z]');
     const ort = a.length >= 4 ? Befehle.koord(a, 1, wer, false) : [wer.x, wer.y, wer.z];
     if(!ort) return Befehle.fehler(wer, 'Keine Koordinaten: ' + a.slice(1).join(' '));
     const m = new Mob(art, ort[0], ort[1], ort[2], false);

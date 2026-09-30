@@ -104,7 +104,7 @@ def bilder():
         'i_apple': 'default_apple', 'i_golden_apple': 'mcl_core_apple_golden',
         'i_seeds': 'mcl_farming_wheat_seeds', 'i_wheat': 'farming_wheat_harvested', 'i_bread': 'farming_bread',
         'i_bucket': 'mcl_buckets_bucket', 'i_water_bucket': 'mcl_buckets_water_bucket',
-        'i_door': 'doors_item_wood', 'i_bed': 'mcl_beds_bed_red_inv', 'i_leather': 'mcl_mobitems_leather',
+        'i_door': 'doors_item_wood', 'i_leather': 'mcl_mobitems_leather',
         'i_beef_raw': 'mcl_mobitems_beef_raw', 'i_beef_cooked': 'mcl_mobitems_beef_cooked',
         'i_mutton_raw': 'mcl_mobitems_mutton_raw', 'i_mutton_cooked': 'mcl_mobitems_mutton_cooked',
         'i_chicken_raw': 'mcl_mobitems_chicken_raw', 'i_chicken_cooked': 'mcl_mobitems_chicken_cooked',

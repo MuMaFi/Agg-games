@@ -71,7 +71,7 @@ T('buildTextures()');
 const fehlend = T(`(() => { const f = []; for(const b of blocks) if(b){ for(const t of b.faces) if(TEX[t] === undefined) f.push(b.name + ':' + t); if(b.icon && TEX[b.icon] === undefined) f.push(b.name + ':' + b.icon); if(b.dirFront && TEX[b.dirFront] === undefined) f.push(b.dirFront); }
   for(const it of Object.values(items)) if(TEX[it.tex] === undefined) f.push(it.name + ':' + it.tex); return f; })()`);
 pruef(fehlend.length === 0, 'fehlende Texturen: ' + fehlend.join(', '));
-pruef(T('texNames.length') < 256, 'höchstens 255 Texturschichten (Byte im Gitter)');
+pruef(T('texNames.length') <= 256, 'höchstens 256 Texturschichten (Nummer 0…255 als Byte im Gitter, WebGL garantiert 256)');
 // Ausbluten: keine durchsichtigen schwarzen Texel mehr
 const schwarz = T(`(() => { let n = 0; texData.forEach((d, k) => { if(texNames[k].startsWith('crack')) return; for(let i=0;i<d.length;i+=4) if(d[i+3]===0 && d[i]+d[i+1]+d[i+2]===0) n++; }); return n; })()`);
 pruef(schwarz === 0, 'durchsichtige schwarze Texel: ' + schwarz);
@@ -464,7 +464,7 @@ pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.s
   const drauf = TW.getLight(0, 9, -4) & 15, drunter = TW.getLight(0, 8, -4) & 15, frei = TW.getLight(0, 8, -10) & 15;
   return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
 // 26.10.04: Stufen, farbige Betten, Kornblume — Nummern hinten angehängt, alle unter 256, genug Bildlagen
-pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && !blocks[248]
+pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && !blocks[253]
   && texNames.length <= 256`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
 pruef(T(`STUFEN.every((t, a) => blocks[stufeId(a, false)].item && !blocks[stufeId(a, true)].item && blocks[stufeId(a, true)].drop === stufeId(a, false)
   && blocks[stufeId(a, false)].box[4] === 8 && blocks[stufeId(a, true)].box[1] === 8 && LOPQ[stufeId(a, false)] === LICHT_STAU && SOL[stufeId(a, true)] === 1)`),
@@ -553,7 +553,15 @@ pruef(T(`BERUFE.length === 4 && BERUFE.every(b => b.handel().length >= 4 && b.ha
   && defOf(a.bekommt[0]) && a.bekommt[1] > 0 && a.bekommt[1] <= stackOf(a.bekommt[0])))`), 'Berufe und Tauschangebote: alles gibt es');
 pruef(T(`ITEM.emerald > 0 && items[ITEM.emerald].name === 'Smaragd' && TEX.i_smaragd !== undefined && MOBS.villager.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
   && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && texNames.length <= 256`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
-pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).indexOf('villager') === Object.keys(MOBS).length - 1; })()`),
-  'die Kutte trägt die Farbe des Berufs; Dorfbewohner stehen hinten in der Liste der Wesen');
+pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-2).join() === 'villager,golem'; })()`),
+  'die Kutte trägt die Farbe des Berufs; Dorfbewohner und Golems stehen hinten in der Liste der Wesen');
+// 26.10.08: Kürbis, geschnitzter Kürbis (Gesicht in vier Richtungen), Eisengolem
+pruef(T(`blocks[B.KUERBIS].name === 'Kürbis' && [0, 1, 2, 3].every(r => { const f = blocks[B.GESCHNITZT + r].faces, i = [0, 1, 4, 5][r];
+  return f[i] === 'kuerbis_gesicht' && f.filter(t => t === 'kuerbis_gesicht').length === 1 && f[2] === 'kuerbis_oben' && blocks[B.GESCHNITZT + r].drop === B.GESCHNITZT
+    && blocks[B.GESCHNITZT + r].item === (r === 0); }) && isGeschnitzt(B.GESCHNITZT + 3) && !isGeschnitzt(B.KUERBIS)`), 'Kürbis und geschnitzter Kürbis, das Gesicht je Richtung an seiner Seite');
+pruef(T(`MOBS.golem.health === 100 && MOBS.golem.golem && !MOBS.golem.hostile && MOBS.golem.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
+  && ['m_golem','m_golem_face','kuerbis','kuerbis_oben','kuerbis_gesicht'].every(n => KLASSIK[n] && TEX[n] !== undefined)
+  && MOBS.golem.beute().some(([id, n]) => id === ITEM.iron && n >= 3)`), 'Eisengolem: Bilder (auch klassisch), 100 Leben, lässt Eisen fallen');
+pruef(T(`BERUFE[0].handel().some(a => a.bekommt[0] === B.KUERBIS)`), 'der Bauer tauscht Kürbisse');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 14;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner
+const NETZ_VERSION = 15;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -325,6 +325,7 @@ const Netz = {
     if(m.a === 'treffer') Game.mobTreffer(mob, dmg, clamp(+m.kx || 0, -1, 1), clamp(+m.kz || 0, -1, 1), g);
     else if(m.a === 'futter') Game.fuettern(mob);
     else if(m.a === 'schere') Game.scheren(mob, g);
+    else if(m.a === 'eisen') Game.golemFlicken(mob);
   },
   /** ein Gast hat mit einem Ei Glück gehabt: Küken bei ihm schlüpfen lassen */
   kuekenHost(g, m){
@@ -419,7 +420,7 @@ const Netz = {
       for(const m of Game.mobs){
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
         const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
-          | (m.onGround ? 0 : 64);
+          | (m.onGround ? 0 : 64) | (m.schlagT > 0 ? 128 : 0);
         l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle || m.beruf | 0);
       }
       this.senden(g.conn, { t:'w', l });
@@ -723,6 +724,7 @@ const Netz = {
       m.liebe = (f & 8) ? 1 : 0; m.pause = (f & 16) ? 1 : 0;
       if(art === 'sheep'){ m.geschoren = !!(f & 4); m.wolle = l[i+7] | 0; }
       if(art === 'villager') m.beruf = l[i+7] | 0;
+      if((f & 128) && !(m.schlagT > 0)) m.schlagT = 0.5;
       if(art === 'slime' && m.groesse !== (l[i+7] | 0) && [1, 2, 4].includes(l[i+7])) schleimGroesse(m, l[i+7]);
       if(jung && !(m.kind > 0)){ m.kind = 1; m.w = m.def.w*BABY; m.h = m.def.h*BABY; }
       else if(!jung && m.kind > 0){ m.kind = 0; m.w = m.def.w; m.h = m.def.h; }
@@ -743,6 +745,7 @@ const Netz = {
       if(m.hurtTimer > 0) m.hurtTimer -= dt;
       if(m.moving) m.walkPhase += dt*m.def.speed*3.2*0.8;
       if(m.def.schleim) schleimQuetschen(m, dt);
+      if(m.schlagT > 0) m.schlagT -= dt;
       if(m.liebe > 0){ m.herzT -= dt; if(m.herzT <= 0){ m.herzT = 0.7 + Math.random()*0.4; Game.herz(m); } }
       if(Math.hypot(m.x - p.x, m.z - p.z) < 20 && Math.random() < (m.def.hostile ? 0.003 : 0.0012)) Sfx.wesen(m, 'laut');
     }

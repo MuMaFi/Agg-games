@@ -19,7 +19,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
   KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */,
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
-  BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247 };
+  BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
+  KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -179,6 +180,7 @@ const isBett = id => id === B.BED || (id >= B.BETT && id < B.BETT + BETTEN.lengt
 const ladderId = s => B.LADDER + s;
 const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
 const isWheat = id => id >= B.WHEAT && id < B.WHEAT + 4;
+const isGeschnitzt = id => id >= B.GESCHNITZT && id < B.GESCHNITZT + 4;
 /* Tür: Hälfte (0 unten, 1 oben) · offen · Seite, an der das Blatt steht */
 const doorId = (oben, offen, seite) => B.DOOR + (oben ? 8 : 0) + (offen ? 4 : 0) + seite;
 const isDoor = id => id >= B.DOOR && id < B.DOOR + 16;
@@ -307,6 +309,13 @@ function initBlocks(){
   }
   BETTEN.forEach((b, i) => defBlock(B.BETT + i,{name:b.name, tex:['bett_' + b.key,'planks','bed_side'], model:'bett', box:[0,0,0,16,9,16],
     opaque:false, hardness:.3}));
+  // Kürbis; mit der Schere geschnitzt, schaut er einen an — auf vier Eisenblöcken wird daraus ein Golem
+  defBlock(B.KUERBIS,{name:'Kürbis', tex:['kuerbis_oben','kuerbis_oben','kuerbis'], hardness:1, tool:'axe', mc:'pumpkin'});
+  for(let r = 0; r < 4; r++){
+    const f = ['kuerbis','kuerbis','kuerbis_oben','kuerbis_oben','kuerbis','kuerbis'];
+    f[[0, 1, 4, 5][r]] = 'kuerbis_gesicht';
+    defBlock(B.GESCHNITZT + r,{name:'Geschnitzter Kürbis', tex:f, hardness:1, tool:'axe', drop:B.GESCHNITZT, item:r === 0});
+  }
   defBlock(B.KORNBLUME,{name:'Kornblume', tex:'kornblume', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});
   // Stufen: wie ihr Stoff, aber nur halb so hoch; Licht fällt hinein, nicht hindurch
   STUFEN.forEach((t, art) => {

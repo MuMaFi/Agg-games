@@ -44,6 +44,7 @@ const BERUFE = [
     { gib:[[ITEM.emerald, 1]], bekommt:[ITEM.bread, 6] },
     { gib:[[ITEM.emerald, 1]], bekommt:[ITEM.apple, 4] },
     { gib:[[ITEM.emerald, 1]], bekommt:[ITEM.bone_meal, 8] },
+    { gib:[[ITEM.emerald, 1]], bekommt:[B.KUERBIS, 2] },
   ] },
   { key:'hirte', name:'Hirte', farbe:[0.96, 0.95, 0.9], handel: () => [
     { gib:[[B.WOOL, 16]], bekommt:[ITEM.emerald, 1] },
@@ -303,7 +304,7 @@ function dorfBeute(w, x, y, z, schmiede){
   if(schmiede){
     rein(ITEM.iron_pickaxe, 1, 1, 0.3); rein(ITEM.iron_sword, 1, 1, 0.25); rein(ITEM.iron_helmet, 1, 1, 0.15);
     rein(ITEM.gold, 1, 3, 0.25); rein(ITEM.diamond, 1, 2, 0.1);
-  } else { rein(ITEM.wheat, 3, 9, 0.5); rein(B.WOOL, 1, 4, 0.3); rein(ITEM.platte, 1, 1, 0.05); }
+  } else { rein(ITEM.wheat, 3, 9, 0.5); rein(B.WOOL, 1, 4, 0.3); rein(ITEM.platte, 1, 1, 0.05); rein(B.KUERBIS, 1, 2, 0.35); }
   for(const s of t) if(s) s.dur = items[s.id] ? items[s.id].dur : 0;
   return t;
 }

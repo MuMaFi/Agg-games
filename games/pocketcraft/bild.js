@@ -529,7 +529,8 @@ function drawMobs(fogCol, near, far){
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       // Erhobene Arme zeigen nach vorn (−Z). Das Vorzeichen war lange falsch:
       // Zombies und Skelette streckten die Arme nach hinten.
-      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0);
+      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0)
+        + (m.schlagT > 0 ? Math.sin(m.schlagT/0.5*Math.PI)*1.9 : 0);          // der Golem schlägt zu
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
       // Flügel: in der Luft schlagen sie, am Boden liegen sie an
       else if(part.anim === 'fluegel') ang = m.onGround ? 0 : (0.25 + Math.abs(Math.sin(m.age*19))*1.05) * (part.ph ? 1 : -1);

@@ -289,6 +289,25 @@ const MOBS = {
     ]
   }
 };
+/* Eisengolem wie beim Vorbild, in Sechzehnteln: Kopf 8 × 10 × 8 mit Nase,
+   eine breite Brust 18 × 12 × 11, darunter die Hüfte, lange Arme bis fast
+   zum Boden, kurze Beine. Er beschützt Dörfer und wer ihn gebaut hat: er
+   geht auf Monster los und wirft sie in die Luft; wer ihn oder einen
+   Dorfbewohner schlägt, bekommt es mit ihm zu tun. Rückstoß kümmert ihn nicht. */
+MOBS.golem = {
+  name:'Eisengolem', w:1.4, h:2.7, health:100, speed:1.0, hostile:false, golem:true, laut:'golem', armSchwung:0.3,
+  beute: () => [[ITEM.iron, zufallN(3, 5)], [B.ROSE, zufallN(0, 2)]],
+  parts:[
+    { n:'head', box:[-0.25,2.0625,-0.3125, 0.5,0.625,0.5], tex:'m_golem', face:'m_golem_face', anim:'head' },
+    { n:'nase', box:[-0.0625,2.125,-0.4375, 0.125,0.25,0.125], tex:'m_golem', anim:'head', pivot:[0, 2.375, -0.0625] },
+    { n:'brust', box:[-0.5625,1.3125,-0.34375, 1.125,0.75,0.6875], tex:'m_golem' },
+    { n:'huefte', box:[-0.28125,1.0,-0.1875, 0.5625,0.3125,0.375], tex:'m_golem' },
+    { n:'arm0', box:[-0.8125,0.125,-0.1875, 0.25,1.875,0.375], tex:'m_golem', anim:'arm', ph:0 },
+    { n:'arm1', box:[ 0.5625,0.125,-0.1875, 0.25,1.875,0.375], tex:'m_golem', anim:'arm', ph:1 },
+    { n:'leg0', box:[-0.4375,0.0,-0.15625, 0.375,1.0,0.3125], tex:'m_golem', anim:'leg', ph:0 },
+    { n:'leg1', box:[ 0.0625,0.0,-0.15625, 0.375,1.0,0.3125], tex:'m_golem', anim:'leg', ph:1 },
+  ]
+};
 const _kutte = [0, 0, 0];
 function kuttenFarbe(m, f){
   const c = (typeof BERUFE !== 'undefined' && BERUFE[m.beruf | 0] || { farbe:[0.8, 0.8, 0.8] }).farbe;
