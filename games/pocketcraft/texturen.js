@@ -656,6 +656,8 @@ function buildTextures(){
     p.rect(21, 9, 7, 3, Ms); for(let x = 21; x < 28; x++) p.put(x, 9, Mh); p.rect(21, 12, 7, 1, Md);
     for(let y = 12; y < 24; y++){ p.put(24, y, R[4]); p.put(25, y, R[2]); }
   });
+  // vorn wie an der Seite (die klassische Garnitur hat eine eigene Vorderseite)
+  addTex('craft_front', p => p.d.set(texData[TEX.craft_side]));
   addTex('furn_side', p => {
     const P = PAL.ofen;
     for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){

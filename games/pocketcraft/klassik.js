@@ -239,48 +239,161 @@ klassik('diamond_block', kMetall([220, 255, 252], [100, 226, 218], [40, 150, 144
 klassik('rs_block', kMetall([255, 90, 70], [200, 20, 10], [110, 10, 5]));
 
 /* ── Geräte ──────────────────────────────────────────────────────── */
-klassik('craft_top', K => {
-  kBretter(K, [168, 130, 78]);
-  K.jedes((x, y) => (x === 0 || y === 0 || x === 15 || y === 15) ? [84, 60, 34] : (x === 5 || x === 10 || y === 5 || y === 10) ? kHell([168, 130, 78], .7) : null);
-});
-klassik('craft_side', K => {
-  kBretter(K, KF.holz);
-  for(let x = 0; x < 16; x++){ K.put(x, 0, [84, 60, 34]); K.put(x, 1, [110, 82, 48]); }
-  // eine Säge (links) und ein Hammer (rechts)
-  for(let k = 0; k < 7; k++){ K.put(2 + k, 5 + k, [200, 200, 200]); K.put(3 + k, 5 + k, [150, 150, 150]); }
-  K.put(2, 4, [120, 80, 40]); K.put(2, 5, [120, 80, 40]);
-  for(let y = 5; y < 13; y++) K.put(12, y, [120, 84, 48]);
-  for(let x = 10; x < 15; x++){ K.put(x, 4, [110, 110, 110]); K.put(x, 5, [160, 160, 160]); }
-});
-/* Ofen: gemauert aus hellem Bruchstein, oben und unten ein dunkler Rand. Vorn
-   ein großes Feuerloch mit Rahmen und Gitter, darüber ein schmaler Schlitz;
-   brennt er, glüht beides. */
-const kOfenStein = K => {
-  kKiesel(K, 12, [142, 142, 142], [96, 96, 96], .8, .02);
-  for(let i = 0; i < 8; i++){ const x = K.zahl(16), y = K.zahl(16), c = K.get(x, y); if(c[0] > 110) K.put(x, y, kHell(c, 1.1)); }
+/** Pixel für Pixel: 16 Zeilen zu 16 Zeichen, jedes Zeichen eine Farbe aus
+    farben oder eine Funktion (x, y) → Farbe; unbekannte Zeichen bleiben stehen.
+    rauschen: wie weit jedes Pixel zufällig heller oder dunkler werden darf */
+function kPixel(K, zeilen, farben, rauschen = 0){
+  if(zeilen.length !== 16 || zeilen.some(z => z.length !== 16)) throw new Error('kPixel: 16 × 16 Zeichen');
+  for(let y = 0; y < 16; y++) for(let x = 0; x < 16; x++){
+    const f = farben[zeilen[y][x]];
+    if(!f) continue;
+    const c = typeof f === 'function' ? f(x, y) : f;
+    K.put(x, y, rauschen ? kHell(c, 1 + (K.r() - .5)*rauschen) : c);
+  }
+}
+/* Werkbank: oben eine Platte in einem Rahmen mit eisernen Eckwinkeln, darin
+   neun erhabene Felder; an den Seiten Tischkante, Beine an den Ecken,
+   Bretter dazwischen und Werkzeug am Haken — vorn Hammer und Säge, an der
+   Seite Beil und Zange. */
+const WERKBANK = {
+  O: [44, 28, 14], S: [58, 38, 20], D: [92, 60, 30], f: [150, 104, 58], g: [84, 54, 28], G: [62, 40, 20],
+  c: [200, 148, 92], b: [172, 122, 72], a: [144, 98, 56],
+  t: [206, 150, 92], T: [170, 118, 68], l: [124, 78, 42], m: [98, 60, 30], n: [66, 40, 20],
+  p: [186, 146, 92], q: [164, 126, 78], r: [140, 104, 62], P: [52, 34, 18],
+  J: [214, 214, 220], I: [150, 150, 158], K: [86, 86, 94], h: [150, 96, 54], H: [104, 62, 30],
 };
-function kOfenRand(K){
-  for(let x = 0; x < 16; x++){ K.put(x, 0, [74, 74, 74]); K.put(x, 1, [170, 170, 170]); K.put(x, 14, [96, 96, 96]); K.put(x, 15, [60, 60, 60]); }
+klassik('craft_top', K => kPixel(K, [
+  'OOOOOOOOOOOOOOOO',
+  'OJIffffffffffIIO',
+  'OISSSSSSSSSSSSIO',
+  'OfSccbgccbgccbDO',
+  'OfScbagcbagcbaDO',
+  'OfSbaagbaagbaaDO',
+  'OfSgggGgggGgggDO',
+  'OfSccbgccbgccbDO',
+  'OfScbagcbagcbaDO',
+  'OfSbaagbaagbaaDO',
+  'OfSgggGgggGgggDO',
+  'OfSccbgccbgccbDO',
+  'OfScbagcbagcbaDO',
+  'OISbaagbaagbaaIO',
+  'OIIDDDDDDDDDDIKO',
+  'OOOOOOOOOOOOOOOO',
+], WERKBANK, .08));
+klassik('craft_front', K => kPixel(K, [
+  'OOOOOOOOOOOOOOOO',
+  'tttttttttttttttt',
+  'TTTTTTTTTTTTTTTT',
+  'SSSSSSSSSSSSSSSS',
+  'lmqqqPqqqqPqqqmn',
+  'lmpJJJJKphhhHpmn',
+  'lmqIIIIKqhSSHqmn',
+  'lmgggHggghhhHgmn',
+  'lmppphpppJIIKpmn',
+  'lmqqqhqqqJIIKqmn',
+  'lmrqqhqqqJIKqqmn',
+  'lmgggHgggJIIggmn',
+  'lmppphpppJKpppmn',
+  'lmqqqhqqqJIqqqmn',
+  'lmqrqHqqqKqqqqmn',
+  'nngggggggggggggn',
+], WERKBANK, .08));
+klassik('craft_side', K => kPixel(K, [
+  'OOOOOOOOOOOOOOOO',
+  'tttttttttttttttt',
+  'TTTTTTTTTTTTTTTT',
+  'SSSSSSSSSSSSSSSS',
+  'lmqqqqPqqqPPqqmn',
+  'lmppIIhppJIppqmn',
+  'lmqJIIhqqJIqqqmn',
+  'lmgJIIhggKKgggmn',
+  'lmppKKhppIpIppmn',
+  'lmqqqqhqqIqIqqmn',
+  'lmrqqqhqIqqqIqmn',
+  'lmggggHgIgggIgmn',
+  'lmppppHpKpppKpmn',
+  'lmqqqqhqqqqqqqmn',
+  'lmqrqqHqqqqqqrmn',
+  'nngggggggggggggn',
+], WERKBANK, .08));
+/* Ofen: gemauerter Stein mit einem Sims rundherum und einem Sockel. Vorn
+   oben ein schmales Zugloch, unter dem Sims das Feuerloch mit Rundbogen und
+   Rost; brennt er, glühen beide und der Bogen bekommt Widerschein. */
+const kOfenGrau = s => (x, y) => {
+  const n = h2(x >> 1, (y + (x >> 2)) >> 1, s)*.55 + h2(x, y, s + 1)*.45;
+  return n < .14 ? [102, 102, 106] : n < .34 ? [118, 118, 122] : n < .62 ? [132, 132, 136] : n < .86 ? [146, 146, 150] : [164, 164, 168];
+};
+const OFEN = {
+  O: [46, 46, 50], L: [184, 184, 188], Z: [80, 80, 86], z: [98, 98, 104], k: [88, 88, 92],
+  N: [18, 16, 16], n: [30, 27, 26], A: [70, 66, 64], R: [58, 58, 62], r: [88, 88, 94],
+};
+function kOfenSeite(zeilen, s, extra){
+  return K => kPixel(K, zeilen, Object.assign({ s: kOfenGrau(s) }, OFEN, extra), .06);
 }
-klassik('furn_top', K => { kOfenStein(K); K.jedes((x, y) => (x === 0 || y === 0 || x === 15 || y === 15) ? [80, 80, 80] : null); });
-klassik('furn_side', K => { kOfenStein(K); kOfenRand(K); });
-function kOfen(glut){
-  return K => {
-    kOfenStein(K); kOfenRand(K);
-    // Schlitz oben
-    for(let x = 4; x < 12; x++){ K.put(x, 4, [70, 70, 70]); K.put(x, 5, glut ? (x & 1 ? [255, 190, 60] : [230, 120, 30]) : [28, 28, 28]); K.put(x, 6, [176, 176, 176]); }
-    // Feuerloch mit Rahmen
-    for(let y = 8; y < 14; y++) for(let x = 3; x < 13; x++){
-      const rand = y === 8 || x === 3 || x === 12 || y === 13;
-      if(rand){ K.put(x, y, y === 13 || x === 12 ? [176, 176, 176] : [64, 64, 64]); continue; }
-      if(!glut){ K.put(x, y, (x === 6 || x === 9) ? [58, 58, 58] : K.r() < .12 ? [34, 30, 28] : [18, 16, 16]); continue; }
-      const t = (y - 9)/4, n = K.r();
-      K.put(x, y, n < .15 ? [40, 18, 8] : t > .6 ? [255, 214, 90] : t > .3 ? (n < .5 ? [255, 160, 40] : [240, 110, 24]) : (n < .4 ? [200, 70, 20] : [60, 24, 10]));
-    }
-  };
-}
-klassik('furn_front', kOfen(false));
-klassik('furn_lit', kOfen(true));
+const OFEN_SEITE = [
+  'OOOOOOOOOOOOOOOO',
+  'ZLLLLLLLLLLLLLLO',
+  'ZssssssssssssssO',
+  'ZssssssssksssssO',
+  'ZssssssssssssssO',
+  'ZssksssssssssssO',
+  'ZssssssssssssssO',
+  'ZLLLLLLLLLLLLLLO',
+  'ZZZZZZZZZZZZZZZO',
+  'ZssssssssssssssO',
+  'ZssssssksssssssO',
+  'ZssssssssssssssO',
+  'ZssssssssssskssO',
+  'ZssssssssssssssO',
+  'ZZZZZZZZZZZZZZZO',
+  'OOOOOOOOOOOOOOOO',
+];
+klassik('furn_side', kOfenSeite(OFEN_SEITE, 301));
+klassik('furn_top', kOfenSeite([
+  'OOOOOOOOOOOOOOOO',
+  'OLLLLLLLLLLLLLZO',
+  'OLssssssssssssZO',
+  'OLssssssskssssZO',
+  'OLssssssssssssZO',
+  'OLssskssssssssZO',
+  'OLssssssssssssZO',
+  'OLssssssssssssZO',
+  'OLssssssssssssZO',
+  'OLssssssssskssZO',
+  'OLssssssssssssZO',
+  'OLssssssssssssZO',
+  'OLskssssssssssZO',
+  'OLssssssssssssZO',
+  'OZZZZZZZZZZZZZZO',
+  'OOOOOOOOOOOOOOOO',
+], 302));
+const OFEN_VORN = [
+  'OOOOOOOOOOOOOOOO',
+  'ZLLLLLLLLLLLLLLO',
+  'ZssZZZZZZZZZZssO',
+  'ZssZ12121212LssO',
+  'ZssZ21212121LssO',
+  'ZssLLLLLLLLLLssO',
+  'ZssssssssssssssO',
+  'ZLLLLLLLLLLLLLLO',
+  'ZZZZZZZZZZZZZZZO',
+  'ZsZL34444443LLsO',
+  'ZsZ4454445444LsO',
+  'ZsZ5565556555LsO',
+  'ZsZ6676767667LsO',
+  'ZsZRrRrRrRrRrLsO',
+  'ZZZZZZZZZZZZZZZO',
+  'OOOOOOOOOOOOOOOO',
+];
+klassik('furn_front', kOfenSeite(OFEN_VORN, 303, {
+  1: [24, 22, 22], 2: [34, 31, 30], 3: [26, 24, 24], 4: [16, 14, 14], 5: [20, 18, 18], 6: [30, 28, 27], 7: [66, 62, 60],
+  R: [74, 74, 80], r: [22, 20, 20],
+}));
+klassik('furn_lit', kOfenSeite(OFEN_VORN, 303, {
+  1: [255, 150, 40], 2: [236, 96, 24], 3: [150, 60, 20], 4: [110, 36, 14], 5: [226, 92, 22], 6: [255, 170, 50], 7: [255, 232, 130],
+  L: (x, y) => (x === 13 && y >= 9 && y <= 13) || (y === 5 && x >= 3 && x <= 12) ? [214, 170, 132] : [184, 184, 188],
+  R: [196, 90, 24], r: [255, 214, 90],
+}));
 function kTruhe(K, vorn, oben){
   kBretter(K, [150, 108, 58]);
   K.jedes((x, y) => (x === 0 || y === 0 || x === 15 || y === 15) ? [70, 46, 24] : null);

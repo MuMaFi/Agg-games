@@ -503,5 +503,14 @@ pruef(T(`(() => { const mittel = n => { const d = klassikMalen(n); let r = 0, g 
 pruef(T(`(() => { const a = klassikMalen('cobble'), b = klassikMalen('cobble'); return a.every((v, i) => v === b[i]); })()`), 'immer dasselbe Bild (fester Zufall)');
 pruef(T(`(() => { const L = TEX.stone, vorher = texData[L]; globalThis.texturenNeuLaden = () => {}; Klassik.setzen(true); const an = texData[L] !== vorher;
   Klassik.setzen(false); return an && texData[L] === vorher && texNames.length <= 256; })()`), 'umschalten und zurück: die gewohnten Bilder kommen wieder');
+// 26.10.06: Werkbank mit eigener Vorderseite, Ofen neu gepixelt — deckend, kalt dunkel, brennend glühend
+pruef(T(`(() => { const f = blocks[B.TABLE].faces; return f[2] === 'craft_top' && f[3] === 'planks' && f[4] === 'craft_front' && f[5] === 'craft_front' && f[0] === 'craft_side' && f[1] === 'craft_side'
+  && TEX.craft_front !== undefined && texData[TEX.craft_front].every((v, i) => v === texData[TEX.craft_side][i]); })()`), 'Werkbank: vorn und hinten die Vorderseite, links und rechts die Seite (modern gleich)');
+pruef(T(`(() => { const a = klassikMalen('craft_front'), b = klassikMalen('craft_side'); return a.some((v, i) => v !== b[i])
+  && ['craft_top','craft_front','craft_side','furn_top','furn_side','furn_front','furn_lit'].every(n => { const d = klassikMalen(n); for(let i = 3; i < d.length; i += 4) if(d[i] !== 255) return false; return true; }); })()`),
+  'klassisch: Vorderseite und Seite der Werkbank verschieden, alle Bilder deckend');
+pruef(T(`(() => { const warm = n => { const d = klassikMalen(n); let k = 0; for(let i = 0; i < d.length; i += 4) if(d[i] > 200 && d[i] > d[i+2] + 90) k++; return k; };
+  return warm('furn_front') === 0 && warm('furn_lit') > 150; })()`), 'klassischer Ofen: kalt ohne Glut, brennend glühen Zugloch und Feuerloch');
+pruef(T(`(() => { try { kPixel(new K16(1), ['0123456789abcdef'], {}); return false; } catch(e){ return true; } })()`), 'Pixelbilder müssen 16 × 16 sein');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

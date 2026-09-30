@@ -273,7 +273,7 @@ function initBlocks(){
   defBlock(B.IRON_ORE,{name:'Eisenerz', tex:'iron_ore', hardness:3, tool:'pickaxe', tier:2});
   defBlock(B.GOLD_ORE,{name:'Golderz', tex:'gold_ore', hardness:3, tool:'pickaxe', tier:3});
   defBlock(B.DIAMOND_ORE,{name:'Diamanterz', tex:'diamond_ore', hardness:3, tool:'pickaxe', tier:3, drop:'i_diamond'});
-  defBlock(B.TABLE,{name:'Werkbank', tex:['craft_top','planks','craft_side'], hardness:2.5, tool:'axe'});
+  defBlock(B.TABLE,{name:'Werkbank', tex:['craft_side','craft_side','craft_top','planks','craft_front','craft_front'], hardness:2.5, tool:'axe'});
   defBlock(B.FURNACE,{name:'Ofen', tex:['furn_top','furn_top','furn_side'], hardness:3.5, tool:'pickaxe', tier:1, dirFront:'furn_front'});
   defBlock(B.FURNACE_LIT,{name:'Ofen', tex:['furn_top','furn_top','furn_side'], hardness:3.5, tool:'pickaxe', tier:1, light:13, drop:B.FURNACE, dirFront:'furn_lit', item:false});
   defBlock(B.TORCH,{name:'Fackel', tex:'torch', model:'torch', solid:false, opaque:false, light:14, hardness:.05});
