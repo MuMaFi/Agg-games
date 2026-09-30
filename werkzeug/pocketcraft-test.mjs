@@ -563,5 +563,10 @@ pruef(T(`MOBS.golem.health === 100 && MOBS.golem.golem && !MOBS.golem.hostile &&
   && ['m_golem','m_golem_face','kuerbis','kuerbis_oben','kuerbis_gesicht'].every(n => KLASSIK[n] && TEX[n] !== undefined)
   && MOBS.golem.beute().some(([id, n]) => id === ITEM.iron && n >= 3)`), 'Eisengolem: Bilder (auch klassisch), 100 Leben, lässt Eisen fallen');
 pruef(T(`BERUFE[0].handel().some(a => a.bekommt[0] === B.KUERBIS)`), 'der Bauer tauscht Kürbisse');
+// 26.10.09: Dorfbewohner: lange Kutte mit Gürtel, je Beruf eigene Kleidung — nur aus vorhandenen Bildern
+pruef(T(`(() => { const P = MOBS.villager.parts, zeigt = b => P.filter(p => !p.wenn || p.wenn({ beruf: b })).map(p => p.n);
+  return ['kutte','guertel','arme','haende','nase'].every(n => zeigt(0).includes(n)) && zeigt(0).includes('hutkrempe') && !zeigt(1).includes('hutkrempe')
+    && zeigt(1).includes('filzkopf') && zeigt(2).includes('schuerze') && zeigt(3).includes('stola0') && !zeigt(0).includes('schuerze')
+    && P.every(p => TEX[p.tex] !== undefined) && texNames.length <= 256; })()`), 'Dorfbewohner: Kutte, Gürtel und Kleidung je Beruf');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

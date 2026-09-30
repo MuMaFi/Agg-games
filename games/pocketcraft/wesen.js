@@ -271,24 +271,41 @@ const MOBS = {
     ]
   },
   /* Dorfbewohner wie beim Vorbild, in Sechzehnteln: Kopf 8 × 10 × 8 mit
-     großer Nase, eine Kutte 8 × 12 × 6, davor die verschränkten Arme, darunter
-     die Beine. Die Farbe der Kutte sagt den Beruf (BERUFE in dorf.js). Sie
-     bleiben in ihrem Dorf, schauen einen an, wenn man nah kommt, gehen
-     nachts heim — und tauschen. */
+     großer Nase, eine lange Kutte bis über die Knie mit Gürtel, davor die
+     verschränkten Arme, darunter Hose und Schuhe. Die Farbe der Kutte sagt
+     den Beruf (BERUFE in dorf.js), dazu trägt jeder etwas Eigenes: der Bauer
+     einen Strohhut, der Hirte einen Filzhut, der Schmied eine Lederschürze,
+     der Priester eine goldene Stola. Sie bleiben in ihrem Dorf, schauen
+     einen an, wenn man nah kommt, gehen nachts heim — und tauschen. */
   villager: {
     name:'Dorfbewohner', w:0.6, h:1.95, health:20, speed:1.1, hostile:false, laut:'dorf', dorf:true, futter:'emerald',
     beute: () => [],
     parts:[
       { n:'head', box:[-0.25,1.375,-0.25, 0.5,0.625,0.5], tex:'m_dorf_haut', face:'m_dorf_face', anim:'head' },
-      { n:'nase', box:[-0.0625,1.5,-0.375, 0.125,0.25,0.125], tex:'m_dorf_haut', anim:'head', pivot:[0, 1.6875, 0] },
-      { n:'body', box:[-0.25,0.625,-0.1875, 0.5,0.75,0.375], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 1) },
-      { n:'arme', box:[-0.25,0.875,-0.4375, 0.5,0.25,0.25], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 0.92) },
-      { n:'haende', box:[-0.125,0.885,-0.4475, 0.25,0.23,0.25], tex:'m_dorf_haut' },
-      { n:'leg0', box:[-0.25,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:0, farbe: m => kuttenFarbe(m, 0.72) },
-      { n:'leg1', box:[ 0.0,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:1, farbe: m => kuttenFarbe(m, 0.72) },
+      { n:'nase', box:[-0.0625,1.5,-0.375, 0.125,0.25,0.125], tex:'m_dorf_haut', anim:'head', pivot:[0, 1.6875, 0], farbe: () => NASEN_FARBE },
+      { n:'kutte', box:[-0.2656,0.25,-0.2031, 0.5312,1.125,0.4062], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 1) },
+      { n:'guertel', box:[-0.2812,0.84,-0.2187, 0.5625,0.07,0.4375], tex:'m_dorf_kutte', farbe: () => LEDER_FARBE },
+      { n:'arme', box:[-0.2812,0.9,-0.4531, 0.5625,0.25,0.26], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 0.86) },
+      { n:'haende', box:[-0.125,0.91,-0.4656, 0.25,0.23,0.26], tex:'m_dorf_haut' },
+      { n:'leg0', box:[-0.25,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:0, farbe: () => HOSEN_FARBE },
+      { n:'leg1', box:[ 0.0,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:1, farbe: () => HOSEN_FARBE },
+      // Bauer: Strohhut mit breiter Krempe
+      { n:'hutkrempe', box:[-0.4062,1.97,-0.4062, 0.8125,0.0625,0.8125], tex:'sand', anim:'head', pivot:[0, 1.6875, 0], farbe: () => STROH_FARBE, wenn: m => (m.beruf | 0) === 0 },
+      { n:'hutkopf', box:[-0.2656,2.0,-0.2656, 0.5312,0.1875,0.5312], tex:'sand', anim:'head', pivot:[0, 1.6875, 0], farbe: () => STROH_DUNKEL, wenn: m => (m.beruf | 0) === 0 },
+      // Hirte: brauner Filzhut
+      { n:'filzkrempe', box:[-0.3125,1.97,-0.3125, 0.625,0.05,0.625], tex:'wool0', anim:'head', pivot:[0, 1.6875, 0], farbe: () => FILZ_FARBE, wenn: m => m.beruf === 1 },
+      { n:'filzkopf', box:[-0.2656,2.0,-0.2656, 0.5312,0.22,0.5312], tex:'wool0', anim:'head', pivot:[0, 1.6875, 0], farbe: () => FILZ_FARBE, wenn: m => m.beruf === 1 },
+      // Schmied: Lederschürze vorn
+      { n:'schuerze', box:[-0.2031,0.3,-0.2281, 0.4062,1.0,0.02], tex:'m_dorf_kutte', farbe: () => SCHUERZE_FARBE, wenn: m => m.beruf === 2 },
+      // Priester: goldene Stola und Kragen
+      { n:'stola0', box:[-0.1719,0.3,-0.2281, 0.0781,1.03,0.02], tex:'m_dorf_kutte', farbe: () => GOLD_FARBE, wenn: m => m.beruf === 3 },
+      { n:'stola1', box:[ 0.0938,0.3,-0.2281, 0.0781,1.03,0.02], tex:'m_dorf_kutte', farbe: () => GOLD_FARBE, wenn: m => m.beruf === 3 },
+      { n:'kragen', box:[-0.2812,1.31,-0.2187, 0.5625,0.07,0.4375], tex:'m_dorf_kutte', farbe: () => GOLD_FARBE, wenn: m => m.beruf === 3 },
     ]
   }
 };
+const NASEN_FARBE = [0.9, 0.74, 0.68], LEDER_FARBE = [0.46, 0.3, 0.18], HOSEN_FARBE = [0.32, 0.27, 0.24], STROH_FARBE = [1.12, 0.98, 0.6], STROH_DUNKEL = [1.02, 0.86, 0.5];
+const FILZ_FARBE = [0.52, 0.36, 0.22], SCHUERZE_FARBE = [0.34, 0.24, 0.17], GOLD_FARBE = [1.05, 0.82, 0.32];
 /* Eisengolem wie beim Vorbild, in Sechzehnteln: Kopf 8 × 10 × 8 mit Nase,
    eine breite Brust 18 × 12 × 11, darunter die Hüfte, lange Arme bis fast
    zum Boden, kurze Beine. Er beschützt Dörfer und wer ihn gebaut hat: er

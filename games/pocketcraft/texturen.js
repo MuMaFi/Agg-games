@@ -1486,27 +1486,48 @@ function buildTextures(){
   });
   /* — Dorfbewohner: Haut, ein Gesicht mit durchgehender Braue und grünen
      Augen (die Nase ist ein eigener Kasten), eine helle Kutte, die der Beruf färbt — */
-  const DORF_HAUT = pal('#9c6a48','#b07a54','#c08962','#cd9870','#d9a880');
-  addTex('m_dorf_haut', p => { haut(DORF_HAUT, 381)(p); for(let i = 0; i < 6; i++){ const x = p.r()*TS, y = p.r()*TS; p.put(x, y, DORF_HAUT[1]); } });
-  addTex('m_dorf_face', p => {
-    haut(DORF_HAUT, 382)(p);
-    const braue = pal('#3e271a','#553522');
-    for(let x = 4; x < 28; x++){ p.put(x, 9, braue[0]); p.put(x, 10, braue[(x >> 2) & 1]); }
-    for(const [x0, iris] of [[4, 8], [20, 20]]){
-      p.rect(x0, 12, 8, 3, [238, 236, 228]);
-      p.rect(iris, 12, 4, 3, [52, 136, 70]); p.rect(iris + (iris < 16 ? 2 : 0), 13, 2, 2, [22, 70, 34]);
-      p.rect(x0, 15, 8, 1, DORF_HAUT[1]);
+  const DORF_HAUT = pal('#a26c4c','#ae7654','#b9805d','#c38a66','#cd946f','#d79f79');
+  /** glatte Haut mit Rundung: oben heller, zu den Rändern dunkler */
+  const dorfHaut = (p, s) => {
+    p.fuell((x, y) => .8*fbm(x, y, 2, 2, s, 2) + .2*vnoise(x, y, 8, 8, s + 1), DORF_HAUT, [4,14,32,30,14,6], .7);
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const rand = Math.min(x, TS - 1 - x);
+      if(rand < 2) p.tone(x, y, .9 + rand*.04);
+      if(y < 3) p.tone(x, y, 1.05);
     }
-    for(let x = 5; x < 27; x++) if(x < 12 || x > 19) p.put(x, 17, DORF_HAUT[3]);        // Wangen
-    p.rect(12, 26, 8, 1, [128, 78, 56]); p.rect(13, 27, 6, 1, DORF_HAUT[0]);          // Mund unter der Nase
-    for(let x = 0; x < TS; x++){ p.put(x, TS - 1, DORF_HAUT[0]); p.put(x, TS - 2, DORF_HAUT[1]); }
+  };
+  addTex('m_dorf_haut', p => {
+    dorfHaut(p, 381);
+    for(let i = 0; i < 5; i++){ const x = p.r()*TS | 0, y = p.r()*TS | 0; p.put(x, y, DORF_HAUT[1]); }
+  });
+  addTex('m_dorf_face', p => {
+    dorfHaut(p, 382);
+    const B = pal('#2e1c12','#44291a','#5a3824');
+    // Stirn: ein paar Falten, darunter die dicke, leicht gebogene Braue
+    for(const y of [4, 6]) for(let x = 9; x < 23; x++) if(h2(x, y, 383) < .55) p.tone(x, y, .9);
+    for(let x = 3; x < 29; x++){
+      const tief = (x > 12 && x < 19) ? 1 : 0;
+      p.put(x, 8 + tief, B[1]); p.put(x, 9 + tief, B[(x + 1) % 3 ? 0 : 2]);
+      if(x > 4 && x < 27 && h2(x, 7, 384) < .45) p.put(x, 7 + tief, B[2]);
+    }
+    // Augen: Schatten darüber, Weiß, grüne Iris nach innen, Pupille, unten ein Lid
+    for(const [x0, iris] of [[5, 9], [20, 20]]){
+      for(let x = x0; x < x0 + 7; x++){ p.tone(x, 11, .82); p.put(x, 12, [236, 232, 222]); p.put(x, 13, [226, 222, 212]); p.tone(x, 14, .86); }
+      p.rect(iris, 12, 3, 2, [58, 150, 74]); p.put(iris + (iris < 16 ? 1 : 1), 12, [24, 78, 38]); p.put(iris + (iris < 16 ? 2 : 0), 13, [96, 186, 104]);
+    }
+    // Wangen rosig, Mund unter der Nase, Kinn im Schatten
+    for(const x0 of [4, 23]) for(let y = 17; y < 21; y++) for(let x = x0; x < x0 + 5; x++) if((x + y) % 2 || y === 18) p.put(x, y, mischen(p.get(x, y), [214, 118, 104], .35));
+    for(let x = 11; x < 21; x++){ p.put(x, 26, [120, 66, 50]); if(x > 11 && x < 20) p.put(x, 27, [176, 104, 84]); }
+    for(let x = 0; x < TS; x++){ p.tone(x, TS - 2, .9); p.tone(x, TS - 1, .82); }
   });
   addTex('m_dorf_kutte', p => {
-    const P = pal('#a4a4a0','#bebeba','#d2d2ce','#e4e4e0','#f4f4f0');
-    p.fuell((x, y) => .65*fbm(x, y, 8, 2, 383, 3) + .35*vnoise(x, y, 16, 16, 384), P, [6,18,34,30,12], .5);
-    for(let y = 0; y < 7; y++){ p.put(15 - y, y, P[0]); p.put(16 + y, y, P[0]); p.put(15 - y, y + 1, P[1]); p.put(16 + y, y + 1, P[1]); }   // Kragen
-    for(let x = 0; x < TS; x++){ p.put(x, TS - 3, P[4]); p.put(x, TS - 2, P[1]); p.put(x, TS - 1, P[0]); }                          // Saum
-    for(let y = 10; y < TS - 4; y += 4) p.put(16, y, P[0]);
+    // grober Stoff mit tiefen Falten; hell, weil der Beruf ihn färbt
+    const P = pal('#8c8c88','#a8a8a4','#c0c0bc','#d4d4d0','#e6e6e2','#f4f4f0');
+    p.fuell((x, y) => .55*(.5 + .5*Math.sin((x + fbm(x, y, 2, 4, 385, 2)*6)*TAU/8)) + .3*fbm(x, y, 8, 4, 386, 2) + .15*h2(x, y, 387), P, [5,12,26,30,19,8], .45);
+    for(let y = 0; y < TS; y += 2) for(let x = (y >> 1) & 1; x < TS; x += 4) if(h2(x, y, 388) < .5) p.tone(x, y, .93);    // Webstruktur
+    for(let y = 0; y < 8; y++){ p.put(15 - y, y, P[0]); p.put(16 + y, y, P[0]); p.put(14 - y, y, P[5]); p.put(17 + y, y, P[5]); }   // Kragen
+    for(let x = 0; x < TS; x++){ p.put(x, TS - 4, P[5]); p.put(x, TS - 3, P[1]); p.put(x, TS - 2, P[2]); p.put(x, TS - 1, P[0]); } // Saum
+    for(let x = 1; x < TS; x += 3) p.put(x, TS - 3, P[4]);                                                                    // Naht
   });
   /* — Schleim: eine grüne, durchscheinende Hülle, darin ein dunklerer Kern — */
   const SCHLEIM = pal('#4f9a3c','#5cae46','#6cc253','#7fd264','#9be07e');
