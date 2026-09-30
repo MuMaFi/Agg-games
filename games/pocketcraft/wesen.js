@@ -269,8 +269,32 @@ const MOBS = {
       { n:'mund', box:[0,0.125,-0.21875, 0.0625,0.0625,0.0625], tex:'m_schleim_auge' },
       { n:'huelle', box:[-0.25,0,-0.25, 0.5,0.5,0.5], tex:'m_schleim', huelle:true },
     ]
+  },
+  /* Dorfbewohner wie beim Vorbild, in Sechzehnteln: Kopf 8 × 10 × 8 mit
+     großer Nase, eine Kutte 8 × 12 × 6, davor die verschränkten Arme, darunter
+     die Beine. Die Farbe der Kutte sagt den Beruf (BERUFE in dorf.js). Sie
+     bleiben in ihrem Dorf, schauen einen an, wenn man nah kommt, gehen
+     nachts heim — und tauschen. */
+  villager: {
+    name:'Dorfbewohner', w:0.6, h:1.95, health:20, speed:1.1, hostile:false, laut:'dorf', dorf:true, futter:'emerald',
+    beute: () => [],
+    parts:[
+      { n:'head', box:[-0.25,1.375,-0.25, 0.5,0.625,0.5], tex:'m_dorf_haut', face:'m_dorf_face', anim:'head' },
+      { n:'nase', box:[-0.0625,1.5,-0.375, 0.125,0.25,0.125], tex:'m_dorf_haut', anim:'head', pivot:[0, 1.6875, 0] },
+      { n:'body', box:[-0.25,0.625,-0.1875, 0.5,0.75,0.375], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 1) },
+      { n:'arme', box:[-0.25,0.875,-0.4375, 0.5,0.25,0.25], tex:'m_dorf_kutte', farbe: m => kuttenFarbe(m, 0.92) },
+      { n:'haende', box:[-0.125,0.885,-0.4475, 0.25,0.23,0.25], tex:'m_dorf_haut' },
+      { n:'leg0', box:[-0.25,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:0, farbe: m => kuttenFarbe(m, 0.72) },
+      { n:'leg1', box:[ 0.0,0.0,-0.125, 0.25,0.625,0.25], tex:'m_dorf_kutte', anim:'leg', ph:1, farbe: m => kuttenFarbe(m, 0.72) },
+    ]
   }
 };
+const _kutte = [0, 0, 0];
+function kuttenFarbe(m, f){
+  const c = (typeof BERUFE !== 'undefined' && BERUFE[m.beruf | 0] || { farbe:[0.8, 0.8, 0.8] }).farbe;
+  _kutte[0] = c[0]*f; _kutte[1] = c[1]*f; _kutte[2] = c[2]*f;
+  return _kutte;
+}
 /** Schleime strecken sich beim Absprung und werden beim Landen platt, dann
     federn sie zurück (wie beim Vorbild). Dabei klingt es — beim Host wie
     beim Gast, der nur sieht, ob der Schleim am Boden ist. */

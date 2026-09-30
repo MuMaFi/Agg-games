@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.10.06';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.10.07';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -34,7 +34,7 @@ const SPRUECHE = [
   'SUPER DUPER!', 'Jetzt mit Schatten!', 'Das Laub wiegt sich!',
   'Jetzt mit Treppen!', 'Stufe für Stufe!', 'Auch um die Ecke!',
   'Jetzt mit Stufen!', 'Halbe Sachen!', 'Betten in Farbe!', 'Kornblumenblau!', 'Teilen macht Spaß!', 'Achtung, PvP!',
-  'Holz wie früher!', 'Klassisch!', 'Alte Schule!'
+  'Holz wie früher!', 'Klassisch!', 'Alte Schule!', 'Jetzt mit Dörfern!', 'Hmm!', 'Smaragde!', 'Tauschen statt kaufen!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -174,6 +174,7 @@ const Menue = {
     $('#wSuche').addEventListener('input', () => this.listeZeichnen());
     knopf('#nModus', () => { this.neuModus = this.neuModus === 'ueberleben' ? 'kreativ' : 'ueberleben'; this.modusZeigen(); });
     knopf('#nTyp', () => { this.neuTyp = this.neuTyp === 'flach' ? 'normal' : 'flach'; this.modusZeigen(); });
+    knopf('#nDoerfer', () => { this.neuDoerfer = !this.neuDoerfer; this.modusZeigen(); });
     knopf('#nLos', () => this.erstellen());
     knopf('#nAbbruch', () => this.zuWelten());
     knopf('#bSichern', () => this.umbenennen());
@@ -361,7 +362,7 @@ const Menue = {
     while(namen.has(name)) name = 'Neue Welt (' + (k++) + ')';
     $('#nName').value = name;
     $('#nSeed').value = '';
-    this.neuModus = 'ueberleben'; this.neuTyp = 'normal';
+    this.neuModus = 'ueberleben'; this.neuTyp = 'normal'; this.neuDoerfer = true;
     this.modusZeigen();
     this.zeige('neu');
   },
@@ -372,6 +373,7 @@ const Menue = {
     const [tn, tt] = TYP_TEXT[this.neuTyp || 'normal'];
     $('#nTyp').textContent = 'Welttyp: ' + tn;
     $('#nTypText').textContent = tt;
+    $('#nDoerfer').textContent = 'Dörfer: ' + (this.neuDoerfer !== false ? 'An' : 'Aus');
   },
   async erstellen(){
     await this.bereit;
@@ -380,6 +382,7 @@ const Menue = {
     if(!seed) seed = STARTWORTE[(Math.random()*STARTWORTE.length)|0] + '-' + ((Math.random()*9000 + 1000)|0);
     const meta = { id: neueWeltId(), name, seed, modus: this.neuModus, gen: WELT_FASSUNG, erstellt: Date.now(), gespielt: Date.now(), tag: 1, groesse: 0, bild: null };
     if(this.neuTyp === 'flach') meta.typ = 'flach';
+    if(this.neuDoerfer !== false) meta.doerfer = true;
     Sfx.init();
     this.alleZu();
     Game.start(meta, null);

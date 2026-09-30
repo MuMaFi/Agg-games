@@ -87,15 +87,17 @@ const spaltenZufall = (w, x, z) => mulberry32(Math.imul(x, 0x27d4eb2d) ^ Math.im
 function pflanzeHier(w, x, z, s, steil){
   if(s.h <= SEA || steil) return null;
   const r = spaltenZufall(w, x, z)();
+  let art = null;
   switch(s.biome){
-    case BIO.FOREST: return r < 0.04 ? 'eiche' : null;
-    case BIO.PLAINS: return r < 0.005 ? 'eiche' : null;
-    case BIO.TAIGA:  return r < 0.035 ? 'fichte' : null;
-    case BIO.SCHNEE: return r < 0.006 ? 'fichte' : null;
-    case BIO.MOUNT:  return r < 0.012 && s.h < SEA + 30 ? 'fichte' : null;
-    case BIO.DESERT: return r < 0.006 ? 'kaktus' : null;
+    case BIO.FOREST: art = r < 0.04 ? 'eiche' : null; break;
+    case BIO.PLAINS: art = r < 0.005 ? 'eiche' : null; break;
+    case BIO.TAIGA:  art = r < 0.035 ? 'fichte' : null; break;
+    case BIO.SCHNEE: art = r < 0.006 ? 'fichte' : null; break;
+    case BIO.MOUNT:  art = r < 0.012 && s.h < SEA + 30 ? 'fichte' : null; break;
+    case BIO.DESERT: art = r < 0.006 ? 'kaktus' : null; break;
   }
-  return null;
+  if(art && w.doerfer && dorfPlatz(w, x, z)) return null;        // in Dörfern und an ihren Wegen nicht
+  return art;
 }
 
 /* Höhlenrauschen auf einem Gitter alle vier Blöcke, in Weltkoordinaten:
@@ -187,7 +189,8 @@ function erzeugen2(w, c){
     const land = bio !== BIO.OCEAN && bio !== BIO.FLUSS && bio !== BIO.BEACH;
     // Höhlen brechen nur an Land auf, fern vom Wasser, nicht unter Bäumen, und nur stellenweise
     const offen = land && h >= SEA + 4 && tief >= SEA + 2 && !pflanzeHier(w, wx, wz, s, steil)
-      && w.nHill.n2((wx + w.versatz[0])*0.013 + 71.3, (wz + w.versatz[1])*0.013) > 0.12;
+      && w.nHill.n2((wx + w.versatz[0])*0.013 + 71.3, (wz + w.versatz[1])*0.013) > 0.12
+      && !(w.doerfer && dorfPlatz(w, wx, wz));
     const oberkante = offen ? h : (tief >= SEA + 2 ? h - 3 : Math.min(h - 4, SEA - 4));
     // Oberfläche: oben, darunter und wie dick
     let oben = B.GRASS, unter = B.DIRT, dicke = 4;
@@ -228,6 +231,7 @@ function erzeugen2(w, c){
     c.hmap[z*CS + x] = hy;
   }
   schmuecken2(w, c, S, steilAn);
+  doerferBauen(w, c);
   // dünner Schnee in kalten Gegenden und über der Schneegrenze, auch auf Laub
   for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++){
     if(!S(x, z).kalt) continue;

@@ -391,6 +391,17 @@ body.superGrafik #vignette{display:block}
 .rz.bank{border-color:var(--amber-dk)}
 .rz.fehlt .ic{opacity:.38; filter:grayscale(.7)}
 .rz.gewaehlt{outline:2px solid var(--amber); outline-offset:-2px}
+/* Handel mit Dorfbewohnern: je Angebot eine Zeile */
+#behOben.oben-handel{flex-direction:column; align-items:stretch}
+.handel{display:flex; flex-direction:column; gap:4px}
+.angebot{display:flex; align-items:center; gap:calc(var(--s)*.18); height:calc(var(--s)*.86); padding:0 calc(var(--s)*.2); background:var(--panel-2);
+  border:2px solid var(--edge); cursor:pointer; font:inherit; color:var(--ink)}
+.angebot.kann{border-color:var(--grass)}
+.angebot:not(.kann) .hding .ic{opacity:.5; filter:grayscale(.6)}
+.hding{position:relative; width:calc(var(--s)*.72); height:calc(var(--s)*.72); display:grid; place-items:center}
+.hding .ic{width:100%; height:100%; display:block; background-size:100% 100%; image-rendering:pixelated}
+.hding .cnt{position:absolute; right:-2px; bottom:-3px; font-family:var(--pix); font-size:13px; color:#fff; text-shadow:2px 2px 0 #000}
+.hpfeil{font-family:var(--pix); font-size:calc(var(--s)*.5); color:var(--ink-faint); margin:0 calc(var(--s)*.2)}
 .bankzeichen{position:absolute; left:2px; top:1px; font-family:var(--pix); font-size:10px; color:var(--amber); text-shadow:1px 1px 0 #000; pointer-events:none}
 .buchLeer{grid-column:1/-1; margin:4px 0; font-size:13px; color:var(--ink-dim)}
 #death h2{color:var(--blood); font-size:30px}
@@ -521,6 +532,8 @@ body.superGrafik #vignette{display:block}
     <p class="mc-hinweis" id="nModusText"></p>
     <button class="mc" id="nTyp">Welttyp: Normal</button>
     <p class="mc-hinweis" id="nTypText"></p>
+    <button class="mc" id="nDoerfer">Dörfer: An</button>
+    <p class="mc-hinweis">Häuser, Felder und Dorfbewohner, mit denen man tauschen kann.</p>
     <label class="mc-lbl" for="nSeed">Startwert für den Weltgenerator</label>
     <input id="nSeed" class="mc-feld" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Leer lassen für einen zufälligen">
   </div>
@@ -690,6 +703,7 @@ body.superGrafik #vignette{display:block}
 <script src="klassik.js"></script>
 <script src="welt.js"></script>
 <script src="gelaende.js"></script>
+<script src="dorf.js"></script>
 <script src="wasser.js"></script>
 <script src="redstone.js"></script>
 <script src="bild.js"></script>

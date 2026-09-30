@@ -175,11 +175,13 @@ function buildFaceTables(){
 
 class World{
   /** gen: Fassung des Geländes — 1 für Welten von früher, 2 für neue (gelaende.js);
-      typ: 'flach' für Flachland, sonst das normale Gelände */
-  constructor(seedStr, gen, typ){
+      typ: 'flach' für Flachland, sonst das normale Gelände;
+      doerfer: ob Dörfer entstehen (dorf.js) — nur neue Welten, die alten bleiben, wie sie waren */
+  constructor(seedStr, gen, typ, doerfer){
     this.seedStr = seedStr;
     this.gen = gen === 2 ? 2 : 1;
     this.typ = typ === 'flach' ? 'flach' : 'normal';
+    this.doerfer = !!doerfer && (this.gen === 2 || this.typ === 'flach');
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
     this.nCont = new Noise(s);
@@ -263,12 +265,13 @@ class World{
 
   /* — Terrain erzeugen — */
   generate(c){
-    if(this.typ === 'flach') erzeugenFlach(c);
+    if(this.typ === 'flach'){ erzeugenFlach(c); doerferBauen(this, c); }
     else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); }
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));
     if(m) for(const [i,id] of m) bl[i] = id;
     c.mods = m || null;
+    if(c.dorfTruhen || c.dorfFelder) dorfNachbereiten(this, c);
     c.lights = [];
     if(m) for(const [i,id] of m){ const bd = blocks[id]; if(bd && bd.light > 0) c.lights.push(i); }
     // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —

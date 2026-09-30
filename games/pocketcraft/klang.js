@@ -70,6 +70,7 @@ const WESEN_KLANG = {
   skeleton: { laut:['skelett', .8],  au:['skelett_au', .7],   tot:['skelett_tot', .75] },
   chicken:  { laut:['huhn', .5],     au:['huhn_au', .6],      tot:['huhn_au', .6, .85], kind:['kueken', .45] },
   slime:    { au:['schleim_au', .55], tot:['schleim_tot', .6], sprung:['schleim_sprung', .4], landen:['schleim_landen', .45] },
+  villager: { laut:['dorf_hmm', .5], au:['dorf_au', .6], tot:['dorf_au', .6, .8] },
 };
 const zufall = (a, b) => a + Math.random()*(b - a);
 
@@ -276,6 +277,7 @@ const Sfx = {
       case 'skelett': for(let i=0;i<4;i++) setTimeout(()=>this.noise(0.03, 0.08, 3200), i*55); break;
       case 'bogen': this.noise(0.12, 0.10, 2400); this.tone(220, 0.1, 'triangle', 0.05, 0.6); break;
       case 'pfeil': this.noise(0.06, 0.12, 900); break;
+      case 'dorf':  { const f = 150 + Math.random()*40; this.tone(f, 0.16, 'sawtooth', 0.045, 1.12); setTimeout(()=>this.tone(f*1.08, 0.22, 'sawtooth', 0.04, 0.82), 150); } break;
       case 'huhn':  this.tone(720, 0.05, 'square', 0.035, 1.3); setTimeout(()=>this.tone(640,0.07,'square',0.035,0.8), 70); break;
       case 'werfen': this.noise(0.08, 0.06, 2000); break;
       case 'ei_kaputt': this.noise(0.06, 0.12, 2600); break;

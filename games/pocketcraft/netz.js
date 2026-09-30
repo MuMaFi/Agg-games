@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 13;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten
+const NETZ_VERSION = 14;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -287,7 +287,7 @@ const Netz = {
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
     this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du, op: Game.ops.has(id),
-      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, typ: Game.world.typ, modus: p.creative ? 'kreativ' : 'ueberleben',
+      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, typ: Game.world.typ, doerfer: Game.world.doerfer, modus: p.creative ? 'kreativ' : 'ueberleben',
                             time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), regeln: Game.regeln,
                             spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
     this.andere.set(id, this.figur(id, g.name, g.farbe, ort));
@@ -420,7 +420,7 @@ const Netz = {
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
         const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
           | (m.onGround ? 0 : 64);
-        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle | 0);
+        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle || m.beruf | 0);
       }
       this.senden(g.conn, { t:'w', l });
     }
@@ -722,6 +722,7 @@ const Netz = {
       if(f & 2) m.hurtTimer = Math.max(m.hurtTimer, 0.25);
       m.liebe = (f & 8) ? 1 : 0; m.pause = (f & 16) ? 1 : 0;
       if(art === 'sheep'){ m.geschoren = !!(f & 4); m.wolle = l[i+7] | 0; }
+      if(art === 'villager') m.beruf = l[i+7] | 0;
       if(art === 'slime' && m.groesse !== (l[i+7] | 0) && [1, 2, 4].includes(l[i+7])) schleimGroesse(m, l[i+7]);
       if(jung && !(m.kind > 0)){ m.kind = 1; m.w = m.def.w*BABY; m.h = m.def.h*BABY; }
       else if(!jung && m.kind > 0){ m.kind = 0; m.w = m.def.w; m.h = m.def.h; }

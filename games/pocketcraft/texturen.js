@@ -1315,6 +1315,18 @@ function buildTextures(){
     L.muster = (x, y) => (h2(x, y, 356) < .18 ? -1 : 0);
     L.glanz = [[12,11],[13,11],[12,12],[11,13],[14,10]];
   });
+  /* Smaragd: ein langer, sechseckiger Schliff, links im Schatten, vorn eine helle Tafel */
+  sprite('i_smaragd', S => {
+    const P = pal('#0a4d26','#0f7a3a','#18a650','#3ccd76','#a8f5c8');
+    const rumpf = S.lage(P, { kante:true });
+    S.poly(rumpf, [[16,3],[24,9],[24,22],[16,29],[8,22],[8,9]]);
+    rumpf.muster = (x, y) => (x < 12 ? -1 : x > 20 ? 0 : 1);
+    const tafel = S.lage([P[2], P[3], P[3], P[4], P[4]]);
+    S.poly(tafel, [[12,11],[16,8],[20,11],[20,20],[16,24],[12,20]]);
+    tafel.muster = (x, y) => ((x + y) % 7 === 0 ? -1 : 0);
+    tafel.glanz = [[14,10],[13,11],[13,12],[14,11],[13,13]];
+    rumpf.glanz = [[10,10],[9,11]];
+  });
   sprite('i_hebel', S => {
     const stab = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545'));
     S.strich(stab, [[14,22],[22,6]], 1.4);
@@ -1418,6 +1430,30 @@ function buildTextures(){
     p.rect(4, 20, 6, 5, [70,78,140]); for(let x = 4; x < 10; x++) p.put(x, 20, [110,118,176]);
   });
   addTex('m_skin', p => haut(pal('#a8764f','#bb865d','#cc966b','#d9a679','#e4b688'), 341)(p));
+  /* — Dorfbewohner: Haut, ein Gesicht mit durchgehender Braue und grünen
+     Augen (die Nase ist ein eigener Kasten), eine helle Kutte, die der Beruf färbt — */
+  const DORF_HAUT = pal('#9c6a48','#b07a54','#c08962','#cd9870','#d9a880');
+  addTex('m_dorf_haut', p => { haut(DORF_HAUT, 381)(p); for(let i = 0; i < 6; i++){ const x = p.r()*TS, y = p.r()*TS; p.put(x, y, DORF_HAUT[1]); } });
+  addTex('m_dorf_face', p => {
+    haut(DORF_HAUT, 382)(p);
+    const braue = pal('#3e271a','#553522');
+    for(let x = 4; x < 28; x++){ p.put(x, 9, braue[0]); p.put(x, 10, braue[(x >> 2) & 1]); }
+    for(const [x0, iris] of [[4, 8], [20, 20]]){
+      p.rect(x0, 12, 8, 3, [238, 236, 228]);
+      p.rect(iris, 12, 4, 3, [52, 136, 70]); p.rect(iris + (iris < 16 ? 2 : 0), 13, 2, 2, [22, 70, 34]);
+      p.rect(x0, 15, 8, 1, DORF_HAUT[1]);
+    }
+    for(let x = 5; x < 27; x++) if(x < 12 || x > 19) p.put(x, 17, DORF_HAUT[3]);        // Wangen
+    p.rect(12, 26, 8, 1, [128, 78, 56]); p.rect(13, 27, 6, 1, DORF_HAUT[0]);          // Mund unter der Nase
+    for(let x = 0; x < TS; x++){ p.put(x, TS - 1, DORF_HAUT[0]); p.put(x, TS - 2, DORF_HAUT[1]); }
+  });
+  addTex('m_dorf_kutte', p => {
+    const P = pal('#a4a4a0','#bebeba','#d2d2ce','#e4e4e0','#f4f4f0');
+    p.fuell((x, y) => .65*fbm(x, y, 8, 2, 383, 3) + .35*vnoise(x, y, 16, 16, 384), P, [6,18,34,30,12], .5);
+    for(let y = 0; y < 7; y++){ p.put(15 - y, y, P[0]); p.put(16 + y, y, P[0]); p.put(15 - y, y + 1, P[1]); p.put(16 + y, y + 1, P[1]); }   // Kragen
+    for(let x = 0; x < TS; x++){ p.put(x, TS - 3, P[4]); p.put(x, TS - 2, P[1]); p.put(x, TS - 1, P[0]); }                          // Saum
+    for(let y = 10; y < TS - 4; y += 4) p.put(16, y, P[0]);
+  });
   /* — Schleim: eine grüne, durchscheinende Hülle, darin ein dunklerer Kern — */
   const SCHLEIM = pal('#4f9a3c','#5cae46','#6cc253','#7fd264','#9be07e');
   addTex('m_schleim', p => {

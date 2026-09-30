@@ -420,14 +420,15 @@ function showItemName(){
    BEHÄLTER-BILDSCHIRM — Inventar, Werkbank, Truhe, Ofen
    ═══════════════════════════════════════════════════════════════════ */
 const RUEST_LEER = ['i_iron_helmet','i_iron_chestplate','i_iron_leggings','i_iron_boots'];
-const TITEL = { inv:'Inventar', werkbank:'Werkbank', truhe:'Truhe', ofen:'Ofen' };
+const TITEL = { inv:'Inventar', werkbank:'Werkbank', truhe:'Truhe', ofen:'Ofen', handel:'Handel' };
 
 const Screens = {
   open: null,           // 'beh' | 'pause' | 'death'
-  modus: null,          // 'inv' | 'werkbank' | 'truhe' | 'ofen'
+  modus: null,          // 'inv' | 'werkbank' | 'truhe' | 'ofen' | 'handel'
   g: 2,
   raster: new Array(9).fill(null),
   truheKey: null, ofenKey: null,
+  handelWesen: null, angebote: null,   // mit wem getauscht wird, und was
   geist: null,
   gruppe: 'alle', nurMachbar: false,
   slots: [],            // Slot-Elemente des offenen Bildschirms
@@ -453,6 +454,8 @@ const Screens = {
     this.g = modus === 'werkbank' ? 3 : 2;
     this.truheKey = modus === 'truhe' ? key : null;
     this.ofenKey = modus === 'ofen' ? key : null;
+    this.handelWesen = modus === 'handel' ? key : null;
+    this.angebote = modus === 'handel' ? BERUFE[key.beruf | 0].handel() : null;
     this.geist = null;
     Inv.merkeAlles();
     this.bau();
@@ -462,7 +465,7 @@ const Screens = {
     this.render();
     this.info(modus === 'inv' && !Game.player.creative
       ? 'Leg Zutaten ins Raster oder tipp ein Rezept an. Lang drücken nimmt die Hälfte oder legt eins ab.'
-      : '');
+      : modus === 'handel' ? 'Tipp ein Angebot an: links, was du gibst, rechts, was du bekommst.' : '');
   },
   hide(){
     if(this.open === 'beh'){
@@ -476,6 +479,7 @@ const Screens = {
       this.drag(null);
     }
     this.open = null; this.modus = null; this.truheKey = null; this.ofenKey = null; this.geist = null;
+    this.handelWesen = null; this.angebote = null;
     Geste.g = null;
     for(const s of ['#beh','#pause','#death']) $(s).classList.remove('on');
     if(Game.player) HUD.refreshHotbar();
@@ -532,7 +536,7 @@ const Screens = {
     const guertel = $('#behGuertel'); guertel.innerHTML = '';
     for(let i=9; i<36; i++) haupt.appendChild(this.mk(this.invRef(i, 'haupt')));
     for(let i=0; i<9; i++) guertel.appendChild(this.mk(this.invRef(i, 'guertel')));
-    $('#behTitel').textContent = TITEL[this.modus];
+    $('#behTitel').textContent = this.modus === 'handel' ? BERUFE[this.handelWesen.beruf | 0].name : TITEL[this.modus];
 
     const kreativ = Game.player.creative;
     if(this.modus === 'inv' || this.modus === 'werkbank'){
@@ -569,9 +573,43 @@ const Screens = {
       oben.appendChild(links);
       const pb = el('div', 'progbar'); pb.innerHTML = '<i id="furnProg"></i>'; oben.appendChild(pb);
       oben.appendChild(this.mk({ gruppe:'ofenAus', art:'aus', get:() => f.out, set:v => { f.out = v; }, passt:() => false }, 'ergebnis'));
+    } else if(this.modus === 'handel'){
+      // Angebote: je Zeile, was man gibt, ein Pfeil, was man bekommt
+      const liste = el('div', 'handel');
+      this.angebote.forEach((a, i) => {
+        const z = el('button', 'angebot'); z._angebot = a;
+        for(const [id, n] of a.gib) z.appendChild(this.ding(id, n));
+        const pf = el('span', 'hpfeil'); pf.textContent = '➜'; z.appendChild(pf);
+        z.appendChild(this.ding(a.bekommt[0], a.bekommt[1]));
+        z.title = a.gib.map(([id, n]) => n + ' × ' + nameOf(id)).join(' + ') + ' → ' + a.bekommt[1] + ' × ' + nameOf(a.bekommt[0]);
+        z.addEventListener('click', () => this.tauschen(i));
+        liste.appendChild(z);
+      });
+      oben.appendChild(liste);
     }
-    $('#behBuch').classList.toggle('aus', this.modus === 'truhe' || this.modus === 'ofen');
+    $('#behBuch').classList.toggle('aus', this.modus === 'truhe' || this.modus === 'ofen' || this.modus === 'handel');
     this._buchSig = '';
+  },
+  /** ein Gegenstand mit Anzahl, wie im Fach */
+  ding(id, n){
+    const d = el('span', 'hding');
+    const ic = el('i', 'ic'); ic.style.backgroundImage = 'url(' + iconFor(id) + ')'; d.appendChild(ic);
+    if(n > 1){ const c = el('span', 'cnt'); c.textContent = n; d.appendChild(c); }
+    return d;
+  },
+  /** tauschen: hergeben, was das Angebot verlangt, und dafür bekommen, was es bietet */
+  tauschen(i){
+    const m = this.handelWesen, a = this.angebote && this.angebote[i];
+    if(!a || !m || m.dead){ this.hide(); return; }
+    const fehlt = a.gib.find(([id, n]) => Inv.countOf(id) < n);
+    if(fehlt){ this.info('Dafür brauchst du ' + fehlt[1] + ' × ' + nameOf(fehlt[0]) + '.'); Sfx.synth('hit'); return; }
+    for(const [id, n] of a.gib) Inv.take(id, n);
+    const [id, n] = a.bekommt;
+    const rest = Inv.add(id, n);
+    if(rest) Game.dropItem(id, rest, Game.player.x, Game.player.y + 1.2, Game.player.z);
+    Sfx.play('pickup'); Sfx.wesen(m, 'laut');
+    this.info('Getauscht: ' + n + ' × ' + nameOf(id) + '.');
+    this.render();
   },
   invRef(i, gruppe){ return { gruppe, art:'lager', get:() => Inv.slots[i], set:v => { Inv.slots[i] = v; }, passt:() => true }; },
   mk(ref, cls){
@@ -588,7 +626,7 @@ const Screens = {
     const W = window.innerWidth, H = window.innerHeight;
     const breit = W >= 600 && W > H*1.15;
     const buch = !$('#behBuch').classList.contains('aus');
-    const reihen = { inv:6, werkbank:7, truhe:7, ofen:6.4 }[this.modus] || 6;
+    const reihen = { inv:6, werkbank:7, truhe:7, ofen:6.4, handel: 4.4 + (this.angebote ? this.angebote.length : 5)*0.9 }[this.modus] || 6;
     const buchW = breit && buch ? Math.min(330, Math.max(190, W*0.3)) : 0;
     const sW = (Math.min(W, 1040) - 24 - 24 - buchW - (buchW ? 14 : 0) - 8*4) / 9;
     const sH = (H - 24 - 24 - 40 - 22 - 34 - (reihen - 1)*4) / reihen;
@@ -807,6 +845,12 @@ const Screens = {
     if(this.open !== 'beh') return;
     if(this.modus === 'ofen' && !Game.world.furnaces.get(this.ofenKey)){ this.hide(); return; }
     if(this.modus === 'truhe' && !Game.world.chests.get(this.truheKey)){ this.hide(); return; }
+    if(this.modus === 'handel'){
+      const m = this.handelWesen, p = Game.player;
+      if(!m || m.dead || !Game.mobs.includes(m) || Math.hypot(m.x - p.x, m.z - p.z) > 7){ this.hide(); return; }
+      for(const z of $('#behOben').querySelectorAll('.angebot'))
+        z.classList.toggle('kann', z._angebot.gib.every(([id, n]) => Inv.countOf(id) >= n));
+    }
     Netz.behaelterPruefen();
     for(const d of this.slots){
       const ref = d._ref;

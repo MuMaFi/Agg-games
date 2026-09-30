@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','klassik.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js','wesen.js'])
+for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','klassik.js','welt.js','gelaende.js','dorf.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js','wesen.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -512,5 +512,48 @@ pruef(T(`(() => { const a = klassikMalen('craft_front'), b = klassikMalen('craft
 pruef(T(`(() => { const warm = n => { const d = klassikMalen(n); let k = 0; for(let i = 0; i < d.length; i += 4) if(d[i] > 200 && d[i] > d[i+2] + 90) k++; return k; };
   return warm('furn_front') === 0 && warm('furn_lit') > 150; })()`), 'klassischer Ofen: kalt ohne Glut, brennend glühen Zugloch und Feuerloch');
 pruef(T(`(() => { try { kPixel(new K16(1), ['0123456789abcdef'], {}); return false; } catch(e){ return true; } })()`), 'Pixelbilder müssen 16 × 16 sein');
+// 26.10.07: Dörfer — nur in Welten mit dem Schalter, fest nach Startwert und Gelände, chunkweise gleich
+pruef(T(`(() => { let h = 0; for(const [seed, gen, typ] of [['dorftest', 2, 'normal'], ['taschenwelt', 2, 'normal'], ['flach', 2, 'flach'], ['alt', 1, 'normal']]){
+  const w = new World(seed, gen, typ);
+  for(const [cx, cz] of [[0,0],[3,6],[4,6],[-15,-34],[15,-5],[26,5]]){ const c = w.ensureChunk(cx, cz); for(let i = 0; i < c.blocks.length; i++) h = (Math.imul(h, 31) + c.blocks[i]) | 0; }
+} return h; })()`) === 1781458509, 'ohne Dörfer: das Gelände ist Block für Block wie vor den Dörfern');
+pruef(T(`(() => { const w = new World('dorftest', 2, 'normal'); return !w.doerfer && doerferBei(w, -500, -500, 500, 500).length === 0 && !dorfSuchen(w, 0, 0, 900)
+  && !new World('x', 1, 'normal', true).doerfer && new World('x', 2, 'flach', true).doerfer; })()`), 'alte Welten und Welten ohne Schalter haben keine Dörfer');
+T(`globalThis.DW = new World('dorftest', 2, 'normal', true); globalThis.DL = []; for(let rz = -4; rz <= 4; rz++) for(let rx = -4; rx <= 4; rx++){ const d = dorfImFeld(DW, rx, rz); if(d) DL.push(d); }`);
+pruef(T(`DL.length >= 6 && new Set(DL.map(d => d.stil)).size >= 2 && DL.every(d => d.spawn.length >= 1 && d.spawn.length <= DORF_BEWOHNER && d.radius < DORF_WEIT)`),
+  'im normalen Gelände: ' + T('DL.length') + ' Dörfer in 81 Feldern, Stile ' + T('[...new Set(DL.map(d => d.stil))].join(", ")'));
+pruef(T(`(() => { const a = new World('dorftest', 2, 'normal', true), b = new World('dorftest', 2, 'normal', true);
+  const d = dorfImFeld(a, DL[0].key.split(',').map(Number)[0], DL[0].key.split(',').map(Number)[1]);
+  const cs = []; for(let cz = d.box[1] >> 4; cz <= d.box[3] >> 4; cz++) for(let cx = d.box[0] >> 4; cx <= d.box[2] >> 4; cx++) cs.push([cx, cz]);
+  for(const [cx, cz] of cs) a.ensureChunk(cx, cz);
+  for(const [cx, cz] of cs.slice().reverse()) b.ensureChunk(cx, cz);
+  return cs.every(([cx, cz]) => a.getChunk(cx, cz).blocks.every((v, i) => v === b.getChunk(cx, cz).blocks[i])) && d.cx === DL[0].cx; })()`),
+  'ein Dorf sieht gleich aus, in welcher Reihenfolge die Chunks auch entstehen');
+T(`globalThis.FW = new World('dorfprobe', 2, 'flach', true); globalThis.FD = dorfSuchen(FW, 0, 0, 1600);
+  globalThis.FZ = {}; if(FD) for(let cz = FD.box[1] >> 4; cz <= FD.box[3] >> 4; cz++) for(let cx = FD.box[0] >> 4; cx <= FD.box[2] >> 4; cx++) FW.ensureChunk(cx, cz);
+  if(FD) for(let x = FD.box[0]; x <= FD.box[2]; x++) for(let z = FD.box[1]; z <= FD.box[3]; z++) for(let y = 1; y < 24; y++){
+    const id = FW.getBlock(x, y, z); const k = isDoor(id) ? 'tuer' : isBett(id) ? 'bett' : isTreppe(id) ? 'treppe' : isWheat(id) ? 'weizen' : id === B.WATER ? 'wasser'
+      : id === B.CHEST ? 'truhe' : id === B.TORCH ? 'fackel' : id === B.GRAVEL ? 'kies' : id === B.GLASS ? 'glas' : id === B.FURNACE ? 'ofen' : id === B.LADDER || isLadder(id) ? 'leiter' : null;
+    if(k) FZ[k] = (FZ[k] || 0) + 1; }`);
+pruef(T(`!!FD && FD.stil === 'wiese' && FZ.tuer >= 6 && FZ.bett >= 2 && FZ.treppe >= 30 && FZ.weizen >= 10 && FZ.wasser >= 4 && FZ.fackel >= 4 && FZ.kies >= 100 && FZ.glas >= 6`),
+  'im Flachland ein Dorf mit ' + T('JSON.stringify(FZ)'));
+pruef(T(`(() => { let n = 0; for(const [k, t] of FW.chests){ n++; if(t.length !== 27 || !t.some(Boolean) || !t.every(s => !s || (s.n > 0 && defOf(s.id)))) return false; }
+  let reif = 0, wachsend = 0; for(let x = FD.box[0]; x <= FD.box[2]; x++) for(let z = FD.box[1]; z <= FD.box[3]; z++){ const id = FW.getBlock(x, 4, z);
+    if(isWheat(id)){ if(id === B.WHEAT + 3) reif++; else if(FW.crops.has(x + ',4,' + z)) wachsend++; else return false; } }
+  return n === (FZ.truhe || 0) && reif > 0 && wachsend > 0; })()`), 'Truhen im Dorf sind gefüllt, junger Weizen wächst weiter');
+pruef(T(`(() => { const [k] = [...FW.chests.keys()]; const [x, y, z] = k.split(',').map(Number);
+  const a = new World('dorfprobe', 2, 'flach', true); a.chests.set(k, new Array(27).fill(null)); a.ensureChunk(x >> 4, z >> 4);
+  const b = new World('dorfprobe', 2, 'flach', true); b.mods.set(ckey(x >> 4, z >> 4), new Map([[IDX(x & 15, y, z & 15), B.AIR]])); b.ensureChunk(x >> 4, z >> 4);
+  const c = new World('dorfprobe', 2, 'flach', true); c.ensureChunk(x >> 4, z >> 4);
+  return !a.chests.get(k).some(Boolean) && !b.chests.has(k) && JSON.stringify(c.chests.get(k)) === JSON.stringify(FW.chests.get(k)); })()`),
+  'eine geleerte Truhe bleibt leer, eine abgebaute kommt nicht wieder, sonst findet jeder dasselbe');
+pruef(T(`(() => { const d = DL.find(d => d.stil === 'wiese'); return dorfPlatz(DW, d.cx, d.cz) && !dorfPlatz(DW, d.cx + DORF_WEIT + 40, d.cz + DORF_WEIT + 40)
+  && !pflanzeHier(DW, d.cx, d.cz, { h: 80, biome: BIO.FOREST }, false); })()`), 'im Dorf wachsen keine Bäume');
+pruef(T(`BERUFE.length === 4 && BERUFE.every(b => b.handel().length >= 4 && b.handel().every(a => a.gib.length && a.gib.every(([id, n]) => defOf(id) && n > 0 && n <= stackOf(id))
+  && defOf(a.bekommt[0]) && a.bekommt[1] > 0 && a.bekommt[1] <= stackOf(a.bekommt[0])))`), 'Berufe und Tauschangebote: alles gibt es');
+pruef(T(`ITEM.emerald > 0 && items[ITEM.emerald].name === 'Smaragd' && TEX.i_smaragd !== undefined && MOBS.villager.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
+  && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && texNames.length <= 256`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
+pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).indexOf('villager') === Object.keys(MOBS).length - 1; })()`),
+  'die Kutte trägt die Farbe des Berufs; Dorfbewohner stehen hinten in der Liste der Wesen');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

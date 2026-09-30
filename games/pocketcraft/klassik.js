@@ -480,7 +480,7 @@ function kBein(farbe, huf){ return K => { kFell(K, farbe); for(let y = 12; y < 1
 
 const TIER = {
   schwein: [238, 164, 160], rind: [236, 236, 232], schwarz: [44, 40, 40], schaf: [216, 186, 152], huhn: [242, 242, 238],
-  zombie: [76, 128, 64], hemd: [30, 150, 160], hose: [70, 62, 156], knochen: [206, 206, 200],
+  zombie: [76, 128, 64], hemd: [30, 150, 160], hose: [70, 62, 156], knochen: [206, 206, 200], dorf: [196, 142, 106],
 };
 klassik('m_pig', K => kFell(K, TIER.schwein, .92, 1.05, .3));
 klassik('m_pig_face', K => kFelder(K, ['PPPPPPPP', 'PPPPPPPP', 'PWEPPEWP', 'PPPPPPPP', 'PPSSSSPP', 'PPNSSNPP', 'PPSSSSPP', 'PPPPPPPP'],
@@ -531,6 +531,10 @@ klassik('m_skelett_face', K => kFelder(K, ['KKKKKKKK', 'KKKKKKKK', 'KDDKKDDK', '
   { K: TIER.knochen, D: [44, 44, 44] }));
 klassik('m_skelett_brust', K => kFelder(K, ['DDDKKDDD', 'KKKKKKKK', 'DDDKKDDD', 'KKKKKKKK', 'DDDKKDDD', 'KKKKKKKK', 'DDDKKDDD', 'DDDKKDDD'],
   { K: TIER.knochen, D: [44, 44, 44] }, .1));
+klassik('m_dorf_haut', K => kFell(K, TIER.dorf, .92, 1.05, .2));
+klassik('m_dorf_face', K => kFelder(K, ['HHHHHHHH', 'HBBBBBBH', 'HWGHHGWH', 'HHHHHHHH', 'HHHHHHHH', 'HHHHHHHH', 'HHHMMHHH', 'HHHHHHHH'],
+  { H: TIER.dorf, B: [66, 42, 28], W: [240, 240, 236], G: [40, 140, 64], M: [128, 78, 56] }));
+klassik('m_dorf_kutte', K => { kFell(K, [232, 232, 226], .9, 1.04, .3); for(let x = 0; x < 16; x++) K.put(x, 15, [160, 160, 156]); for(let y = 0; y < 3; y++){ K.put(7 - y, y, [170, 170, 166]); K.put(8 + y, y, [170, 170, 166]); } });
 klassik('m_skelett_glied', K => K.jedes((x, y) => (x === 0 || x === 15) ? kHell(TIER.knochen, .7) : kHell(TIER.knochen, K.r() < .15 ? .9 : 1)));
 
 /* ── Umschalten ──────────────────────────────────────────────────── */

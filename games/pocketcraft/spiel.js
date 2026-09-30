@@ -50,7 +50,7 @@ const Game = {
     this.panoramaAktiv = false;
     document.body.classList.remove('imMenue');
     const seed = meta.seed;
-    this.world = new World(seed, meta.gen || (saved && saved.gen) || 1, meta.typ || (saved && saved.typ));
+    this.world = new World(seed, meta.gen || (saved && saved.gen) || 1, meta.typ || (saved && saved.typ), meta.doerfer || (saved && saved.doerfer));
     Wetter.laden(saved && saved.wetter);
     this.regelnSetzen(saved && saved.regeln);
     this.ops = new Set((saved && Array.isArray(saved.ops) && saved.ops) || []);
@@ -130,6 +130,7 @@ const Game = {
         const m = new Mob(art, x, y, z, kind > 0);
         m.kind = kind; m.yaw = yaw; m.health = hp; m.pause = pause; m.bleibt = true;
         if(art === 'sheep'){ m.wolle = wolle | 0; m.geschoren = !!geschoren; m.wolleT = 30 + Math.random()*60; }
+        if(art === 'villager') m.beruf = wolle | 0;               // herbeigerufene Dorfbewohner behalten ihren Beruf
         this.mobs.push(m);
       }
       (saved.ruest || []).forEach((a, i) => { Inv.ruestung[i] = stapel(a); });
@@ -163,7 +164,7 @@ const Game = {
       und seinen Platz zurück; Neue stehen am Startpunkt des Hosts. */
   startGast(m){
     const w = m.welt, du = m.du || {};
-    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1, typ: w.typ };
+    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1, typ: w.typ, doerfer: !!w.doerfer };
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
       mods: w.mods || [], furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
@@ -322,7 +323,7 @@ const Game = {
     try{
       const p = this.player;
       const data = Object.assign({
-        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
+        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, doerfer: this.world.doerfer, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
         regeln: this.regeln, ops: [...this.ops],
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
@@ -334,7 +335,7 @@ const Game = {
         rest: Screens.raster.concat([Inv.cursor]).filter(Boolean).map(s => [s.id, s.n, s.dur]),
         tiere: this.mobs.filter(m => m.bleibt && !m.dead && !m.def.hostile).map(m =>
           [m.type, +m.x.toFixed(2), +m.y.toFixed(2), +m.z.toFixed(2), +m.yaw.toFixed(2), m.health, Math.round(m.kind), Math.round(m.pause),
-           m.wolle || 0, m.geschoren ? 1 : 0])
+           m.type === 'villager' ? m.beruf | 0 : m.wolle || 0, m.geschoren ? 1 : 0])
       }, this.weltTeil());
       text = JSON.stringify(data);
     }catch(e){ return Promise.resolve(false); }
@@ -960,10 +961,19 @@ const Game = {
       }
     }
   },
-  /** Benutzen auf ein Wesen: füttern, Schaf scheren, Kuh melken */
-  benutzeWesen(){
-    const s = Inv.held(); if(!s || this.bett) return false;
+  /** Benutzen auf ein Wesen: mit Dorfbewohnern tauschen, füttern, Schaf scheren,
+      Kuh melken. tipp: auf dem Telefon getippt — mit einer Waffe wird dann geschlagen */
+  benutzeWesen(tipp){
+    if(this.bett) return false;
+    const s = Inv.held();
     const m = this.wesenImBlick(3.4); if(!m) return false;
+    if(m.def.dorf){
+      const waffe = s && items[s.id] && (items[s.id].tool === 'sword' || items[s.id].tool === 'axe');
+      if(tipp && waffe) return false;
+      this.handeln(m);
+      return true;
+    }
+    if(!s) return false;
     const p = this.player;
     // Körner gehören auch aufs Feld: dann zählt, was näher unterm Fadenkreuz liegt
     if(s.id === ITEM.seeds){
@@ -1000,6 +1010,67 @@ const Game = {
       return true;
     }
     return false;
+  },
+
+  /** Tauschen: der Dorfbewohner bleibt stehen und schaut einen an */
+  handeln(m){
+    Sfx.wesen(m, 'laut');
+    this.player.swinging = true; this.player.swing = 0;
+    Screens.oeffne('handel', m);
+  },
+  /** Dorfbewohner: bleiben in ihrem Dorf, schauen Leute an, die nah kommen,
+      und gehen nachts heim, vor ihre Tür. Gibt [Richtung x, Richtung z, Tempo] zurück. */
+  dorfDenken(m, dt, z, dx, dz, dist, dl, speed, hoerbar){
+    const schaut = () => { m.yaw = Math.atan2(dx, dz) + Math.PI; m.moving = false; return [0, 0, 0]; };
+    if(Screens.open === 'beh' && Screens.modus === 'handel' && Screens.handelWesen === m) return schaut();
+    if(dl < 0.3 && m.heimX !== undefined){
+      const hx = m.heimX - m.x, hz = m.heimZ - m.z, hd = Math.hypot(hx, hz);
+      if(hd > 1.2){ m.yaw = Math.atan2(-hx, -hz); m.moving = true; return [hx/hd, hz/hd, speed*0.7]; }
+      m.moving = false; return [0, 0, 0];
+    }
+    if(!z.dead && dist < 3.5 && Math.abs(z.y - m.y) < 2) return schaut();
+    m.wander -= dt;
+    if(m.wander <= 0){
+      m.wander = 2 + Math.random()*5;
+      m.moving = Math.random() < 0.55;
+      m.wanderYaw = Math.random()*TAU;
+      // zu weit draußen: zurück zur Mitte des Dorfs
+      if(m.dorfX !== undefined){
+        const ex = m.dorfX - m.x, ez = m.dorfZ - m.z;
+        if(Math.hypot(ex, ez) > m.dorfR){ m.wanderYaw = Math.atan2(-ex, -ez); m.moving = true; }
+      }
+    }
+    if(hoerbar && Math.random() < 0.0015) Sfx.wesen(m, 'laut');
+    if(!m.moving) return [0, 0, 0];
+    m.yaw = m.wanderYaw;
+    return [-Math.sin(m.yaw), -Math.cos(m.yaw), speed*0.55];
+  },
+  /** Dorfbewohner erscheinen vor ihren Häusern, sobald jemand in die Nähe
+      kommt, und verschwinden mit den anderen Wesen, wenn niemand mehr da ist.
+      Wer stirbt, kommt erst nach fünf Minuten wieder. */
+  dorfLeben(dt){
+    const w = this.world;
+    if(!w.doerfer) return;
+    this._dorfT = (this._dorfT || 0) - dt;
+    if(this._dorfT > 0) return;
+    this._dorfT = 1.5;
+    const ruhe = this._dorfRuhe || (this._dorfRuhe = new Map());
+    for(const q of this.spielerOrte()) for(const d of doerferBei(w, q.x - 72, q.z - 72, q.x + 72, q.z + 72)){
+      if(Math.hypot(d.cx - q.x, d.cz - q.z) > 72) continue;
+      const da = new Set();
+      for(const m of this.mobs) if(m.dorfKey === d.key && !m.dead) da.add(m.dorfSlot);
+      for(let i = 0; i < d.spawn.length; i++){
+        if(da.has(i) || (ruhe.get(d.key + '#' + i) || 0) > this.gesamtZeit) continue;
+        const sp = d.spawn[i], k = ckey(Math.floor(sp.x) >> 4, Math.floor(sp.z) >> 4), ch = w.chunks.get(k);
+        if(!this.meshes.has(k) || !(ch && ch.state >= 1)) continue;
+        const m = new Mob('villager', sp.x, sp.y, sp.z);
+        if(!this.frei(m)) continue;
+        m.beruf = sp.beruf; m.dorfKey = d.key; m.dorfSlot = i;
+        m.heimX = sp.x; m.heimZ = sp.z; m.dorfX = d.cx + 0.5; m.dorfZ = d.cz + 0.5; m.dorfR = Math.max(12, d.radius - 6);
+        this.mobs.push(m);
+        return;                                       // je Runde einer
+      }
+    }
   },
 
   /** Futter: Junges wächst schneller, Erwachsenes wird verliebt */
@@ -1387,6 +1458,7 @@ const Game = {
       const hoerbar = Math.hypot(p.x - m.x, p.z - m.z) < 24;
       if(m.dead || (nd > far && !m.bleibt) || m.y < -4){
         if(m.dead) Sfx.wesen(m, 'tot');
+        if(m.dead && m.dorfKey) (this._dorfRuhe || (this._dorfRuhe = new Map())).set(m.dorfKey + '#' + m.dorfSlot, this.gesamtZeit + 300);
         this.mobs.splice(i,1); continue;
       }
       // Bleibende Tiere in ungeladenen Chunks warten, statt ins Nichts zu fallen
@@ -1463,6 +1535,8 @@ const Game = {
         // Futter in der Hand: Kühe, Schafe und Schweine laufen dem Weizen hinterher, Hühner den Körnern
         const l = dist || 1; tx = dx/l; tz = dz/l;
         m.yaw = Math.atan2(-tx, -tz); m.moving = true; speed *= 0.8;
+      } else if(m.def.dorf){
+        [tx, tz, speed] = this.dorfDenken(m, dt, z, dx, dz, dist, dl, speed, hoerbar);
       } else {
         m.wander -= dt;
         if(m.wander <= 0){
@@ -1852,7 +1926,7 @@ const Input = {
         // Mit einem Ei in der Hand wird geworfen statt geschlagen.
         const h = Inv.held();
         if(h && h.id === ITEM.egg){ if(!Game.benutzeWesen()) Game.useAt(Game.targetBlock()); }
-        else if(!Game.benutzeWesen() && !Game.attack()) Game.useAt(Game.targetBlock());
+        else if(!Game.benutzeWesen(true) && !Game.attack()) Game.useAt(Game.targetBlock());
         Game.player.swinging = true; Game.player.swing = 0;
       }
       this.lookId = null; this.digging = false; this.pendingTap = false;
@@ -1971,6 +2045,7 @@ function frame(now){
       Game.tickFurnaces(dt);
       Game.tickFelder(dt);
       Game.spawnMobs(dt);
+      Game.dorfLeben(dt);
       Game.wasser.tick(dt);
       Game.schaltung.tick(dt);
     } else { Game.wasser.naechste.clear(); Game.schaltung.naechste.clear(); }   // beim Gast fließt und schaltet es, wie der Host es schickt
@@ -2170,7 +2245,7 @@ boot();
    Gegenständen und Mobs. */
 window.__welt = {
   R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter, Chat, Befehle,
-  schleimGroesse, schleimChunk, Super, Klassik,
+  schleimGroesse, schleimChunk, Super, Klassik, dorfSuchen, doerferBei, BERUFE,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

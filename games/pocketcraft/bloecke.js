@@ -400,6 +400,8 @@ function initItems(){
   defItem('redstone',{name:'Redstone', tex:'i_redstone'});
   // Schleime lassen ihn fallen
   defItem('slimeball',{name:'Schleimball', tex:'i_schleimball'});
+  // Dorfbewohner tauschen dafür
+  defItem('emerald',{name:'Smaragd', tex:'i_smaragd'});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

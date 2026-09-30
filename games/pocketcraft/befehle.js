@@ -40,7 +40,7 @@ const MC_NAMEN = {
   piston:'KOLBEN', sticky_piston:'KLEBKOLBEN',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
-  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime' };
+  zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };
@@ -138,6 +138,18 @@ befehl('list', { alias:['liste', 'spieler'], syntax:'', text:'wer gerade in der 
 
 befehl('seed', { alias:['startwert'], syntax:'', text:'zeigt den Startwert der Welt', frei:true,
   lauf(a, wer){ Befehle.antwort(wer, 'Startwert: ' + Game.world.seedStr); } });
+
+befehl('locate', { alias:['finde', 'dorf'], syntax:'village', text:'sagt, wo das nächste Dorf liegt', frei:true,
+  vorschlag: i => i === 0 ? ['village', 'dorf'] : [],
+  lauf(a, wer){
+    const was = a.map(bNorm).filter(x => x !== 'structure' && x !== 'bauwerk');
+    if(was.length && !['village', 'dorf', 'minecraft:village'].includes(was[0])) return Befehle.fehler(wer, 'Finden lassen sich hier nur Dörfer: /locate village');
+    if(!Game.world.doerfer) return Befehle.fehler(wer, 'In dieser Welt gibt es keine Dörfer');
+    let d = null;
+    for(const weit of [400, 900, 1600]) if((d = dorfSuchen(Game.world, wer.x, wer.z, weit))) break;
+    if(!d) return Befehle.fehler(wer, 'Kein Dorf in der Nähe gefunden');
+    Befehle.antwort(wer, 'Das nächste ' + d.name + ' liegt bei ' + d.cx + ' ~ ' + d.cz + ' — ' + Math.round(Math.hypot(d.cx - wer.x, d.cz - wer.z)) + ' Blöcke entfernt');
+  } });
 
 befehl('gamemode', { alias:['spielmodus', 'gm'], syntax:'<überleben | kreativ> [spieler]', text:'wechselt den Spielmodus',
   vorschlag: i => i === 0 ? ['kreativ', 'überleben', 'creative', 'survival'] : i === 1 ? V_SPIELER() : [],
@@ -268,14 +280,15 @@ befehl('clear', { alias:['leeren'], syntax:'[spieler]', text:'leert das Inventar
   } });
 
 befehl('summon', { alias:['beschwören'], syntax:'<wesen> [x y z]', text:'lässt ein Wesen erscheinen',
-  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett', 'schleim'] : i <= 3 ? V_KOORD(i - 1) : [],
+  vorschlag: i => i === 0 ? ['kuh', 'schwein', 'schaf', 'huhn', 'zombie', 'skelett', 'schleim', 'dorfbewohner'] : i <= 3 ? V_KOORD(i - 1) : [],
   lauf(a, wer){
     const art = WESEN_NAMEN[bNorm(a[0])];
-    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett, schleim' : 'Welches Wesen? /summon <wesen> [x y z]');
+    if(!art) return Befehle.fehler(wer, a[0] ? 'Unbekanntes Wesen: ' + a[0] + ' — kuh, schwein, schaf, huhn, zombie, skelett, schleim, dorfbewohner' : 'Welches Wesen? /summon <wesen> [x y z]');
     const ort = a.length >= 4 ? Befehle.koord(a, 1, wer, false) : [wer.x, wer.y, wer.z];
     if(!ort) return Befehle.fehler(wer, 'Keine Koordinaten: ' + a.slice(1).join(' '));
     const m = new Mob(art, ort[0], ort[1], ort[2], false);
     if(art === 'slime') schleimGroesse(m, [1, 2, 4][(Math.random()*3) | 0]);
+    if(art === 'villager') m.beruf = (Math.random()*BERUFE.length) | 0;
     if(!m.def.hostile) m.bleibt = true;          // wie gezüchtete Tiere: sie bleiben
     Game.mobs.push(m);
     Befehle.antwort(wer, m.def.name + ' ist erschienen');
