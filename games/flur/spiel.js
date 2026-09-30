@@ -13,7 +13,8 @@
         und die drei Verstecke hinter Tapetentüren
      7  Die Gestalt und die Regie der Schrecken
      8  Bild (Fischauge, Band, Nachtsicht) und Anzeige
-        Ton: alles im Spiel selbst erzeugt, keine fremden Aufnahmen
+        Ton: Aufnahmen aus „SCP – Containment Breach“ (CC BY-SA 3.0),
+        Quellen in flur/ton/QUELLEN.md
      9  Steuerung (Touch, Maus, Tastatur)
     10  Spielablauf
    ====================================================================== */
@@ -935,7 +936,7 @@ function updateLights(dt, t, danger){
   }
   lichtHier = n;
   if(SND.ctx && SND.on && S.phase === 'play'){
-    const ziel = SND.humAus ? 0 : 0.010 + 0.05*Math.min(n, 1.4);
+    const ziel = SND.humAus ? 0 : 0.12 + 0.5*Math.min(n, 1.4);
     SND.hum.gain.setTargetAtTime(ziel, SND.ctx.currentTime, SND.humAus ? 0.35 : 0.08);
   }
   // hängende Platten und Kabel pendeln
@@ -2213,9 +2214,8 @@ function updateMonster(dt, player, noiseRadius){
       MON.atemT = 2.4 + Math.random()*1.8;
       if(distP < 22) KLANG.knurren(MON.pos.x, MON.pos.z);
     } else {
-      MON.ein = !MON.ein;
-      MON.atemT = MON.ein ? 1.05 : 1.6 + Math.random()*0.8;
-      if(distP < 13) KLANG.atem(MON.pos.x, MON.pos.z, MON.ein, clamp(1.2 - distP/13, 0.25, 1));
+      const lang = distP < 13 ? KLANG.atem(MON.pos.x, MON.pos.z, clamp(1.2 - distP/13, 0.25, 1)) : 0;
+      MON.atemT = (lang || 1.5) + 0.8 + Math.random()*1.6;
     }
   }
   // Wer sich versteckt, hört sie vor der Tür
@@ -2346,8 +2346,7 @@ function roehrePlatzt(){
   if(!f) return false;
   f.dead = true;
   SCARE.blitz = 0.12;
-  burst(0.10, 5200, 0.34, 'highpass');                      // Knall
-  if(tonAn()) setTimeout(() => KLANG.knall(f.pos.x, f.pos.z), 60);
+  KLANG.roehre(f.pos.x, f.pos.z);                          // Glas zerspringt, Funken
   S.glitch = Math.max(S.glitch, 0.8);
   if(navigator.vibrate) navigator.vibrate(45);
   return true;
@@ -2372,8 +2371,7 @@ function stromAus(){
     if(f.dead || f.art) continue;
     if(f.pos.distanceTo(camera.position) < 36){ f.aus = true; f.zuend = undefined; SCARE.ausListe.push(f); }
   }
-  KLANG.relais();
-  KLANG.brummen(false, 1.4);
+  KLANG.stromAus();
   const p = platzImBlick(5, 10);
   if(p){
     glimpse.position.set(p.x, 0, p.z);
@@ -2388,7 +2386,7 @@ function stromAn(){
     a.pos.distanceToSquared(camera.position) - b.pos.distanceToSquared(camera.position));
   l.forEach((f, i) => { f.zuend = 0.2 + i*0.05 + Math.random()*0.3; });
   SCARE.ausListe.length = 0;
-  KLANG.brummen(true, 0.7);
+  KLANG.stromAn();
   if(SCARE.imDunkeln){ glimpse.visible = false; SCARE.imDunkeln = false; }
 }
 
@@ -2408,7 +2406,7 @@ function scareTick(dt){
     // sie ist weg, sobald man wegsieht — oder zu nah kommt
     if(SCARE.glimpseT <= 0 || nah || (SCARE.weg > 0.35 && !SCARE.imDunkeln)){
       glimpse.visible = false;
-      if(nah) burst(0.20, 900, 0.10, 'highpass');           // ein Rascheln, dann weg
+      if(nah) KLANG.rascheln();                              // ein Rascheln, dann weg
       if(nah && SCARE.imDunkeln){ KLANG.fluestern(0, 0.8, 1.2); SCARE.imDunkeln = false; }
     }
   }
@@ -2480,18 +2478,21 @@ function scareTick(dt){
       glimpse.visible = true;
       SCARE.weg = 0;
       SCARE.glimpseT = 1.4 + Math.random()*1.6;
-      if(tonAn()) rausch(SND.master, 0.9, 'lowpass', 260, 0.7, 0.12, 0.3, SND.braunBuf);
+      KLANG.stich(0.8);
       S.glitch = Math.max(S.glitch, 0.55);
     }
   } else if(wahl < 0.48){
     roehrePlatzt();
   } else if(wahl < 0.68){
     stromAus();
-  } else if(wahl < 0.84){
+  } else if(wahl < 0.80){
     // Irgendwo schlägt Metall auf
     const a = Math.random()*6.283, d = 12 + Math.random()*10;
     KLANG.knall(clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1));
     S.glitch = Math.max(S.glitch, 0.45);
+  } else if(wahl < 0.88 && distM > 12 && distM < 38){
+    // Sie lacht. Irgendwo hinter den Wänden, dort, wo sie gerade ist.
+    KLANG.lachen(MON.pos.x, MON.pos.z);
   } else if(distM > 18){
     // Ab jetzt geht jemand hinter dir
     SCARE.echo = 7 + Math.random()*6;
@@ -2716,11 +2717,26 @@ function drawHud(){
 
 /* ========================== 10  Ton ========================== */
 
-/* Alles, was hier zu hören ist, wird im Spiel selbst erzeugt: Oszillatoren,
-   Rauschen, Filter und ein selbst gebauter Hall. Keine Aufnahmen, keine
-   fremden Dateien — frei verwendbar, ohne dass jemand gefragt werden muss. */
+/* Die Geräusche sind echte Aufnahmen aus dem freien Spiel „SCP – Containment
+   Breach“ (CC BY-SA 3.0), für diese Etage zugeschnitten; Herkunft und
+   Namensnennung in flur/ton/QUELLEN.md. Im Spiel erzeugt werden nur noch das
+   Bandrauschen, die Pieptöne des Camcorders und das Pfeifen im Ohr. */
 const SND = { on:true, ctx:null };
 const tonAn = () => !!(SND.ctx && SND.on);
+const TON = {};                        // Name -> AudioBuffer
+const TON_NAMEN = [
+  'aufheben','ausgang','drohnen','funken','g_atem_1','g_atem_2','g_knurren_1','g_knurren_2','g_kratzen',
+  'g_lachen','g_schrei_1','g_schrei_2','g_schritt_1','g_schritt_2','g_schritt_3','genick','glas',
+  'grollen_1','grollen_2','herz','klopfen','knall_1','knall_2','kreischen','luft','rascheln','rauschen',
+  'schock_1','schock_2','spieluhr','squelch','stich_1','stich_2','stich_3','stimmen_1','stimmen_2',
+  'strom_an','strom_aus','summen','tapetentuer','verschlossen','zuenden',
+  'fern_1','fern_2','fern_3','fern_4','fern_5','fern_6','fern_7','fern_8',
+  'fluestern_1','fluestern_2','fluestern_3','keuchen_1','keuchen_2','keuchen_3','keuchen_4',
+  'rennen_1','rennen_2','rennen_3','rennen_4','schritt_1','schritt_2','schritt_3','schritt_4','schritt_5','schritt_6',
+  'tropfen_1','tropfen_2','tropfen_3','tropfen_4'
+];
+const SPIELUHR_GRUND = 790;            // Grundton der Spieluhr-Aufnahme in Hz
+
 function initAudio(){
   if(SND.ctx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -2736,7 +2752,7 @@ function initAudio(){
   comp.connect(ac.destination);
   SND.master = ac.createGain(); SND.master.gain.value = 1; SND.master.connect(comp);
 
-  // Hall eines großen, feuchten Raums: frühe Echos, dann ein langer Schwanz
+  // Hall eines großen, feuchten Raums (berechnet, kein Geräusch für sich)
   const len = Math.floor(sr*2.1);
   const ir = ac.createBuffer(2, len, sr);
   for(let ch=0; ch<2; ch++){
@@ -2754,71 +2770,45 @@ function initAudio(){
   const hg = ac.createGain(); hg.gain.value = 0.5;
   SND.hall.connect(hg); hg.connect(SND.master);
 
-  // Nah am Ohr: die eigenen Schritte, mit einem Hauch Raum
+  // Nah am Ohr: die eigenen Schritte und das Keuchen, mit einem Hauch Raum
   SND.nah = ac.createGain(); SND.nah.gain.value = 1; SND.nah.connect(SND.master);
   const nh = ac.createGain(); nh.gain.value = 0.14; SND.nah.connect(nh); nh.connect(SND.hall);
 
-  // Rauschen, einmal erzeugt: weiß und braun (tief, für Grollen)
+  // Bandrauschen des Camcorders
   const buf = ac.createBuffer(1, sr*2, sr), d = buf.getChannelData(0);
   for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*0.5;
-  SND.noiseBuf = buf;
-  const bb = ac.createBuffer(1, sr*3, sr), bd = bb.getChannelData(0);
-  let last = 0;
-  for(let i=0;i<bd.length;i++){ last = (last + (Math.random()*2-1)*0.02)/1.02; bd[i] = last*3.2; }
-  SND.braunBuf = bb;
-
-  // Verzerrerkurve für Schrei und Knurren
-  const kurve = new Float32Array(1024);
-  for(let i=0;i<1024;i++){ const x = i/512 - 1; kurve[i] = Math.tanh(x*3.2); }
-  SND.kurve = kurve;
-
-  // Netzbrummen der Röhren: 50 Hz und Obertöne, dazu das Zischeln der Vorschaltgeräte
-  const g = ac.createGain(); g.gain.value = 0.05; g.connect(SND.master);
-  SND.humOsc = [];
-  [[50,'sine',0.5],[100,'sawtooth',0.32],[150,'sawtooth',0.14],[200,'square',0.05]].forEach(([f, typ, v]) => {
-    const o = ac.createOscillator(); o.type = typ; o.frequency.value = f;
-    const gg = ac.createGain(); gg.gain.value = v;
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
-    o.connect(gg); gg.connect(lp); lp.connect(g); o.start();
-    SND.humOsc.push({ o, f });
-  });
-  {
-    const s = ac.createBufferSource(); s.buffer = buf; s.loop = true;
-    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6800; bp.Q.value = 1.4;
-    const sg = ac.createGain(); sg.gain.value = 0.10;
-    s.connect(bp); bp.connect(sg); sg.connect(g); s.start();
-  }
-  SND.hum = g;
-
-  // Bandrauschen des Camcorders
   const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
   const hsg = ac.createGain(); hsg.gain.value = 0.030;
   const hp = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = 2400;
   src.connect(hp); hp.connect(hsg); hsg.connect(SND.master); src.start();
   SND.hiss = hsg;
 
-  // Raumton: kaum hörbar, aber ohne ihn klingt die Etage nach Studio
-  {
-    const s = ac.createBufferSource(); s.buffer = bb; s.loop = true;
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160;
-    const rg = ac.createGain(); rg.gain.value = 0.07;
-    s.connect(lp); lp.connect(rg); rg.connect(SND.master); s.start();
-    SND.raum = rg;
-  }
-
-  // Bedrohung: zwei tiefe, gegeneinander schwebende Töne
-  const dg = ac.createGain(); dg.gain.value = 0;
-  const lp2 = ac.createBiquadFilter(); lp2.type='lowpass'; lp2.frequency.value = 190;
-  for(const f of [41, 43.3]){
-    const o2 = ac.createOscillator(); o2.type='sawtooth'; o2.frequency.value = f;
-    o2.connect(lp2); o2.start();
-  }
-  const sub = ac.createOscillator(); sub.type = 'sine'; sub.frequency.value = 29;
-  const sg = ac.createGain(); sg.gain.value = 0.8; sub.connect(sg); sg.connect(dg); sub.start();
-  lp2.connect(dg); dg.connect(SND.master);
-  SND.drone = dg;
+  // Lautstärkeregler für die Dauerschleifen; die Aufnahmen hängen sich an,
+  // sobald sie geladen sind
+  SND.hum   = ac.createGain(); SND.hum.gain.value = 0.3;   SND.hum.connect(SND.master);
+  SND.drone = ac.createGain(); SND.drone.gain.value = 0;   SND.drone.connect(SND.master);
+  SND.raum  = ac.createGain(); SND.raum.gain.value = 0.35; SND.raum.connect(SND.master);
 
   verstecktonStarten();
+  tonLaden();
+}
+
+/* Alle Aufnahmen laden. In der Einzeldatei stecken sie als Datenadresse in
+   window.FT_ASSETS, fetch liest die genauso wie eine Datei. */
+function tonLaden(){
+  const ac = SND.ctx;
+  for(const n of TON_NAMEN){
+    fetch(A('flur/ton/' + n + '.mp3'))
+      .then(r => r.arrayBuffer())
+      .then(b => new Promise((ok, nein) => ac.decodeAudioData(b, ok, nein)))
+      .then(puffer => { TON[n] = puffer; geladen(n); })
+      .catch(() => {});
+  }
+}
+function geladen(n){
+  if(n === 'summen') SND.humQuelle = schleife('summen', SND.hum);
+  if(n === 'drohnen') schleife('drohnen', SND.drone, 0.9);
+  if(n === 'luft') schleife('luft', SND.raum);
 }
 
 /* ---------- Bausteine ---------- */
@@ -2839,8 +2829,8 @@ function setzOrt(pn, x, y, z){
   if(pn.positionX){ pn.positionX.value = x; pn.positionY.value = y; pn.positionZ.value = z; }
   else pn.setPosition(x, y, z);
 }
-/* Ein Ort, an dem ein Klang entsteht. Stehen Wände zwischen ihm und der
-   Kamera, kommt er dumpf an. Zurück kommt der Eingang für den Klang. */
+/* Ein Ort, an dem ein Geräusch entsteht. Stehen Wände zwischen ihm und der
+   Kamera, kommt es dumpf an. Zurück kommt der Eingang für das Geräusch. */
 function ort(x, y, z, o){
   o = o || {};
   const ac = SND.ctx;
@@ -2858,44 +2848,45 @@ function ort(x, y, z, o){
   lp.connect(hs); hs.connect(SND.hall);
   return lp;
 }
-function rausch(ziel, dauer, typ, freq, q, vol, an, buf){
-  const ac = SND.ctx, t0 = ac.currentTime;
-  const s = ac.createBufferSource(); s.buffer = buf || SND.noiseBuf;
-  const f = ac.createBiquadFilter(); f.type = typ; f.frequency.value = freq; f.Q.value = q || 0.7;
+/* Eine Aufnahme abspielen. o: vol, rate, streu (Zufall in der Tonhöhe),
+   von/dauer (Ausschnitt in Sekunden), nach (Verzögerung).
+   Zurück kommt, wie lange sie klingt. */
+function spiele(name, ziel, o){
+  o = o || {};
+  const b = TON[name];
+  if(!b || !tonAn()) return 0;
+  const ac = SND.ctx, s = ac.createBufferSource();
+  s.buffer = b;
+  const rate = (o.rate || 1) * (1 + (Math.random() - 0.5)*(o.streu || 0));
+  s.playbackRate.value = rate;
   const g = ac.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t0 + (an || 0.004));
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dauer);
-  s.connect(f); f.connect(g); g.connect(ziel);
-  s.start(t0, Math.random()*Math.max(0, s.buffer.duration - dauer - 0.1)); s.stop(t0 + dauer + 0.05);
-  return { f, g, s, t0 };
+  const vol = o.vol === undefined ? 1 : o.vol;
+  g.gain.value = vol;
+  s.connect(g); g.connect(ziel || SND.master);
+  const t0 = ac.currentTime + (o.nach || 0);
+  const von = clamp(o.von || 0, 0, Math.max(0, b.duration - 0.05));
+  const dauer = o.dauer ? Math.min(o.dauer, (b.duration - von)/rate) : (b.duration - von)/rate;
+  if(o.dauer){
+    g.gain.setValueAtTime(vol, t0 + Math.max(0, dauer - 0.08));
+    g.gain.linearRampToValueAtTime(0.0001, t0 + dauer);
+  }
+  s.start(t0, von, dauer*rate + 0.02);
+  return dauer;
 }
-function ton(ziel, typ, f0, f1, dauer, vol, an, wann){
-  const ac = SND.ctx, t0 = wann || ac.currentTime;
-  const o = ac.createOscillator(); o.type = typ; o.frequency.setValueAtTime(f0, t0);
-  if(f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dauer);
-  const g = ac.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t0 + (an || 0.004));
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dauer);
-  o.connect(g); g.connect(ziel); o.start(t0); o.stop(t0 + dauer + 0.05);
-  return { o, g };
+/* Eine Aufnahme als Dauerschleife; die Dateien tragen vorn und hinten
+   0,1 s Überhang, damit die Naht nicht knackt. */
+function schleife(name, ziel, rate){
+  const b = TON[name];
+  if(!b) return null;
+  const s = SND.ctx.createBufferSource();
+  s.buffer = b; s.loop = true;
+  s.loopStart = 0.1; s.loopEnd = Math.max(0.2, b.duration - 0.1);
+  s.playbackRate.value = rate || 1;
+  s.connect(ziel);
+  s.start(0, 0.1 + Math.random()*Math.max(0, b.duration - 0.3));
+  return s;
 }
-function verzerrer(){
-  const w = SND.ctx.createWaveShaper(); w.curve = SND.kurve; w.oversample = '2x'; return w;
-}
-
-function burst(dur, cut, vol, type){
-  const ac = SND.ctx;
-  if(!ac || !SND.on) return;
-  const n = Math.floor(ac.sampleRate*dur);
-  const b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
-  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/n, 3);
-  const s = ac.createBufferSource(); s.buffer = b;
-  const f = ac.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = cut;
-  const g = ac.createGain(); g.gain.value = vol;
-  s.connect(f); f.connect(g); g.connect(SND.master); s.start();
-}
+const eins = (vorn, n) => vorn + '_' + (1 + (Math.random()*n|0));
 function beep(freq, dur, vol, type){
   const ac = SND.ctx;
   if(!ac || !SND.on) return;
@@ -2908,261 +2899,168 @@ function beep(freq, dur, vol, type){
 
 /* ---------- Die Geräusche ---------- */
 const KLANG = {
-  // Teppich, feucht: dumpfer Auftritt, Fasern, auf nassen Stellen ein Schmatzen
-  schritt(laut, nass, ziel){
-    if(!tonAn()) return;
-    const ac = SND.ctx, z = ziel || SND.nah;
-    ton(z, 'sine', 90 + Math.random()*25, 45, 0.10, 0.30*laut);
-    rausch(z, 0.09 + Math.random()*0.05, 'bandpass', 650 + Math.random()*550, 0.9, 0.26*laut, 0.006);
-    rausch(z, 0.05, 'highpass', 3500 + Math.random()*1500, 0.7, 0.03*laut, 0.003);
-    if(nass > 0.18){
-      const r = rausch(z, 0.2, 'bandpass', 2100 + Math.random()*900, 3.0, 0.16*nass*laut, 0.012);
-      r.f.frequency.exponentialRampToValueAtTime(650, r.t0 + 0.18);
-    }
+  // Teppich: die Schritte der Vorlage, dumpf gefiltert
+  schritt(laut, rennen, ziel){
+    spiele(rennen ? eins('rennen', 4) : eins('schritt', 6), ziel || SND.nah, { vol:1.0*laut, streu:0.12 });
   },
   // Schritte, die nicht deine sind
   fremdSchritt(x, z, laut){
     if(!tonAn()) return;
-    const e = ort(x, 0.1, z, { ref:1.4, hall:0.3 });
-    KLANG.schritt(laut * 2.6, nassBei(x, z), e);
+    KLANG.schritt(laut*1.6, false, ort(x, 0.1, z, { ref:1.4, hall:0.3 }));
   },
   gestaltSchritt(x, z, jagd){
     if(!tonAn()) return;
-    const e = ort(x, 0.2, z, { ref:2.4, roll:0.9, hall:0.5, dumpf:420 });
-    ton(e, 'sine', 64 + Math.random()*10, 34, 0.26, jagd ? 1.5 : 1.1);
-    rausch(e, 0.2, 'lowpass', 340, 0.7, jagd ? 0.9 : 0.6, 0.003);
-    if(Math.random() < 0.35){
-      const r = rausch(e, 0.45, 'bandpass', 480 + Math.random()*320, 7, 0.12, 0.06);
-      r.f.frequency.linearRampToValueAtTime(r.f.frequency.value*1.4, r.t0 + 0.4);
-    }
-    if(!jagd && Math.random() < 0.25) rausch(e, 0.6, 'bandpass', 1100, 1.2, 0.05, 0.25);   // etwas schleift
+    spiele(eins('g_schritt', 3), ort(x, 0.2, z, { ref:2.4, roll:0.9, hall:0.5, dumpf:420 }),
+           { vol: jagd ? 1.5 : 1.1, rate: jagd ? 1.0 : 0.85, streu:0.1 });
   },
-  // Atmen: ein Rauschen durch zwei Engstellen, rau gemacht durch schnelles Zittern
-  atem(x, z, ein, laut){
-    if(!tonAn()) return;
-    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.2, z, { ref:1.8, roll:1.15, hall:0.35, dumpf:500 });
-    const dauer = ein ? 0.95 : 1.5;
-    const s = ac.createBufferSource(); s.buffer = SND.noiseBuf;
-    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = ein ? 1250 : 560; f1.Q.value = 1.6;
-    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = ein ? 2600 : 1200; f2.Q.value = 2.2;
-    const rau = ac.createGain(); rau.gain.value = 0.55;
-    const lfo = ac.createOscillator(); lfo.frequency.value = 26 + Math.random()*14;
-    const lg = ac.createGain(); lg.gain.value = 0.45; lfo.connect(lg); lg.connect(rau.gain);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(0.5*laut, t0 + dauer*0.45);
-    g.gain.linearRampToValueAtTime(0.0001, t0 + dauer);
-    s.connect(f1); s.connect(f2); f1.connect(rau); f2.connect(rau); rau.connect(g); g.connect(e);
-    s.start(t0, Math.random()); s.stop(t0 + dauer + 0.05); lfo.start(t0); lfo.stop(t0 + dauer + 0.05);
+  // Atmen: zwei Aufnahmen, eine davon rasselnd. Zurück kommt die Länge.
+  atem(x, z, laut){
+    if(!tonAn()) return 0;
+    return spiele(eins('g_atem', 2), ort(x, 2.2, z, { ref:1.8, roll:1.15, hall:0.35, dumpf:500 }),
+                  { vol:1.1*laut, rate:0.92, streu:0.1 });
   },
   knurren(x, z){
     if(!tonAn()) return;
-    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.0, z, { ref:2.5, roll:0.8, hall:0.6 });
-    const o = ac.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(58 + Math.random()*12, t0);
-    o.frequency.linearRampToValueAtTime(44, t0 + 0.9);
-    const w = verzerrer();
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
-    const am = ac.createGain(); am.gain.value = 0.6;
-    const lfo = ac.createOscillator(); lfo.frequency.value = 11 + Math.random()*5;
-    const lg = ac.createGain(); lg.gain.value = 0.4; lfo.connect(lg); lg.connect(am.gain);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.35, t0 + 0.15);
-    g.gain.linearRampToValueAtTime(0.0001, t0 + 1.0);
-    o.connect(w); w.connect(lp); lp.connect(am); am.connect(g); g.connect(e);
-    o.start(t0); o.stop(t0 + 1.05); lfo.start(t0); lfo.stop(t0 + 1.05);
-    rausch(e, 0.9, 'bandpass', 700, 1.1, 0.14, 0.1);
+    spiele(eins('g_knurren', 2), ort(x, 2.0, z, { ref:2.5, roll:0.8, hall:0.6 }), { vol:0.9, streu:0.12 });
   },
-  // Der Schrei, wenn sie dich sieht: zwei verstimmte Stimmen, verzerrt, im Hall
+  // Der Schrei, wenn sie dich sieht
   schrei(x, z){
     if(!tonAn()) return;
-    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.2, z, { ref:5, roll:0.5, hall:0.9, dumpf:1200 });
-    const w = verzerrer();
-    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.3;
-    const bp2 = ac.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 2700; bp2.Q.value = 2;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.03);
-    g.gain.setTargetAtTime(0.0001, t0 + 0.55, 0.22);
-    for(const [f, d] of [[560, 0], [573, 0.004], [281, 0.01]]){
-      const o = ac.createOscillator(); o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f, t0 + d);
-      o.frequency.exponentialRampToValueAtTime(f*1.25, t0 + 0.12);
-      o.frequency.exponentialRampToValueAtTime(f*0.34, t0 + 1.2);
-      o.connect(w); o.start(t0 + d); o.stop(t0 + 1.6);
-    }
-    w.connect(bp); w.connect(bp2); bp.connect(g); bp2.connect(g); g.connect(e);
-    rausch(e, 0.9, 'bandpass', 2400, 1.0, 0.25, 0.01);
+    spiele(eins('g_schrei', 2), ort(x, 2.2, z, { ref:5, roll:0.5, hall:0.9, dumpf:1400 }), { vol:1.2 });
   },
-  // Drei Schläge gegen eine Wand, irgendwo
-  klopfen(x, z, n){
+  lachen(x, z){
     if(!tonAn()) return;
-    for(let i=0;i<n;i++) setTimeout(() => {
-      if(!tonAn()) return;
-      const e = ort(x, 1.2, z, { ref:1.8, hall:0.8, dumpf:480 });
-      ton(e, 'sine', 150, 78, 0.14, 1.6, 0.002);
-      rausch(e, 0.06, 'bandpass', 1500, 1.3, 1.0, 0.001);
-    }, i*(300 + Math.random()*90));
+    spiele('g_lachen', ort(x, 2.0, z, { ref:3, roll:0.7, hall:0.9, dumpf:500 }), { vol:1.0 });
   },
-  // Flüstern: Rauschen durch zwei Formanten, die von Silbe zu Silbe springen
+  klopfen(x, z){
+    if(!tonAn()) return;
+    spiele('klopfen', ort(x, 1.2, z, { ref:2.5, hall:0.8, dumpf:520 }), { vol:1.3 });
+  },
+  // Flüstern dicht an einem Ohr
   fluestern(seite, dauer, laut){
     if(!tonAn()) return;
-    const ac = SND.ctx, t0 = ac.currentTime + 0.02;
-    let ziel;
+    const ac = SND.ctx;
+    let ziel = SND.master;
     if(ac.createStereoPanner){
       const sp = ac.createStereoPanner(); sp.pan.value = seite; sp.connect(SND.master);
       const hs = ac.createGain(); hs.gain.value = 0.3; sp.connect(hs); hs.connect(SND.hall);
       ziel = sp;
-    } else ziel = SND.master;
-    const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
-    const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250;
-    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 5;
-    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 7;
-    const vg = ac.createGain(); vg.gain.value = 0.0001;
-    const zisch = ac.createBiquadFilter(); zisch.type = 'highpass'; zisch.frequency.value = 4800;
-    const zg = ac.createGain(); zg.gain.value = 0.0001;
-    const aus = ac.createGain(); aus.gain.value = 1.3*laut;
-    s.connect(hp); hp.connect(f1); hp.connect(f2); f1.connect(vg); f2.connect(vg);
-    s.connect(zisch); zisch.connect(zg);
-    vg.connect(aus); zg.connect(aus); aus.connect(ziel);
-    const VOK = [[800,1250],[450,2000],[300,2300],[480,850],[330,800],[650,1750]];
-    let t = t0;
-    while(t < t0 + dauer){
-      const syl = 0.08 + Math.random()*0.15;
-      const [a, b] = VOK[(Math.random()*VOK.length)|0];
-      f1.frequency.setValueAtTime(a, t); f2.frequency.setValueAtTime(b, t);
-      f1.frequency.linearRampToValueAtTime(a*(0.85 + Math.random()*0.3), t + syl);
-      vg.gain.setValueAtTime(0.0001, t);
-      vg.gain.linearRampToValueAtTime(0.5 + Math.random()*0.5, t + syl*0.35);
-      vg.gain.linearRampToValueAtTime(0.0001, t + syl);
-      if(Math.random() < 0.4){
-        const zs = t + syl*(Math.random() < 0.5 ? 0 : 0.7);
-        zg.gain.setValueAtTime(0.0001, zs);
-        zg.gain.linearRampToValueAtTime(0.25, zs + 0.03);
-        zg.gain.linearRampToValueAtTime(0.0001, zs + 0.09 + Math.random()*0.08);
-      }
-      t += syl + (Math.random() < 0.18 ? 0.15 + Math.random()*0.2 : 0.015);
     }
-    s.start(t0); s.stop(t + 0.1);
+    spiele(eins('fluestern', 3), ziel, { vol:0.7*laut, dauer: Math.max(1.2, dauer || 3) });
   },
-  // Metall schlägt irgendwo auf: Knall und nachschwingende Teiltöne
   knall(x, z){
     if(!tonAn()) return;
-    const e = ort(x, 1.5, z, { ref:3, hall:1.0, dumpf:380 });
-    rausch(e, 0.5, 'lowpass', 700, 0.7, 1.1, 0.002);
-    for(const f of [187, 431, 779, 1123]) ton(e, 'sine', f, f*0.985, 1.4 + Math.random(), 0.15, 0.002);
+    spiele(eins('knall', 2), ort(x, 1.5, z, { ref:3, hall:1.0, dumpf:380 }), { vol:1.3, streu:0.1 });
+  },
+  // Irgendwo in der Etage arbeitet etwas
+  fern(x, z){
+    if(!tonAn()) return;
+    spiele(eins('fern', 8), ort(x, 1.8, z, { ref:4, roll:0.6, hall:0.9, dumpf:450 }), { vol:1.2 });
   },
   tropfen(x, z){
     if(!tonAn()) return;
-    const e = ort(x, 0.05, z, { ref:0.8, roll:1.5, hall:0.7 });
-    ton(e, 'sine', 1300 + Math.random()*900, 420, 0.08, 1.2, 0.001);
+    spiele(eins('tropfen', 4), ort(x, 0.05, z, { ref:0.8, roll:1.5, hall:0.7 }), { vol:2.5, streu:0.35 });
   },
-  // Das Vorschaltgerät zündet: ein hohes Ticken
+  // Eine Röhre zündet wieder
   tink(x, z){
     if(!tonAn()) return;
-    const e = ort(x, WH - 0.1, z, { ref:1.5, hall:0.4 });
-    ton(e, 'square', 3000 + Math.random()*900, 2600, 0.035, 0.18, 0.001);
-    rausch(e, 0.03, 'highpass', 5200, 0.7, 0.4, 0.001);
+    spiele('zuenden', ort(x, WH - 0.1, z, { ref:1.5, hall:0.4 }), { vol:0.8, streu:0.2 });
   },
   knistern(x, z, st){
     if(!tonAn()) return;
-    const e = ort(x, WH - 0.2, z, { ref:1.2, hall:0.2 });
-    rausch(e, 0.03 + Math.random()*0.07, 'bandpass', 2300 + Math.random()*2800, 1.6, 1.1*st, 0.001);
-    ton(e, 'sawtooth', 100, 100, 0.07, 0.22*st, 0.002);
+    spiele('funken', ort(x, WH - 0.2, z, { ref:1.2, hall:0.2 }),
+           { vol:0.9*st, von:Math.random()*1.1, dauer:0.12 + Math.random()*0.25, streu:0.3 });
   },
-  // Die Tapetentür: ein Knarzen aus lauter kleinen Rucken, dann Staub
+  roehre(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, WH - 0.2, z, { ref:2, hall:0.6 });
+    spiele('glas', e, { vol:1.1 });
+    spiele('funken', e, { vol:1.0, dauer:0.7 });
+  },
   knarren(x, z){
     if(!tonAn()) return;
-    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 1.2, z, { ref:1.6, hall:0.5 });
-    const o = ac.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(34, t0);
-    o.frequency.linearRampToValueAtTime(68, t0 + 0.35);
-    o.frequency.linearRampToValueAtTime(41, t0 + 0.8);
-    o.frequency.linearRampToValueAtTime(88, t0 + 1.15);
-    const b1 = ac.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = 720; b1.Q.value = 9;
-    const b2 = ac.createBiquadFilter(); b2.type = 'bandpass'; b2.frequency.value = 1460; b2.Q.value = 7;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.9, t0 + 0.06);
-    g.gain.setValueAtTime(0.9, t0 + 1.0); g.gain.linearRampToValueAtTime(0.0001, t0 + 1.3);
-    o.connect(b1); o.connect(b2); b1.connect(g); b2.connect(g); g.connect(e);
-    o.start(t0); o.stop(t0 + 1.35);
-    rausch(e, 1.1, 'lowpass', 900, 0.7, 0.10, 0.25);
+    spiele('tapetentuer', ort(x, 1.2, z, { ref:1.6, hall:0.5 }), { vol:1.1 });
   },
-  // Kratzen an der Wand — sie wartet draußen
+  // Sie wartet vor der Tür
   kratzen(x, z){
     if(!tonAn()) return;
-    const e = ort(x, 1.3, z, { ref:1.6, hall:0.4, dumpf:900 });
-    for(let i=0;i<5;i++) setTimeout(() => {
-      if(!tonAn()) return;
-      const r = rausch(e, 0.16 + Math.random()*0.1, 'bandpass', 2600 + Math.random()*1400, 3, 2.6, 0.02);
-      r.f.frequency.linearRampToValueAtTime(1500, r.t0 + 0.18);
-    }, i*(170 + Math.random()*120));
+    spiele('g_kratzen', ort(x, 1.3, z, { ref:1.6, hall:0.4, dumpf:900 }), { vol:1.1, streu:0.15 });
   },
-  // Das Gebäude arbeitet: tiefes Grollen von weit weg
   grollen(x, z){
     if(!tonAn()) return;
-    const e = ort(x, 1.5, z, { ref:6, roll:0.5, hall:0.9, dumpf:200 });
-    rausch(e, 3.2, 'lowpass', 90, 0.8, 0.9, 1.2, SND.braunBuf);
+    spiele(eins('grollen', 2), ort(x, 1.5, z, { ref:6, roll:0.5, hall:0.9, dumpf:220 }), { vol:1.2 });
   },
-  herz(st){
-    if(!tonAn()) return;
-    ton(SND.master, 'sine', 64, 40, 0.15, 0.40*st, 0.006);
-    setTimeout(() => { if(tonAn()) ton(SND.master, 'sine', 56, 36, 0.13, 0.28*st, 0.006); }, 165);
-  },
+  herz(st){ spiele('herz', SND.master, { vol:0.55*st }); },
+  keuchen(){ spiele(eins('keuchen', 4), SND.nah, { vol:0.8, streu:0.08 }); },
+  stich(st){ spiele(eins('stich', 3), SND.master, { vol:0.8*(st || 1) }); },
+  rascheln(){ spiele('rascheln', SND.master, { vol:0.8 }); },
+  aufheben(){ spiele('aufheben', SND.master, { vol:0.6 }); },
+  verschlossen(){ spiele('verschlossen', SND.master, { vol:0.8 }); },
+  ausgang(){ spiele('ausgang', SND.master, { vol:1.0 }); },
+  squelch(){ spiele('squelch', SND.master, { vol:0.8 }); },
+  // Zu viel auf einmal: der Ton klingelt nach (erzeugt — ein reiner Ton)
   pfeifen(){
     if(!tonAn()) return;
-    ton(SND.master, 'sine', 6300, 6150, 3.4, 0.025, 0.15);
+    const ac = SND.ctx, t0 = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(6300, t0);
+    o.frequency.exponentialRampToValueAtTime(6150, t0 + 3.4);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.025, t0 + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.4);
+    o.connect(g); g.connect(SND.master); o.start(t0); o.stop(t0 + 3.5);
   },
-  // Kassette rastet ein
-  kassette(){
-    if(!tonAn()) return;
-    rausch(SND.master, 0.025, 'bandpass', 3200, 2, 0.3, 0.001);
-    setTimeout(() => { if(tonAn()) rausch(SND.master, 0.03, 'bandpass', 2400, 2, 0.35, 0.001); }, 70);
+  // Stromausfall: das Netz bricht zusammen, das Brummen sackt ab
+  stromAus(){
+    if(!SND.ctx) return;
+    spiele('strom_aus', SND.master, { vol:1.0 });
+    KLANG.brummen(false, 1.3);
   },
-  // Relais klackt, das Licht geht
-  relais(){
-    if(!tonAn()) return;
-    rausch(SND.master, 0.05, 'bandpass', 1100, 2.2, 0.35, 0.001);
-    ton(SND.master, 'sine', 90, 50, 0.12, 0.25, 0.002);
+  stromAn(){
+    if(!SND.ctx) return;
+    spiele('strom_an', SND.master, { vol:0.7 });
+    KLANG.brummen(true, 0.8);
   },
-  // Das Netzbrummen fährt herunter oder wieder hoch
   brummen(an, zeit){
     if(!SND.ctx) return;
-    const ac = SND.ctx, t0 = ac.currentTime;
-    for(const h of SND.humOsc){
-      h.o.frequency.cancelScheduledValues(t0);
-      h.o.frequency.setValueAtTime(h.o.frequency.value, t0);
-      h.o.frequency.linearRampToValueAtTime(an ? h.f : h.f*0.5, t0 + zeit);
-    }
     SND.humAus = !an;
+    const q = SND.humQuelle, t0 = SND.ctx.currentTime;
+    if(q){
+      q.playbackRate.cancelScheduledValues(t0);
+      q.playbackRate.setValueAtTime(q.playbackRate.value, t0);
+      q.playbackRate.linearRampToValueAtTime(an ? 1 : 0.45, t0 + zeit);
+    }
   },
-  // Zu viel auf einmal: der Ton klingelt nach
-  zischen(st){
-    if(!tonAn()) return;
-    rausch(SND.master, 0.4, 'highpass', 3000, 0.7, 0.3*st, 0.004);
-  }
+  schock(welcher){ spiele(welcher === 2 ? 'schock_2' : 'schock_1', SND.master, { vol:1.0 }); }
 };
 
-const sndStep    = () => KLANG.schritt(0.8, nassBei(S.pos.x, S.pos.z));
-const sndRunStep = () => KLANG.schritt(1.25, nassBei(S.pos.x, S.pos.z));
+const sndStep    = () => KLANG.schritt(0.9, false);
+const sndRunStep = () => KLANG.schritt(1.15, true);
 const sndClunk   = () => {
   if(!tonAn()) return;
-  // irgendwo in den Wänden arbeitet etwas
-  const a = Math.random()*6.283, d = 9 + Math.random()*12;
-  const x = clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), z = clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1);
-  const e = ort(x, WH - 0.3, z, { ref:2, hall:0.8, dumpf:300 });
-  rausch(e, 0.5, 'lowpass', 190, 0.7, 1.6, 0.003);
-  ton(e, 'sine', 120, 60, 0.3, 0.9, 0.003);
+  const a = Math.random()*6.283, d = 12 + Math.random()*14;
+  KLANG.fern(clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1));
 };
-const sndPickup  = () => { KLANG.kassette(); beep(880, 0.06, 0.07); setTimeout(()=>beep(1320,0.09,0.06), 90); };
+const sndPickup  = () => { KLANG.aufheben(); beep(1320, 0.07, 0.04); };
 const sndDenied  = () => beep(180, 0.16, 0.09, 'sawtooth');
 const sndTick    = () => beep(2100, 0.02, 0.035, 'square');
-const sndDoor    = () => { burst(0.7, 260, 0.30); setTimeout(()=>burst(0.35,150,0.22), 320); };
+const sndDoor    = () => KLANG.ausgang();
 function sndScream(){ KLANG.schrei(MON.pos.x, MON.pos.z); }
+function burst(dur, cut, vol, type){           // nur noch für kurze Störgeräusche des Bandes
+  const ac = SND.ctx;
+  if(!ac || !SND.on) return;
+  const n = Math.floor(ac.sampleRate*dur);
+  const b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/n, 3);
+  const s = ac.createBufferSource(); s.buffer = b;
+  const f = ac.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = cut;
+  const g = ac.createGain(); g.gain.value = vol;
+  s.connect(f); f.connect(g); g.connect(SND.master); s.start();
+}
 
 /* ---------- Was hinter den Tapetentüren zu hören ist ----------
-   Jedes Versteck hat seinen Klang: ein Radio, das nur noch rauscht, ein
-   Fernseher, eine Spieluhr. Durch die Wand kommt er dumpf an — so findet
-   man die Türen, wenn man hinhört. */
+   Jedes Versteck hat seinen Klang: ein Radio, das nur noch rauscht und
+   manchmal Stimmen fängt, ein Fernseher, eine Spieluhr. Durch die Wand
+   kommt er dumpf an — so findet man die Türen, wenn man hinhört. */
 const VTON = [];
 const SPIELUHR = [[659,1],[784,1],[988,1],[880,2],[784,1],[740,1],[659,2],[587,1],[659,1],[740,1],[784,2],
                   [740,1],[659,1],[587,1],[494,3],[0,2]];
@@ -3179,35 +3077,13 @@ function verstecktonStarten(){
     const g = ac.createGain(); g.gain.value = 0;
     g.connect(lp); lp.connect(pn); pn.connect(SND.master);
     const hs = ac.createGain(); hs.gain.value = 0.25; lp.connect(hs); hs.connect(SND.hall);
-    const Q = { V, pn, lp, g, art:V.art, naechste:ac.currentTime + 1, schlag:0, tempo:0.30, stoer:0 };
-    if(V.art === 'lager' || V.art === 'schrein'){
-      // Grundrauschen: beim Radio schmal und knisternd, beim Fernseher hell
-      const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
-      const f = ac.createBiquadFilter();
-      if(V.art === 'lager'){ f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.7; }
-      else { f.type = 'highpass'; f.frequency.value = 2200; }
-      const sg = ac.createGain(); sg.gain.value = V.art === 'lager' ? 0.35 : 0.45;
-      s.connect(f); f.connect(sg); sg.connect(g); s.start();
-      Q.rausch = sg;
-      if(V.art === 'schrein'){
-        const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 60;
-        const ol = ac.createBiquadFilter(); ol.type = 'lowpass'; ol.frequency.value = 180;
-        const og = ac.createGain(); og.gain.value = 0.12;
-        o.connect(ol); ol.connect(og); og.connect(g); o.start();
-      }
-    }
-    VTON.push(Q);
-  }
-}
-function spieluhrNote(Q, f, wann, dauer){
-  const ac = SND.ctx;
-  for(const [m, v] of [[1, 0.22], [3.01, 0.05], [5.4, 0.02]]){
-    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f*m*Q.verstimmt;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, wann);
-    g.gain.exponentialRampToValueAtTime(v, wann + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, wann + Math.min(1.6, dauer*2.2)/m);
-    o.connect(g); g.connect(Q.g); o.start(wann); o.stop(wann + 1.7);
+    // Radio schmal wie aus einem kleinen Lautsprecher, Fernseher hell
+    const f = ac.createBiquadFilter();
+    if(V.art === 'lager'){ f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.8; }
+    else { f.type = 'highpass'; f.frequency.value = 1500; }
+    const rg = ac.createGain(); rg.gain.value = V.art === 'lager' ? 0.5 : 0.6;
+    f.connect(rg); rg.connect(g);
+    VTON.push({ V, pn, lp, g, f, rausch:rg, art:V.art, naechste:ac.currentTime + 1, schlag:0, tempo:0.30, stoer:3, verstimmt:1 });
   }
 }
 function verstecktonTick(dt){
@@ -3215,6 +3091,8 @@ function verstecktonTick(dt){
   const ac = SND.ctx, jetzt = ac.currentTime;
   for(const Q of VTON){
     const V = Q.V, p = V.klangPos;
+    // das Rauschen hängt sich an, sobald die Aufnahme da ist
+    if(!Q.quelle && Q.art !== 'zimmer' && TON.rauschen) Q.quelle = schleife('rauschen', Q.f, Q.art === 'lager' ? 0.8 : 1);
     const d = Math.hypot(S.pos.x - p.x, S.pos.z - p.z);
     const aus = V.art === 'schrein' && TV.zustand === 'aus';
     const ziel = (!SND.on || d > 26 || aus || S.phase !== 'play') ? 0 : 1;
@@ -3226,11 +3104,12 @@ function verstecktonTick(dt){
     if(ziel === 0) continue;
     if(V.art === 'zimmer'){
       // Die Spieluhr läuft langsam ab — und fängt von vorn an
-      if(!Q.verstimmt) Q.verstimmt = 1;
+      if(!TON.spieluhr) continue;
       while(Q.naechste < jetzt + 0.25){
         const [f, len] = SPIELUHR[Q.schlag % SPIELUHR.length];
-        if(f) spieluhrNote(Q, f, Math.max(Q.naechste, jetzt), Q.tempo*len);
-        Q.naechste = Math.max(Q.naechste, jetzt) + Q.tempo*len;
+        const wann = Math.max(Q.naechste, jetzt);
+        if(f) spiele('spieluhr', Q.g, { rate: f/SPIELUHR_GRUND*Q.verstimmt, vol:0.9, nach: wann - jetzt });
+        Q.naechste = wann + Q.tempo*len;
         Q.schlag++;
         if(Q.schlag % SPIELUHR.length === 0){
           Q.tempo = Q.tempo < 0.55 ? Q.tempo * 1.08 : 0.30;
@@ -3240,42 +3119,16 @@ function verstecktonTick(dt){
       }
     } else if(V.art === 'lager'){
       // Knistern und ab und zu Stimmen aus dem Radio
-      if(Math.random() < dt*6) Q.rausch.gain.setValueAtTime(0.1 + Math.random()*0.6, jetzt);
+      if(Math.random() < dt*5) Q.rausch.gain.setValueAtTime(0.15 + Math.random()*0.5, jetzt);
       Q.stoer -= dt;
       if(Q.stoer <= 0){
-        Q.stoer = 5 + Math.random()*8;
-        if(d < 16) radioStimme(Q, 1.2 + Math.random()*1.6);
+        Q.stoer = 6 + Math.random()*8;
+        if(d < 16){ spiele('squelch', Q.f, { vol:0.8 }); spiele(eins('stimmen', 2), Q.f, { vol:1.4, nach:0.12 }); }
       }
     } else if(V.art === 'schrein'){
-      Q.rausch.gain.setTargetAtTime(TV.zustand === 'bild' || TV.zustand === 'geist' ? 0.12 : 0.45, jetzt, 0.1);
+      Q.rausch.gain.setTargetAtTime(TV.zustand === 'bild' || TV.zustand === 'geist' ? 0.15 : 0.6, jetzt, 0.1);
     }
   }
-}
-function radioStimme(Q, dauer){
-  // wie das Flüstern, nur durch einen engen Telefonfilter und zerhackt
-  const ac = SND.ctx, t0 = ac.currentTime;
-  const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
-  const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 6;
-  const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 8;
-  const tel = ac.createBiquadFilter(); tel.type = 'bandpass'; tel.frequency.value = 1300; tel.Q.value = 0.9;
-  const vg = ac.createGain(); vg.gain.value = 0.0001;
-  const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 110 + Math.random()*40;
-  const og = ac.createGain(); og.gain.value = 0.25;
-  s.connect(f1); s.connect(f2); o.connect(og); og.connect(f1); og.connect(f2);
-  f1.connect(vg); f2.connect(vg); vg.connect(tel);
-  const aus = ac.createGain(); aus.gain.value = 2.2; tel.connect(aus); aus.connect(Q.g);
-  const VOK = [[700,1200],[400,2100],[300,2400],[500,900],[350,800]];
-  let t = t0;
-  while(t < t0 + dauer){
-    const syl = 0.07 + Math.random()*0.12;
-    const [a, b] = VOK[(Math.random()*VOK.length)|0];
-    f1.frequency.setValueAtTime(a, t); f2.frequency.setValueAtTime(b, t);
-    vg.gain.setValueAtTime(0.0001, t);
-    vg.gain.linearRampToValueAtTime(Math.random() < 0.15 ? 0.0001 : 0.6, t + syl*0.3);
-    vg.gain.linearRampToValueAtTime(0.0001, t + syl);
-    t += syl + 0.01;
-  }
-  s.start(t0); s.stop(t + 0.1); o.start(t0); o.stop(t + 0.1);
 }
 
 /* ---------- Hintergrundmusik ---------- */
@@ -3556,7 +3409,7 @@ const S = {
   tick: 0,
   clunk: 6,
   nearDoor: false,
-  verstecke: 0, notizen: 0, geheimband: false,
+  verstecke: 0, notizen: 0, geheimband: false, keuchT: 0,
   deathDir: new THREE.Vector3()
 };
 S.pos.copy(cellCenter(startCell, CFG.eye));
@@ -3733,7 +3586,7 @@ function checkDoor(){
     IN.use = false;
     if(S.nearDoor){
       if(S.exitOpen){ sndDoor(); win(); }
-      else { sndDenied(); toast('VERSCHLOSSEN — ' + (CFG.tapes-S.tapes) + ' BÄNDER FEHLEN', 2.6); }
+      else { KLANG.verschlossen(); toast('VERSCHLOSSEN — ' + (CFG.tapes-S.tapes) + ' BÄNDER FEHLEN', 2.6); }
     } else if(V){
       tuerOeffnen(V);
       KLANG.knarren(V.tuer.mx, V.tuer.mz);
@@ -3791,7 +3644,7 @@ function tvTick(dt){
   TV.t += dt;
   if(TV.zustand === 'warten'){
     U.uModus.value = 0; U.uHell.value = 1; U.uRausch.value = 1;
-    if(drin && d < 2.8){ TV.zustand = 'bild'; TV.t = 0; burst(0.3, 3000, 0.10, 'highpass'); }
+    if(drin && d < 2.8){ TV.zustand = 'bild'; TV.t = 0; KLANG.squelch(); }
   } else if(TV.zustand === 'bild'){
     U.uModus.value = 1;
     U.uRausch.value = TV.t < 0.35 ? 1 - TV.t/0.35 : 0.10 + Math.random()*0.08;
@@ -3809,8 +3662,8 @@ function tvTick(dt){
     U.uRausch.value = 0.14 + TV.t*0.14 + Math.random()*0.1;
     if(TV.t > 2.2){
       TV.zustand = 'knall'; TV.t = 0;
-      burst(0.7, 4200, 0.4, 'highpass');
-      KLANG.zischen(1); KLANG.pfeifen();
+      spiele('rauschen', SND.master, { vol:1.8, dauer:0.6 });
+      KLANG.schock(2); KLANG.pfeifen();
       S.glitch = 1;
       if(navigator.vibrate) navigator.vibrate([40,30,90]);
     }
@@ -3899,30 +3752,12 @@ function endScreen(title, text){
   bUse.classList.remove('on');
   if(document.pointerLockElement) document.exitPointerLock();
 }
-/* Der Schrei im Moment des Zugriffs: mehrere Lagen übereinander, laut. */
+/* Der Schrei im Moment des Zugriffs: Kreischen, Knacken, ein Schlag. */
 function jumpscareTon(){
-  const ac = SND.ctx;
-  if(!ac || !SND.on) return;
-  burst(0.06, 9000, 0.55, 'highpass');                     // harter Anschlag
-  burst(1.1, 700, 0.34);                                   // Rauschwand
-  const kreisch = ac.createOscillator(); kreisch.type = 'sawtooth';
-  kreisch.frequency.setValueAtTime(1750, ac.currentTime);
-  kreisch.frequency.exponentialRampToValueAtTime(220, ac.currentTime + 0.7);
-  const g1 = ac.createGain(); g1.gain.value = 0;
-  g1.gain.setTargetAtTime(0.30, ac.currentTime, 0.004);
-  g1.gain.setTargetAtTime(0.0, ac.currentTime + 0.35, 0.18);
-  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.8;
-  kreisch.connect(bp); bp.connect(g1); g1.connect(SND.master);
-  kreisch.start(); kreisch.stop(ac.currentTime + 1.4);
-
-  const tief = ac.createOscillator(); tief.type = 'square';
-  tief.frequency.setValueAtTime(90, ac.currentTime);
-  tief.frequency.exponentialRampToValueAtTime(28, ac.currentTime + 1.0);
-  const g2 = ac.createGain(); g2.gain.value = 0;
-  g2.gain.setTargetAtTime(0.34, ac.currentTime, 0.01);
-  g2.gain.setTargetAtTime(0.0, ac.currentTime + 0.6, 0.3);
-  tief.connect(g2); g2.connect(SND.master);
-  tief.start(); tief.stop(ac.currentTime + 1.8);
+  if(!tonAn()) return;
+  spiele('kreischen', SND.master, { vol:1.3 });
+  spiele('genick', SND.master, { vol:1.1, nach:0.06 });
+  KLANG.schock(1);
 }
 
 function die(){
@@ -4096,9 +3931,14 @@ function step(dt){
 
   // Ton
   if(SND.ctx && SND.on){
-    SND.drone.gain.value = 0.02 + S.danger*0.34;
+    SND.drone.gain.value = 0.06 + S.danger*0.5;
     SND.hiss.gain.value  = 0.030 + S.danger*0.02 + postMat.uniforms.uNv.value*0.02;
   }
+  // Wer sich leer gerannt hat, hört sich selbst nach Luft ringen
+  if(S.erschoepft){
+    S.keuchT -= dt;
+    if(S.keuchT <= 0){ S.keuchT = 0.8 + Math.random()*0.35; KLANG.keuchen(); }
+  } else S.keuchT = 0.2;
   S.heart -= dt;
   if(S.danger > 0.32 && S.heart <= 0){
     S.heart = lerp(1.15, 0.42, clamp((S.danger-0.32)/0.68, 0, 1));

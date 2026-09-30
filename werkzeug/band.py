@@ -19,6 +19,10 @@ Dieses Werkzeug hält beides deckungsgleich.
 Ebene 0 läuft nur in der Komplettdatei (sie braucht three.js in der alten
 Fassung, den Lader und die Bilder daraus); ihr Ordner hält Stil, Rumpf und
 Code nur zum Lesen und Ändern.
+
+Die Geräusche von Ebene 0 liegen als MP3 in games/flur/ton/. Beim Bauen
+wandern sie als Datenadresse nach window.FT_ASSETS ('flur/ton/<name>.mp3');
+Herkunft und Lizenz stehen in games/flur/ton/QUELLEN.md.
 """
 import json, re, sys, os
 
@@ -54,6 +58,9 @@ SCHWANZ = {
 <script src="../heim.js" data-ziel="../../index.html" data-ecke="ol" data-rand="8"></script>''',
 }
 MARKE = '<script type="importmap">'
+
+# Geräusche, die in die Komplettdatei eingebettet werden: (Ordner, Schlüssel)
+TON = ('games/flur/ton', 'flur/ton/')
 
 
 # ---------- Komplettdatei lesen ----------
@@ -148,14 +155,36 @@ def bauen():
     for b in BAENDER:
         B[b]['stil'], B[b]['rumpf'] = teile[b][0], teile[b][1]
     stellen.append((ja, je, jsonText(B)))
+    # Geräusche: alte raus, aktuelle aus dem Ordner rein
+    aa, ae, A = jsonZeile(s, 'FT_ASSETS')
+    A = {k: v for k, v in A.items() if not k.startswith(TON[1])}
+    A.update(tonOrdner())
+    stellen.append((aa, ae, jsonText(A)))
     for a, e, neu in sorted(stellen, reverse=True):
         s = s[:a] + neu + s[e:]
     with open(DATEI, 'w', encoding='utf-8') as f: f.write(s)
     print('games/foundtape.html neu geschrieben: %d Bytes' % len(s))
 
+def tonOrdner():
+    """{schlüssel: datenadresse} für alle MP3 im Tonordner"""
+    import base64
+    ordner = os.path.join(WURZEL, TON[0])
+    raus = {}
+    if not os.path.isdir(ordner): return raus
+    for n in sorted(os.listdir(ordner)):
+        if not n.endswith('.mp3'): continue
+        with open(os.path.join(ordner, n), 'rb') as f:
+            raus[TON[1] + n] = 'data:audio/mpeg;base64,' + base64.b64encode(f.read()).decode('ascii')
+    return raus
+
 def pruefen():
     d, o = ausDatei(), ausOrdner()
     gleich = True
+    _, _, A = jsonZeile(datei(), 'FT_ASSETS')
+    drin = {k: v for k, v in A.items() if k.startswith(TON[1])}
+    if drin != tonOrdner():
+        gleich = False
+        print('Geräusche weichen ab (%d in der Datei, %d im Ordner)' % (len(drin), len(tonOrdner())))
     for b in BAENDER:
         for i, was in enumerate(('Stil', 'Rumpf', 'Code')):
             if d[b][i] != o[b][i]:
