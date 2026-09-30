@@ -27,7 +27,7 @@ const BETT_HOEHE = 9/16;          // so hoch ist das Strohbett: darauf liegt man
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal' },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -2148,6 +2148,7 @@ function boot(){
   buildWire();
   Game.loadOpts();
   if(Game.settings.superGrafik && !Super.setzen(true)) Game.settings.superGrafik = false;
+  if(Game.settings.klassik) Klassik.setzen(true);
   // früher gab es nur »Ton an/aus«
   if(Game.settings.ton === false){ Game.settings.geraeusche = 0; delete Game.settings.ton; Game.saveOpts(); }
   Sfx.lautSetzen(Game.settings.geraeusche/100);
@@ -2169,7 +2170,7 @@ boot();
    Gegenständen und Mobs. */
 window.__welt = {
   R, Game, gl, Screens, Inv, Geste, REZEPTE, rasterRezept, B, ITEM, blocks, items, TEX, texNames, Input, Menue, Speicher, Mob, Pfeil, MOBS, Netz, Wetter, Chat, Befehle,
-  schleimGroesse, schleimChunk, Super,
+  schleimGroesse, schleimChunk, Super, Klassik,
   vaoHeil(){
     gl.bindVertexArray(R.cubeVAO);
     const ib = gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING);

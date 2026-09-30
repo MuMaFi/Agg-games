@@ -7,7 +7,7 @@
    ihre Welt geöffnet haben (siehe netz.js). */
 'use strict';
 
-const VERSION = 'Pocketcraft 26.10.04';              // Jahr.Nummer.Update
+const VERSION = 'Pocketcraft 26.10.05';              // Jahr.Nummer.Update
 const SPRUECHE = [
   'Jetzt mit Werkbank!', 'Auch hochkant!', '79 Rezepte!', 'Komplett offline!', 'Tür zu, Zombie draußen!',
   'Weizen wächst!', 'Aus Würfeln gebaut!', '100 % kachelbar!', 'Schlaf gut!', 'Eimer inklusive!',
@@ -33,7 +33,8 @@ const SPRUECHE = [
   'Grüner Zombie, blaue Hose!', 'Muh!', 'Wie früher!',
   'SUPER DUPER!', 'Jetzt mit Schatten!', 'Das Laub wiegt sich!',
   'Jetzt mit Treppen!', 'Stufe für Stufe!', 'Auch um die Ecke!',
-  'Jetzt mit Stufen!', 'Halbe Sachen!', 'Betten in Farbe!', 'Kornblumenblau!', 'Teilen macht Spaß!', 'Achtung, PvP!'
+  'Jetzt mit Stufen!', 'Halbe Sachen!', 'Betten in Farbe!', 'Kornblumenblau!', 'Teilen macht Spaß!', 'Achtung, PvP!',
+  'Holz wie früher!', 'Klassisch!', 'Alte Schule!'
 ];
 const STARTWORTE = ['taschenwelt','morgengrau','fichtental','kalkstein','nordwind','hohlwelt','bernstein','ackerland','moorgrund','eichenhain'];
 const TYP_TEXT = {
@@ -188,6 +189,12 @@ const Menue = {
       if(an && !Game.settings.superGrafik) hint('Dieses Gerät schafft das SUPER DUPER GRAFIK PAKET leider nicht', 3200);
       else if(an) hint('SUPER DUPER GRAFIK PAKET an — braucht ein schnelles Gerät', 2600);
       Game.saveOpts(); this.optionenZeigen();
+    });
+    knopf('#oKlassik', () => {
+      Game.settings.klassik = !Game.settings.klassik;
+      Klassik.setzen(Game.settings.klassik);
+      Game.saveOpts(); this.optionenZeigen();
+      if(this.aktiv === 'welten') this.listeZeichnen();
     });
     knopf('#oMonster', () => {
       const i = MONSTER_REIHE.indexOf(Game.settings.monster);
@@ -695,6 +702,7 @@ const Menue = {
     $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks' + (s.rd > 12 ? ' · braucht ein schnelles Gerät' : '');
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
+    $('#oKlassik').textContent = 'Texturen: ' + (s.klassik ? 'Klassisch (wie früher)' : 'Modern');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
     $('#oMonster').textContent = 'Monster: ' + (MONSTER_MENGE[s.monster] || MONSTER_MENGE.normal).name;
     const pz = v => v > 0 ? v + ' %' : 'Aus';

@@ -176,6 +176,18 @@ const R = {
     this.texArr = t;
   },
 
+  /** einzelne Bildlagen haben sich geändert (klassische Texturen): neu hochladen */
+  lagenNeu(namen){
+    if(!this.texArr) return;
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texArr);
+    for(const n of namen){
+      const L = TEX[n];
+      if(L !== undefined) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, L, TS, TS, 1, gl.RGBA, gl.UNSIGNED_BYTE, texData[L]);
+    }
+    gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  },
+
   buildSky(){
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);

@@ -1663,6 +1663,16 @@ function layerCanvas(name){
   return cv;
 }
 const _iconCache = new Map();
+/** Bilder haben sich geändert: auf die Karte, Symbole neu malen */
+function texturenNeuLaden(namen){
+  if(typeof R !== 'undefined') R.lagenNeu(namen);
+  _layerCanvas.clear(); _iconCache.clear();
+  // Leiste und Fächer merken sich, was sie zeigen — vergessen lassen
+  if(typeof HUD !== 'undefined') HUD.lastHot = null;
+  if(typeof document !== 'undefined') for(const d of document.querySelectorAll('#hotbar *, #beh *')) if(d._sig !== undefined) d._sig = null;
+  if(typeof symboleVorwaermen === 'function') symboleVorwaermen();
+  if(typeof Game !== 'undefined' && Game.player && Game.running){ HUD.refreshHotbar(); if(Screens.open) Screens.render(); }
+}
 /** flaches Symbol: die Textur selbst */
 function iconURL(texName){
   const k = 'f:' + texName;

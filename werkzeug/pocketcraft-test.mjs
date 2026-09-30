@@ -4,7 +4,7 @@ import fs from 'fs'; import vm from 'vm'; import path from 'path';
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '../games/pocketcraft/');
 const ctx = { console, Math, Float32Array, Uint8Array, Int8Array, Int32Array, Uint32Array, Uint16Array, ArrayBuffer, Map, Set, Object, Array, JSON, performance };
 ctx.globalThis = ctx; vm.createContext(ctx);
-for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js','wesen.js'])
+for(const f of ['grund.js','vorlage.js','texturen.js','bloecke.js','klassik.js','welt.js','gelaende.js','wasser.js','redstone.js','wetter.js','handwerk.js','befehle.js','wesen.js'])
   vm.runInContext(fs.readFileSync(dir + f, 'utf8'), ctx, { filename: f });
 vm.runInContext('initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();', ctx);
 let ok = 0, fehler = 0;
@@ -494,5 +494,14 @@ pruef(T(`(() => { TW.setBlock(3, 4, 30, stufeId(2, false)); TW.setBlock(4, 4, 30
   const p = neuSpieler(0.5, 30.5); gehen(p, 4.3, 0, 1.5); const a = p.x > 5.4 && um(p.y, 5);
   const q = neuSpieler(3.5, 33.5); q.y = 7; TW.setBlock(3, 4, 33, stufeId(2, true)); gehen(q, 0, 0, 1); return a && um(q.y, 5); })()`),
   'auf die Stufe hinauf und auf den Block dahinter; auf einer oberen Stufe steht man oben');
+// 26.10.05: klassische Texturen — eigene Bilder, zu jedem gibt es eine Lage, Gras und Laub sind grün, Umschalten tauscht nur Bilder
+pruef(T(`Object.keys(KLASSIK).length >= 45 && Object.keys(KLASSIK).every(n => TEX[n] !== undefined)`), 'klassische Bilder für ' + T('Object.keys(KLASSIK).length') + ' Texturen, alle mit Lage');
+pruef(T(`(() => { const mittel = n => { const d = klassikMalen(n); let r = 0, g = 0, b = 0, k = 0; for(let i = 0; i < d.length; i += 4) if(d[i+3] > 128){ r += d[i]; g += d[i+1]; b += d[i+2]; k++; } return [r/k, g/k, b/k]; };
+  const gr = mittel('grass_top'), lb = mittel('leaves'), st = mittel('stone');
+  return gr[1] > gr[0]*1.3 && gr[1] > gr[2]*1.5 && lb[1] > lb[0]*1.3 && Math.abs(st[0] - st[2]) < 4 && klassikMalen('stone').length === TS*TS*4; })()`),
+  'Gras und Laub sind grün eingefärbt, Stein grau, volle Größe');
+pruef(T(`(() => { const a = klassikMalen('cobble'), b = klassikMalen('cobble'); return a.every((v, i) => v === b[i]); })()`), 'immer dasselbe Bild (fester Zufall)');
+pruef(T(`(() => { const L = TEX.stone, vorher = texData[L]; globalThis.texturenNeuLaden = () => {}; Klassik.setzen(true); const an = texData[L] !== vorher;
+  Klassik.setzen(false); return an && texData[L] === vorher && texNames.length <= 256; })()`), 'umschalten und zurück: die gewohnten Bilder kommen wieder');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);
