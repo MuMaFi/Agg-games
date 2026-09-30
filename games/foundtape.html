@@ -3657,9 +3657,11 @@ window.FT_TITEL = {"b0": "FOUND TAPE · EBENE 0", "b1": "FOUND TAPE · EBENE 1",
      3  Grundriss, Begehbarkeit, Wegfindung
      4  Aufbau der Halle (Wände, Licht, Requisiten, Fundstücke)
      5  Der nachgebaute Ort aus dem Originalfoto
-     6  Die Gestalt
-     7  Bild (Fischauge, Band, Nachtsicht) und Anzeige
-     8  Ton
+     6  Ausgang, Fundstücke, Alterung (Schmutz, Deckenschäden, Kritzeleien)
+        und die drei Verstecke hinter Tapetentüren
+     7  Die Gestalt und die Regie der Schrecken
+     8  Bild (Fischauge, Band, Nachtsicht) und Anzeige
+        Ton: alles im Spiel selbst erzeugt, keine fremden Aufnahmen
      9  Steuerung (Touch, Maus, Tastatur)
     10  Spielablauf
    ====================================================================== */
@@ -3706,7 +3708,7 @@ const CFG = {
   drainNv:    0.62,
   batteryGain: 26,
 
-  exposure:   0.66,
+  exposure:   0.54,
   lightPower: 5.2,
   fog:        0.038,
   vhs:        0.42,
@@ -3871,7 +3873,10 @@ function labelTex(){
 
 const CS = CFG.cell, G = CFG.grid, WH = CFG.wallH, SPAN = G*CS;
 
-const ceilMap  = fromCanvas(ceilTex(), G, G);
+/* Eine Textur trägt 2×2 Platten. Bei dreifacher Wiederholung je Zelle wird
+   eine Platte 70 cm breit — so groß wie die echten, vorher waren es 2,1 m. */
+const ceilMap  = fromCanvas(ceilTex(), G*3, G*3);
+const TILE = CS/6, NT = G*6;
 const wallMap  = fromFile(A('assets/wall.jpg'), 1.6, 1.15);
 const wall2Map = fromFile(A('assets/wall2.jpg'), 1.2, 1.0);
 const floorMap = fromFile(A('assets/floor.jpg'), G*4, G*4);
@@ -3910,6 +3915,100 @@ const MAT = {
   photo: new THREE.MeshStandardMaterial({ map:fromFile(A('assets/photo.jpg'),1,1), roughness:0.8, metalness:0 })
 };
 const TUBECOL = new THREE.Color(2.15, 1.98, 1.6);
+
+/* ---------- Schmutz, Feuchte und Winkelschatten ----------
+   Wände, Boden und Decke rechnen ihre Alterung in Weltkoordinaten: das
+   Wasser läuft an derselben Stelle über jede Wand, die Feuchte kriecht vom
+   Boden hoch, und in den Winkeln sammelt sich Schatten. Boden und Decke
+   lesen dazu zwei Karten, die nach dem Grundriss gebacken werden. */
+const FTU = { tBoden:{ value:null }, tDecke:{ value:null } };
+const fl = v => v.toFixed(4);
+const GLSL_RAUSCH = `
+float ftH1(float n){ return fract(sin(n)*43758.5453); }
+float ftH2(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float ftRausch(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(ftH2(i), ftH2(i+vec2(1.0,0.0)), f.x),
+             mix(ftH2(i+vec2(0.0,1.0)), ftH2(i+vec2(1.0,1.0)), f.x), f.y);
+}`;
+const SCHMUTZ = {
+  wand: `
+  {
+    float h = vFtW.y, a = vFtW.x + vFtW.z;
+    // Feuchte steigt vom Boden auf, ungleichmäßig hoch
+    float kante = 0.28 + 0.34*ftRausch(vec2(a*0.8, 3.1)) + 0.10*ftRausch(vec2(a*4.0, 7.0));
+    float feucht = 1.0 - smoothstep(kante*0.45, kante, h);
+    // Wasserläufe von der Decke, schmal und unterschiedlich lang
+    float sp = a*2.3, id = floor(sp);
+    float wahl = ftH1(id*1.37 + 4.1);
+    float mitte = 1.0 - abs(fract(sp) - 0.5)*2.0;
+    float laenge = 0.5 + 2.3*ftH1(id*7.9 + 1.3);
+    float lauf = step(0.74, wahl) * smoothstep(0.30, 0.95, mitte)
+               * smoothstep(${fl(WH)} - laenge, ${fl(WH)} - laenge*0.4, h)
+               * (0.5 + 0.5*ftRausch(vec2(a*16.0, h*2.2)));
+    // große, wolkige Verfärbungen
+    float wolke = smoothstep(0.58, 0.86, ftRausch(vec2(a*0.33, h*0.5) + 11.0));
+    vec3 braun = vec3(0.56, 0.45, 0.25);
+    diffuseColor.rgb *= mix(vec3(1.0), braun, clamp(feucht*0.85 + lauf*0.6 + wolke*0.28, 0.0, 1.0));
+    // Schatten, wo die Wand auf Boden und Decke trifft, und in den Ecken
+    float ao = mix(0.52, 1.0, smoothstep(0.0, 0.6, h)) * mix(0.64, 1.0, smoothstep(${fl(WH)}, ${fl(WH-0.8)}, h));
+    float eng = texture2D(tFtBoden, vFtW.xz / ${fl(SPAN)}).r;
+    ao *= mix(1.0, 0.62, smoothstep(0.30, 0.75, eng));
+    diffuseColor.rgb *= ao;
+  }`,
+  boden: `
+  {
+    vec4 k = texture2D(tFtBoden, vFtW.xz / ${fl(SPAN)});
+    ftNass = k.g;
+    diffuseColor.rgb *= mix(1.0, 0.40, k.r);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.46, 0.40, 0.27), ftNass);
+    diffuseColor.rgb *= 0.86 + 0.14*ftRausch(vFtW.xz*0.35);
+  }`,
+  decke: `
+  {
+    vec2 t = vFtW.xz / ${fl(TILE)};
+    vec4 d = texture2D(tFtDecke, (floor(t) + 0.5) / ${fl(NT)});
+    ftLoch = d.r;
+    // Wasserrand auf der Platte: hellbraune Fläche, dunkler Saum
+    vec2 f = fract(t) - 0.5 + (d.ba - 0.5)*0.55;
+    float rr = length(f) + 0.13*(ftRausch(vFtW.xz*3.1) - 0.5);
+    float rad = 0.16 + 0.32*d.g;
+    float innen = smoothstep(rad, rad - 0.10, rr);
+    float saum  = smoothstep(0.045, 0.0, abs(rr - rad));
+    float fleck = step(0.02, d.g) * (innen*0.42 + saum*0.85);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.60, 0.47, 0.26), fleck);
+    float eng = texture2D(tFtBoden, vFtW.xz / ${fl(SPAN)}).r;
+    diffuseColor.rgb *= mix(1.0, 0.50, eng);
+    diffuseColor.rgb *= 1.0 - ftLoch;
+  }`
+};
+function schmutz(mat, art){
+  mat.customProgramCacheKey = () => 'ft-schmutz-' + art;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.tFtBoden = FTU.tBoden;
+    sh.uniforms.tFtDecke = FTU.tDecke;
+    sh.vertexShader = 'varying vec3 vFtW;\n' + sh.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n  vec4 ftW = vec4(transformed, 1.0);\n' +
+      '#ifdef USE_INSTANCING\n  ftW = instanceMatrix * ftW;\n#endif\n  vFtW = (modelMatrix * ftW).xyz;');
+    let f = sh.fragmentShader.replace('void main() {',
+      'varying vec3 vFtW;\nuniform sampler2D tFtBoden;\nuniform sampler2D tFtDecke;\n' + GLSL_RAUSCH +
+      '\nvoid main() {\n  float ftNass = 0.0;\n  float ftLoch = 0.0;');
+    f = f.replace('#include <map_fragment>', '#include <map_fragment>\n' + SCHMUTZ[art]);
+    // nasser Teppich glänzt
+    f = f.replace('#include <roughnessmap_fragment>',
+      '#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.30, ftNass);');
+    // wo eine Platte fehlt, leuchtet auch nichts
+    f = f.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= 1.0 - ftLoch;');
+    sh.fragmentShader = f;
+  };
+}
+schmutz(MAT.wall, 'wand');
+schmutz(MAT.wall2, 'wand');
+schmutz(MAT.floor, 'boden');
+schmutz(MAT.ceil, 'decke');
+schmutz(MAT.base, 'wand');
 
 /* ================= 3  Grundriss, Begehbarkeit, Wegfindung ================= */
 
@@ -3965,6 +4064,53 @@ LM.cell = idx(LM.bx+2, LM.by);
 LM.vx = (LM.bx+2)*CS + CS/2;
 LM.vz = LM.by*CS + CS/2;
 
+/* ---------- Verstecke ----------
+   Drei Kammern je Etage, rundum zugemauert. Eine ihrer Wände ist eine
+   Tapetentür: sie sieht aus wie jede andere, nur eine feine Naht und das,
+   was man dahinter hört, verraten sie. Die Kammern gehören nicht zur
+   Etage — keine Bänder, kein Umherstreifen der Gestalt, kein Deckenlicht. */
+const SECRET = new Int8Array(G*G).fill(-1);
+const VERSTECKE = [];
+{
+  const ARTEN = ['lager', 'schrein', 'zimmer'];
+  const frei = (x0, y0, w, h) => {
+    for(let y=y0-1; y<=y0+h; y++) for(let x=x0-1; x<=x0+w; x++){
+      if(x<1 || y<1 || x>=G-1 || y>=G-1) return false;
+      if(x>=LM.bx-1 && x<=LM.bx+4 && y>=LM.by-1 && y<=LM.by+4) return false;   // nicht an den Nachbau
+      if(SECRET[idx(x,y)] >= 0) return false;
+    }
+    // nicht dort, wo man aufwacht
+    for(let y=y0; y<y0+h; y++) for(let x=x0; x<x0+w; x++)
+      if(Math.abs(x - G/2) + Math.abs(y - G/2) < 4) return false;
+    return true;
+  };
+  for(let k=0; k<ARTEN.length; k++){
+    const art = ARTEN[k];
+    const lang = art !== 'schrein';                    // Lager und Zimmer sind länglich
+    for(let v=0; v<80; v++){
+      const quer = rnd() < 0.5;
+      const w = lang && quer ? 2 : 1, h = lang && !quer ? 2 : 1;
+      const x0 = 1 + ri(G-2-w), y0 = 1 + ri(G-2-h);
+      if(!frei(x0, y0, w, h)) continue;
+      for(let y=y0; y<y0+h; y++) for(let x=x0; x<x0+w; x++){
+        const i = idx(x,y);
+        SECRET[i] = VERSTECKE.length; blocked[i] = 0;
+        // innen offen, außen dicht
+        wallV[vi(x,y)]   = x === x0 ? 1 : 0;
+        wallV[vi(x+1,y)] = x === x0+w-1 ? 1 : wallV[vi(x+1,y)];
+        wallHz[hi(x,y)]   = y === y0 ? 1 : 0;
+        wallHz[hi(x,y+1)] = y === y0+h-1 ? 1 : wallHz[hi(x,y+1)];
+      }
+      for(let y=y0; y<y0+h; y++) for(let x=x0; x<x0+w; x++){
+        if(x < x0+w-1) wallV[vi(x+1,y)] = 0;
+        if(y < y0+h-1) wallHz[hi(x,y+1)] = 0;
+      }
+      VERSTECKE.push({ art, x0, y0, w, h, offen:false, gefunden:false, tuer:null });
+      break;
+    }
+  }
+}
+
 /* Die Wandzüge können Zellen komplett einmauern. Alles, was nicht am
    größten Bereich hängt, wird angebunden — sonst steht der Spieler in
    einer versiegelten Kammer und die Etage hat keine Bänder. */
@@ -3974,7 +4120,7 @@ function ensureConnected(){
   const sizes = [];
   let nc = 0;
   for(let i=0;i<G*G;i++){
-    if(blocked[i] || comp[i] >= 0) continue;
+    if(blocked[i] || comp[i] >= 0 || SECRET[i] >= 0) continue;   // Verstecke bleiben zu
     const q=[i]; comp[i]=nc; let n=0;
     for(let h=0;h<q.length;h++){
       const c=q[h]; n++;
@@ -4041,6 +4187,14 @@ function neighbours(i, out){
   if(canGo(x,y,x-1,y)) out.push(idx(x-1,y));
   if(canGo(x,y,x,y+1)) out.push(idx(x,y+1));
   if(canGo(x,y,x,y-1)) out.push(idx(x,y-1));
+  /* Von draußen führt kein Weg in ein Versteck, auch wenn die Tür offen
+     steht — die grobe Suche ist nur noch für die Gestalt da, und die
+     passt nicht durch die Tapetentür. */
+  if(SECRET[i] < 0){
+    let n = 0;
+    for(const k of out) if(SECRET[k] < 0) out[n++] = k;
+    out.length = n;
+  }
   return out;
 }
 const nbuf = [];
@@ -4069,10 +4223,11 @@ function kanteOffen(x, y, nx, ny){
 }
 function nachbarnMon(i, out){
   const x=i%G, y=(i/G)|0; out.length=0;
-  if(canGo(x,y,x+1,y) && kanteOffen(x,y,x+1,y)) out.push(idx(x+1,y));
-  if(canGo(x,y,x-1,y) && kanteOffen(x,y,x-1,y)) out.push(idx(x-1,y));
-  if(canGo(x,y,x,y+1) && kanteOffen(x,y,x,y+1)) out.push(idx(x,y+1));
-  if(canGo(x,y,x,y-1) && kanteOffen(x,y,x,y-1)) out.push(idx(x,y-1));
+  const ok = (nx, ny) => canGo(x,y,nx,ny) && SECRET[idx(nx,ny)] < 0 && kanteOffen(x,y,nx,ny);
+  if(ok(x+1,y)) out.push(idx(x+1,y));
+  if(ok(x-1,y)) out.push(idx(x-1,y));
+  if(ok(x,y+1)) out.push(idx(x,y+1));
+  if(ok(x,y-1)) out.push(idx(x,y-1));
   return out;
 }
 /* Weg für die Gestalt. Findet sich keiner (etwa weil sie in einer Nische
@@ -4110,7 +4265,7 @@ let startCell = -1;
 {
   let best = 1e9;
   for(let i=0;i<G*G;i++){
-    if(blocked[i]) continue;
+    if(blocked[i] || SECRET[i] >= 0) continue;
     const x=i%G, y=(i/G)|0;
     const d = Math.abs(x-G/2) + Math.abs(y-G/2);
     if(d < best){ best=d; startCell=i; }
@@ -4121,6 +4276,42 @@ const FREE = [];
 for(let i=0;i<G*G;i++) if(REACH[i] > 2) FREE.push(i);
 if(!FREE.length) for(let i=0;i<G*G;i++) if(REACH[i] >= 0) FREE.push(i);
 if(!FREE.length) FREE.push(startCell);
+
+/* Die Tapetentür jedes Verstecks: eine Außenwand, vor der ein erreichbarer
+   Gang liegt. Findet sich keine, bleibt die Kammer ein toter Hohlraum. */
+const TUERKANTE = new Set();
+for(let k=VERSTECKE.length-1; k>=0; k--){
+  const V = VERSTECKE[k];
+  const kand = [];
+  for(let y=V.y0; y<V.y0+V.h; y++) for(let x=V.x0; x<V.x0+V.w; x++){
+    for(const [nx, ny] of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]){
+      if(nx<0 || ny<0 || nx>=G || ny>=G) continue;
+      const j = idx(nx, ny);
+      if(SECRET[j] >= 0 || blocked[j] || REACH[j] < 0) continue;
+      if(nx>=LM.bx && nx<LM.bx+4 && ny>=LM.by && ny<LM.by+4) continue;
+      kand.push({ x, y, nx, ny });
+    }
+  }
+  if(!kand.length){ V.tot = true; continue; }
+  const t = pick(kand);
+  const senk = t.nx !== t.x;                      // Wand steht senkrecht (entlang z)
+  t.typ = senk ? 'V' : 'H';
+  t.gx = senk ? Math.max(t.x, t.nx) : t.x;
+  t.gy = senk ? t.y : Math.max(t.y, t.ny);
+  t.innen = idx(t.x, t.y); t.aussen = idx(t.nx, t.ny);
+  t.cx = senk ? t.gx*CS : t.x*CS + CS/2;
+  t.cz = senk ? t.y*CS + CS/2 : t.gy*CS;
+  t.rot = senk ? Math.PI/2 : 0;
+  t.inX = t.x - t.nx; t.inZ = t.y - t.ny;         // Richtung ins Versteck
+  t.oeff = (rnd() - 0.5)*1.4;                     // Lage der Tür in der Wand
+  V.tuer = t;
+  TUERKANTE.add(t.typ + ':' + t.gx + ':' + t.gy);
+}
+const versteckVon = (x, z) => {
+  const cx = Math.floor(x/CS), cz = Math.floor(z/CS);
+  if(cx<0 || cz<0 || cx>=G || cz>=G) return -1;
+  return SECRET[idx(cx, cz)];
+};
 
 const cellCenter = (i, y) => new THREE.Vector3((i%G)*CS+CS/2, y||0, ((i/G)|0)*CS+CS/2);
 
@@ -4228,8 +4419,10 @@ ceilM.rotation.x = Math.PI/2; ceilM.position.set(SPAN/2, WH, SPAN/2);
 scene.add(ceilM);
 
 const segs = [];   // [x, z, rotY]
-for(let y=0;y<G;y++) for(let x=0;x<=G;x++) if(wallV[vi(x,y)]) segs.push([x*CS, y*CS+CS/2, Math.PI/2]);
-for(let y=0;y<=G;y++) for(let x=0;x<G;x++) if(wallHz[hi(x,y)]) segs.push([x*CS+CS/2, y*CS, 0]);
+for(let y=0;y<G;y++) for(let x=0;x<=G;x++)
+  if(wallV[vi(x,y)] && !TUERKANTE.has('V:'+x+':'+y)) segs.push([x*CS, y*CS+CS/2, Math.PI/2]);
+for(let y=0;y<=G;y++) for(let x=0;x<G;x++)
+  if(wallHz[hi(x,y)] && !TUERKANTE.has('H:'+x+':'+y)) segs.push([x*CS+CS/2, y*CS, 0]);
 
 const m4=new THREE.Matrix4(), qt=new THREE.Quaternion(), vv=new THREE.Vector3(), s1=new THREE.Vector3(1,1,1);
 function place(mesh, i, x, y, z, rot){
@@ -4284,6 +4477,7 @@ function addFixture(geo, hg, cx, cz, rot){
 }
 for(let y=0;y<G;y++) for(let x=0;x<G;x++){
   const cx = x*CS+CS/2, cz = y*CS+CS/2;
+  if(SECRET[idx(x,y)] >= 0) continue;          // Verstecke bringen ihr eigenes Licht mit
   if(y % 3 === 1){ if(rnd() <= quality.fixtures) addFixture(tubeGeo, housT, cx, cz, 0); }
   else if((x+y) % 5 === 0 && rnd()<0.8) addFixture(panelGeo, housP, cx, cz, rnd()<0.5?0:Math.PI/2);
 }
@@ -4321,11 +4515,16 @@ scene.add(new THREE.AmbientLight(0x050403, 1.0));
 const nvLight = new THREE.PointLight(0xcfe4ff, 0, 15, 1.8);
 scene.add(nvLight);
 
-let sortT = 0;
+let sortT = 0, lichtHier = 1, innenLicht = 0;
 function updateLights(dt, t, danger){
+  const mx = MON.pos.x, mz = MON.pos.z;
+  let tinks = 0;
   for(const f of fixtures){
     let v;
     if(f.dead) v = 0;
+    else if(f.art === 'laterne') v = 0.82 + Math.sin(t*9 + f.ph)*0.05 + Math.random()*0.06;
+    else if(f.art === 'lampe')   v = Math.random() < 0.004 ? 0.2 : 0.95;
+    else if(f.art === 'tv')      v = TV.zustand === 'aus' ? 0 : (TV.zustand === 'bild' || TV.zustand === 'geist' ? 0.55 : 0.25 + Math.random()*0.45);
     else if(f.broken){
       const s = Math.sin(t*f.f + f.ph) + Math.sin(t*f.f*2.6 + f.ph*1.7);
       v = s > 0.75 ? 1 : (Math.random()<0.28 ? 0.45 : 0.02);
@@ -4333,40 +4532,104 @@ function updateLights(dt, t, danger){
       v = 0.96 + Math.sin(t*118 + f.ph)*0.04;
       if(Math.random() < 0.0035) v = 0.28;
     }
+    // Stromausfall, danach zündet Röhre für Röhre
+    if(f.aus){
+      if(f.zuend !== undefined){
+        f.zuend -= dt;
+        if(f.zuend <= 0){
+          f.aus = false; f.zuend = undefined;
+          if(tinks < 3 && f.pos.distanceToSquared(camera.position) < 200){ tinks++; KLANG.tink(f.pos.x, f.pos.z); }
+        } else v = f.zuend < 0.28 ? (Math.random() < 0.5 ? 0.9 : 0.04) : 0;
+      } else v = 0;
+    }
+    // In ihrer Nähe halten die Röhren nicht durch
+    if(!f.dead && !f.art){
+      const md2 = (f.pos.x - mx)**2 + (f.pos.z - mz)**2;
+      if(md2 < 56){
+        const k = 1 - Math.sqrt(md2)/7.5;
+        if(Math.random() < 0.3 + k*0.6) v *= Math.random() < k ? 0.02 : 0.4;
+        if(k > 0.45 && Math.random() < dt*2.5 && f.pos.distanceToSquared(camera.position) < 300)
+          KLANG.knistern(f.pos.x, f.pos.z, k);
+      }
+    }
     if(danger > 0 && Math.random() < 0.25*danger) v *= 0.12;
-    if(SCARE.blitz > 0) v = Math.min(2.4, v + 1.6);        // eine Röhre platzt
+    if(SCARE.blitz > 0 && !f.art) v = Math.min(2.4, v + 1.6);        // eine Röhre platzt
     f.on = v;
-    f.mesh.material.color.copy(TUBECOL).multiplyScalar(v);
+    if(f.mesh) f.mesh.material.color.copy(f.basis || TUBECOL).multiplyScalar(v);
   }
   sortT -= dt;
   if(sortT <= 0){
     sortT = 0.25;
     fixtures.sort((a,b)=> a.pos.distanceToSquared(camera.position) - b.pos.distanceToSquared(camera.position));
   }
+  /* Das Licht der Gänge fällt durch die Wände (die Lampen werfen keine
+     Schatten). In einem Versteck soll es aber dunkel sein, nur die eigene
+     Funzel brennt — draußen wird deshalb heruntergedreht, solange man drin ist. */
+  innenLicht += ((versteckVon(camera.position.x, camera.position.z) >= 0 ? 1 : 0) - innenLicht) * Math.min(dt*4, 1);
   for(let i=0;i<rig.length;i++){
     const f = fixtures[i], pl = rig[i];
     if(!f){ pl.intensity = 0; continue; }
     pl.position.copy(f.pos);
-    pl.intensity = CFG.lightPower * f.on;
-    pl.color.setHex(danger > 0.5 ? 0xff6a34 : 0xffd894);
+    const drinnen = f.art ? 1 + innenLicht*0.4 : 1 - innenLicht*0.9;
+    pl.intensity = CFG.lightPower * f.on * (f.kraft || 1) * drinnen;
+    pl.color.setHex(danger > 0.5 && !f.art ? 0xff6a34 : (f.farbe || 0xffd894));
   }
+  // Das Brummen kommt aus den Röhren: unter einer hellen laut, im Dunkeln leise
+  let n = 0;
+  for(let i=0; i<Math.min(10, fixtures.length); i++){
+    const f = fixtures[i];
+    const d = f.pos.distanceTo(camera.position);
+    n += f.on * Math.max(0, 1 - d/10) * (f.art ? f.kraft : 1);
+  }
+  lichtHier = n;
+  if(SND.ctx && SND.on && S.phase === 'play'){
+    const ziel = SND.humAus ? 0 : 0.010 + 0.05*Math.min(n, 1.4);
+    SND.hum.gain.setTargetAtTime(ziel, SND.ctx.currentTime, SND.humAus ? 0.35 : 0.08);
+  }
+  // hängende Platten und Kabel pendeln
+  for(const h of HAENGT){
+    const w = Math.sin(t*0.7 + h.ph)*h.amp + Math.sin(t*1.9 + h.ph*2)*h.amp*0.3;
+    if(h.kabel) h.o.rotation.set(w, 0, w*0.6);
+    else {
+      h.o.rotation.z = h.basis + w;
+      h.halter.updateMatrixWorld(true);
+      haengePlatten.setMatrixAt(h.idx, h.stueck.matrixWorld);
+    }
+  }
+  if(haengePlatten) haengePlatten.instanceMatrix.needsUpdate = true;
 }
 
 /* ---------- Requisiten ---------- */
+/* Mehrere Klötze zu einer Form verschmelzen — ein Stuhl kostet dann einen
+   Zeichenaufruf statt sechs. teile: [breite, höhe, tiefe, x, y, z] */
+function verschmolzen(teile){
+  const pos = [], nrm = [], uv = [];
+  for(const [w, h, d, x, y, z] of teile){
+    const g = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+    g.translate(x, y, z);
+    pos.push(...g.attributes.position.array);
+    nrm.push(...g.attributes.normal.array);
+    uv.push(...g.attributes.uv.array);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return out;
+}
+const STUHL = verschmolzen([
+  [.46,.06,.46, 0,.44,0], [.46,.5,.05, 0,.69,-.21],
+  [.045,.44,.045, -.19,.22,-.19], [.045,.44,.045, .19,.22,-.19],
+  [.045,.44,.045, -.19,.22,.19],  [.045,.44,.045, .19,.22,.19]
+]);
 function chairMesh(){
-  const g=new THREE.Group(), M=MAT.chair;
-  const add=m=>{ m.castShadow=quality.shadows; g.add(m); return m; };
-  const s=new THREE.Mesh(new THREE.BoxGeometry(.46,.06,.46),M); s.position.y=.44; add(s);
-  const b=new THREE.Mesh(new THREE.BoxGeometry(.46,.5,.05),M); b.position.set(0,.69,-.21); add(b);
-  [[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]].forEach(p=>{
-    const l=new THREE.Mesh(new THREE.BoxGeometry(.045,.44,.045),M);
-    l.position.set(p[0],.22,p[1]); add(l);
-  });
-  return g;
+  const m = new THREE.Mesh(STUHL, MAT.chair);
+  m.castShadow = quality.shadows;
+  return m;
 }
 const props = new THREE.Group(); scene.add(props);
 for(let i=0;i<G*G;i++){
-  if(blocked[i] || rnd()>0.09) continue;
+  if(blocked[i] || SECRET[i] >= 0 || rnd()>0.09) continue;
   const cx=(i%G)*CS+CS/2, cz=((i/G)|0)*CS+CS/2;
   const ox=(rnd()-0.5)*2.2, oz=(rnd()-0.5)*2.2;
   const k = rnd();
@@ -4498,6 +4761,378 @@ const EXIT = {};
 
 rebuildOcc();
 
+/* ============ 6a  Alterung: Schatten, Feuchte, Deckenschäden ============ */
+
+/* Bodenkarte: rot = Winkelschatten, grün = nasser Teppich. Sie liegt als
+   Textur über der ganzen Etage und wird auch für Schritte gelesen. */
+const BK = 512, BS = BK / SPAN;
+const NASS = new Float32Array(BK*BK);
+function nassBei(x, z){
+  const px = clamp(Math.floor(x*BS), 0, BK-1), pz = clamp(Math.floor(z*BS), 0, BK-1);
+  return NASS[pz*BK + px];
+}
+{
+  const occ = new Float32Array(BK*BK);
+  for(const b of BOXES){
+    const x0 = Math.max(0, Math.floor((b.x-b.hx)*BS)), x1 = Math.min(BK-1, Math.floor((b.x+b.hx)*BS));
+    const z0 = Math.max(0, Math.floor((b.z-b.hz)*BS)), z1 = Math.min(BK-1, Math.floor((b.z+b.hz)*BS));
+    for(let z=z0; z<=z1; z++) for(let x=x0; x<=x1; x++) occ[z*BK+x] = 1;
+  }
+  // Kastenunschärfe, getrennt nach Zeilen und Spalten, laufende Summe
+  const weich = (a, r) => {
+    const t = new Float32Array(BK*BK), o = new Float32Array(BK*BK), n = 2*r+1;
+    for(let z=0; z<BK; z++){
+      let s = 0;
+      for(let x=-r; x<=r; x++) s += a[z*BK + clamp(x,0,BK-1)];
+      for(let x=0; x<BK; x++){
+        t[z*BK+x] = s/n;
+        s += a[z*BK + Math.min(x+r+1, BK-1)] - a[z*BK + Math.max(x-r, 0)];
+      }
+    }
+    for(let x=0; x<BK; x++){
+      let s = 0;
+      for(let z=-r; z<=r; z++) s += t[clamp(z,0,BK-1)*BK + x];
+      for(let z=0; z<BK; z++){
+        o[z*BK+x] = s/n;
+        s += t[Math.min(z+r+1, BK-1)*BK + x] - t[Math.max(z-r, 0)*BK + x];
+      }
+    }
+    return o;
+  };
+  const ao = weich(weich(occ, 2), 2);
+
+  // Feuchte: weiche Wolken, dazu einzelne Pfützen — in den dunklen Zonen mehr
+  const WN = 22, wr = new Float32Array((WN+1)*(WN+1));
+  for(let i=0; i<wr.length; i++) wr[i] = rnd();
+  const pfuetzen = [];
+  for(let i=0; i<16; i++){
+    const d = i < 6 ? DARKZONES[i % DARKZONES.length] : null;
+    const x = d ? d.x + (rnd()-0.5)*d.r : rnd()*SPAN, z = d ? d.z + (rnd()-0.5)*d.r : rnd()*SPAN;
+    pfuetzen.push([x, z, 1.2 + rnd()*3.2]);
+  }
+  const data = new Uint8Array(BK*BK*4);
+  for(let pz=0; pz<BK; pz++) for(let px=0; px<BK; px++){
+    const i = pz*BK + px;
+    const u = px/BK*WN, v = pz/BK*WN, iu = u|0, iv = v|0;
+    let fu = u-iu, fv = v-iv; fu = fu*fu*(3-2*fu); fv = fv*fv*(3-2*fv);
+    const a = wr[iv*(WN+1)+iu], b = wr[iv*(WN+1)+iu+1], c = wr[(iv+1)*(WN+1)+iu], d = wr[(iv+1)*(WN+1)+iu+1];
+    const n = lerp(lerp(a,b,fu), lerp(c,d,fu), fv);
+    let w = clamp((n - 0.66)/0.22, 0, 1) * 0.75;
+    const x = (px+0.5)/BS, z = (pz+0.5)/BS;
+    for(const p of pfuetzen){
+      const q = ((x-p[0])**2 + (z-p[1])**2) / (p[2]*p[2]);
+      if(q < 1) w = Math.max(w, (1-q)*(1-q)*1.1);
+    }
+    w = clamp(w, 0, 1);
+    NASS[i] = occ[i] ? 0 : w;
+    data[i*4]   = Math.round(clamp(ao[i]*2.1, 0, 1)*255);
+    data[i*4+1] = Math.round(NASS[i]*255);
+    data[i*4+3] = 255;
+  }
+  const t = new THREE.DataTexture(data, BK, BK, THREE.RGBAFormat);
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  FTU.tBoden.value = t;
+}
+
+/* Deckenkarte: je Platte ein Texel. rot = Platte fehlt, grün = Wasserfleck,
+   blau/alpha = wo auf der Platte der Fleck sitzt. */
+const LOECHER = [];
+{
+  const nahLicht = new Uint8Array(NT*NT);
+  for(const f of fixtures){
+    const r = 1.3;
+    for(let tz=Math.floor((f.pos.z-r)/TILE); tz<=Math.floor((f.pos.z+r)/TILE); tz++)
+      for(let tx=Math.floor((f.pos.x-r)/TILE); tx<=Math.floor((f.pos.x+r)/TILE); tx++)
+        if(tx>=0 && tz>=0 && tx<NT && tz<NT) nahLicht[tz*NT+tx] = 1;
+  }
+  const data = new Uint8Array(NT*NT*4);
+  for(let tz=0; tz<NT; tz++) for(let tx=0; tx<NT; tx++){
+    const i = tz*NT + tx, wx = (tx+0.5)*TILE, wz = (tz+0.5)*TILE;
+    const nass = nassBei(wx, wz);
+    const frei = freeIn(OCC_RAW, wx-0.3, wz-0.3) && freeIn(OCC_RAW, wx+0.3, wz+0.3) &&
+                 freeIn(OCC_RAW, wx-0.3, wz+0.3) && freeIn(OCC_RAW, wx+0.3, wz-0.3);
+    const p = 0.008 + (inDark(wx, wz) ? 0.07 : 0) + nass*0.06;
+    if(frei && !nahLicht[i] && versteckVon(wx, wz) < 0 && rnd() < p){
+      data[i*4] = 255;
+      LOECHER.push([wx, wz]);
+    } else if(rnd() < 0.05 + nass*0.35){
+      data[i*4+1] = 60 + ri(196); data[i*4+2] = ri(256); data[i*4+3] = ri(256);
+    }
+  }
+  const t = new THREE.DataTexture(data, NT, NT, THREE.RGBAFormat);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.needsUpdate = true;
+  FTU.tDecke.value = t;
+}
+
+/* Eine einzelne Deckenplatte für das, was heruntergekommen ist */
+function platteTex(){
+  const s=128, c=cv(s,s), x=c.getContext('2d');
+  x.fillStyle='#cdc6a2'; x.fillRect(0,0,s,s);
+  for(let i=0;i<500;i++){
+    x.fillStyle='rgba('+(140+Math.random()*60|0)+','+(134+Math.random()*50|0)+',104,.14)';
+    x.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  blobs(x,s,s,4,'rgba(128,98,44,.35)',10,40);
+  x.strokeStyle='rgba(90,84,60,.8)'; x.lineWidth=3; x.strokeRect(1,1,s-2,s-2);
+  grain(x,s,s,18);
+  return c;
+}
+MAT.platte = new THREE.MeshStandardMaterial({ map:fromCanvas(platteTex(),1,1), roughness:0.96, metalness:0 });
+MAT.kabel  = new THREE.MeshStandardMaterial({ color:0x14120e, roughness:0.6, metalness:0.2 });
+const HAENGT = [];      // hängende Platten und Kabel, die leise pendeln
+let haengePlatten = null;
+{
+  const start = cellCenter(startCell);
+  const liegend = [];     // Matrizen der heruntergefallenen Stücke
+  const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+  const loecher = LOECHER.slice().sort(() => rnd() - 0.5);
+  let haengend = 0, kabel = 0;
+  for(const [hx, hz] of loecher){
+    if(Math.hypot(hx - start.x, hz - start.z) < 5) continue;
+    const r = rnd();
+    if(r < 0.30 && haengend < 16){
+      haengend++;
+      const halter = new THREE.Group();
+      halter.position.set(hx, 0, hz);
+      halter.rotation.y = ri(4) * Math.PI/2;
+      const scharnier = new THREE.Group();
+      scharnier.position.set(-TILE/2, WH - 0.012, 0);
+      const stueck = new THREE.Object3D();          // nur für die Lage — gezeichnet wird gesammelt
+      scharnier.add(stueck);
+      scharnier.rotation.z = -(0.85 + rnd()*0.55);
+      halter.add(scharnier);
+      HAENGT.push({ o:scharnier, basis:scharnier.rotation.z, ph:rnd()*6.28, amp:0.025, halter, stueck });
+    } else if(r < 0.42 && kabel < 10){
+      kabel++;
+      const tief = 0.5 + rnd()*1.0;
+      const ox = (rnd()-0.5)*0.4, oz = (rnd()-0.5)*0.4;
+      const kurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(ox*0.4, -tief*0.45, oz*0.4),
+        new THREE.Vector3(ox, -tief*0.8, oz),
+        new THREE.Vector3(ox*1.1 + 0.05, -tief, oz*1.1)
+      ]);
+      const m = new THREE.Mesh(new THREE.TubeGeometry(kurve, 10, 0.009, 4, false), MAT.kabel);
+      const halter = new THREE.Group();
+      halter.position.set(hx + (rnd()-0.5)*0.3, WH, hz + (rnd()-0.5)*0.3);
+      halter.add(m);
+      scene.add(halter);
+      HAENGT.push({ o:halter, basis:0, ph:rnd()*6.28, amp:0.05, kabel:true });
+    }
+    // was heruntergefallen ist
+    if(rnd() < 0.45){
+      const n = 1 + ri(3);
+      for(let k=0; k<n; k++){
+        const px = hx + (rnd()-0.5)*1.1, pz = hz + (rnd()-0.5)*1.1;
+        if(!freeP(px, pz)) continue;
+        const w = 0.14 + rnd()*0.34, d = 0.12 + rnd()*0.30;
+        _e.set((rnd()-0.5)*0.08, rnd()*6.28, (rnd()-0.5)*0.08);
+        liegend.push(new THREE.Matrix4().compose(_p.set(px, 0.009 + k*0.014, pz), _q.setFromEuler(_e), _s.set(w, 1, d)));
+      }
+    }
+  }
+  if(liegend.length){
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.016, 1), MAT.platte, liegend.length);
+    liegend.forEach((m, i) => im.setMatrixAt(i, m));
+    im.frustumCulled = false;
+    scene.add(im);
+  }
+  const platten = HAENGT.filter(h => h.stueck);
+  if(platten.length){
+    const g = new THREE.BoxGeometry(TILE*0.96, 0.018, TILE*0.96);
+    g.translate(TILE*0.48, 0, 0);
+    haengePlatten = new THREE.InstancedMesh(g, MAT.platte, platten.length);
+    haengePlatten.frustumCulled = false;
+    haengePlatten.castShadow = quality.shadows;
+    platten.forEach((h, i) => { h.idx = i; h.halter.updateMatrixWorld(true); haengePlatten.setMatrixAt(i, h.stueck.matrixWorld); });
+    scene.add(haengePlatten);
+  }
+}
+
+/* ---------- Kritzeleien an den Wänden ---------- */
+function kritzelTex(zeilen, art){
+  const W = 512, H = 256, c = cv(W, H), x = c.getContext('2d');
+  const farbe = art === 'rost' ? [92, 26, 14] : [26, 18, 11];
+  const fam = '"Arial Black", Impact, "Arial", sans-serif';
+  let F = zeilen.length > 1 ? 92 : 110;
+  x.font = 'bold ' + F + 'px ' + fam;
+  const breit = Math.max(...zeilen.map(z => x.measureText(z).width));
+  if(breit > W - 24){ F = Math.floor(F * (W - 24) / breit); x.font = 'bold ' + F + 'px ' + fam; }
+  x.textBaseline = 'middle';
+  const zh = F * 1.05, y0 = H/2 - (zeilen.length-1)*zh/2;
+  zeilen.forEach((zeile, zi) => {
+    const w = x.measureText(zeile).width;
+    let px = (W - w)/2 + (Math.random()-0.5)*20;
+    const py = y0 + zi*zh;
+    for(const ch of zeile){
+      const cw = x.measureText(ch).width;
+      x.save();
+      x.translate(px + cw/2, py + (Math.random()-0.5)*F*0.10);
+      x.rotate((Math.random()-0.5)*0.16);
+      // Filzstift: mehrere dünne Lagen, nie ganz deckend
+      for(let l=0; l<3; l++){
+        x.fillStyle = 'rgba(' + farbe.join(',') + ',' + (0.55 + Math.random()*0.3) + ')';
+        x.fillText(ch, -cw/2 + (Math.random()-0.5)*3, (Math.random()-0.5)*3);
+      }
+      x.restore();
+      // Farbe läuft herunter
+      if(ch !== ' ' && Math.random() < 0.22){
+        const lx = px + cw*(0.25 + Math.random()*0.5), ly = py + F*0.3, len = 10 + Math.random()*60;
+        const g = x.createLinearGradient(0, ly, 0, ly+len);
+        g.addColorStop(0, 'rgba(' + farbe.join(',') + ',0.55)');
+        g.addColorStop(1, 'rgba(' + farbe.join(',') + ',0)');
+        x.fillStyle = g; x.fillRect(lx, ly, 2 + Math.random()*2.5, len);
+      }
+      px += cw * (0.96 + Math.random()*0.08);
+    }
+  });
+  // Die Wand schluckt einen Teil der Farbe
+  x.globalCompositeOperation = 'destination-out';
+  for(let i=0; i<500; i++){
+    x.fillStyle = 'rgba(0,0,0,' + Math.random()*0.35 + ')';
+    x.fillRect(Math.random()*W, Math.random()*H, 1 + Math.random()*3, 1 + Math.random()*2);
+  }
+  return c;
+}
+function handTex(){
+  const s = 256, c = cv(s, s), x = c.getContext('2d');
+  x.fillStyle = 'rgba(70,34,16,0.55)';
+  x.save(); x.translate(s/2, s*0.62); x.rotate((Math.random()-0.5)*0.4);
+  x.beginPath(); x.ellipse(0, 0, 44, 52, 0, 0, 7); x.fill();
+  const finger = [[-38,-50,-0.45,56],[-17,-72,-0.12,74],[6,-78,0.02,80],[28,-70,0.16,70],[52,-18,0.95,50]];
+  for(const [fx, fy, r, l] of finger){
+    x.save(); x.translate(fx, fy); x.rotate(r);
+    x.beginPath(); x.ellipse(0, -l*0.25, 11, l*0.55, 0, 0, 7); x.fill();
+    x.restore();
+  }
+  x.restore();
+  // verschmiert nach unten
+  for(let i=0; i<6; i++){
+    const g = x.createLinearGradient(0, s*0.6, 0, s);
+    g.addColorStop(0, 'rgba(70,34,16,0.35)'); g.addColorStop(1, 'rgba(70,34,16,0)');
+    x.fillStyle = g; x.fillRect(s/2 - 40 + Math.random()*80, s*0.6, 3 + Math.random()*5, s*0.4*Math.random());
+  }
+  x.globalCompositeOperation = 'destination-out';
+  for(let i=0; i<700; i++){
+    x.fillStyle = 'rgba(0,0,0,' + Math.random()*0.7 + ')';
+    x.fillRect(Math.random()*s, Math.random()*s, 1 + Math.random()*3, 1 + Math.random()*3);
+  }
+  return c;
+}
+function strichTex(n){
+  const W = 512, H = 256, c = cv(W, H), x = c.getContext('2d');
+  x.strokeStyle = 'rgba(28,20,12,0.75)'; x.lineWidth = 5; x.lineCap = 'round';
+  let px = 24, py = 30;
+  for(let i=0; i<n; i++){
+    const inGruppe = i % 5;
+    if(inGruppe === 4){
+      x.beginPath(); x.moveTo(px - 70 + Math.random()*6, py + 50); x.lineTo(px + 4, py + 6); x.stroke();
+      px += 34;
+      if(px > W - 90){ px = 24; py += 76; }
+    } else {
+      x.beginPath();
+      x.moveTo(px + (Math.random()-0.5)*6, py + (Math.random()-0.5)*6);
+      x.lineTo(px + (Math.random()-0.5)*8, py + 56 + (Math.random()-0.5)*8);
+      x.stroke();
+      px += 16;
+    }
+  }
+  return c;
+}
+function pfeilTex(){
+  const W = 256, H = 128, c = cv(W, H), x = c.getContext('2d');
+  x.strokeStyle = 'rgba(92,26,14,0.7)'; x.lineWidth = 12; x.lineCap = 'round'; x.lineJoin = 'round';
+  x.beginPath(); x.moveTo(20, 66); x.quadraticCurveTo(120, 58 + Math.random()*10, 214, 62); x.stroke();
+  x.beginPath(); x.moveTo(170, 24); x.lineTo(222, 62); x.lineTo(172, 102); x.stroke();
+  return c;
+}
+
+/* Alle Wandstücke mit ihren beiden Seiten: welche Zelle davor liegt und
+   wohin die Fläche zeigt. */
+const WANDSEITEN = [];
+for(const s of segs){
+  const senk = s[2] !== 0;
+  const gx = senk ? Math.round(s[0]/CS) : Math.floor(s[0]/CS);
+  const gy = senk ? Math.floor(s[1]/CS) : Math.round(s[1]/CS);
+  const seiten = senk ? [[gx-1, gy, -1, 0], [gx, gy, 1, 0]] : [[gx, gy-1, 0, -1], [gx, gy, 0, 1]];
+  for(const [cx, cy, nx, nz] of seiten){
+    if(cx<0 || cy<0 || cx>=G || cy>=G) continue;
+    const c = idx(cx, cy);
+    if(blocked[c] || REACH[c] < 0 || SECRET[c] >= 0) continue;
+    WANDSEITEN.push({ x:s[0], z:s[1], senk, zelle:c, nx, nz });
+  }
+}
+function wandBei(zelle, r){
+  const zx = zelle % G, zy = (zelle/G)|0;
+  const l = WANDSEITEN.filter(w => Math.abs(w.zelle%G - zx) + Math.abs(((w.zelle/G)|0) - zy) <= r && !w.belegt);
+  return l.length ? pick(l) : null;
+}
+function anWand(ws, canvas, breite, hoehe, y, versatz){
+  if(!ws) return null;
+  ws.belegt = true;
+  const t = new THREE.CanvasTexture(canvas);
+  t.encoding = THREE.sRGBEncoding; t.anisotropy = ANISO;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(breite, hoehe), new THREE.MeshStandardMaterial({
+    map:t, transparent:true, depthWrite:false, roughness:0.9, metalness:0,
+    polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }));
+  const entlang = versatz !== undefined ? versatz : (rnd()-0.5)*(CS - breite - 0.4);
+  m.position.set(ws.x + ws.nx*0.125 + (ws.senk ? 0 : entlang), y, ws.z + ws.nz*0.125 + (ws.senk ? entlang : 0));
+  m.rotation.y = Math.atan2(ws.nx, ws.nz);
+  props.add(m);
+  return m;
+}
+let START_BLICK = null, START_HINWEIS = null;
+const KRITZEL = [
+  ['NICHT RENNEN'], ['ES HÖRT DICH'], ['ZÄHL DIE', 'LAMPEN'], ['WENN DAS LICHT GEHT', 'BLEIB STEHEN'],
+  ['KEIN AUSGANG'], ['WO BIST DU'], ['SIE HAT', 'KEIN GESICHT'], ['DREH DICH', 'NICHT UM'],
+  ['DAS SUMMEN', 'IST SIE'], ['HILFE'], ['ICH WAR', 'HIER'], ['NICHT DIE', 'LAMPEN ANSEHEN']
+];
+{
+  /* Der erste Hinweis steht gleich beim Aufwachen vor einem: an einer hellen
+     Wand in der Nähe, auf die freie Sicht besteht. */
+  {
+    const st = cellCenter(startCell);
+    let best = null, bestW = -1;
+    // erst nah und hell, sonst weiter weg — Hauptsache, man sieht ihn
+    for(const [rz, dMax] of [[3, 7.5], [6, 14]]){
+      for(const ws of WANDSEITEN){
+        const c = ws.zelle, cx = c % G, cy = (c/G)|0;
+        if(Math.abs(cx - startCell%G) + Math.abs(cy - ((startCell/G)|0)) > rz) continue;
+        const px = ws.x + ws.nx*0.8, pz = ws.z + ws.nz*0.8;      // eine Rasterzelle vor der Wand
+        const d = Math.hypot(px - st.x, pz - st.z);
+        if(d < 2.5 || d > dMax || !losClear(st.x, st.z, px, pz)) continue;
+        // die Fläche muss zum Aufwachpunkt zeigen
+        if((st.x - ws.x)*ws.nx + (st.z - ws.z)*ws.nz <= 0.5) continue;
+        let licht = 0;
+        for(const f of fixtures) if(!f.dead) licht = Math.max(licht, 1 - Math.hypot(f.pos.x - px, f.pos.z - pz)/6);
+        const wert = licht*2 + rnd()*0.3 - Math.abs(d - 4.5)*0.15;
+        if(wert > bestW){ bestW = wert; best = ws; }
+      }
+      if(best) break;
+    }
+    const ws = best || wandBei(startCell, 2);
+    const m = anWand(ws, kritzelTex(['HINTER DER TAPETE', 'IST ETWAS'], 'rost'), 2.1, 1.05, 1.5, 0);
+    if(m && best) START_BLICK = Math.atan2(-(m.position.x - st.x), -(m.position.z - st.z));
+    START_HINWEIS = { m, gefunden: !!best };
+  }
+  const texte = KRITZEL.slice().sort(() => rnd() - 0.5);
+  for(let i=0; i<10; i++){
+    const ws = pick(WANDSEITEN);
+    if(ws.belegt) continue;
+    anWand(ws, kritzelTex(texte[i % texte.length], rnd() < 0.3 ? 'rost' : 'stift'), 1.8, 0.9, 1.2 + rnd()*0.6);
+  }
+  for(let i=0; i<6; i++){
+    const ws = pick(WANDSEITEN);
+    if(!ws.belegt) anWand(ws, handTex(), 0.34, 0.34, 0.9 + rnd()*0.8);
+  }
+  for(let i=0; i<3; i++){
+    const ws = pick(WANDSEITEN);
+    if(!ws.belegt) anWand(ws, strichTex(12 + ri(40)), 1.2, 0.6, 1.0 + rnd()*0.4);
+  }
+}
+
 /* ---------- Fundstücke verteilen ---------- */
 function spreadCells(count, minSteps, minFromStart){
   const out = [];
@@ -4521,10 +5156,14 @@ function spreadCells(count, minSteps, minFromStart){
 }
 
 const items = [];      // { kind, obj, pos, taken }
-function addItem(kind, obj, pos){
+function addItem(kind, obj, pos, mehr){
   obj.position.copy(pos);
   scene.add(obj);
-  items.push({ kind, obj, pos:pos.clone(), taken:false, spin: rnd()*6.28 });
+  const it = { kind, obj, pos:pos.clone(), taken:false, spin: rnd()*6.28 };
+  if(mehr) Object.assign(it, mehr);
+  if(it.ruhig) it.spin = obj.rotation.y;
+  items.push(it);
+  return it;
 }
 function tapeMesh(){
   const g = new THREE.Group();
@@ -4572,6 +5211,434 @@ function battMesh(){
   addItem('photo', ph, pp);
 }
 
+/* ================= 6b  Die Verstecke einrichten ================= */
+
+MAT.naht   = new THREE.MeshBasicMaterial({ color:0x2b2212 });
+MAT.matratze = new THREE.MeshStandardMaterial({ color:0x8c8260, roughness:0.95, metalness:0 });
+MAT.decke2 = new THREE.MeshStandardMaterial({ color:0x4f5a3a, roughness:0.95, metalness:0 });
+MAT.dose   = new THREE.MeshStandardMaterial({ color:0x9a9486, roughness:0.35, metalness:0.8 });
+MAT.plastik = new THREE.MeshStandardMaterial({ color:0x26241f, roughness:0.55, metalness:0.1 });
+MAT.holz   = new THREE.MeshStandardMaterial({ color:0x8a6a44, roughness:0.75, metalness:0 });
+MAT.weiss  = new THREE.MeshStandardMaterial({ color:0xd9d2c2, roughness:0.8, metalness:0 });
+MAT.blau   = new THREE.MeshStandardMaterial({ color:0x7f97b8, roughness:0.9, metalness:0 });
+MAT.rosa   = new THREE.MeshStandardMaterial({ color:0xc9959a, roughness:0.6, metalness:0.1 });
+MAT.rot    = new THREE.MeshStandardMaterial({ color:0x9c2a22, roughness:0.5, metalness:0 });
+
+function papierTex(){
+  const w=128, h=160, c=cv(w,h), x=c.getContext('2d');
+  x.fillStyle='#d8cfb0'; x.fillRect(0,0,w,h);
+  x.strokeStyle='rgba(40,30,20,.75)'; x.lineWidth=1.6;
+  for(let y=18; y<h-12; y+=11){
+    x.beginPath(); x.moveTo(10, y);
+    for(let px=10; px<w-10-Math.random()*30; px+=4) x.lineTo(px, y + (Math.random()-0.5)*3);
+    x.stroke();
+  }
+  blobs(x,w,h,3,'rgba(120,90,40,.25)',8,30);
+  grain(x,w,h,12);
+  return c;
+}
+function holzTex(){
+  const w=256, h=256, c=cv(w,h), x=c.getContext('2d');
+  for(let i=0;i<8;i++){
+    const t = 0.8 + Math.random()*0.35;
+    x.fillStyle = 'rgb(' + (128*t|0) + ',' + (92*t|0) + ',' + (58*t|0) + ')';
+    x.fillRect(0, i*32, w, 32);
+    x.strokeStyle='rgba(40,24,10,.55)'; x.lineWidth=2; x.strokeRect(-2 + (i%2)*97, i*32, w+4, 32);
+    for(let k=0;k<14;k++){
+      x.strokeStyle='rgba(60,36,16,.18)'; x.lineWidth=1;
+      x.beginPath(); const y = i*32 + Math.random()*32; x.moveTo(0,y); x.bezierCurveTo(80,y+4,160,y-4,w,y+2); x.stroke();
+    }
+  }
+  grain(x,w,h,14);
+  return c;
+}
+function kinderTapeteTex(){
+  const w=256, h=256, c=cv(w,h), x=c.getContext('2d');
+  x.fillStyle='#5f7486'; x.fillRect(0,0,w,h);
+  for(let i=0;i<w;i+=32){ x.fillStyle='rgba(255,255,255,.12)'; x.fillRect(i,0,12,h); }
+  x.fillStyle='rgba(255,236,170,.95)';
+  for(let k=0;k<9;k++){
+    const sx = (k%3)*85 + 30 + (Math.floor(k/3)%2)*40, sy = Math.floor(k/3)*85 + 40;
+    x.beginPath();
+    for(let j=0;j<10;j++){
+      const r = j%2 ? 6 : 14, a = j/10*6.283 - 1.57;
+      x.lineTo(sx + Math.cos(a)*r, sy + Math.sin(a)*r);
+    }
+    x.fill();
+  }
+  blobs(x,w,h,5,'rgba(120,100,50,.20)',20,70);
+  grain(x,w,h,16);
+  return c;
+}
+function zeichnungTex(art){
+  const w=256, h=192, c=cv(w,h), x=c.getContext('2d');
+  x.fillStyle='#ece6d6'; x.fillRect(0,0,w,h);
+  const krakel = (farbe, breite, pts) => {
+    x.strokeStyle = farbe; x.lineWidth = breite; x.lineCap = 'round'; x.lineJoin = 'round';
+    for(let l=0; l<2; l++){
+      x.beginPath();
+      pts.forEach((p,i) => { const px = p[0] + (Math.random()-0.5)*3, py = p[1] + (Math.random()-0.5)*3;
+        i ? x.lineTo(px,py) : x.moveTo(px,py); });
+      x.stroke();
+    }
+  };
+  const figur = (fx, fy, s, farbe) => {
+    x.strokeStyle = farbe; x.lineWidth = 3;
+    x.beginPath(); x.arc(fx, fy-30*s, 9*s, 0, 7); x.stroke();
+    krakel(farbe, 3, [[fx, fy-21*s],[fx, fy+6*s]]);
+    krakel(farbe, 3, [[fx-14*s, fy-10*s],[fx, fy-14*s],[fx+14*s, fy-10*s]]);
+    krakel(farbe, 3, [[fx-9*s, fy+28*s],[fx, fy+6*s],[fx+9*s, fy+28*s]]);
+  };
+  if(art === 2){
+    // alles gelb, mittendrin eine kleine Tür
+    for(let i=0;i<90;i++) krakel('rgba(214,184,60,.5)', 6, [[Math.random()*w, Math.random()*h],[Math.random()*w, Math.random()*h]]);
+    krakel('#3a2a18', 4, [[110,150],[110,92],[146,92],[146,150]]);
+    x.fillStyle='#3a2a18'; x.font='bold 22px "Comic Sans MS", "Chalkboard", sans-serif';
+    x.fillText('DIE TÜR', 84, 40);
+    return c;
+  }
+  krakel('#d9a520', 4, [[200,30],[214,30],[214,44],[200,44],[200,30]]);        // Sonne
+  for(let a=0;a<8;a++) krakel('#d9a520', 3, [[207+Math.cos(a)*12,37+Math.sin(a)*12],[207+Math.cos(a)*22,37+Math.sin(a)*22]]);
+  krakel('#8a3b2a', 4, [[30,150],[30,100],[70,70],[110,100],[110,150],[30,150]]); // Haus
+  krakel('#3f6a2f', 5, [[0,172],[256,168]]);
+  figur(140, 140, 1.0, '#2f4a8a'); figur(170, 146, 0.8, '#8a2f4a'); figur(195, 152, 0.6, '#2f7a5a');
+  if(art === 1){
+    // dahinter: groß, schwarz, zu lange Arme
+    x.fillStyle = 'rgba(12,10,8,.9)';
+    x.fillRect(222, 40, 16, 110);
+    x.beginPath(); x.arc(230, 34, 12, 0, 7); x.fill();
+    krakel('rgba(12,10,8,.9)', 4, [[222,60],[190,110],[176,160]]);
+    krakel('rgba(12,10,8,.9)', 4, [[238,60],[250,120],[246,176]]);
+  }
+  return c;
+}
+
+const TEXTE = {
+  lager:  'TAG 41. GLAUBE ICH.\n\nDie Lampen summen lauter, wenn sie in der Nähe ist. ' +
+          'Wenn das Licht ausgeht: stehen bleiben. Nicht rennen.\n\n' +
+          'Sie hört Rennen durch drei Wände.\nHinter der Tapete findet sie dich nicht.\n\n' +
+          'Ich habe noch zwei Akkus. Nehmt sie.',
+  zimmer: 'Das Zimmer war gestern noch nicht hier.\n\n' +
+          'Die Spieluhr hört nicht auf.\nIch habe sie nie aufgezogen.\n\n' +
+          'Auf dem dritten Bild ist die Tür gelb. Ich glaube, das ist der Ausgang. ' +
+          'Ich glaube, das ist nicht der Ausgang.'
+};
+
+function tuerBauen(V){
+  const t = V.tuer;
+  const g = new THREE.Group();
+  g.position.set(t.cx, 0, t.cz);
+  g.rotation.y = t.rot;
+  scene.add(g);
+  // lokal z: zeigt die Wandseite +z ins Versteck oder hinaus?
+  const lzx = Math.sin(t.rot), lzz = Math.cos(t.rot);
+  const seite = (lzx*t.inX + lzz*t.inZ) > 0 ? 1 : -1;
+  const DW = 1.2, DH = 2.15, o = t.oeff, D = 0.24;
+  const L = o - DW/2, R = o + DW/2;
+  // Tapete genau wie auf der vollen Wand: u läuft entlang, v nach oben
+  const teil = (x0, x1, y0, y1, d, mat) => {
+    const geo = new THREE.BoxGeometry(x1-x0, y1-y0, d);
+    geo.translate((x0+x1)/2, (y0+y1)/2, 0);
+    const pos = geo.attributes.position, uv = geo.attributes.uv, nrm = geo.attributes.normal;
+    for(let i=0; i<pos.count; i++){
+      const nz = nrm.getZ(i);
+      if(Math.abs(nz) < 0.5) continue;
+      const x = pos.getX(i), y = pos.getY(i);
+      uv.setXY(i, nz > 0 ? (x + CS/2)/CS : (CS/2 - x)/CS, y/WH);
+    }
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = m.receiveShadow = quality.shadows;
+    return m;
+  };
+  g.add(teil(-CS/2, L, 0, WH, D, MAT.wall), teil(R, CS/2, 0, WH, D, MAT.wall), teil(L, R, DH, WH, D, MAT.wall));
+  const sockel = (x0, x1, d) => { const m = new THREE.Mesh(new THREE.BoxGeometry(x1-x0, 0.13, d), MAT.base);
+    m.position.set((x0+x1)/2, 0.065, 0); return m; };
+  g.add(sockel(-CS/2, L, 0.32), sockel(R, CS/2, 0.32));
+  // die Naht: fein, nur von nah zu sehen
+  const naht = (w, h, x, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, D+0.004), MAT.naht);
+    m.position.set(x, y, 0); g.add(m); };
+  naht(0.007, DH, L, DH/2); naht(0.007, DH, R, DH/2); naht(DW, 0.007, o, DH);
+
+  // das Türblatt hängt innen an der linken Kante
+  const blatt = teil(L+0.008, R-0.008, 0.004, DH-0.006, 0.2, MAT.wall);
+  blatt.geometry.translate(-L, 0, -seite*0.10);
+  const bs = new THREE.Mesh(new THREE.BoxGeometry(DW-0.02, 0.13, 0.26), MAT.base);
+  bs.position.set(DW/2, 0.065, -seite*0.10);
+  const angel = new THREE.Group();
+  angel.position.set(L, 0, seite*0.10);
+  angel.add(blatt, bs);
+  g.add(angel);
+  // ein Handabdruck, wo jemand dagegen gedrückt hat
+  {
+    const tx = new THREE.CanvasTexture(handTex()); tx.encoding = THREE.sRGBEncoding;
+    const hm = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.30), new THREE.MeshStandardMaterial({
+      map:tx, transparent:true, depthWrite:false, roughness:0.9, opacity:0.75,
+      polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }));
+    hm.position.set(DW*0.78, 1.18 + rnd()*0.2, -seite*0.205);
+    hm.rotation.y = seite > 0 ? Math.PI : 0;
+    angel.add(hm);
+  }
+  t.gruppe = g; t.angel = angel; t.seite = seite; t.L = L; t.R = R; t.DW = DW;
+  t.winkel = 0; t.ziel = 0;
+  // Mitte der Öffnung in der Welt
+  t.mx = t.cx + Math.cos(t.rot)*o;
+  t.mz = t.cz - Math.sin(t.rot)*o;
+}
+
+/* Lokale Kästen der Türwand in Weltkästen für die Kollision */
+function tuerKasten(t, lx, lz, hx, hz){
+  return t.rot === 0 ? [t.cx + lx, t.cz + lz, hx, hz] : [t.cx + lz, t.cz - lx, hz, hx];
+}
+function tuerOeffnen(V){
+  const t = V.tuer;
+  if(V.offen) return;
+  V.offen = true;
+  t.ziel = -t.seite * 1.5;
+  if(t.typ === 'V') wallV[vi(t.gx, t.gy)] = 0; else wallHz[hi(t.gx, t.gy)] = 0;
+  SOLIDS.push(tuerKasten(t, (-CS/2 + t.L)/2, 0, (t.L + CS/2)/2, 0.12),
+              tuerKasten(t, (t.R + CS/2)/2, 0, (CS/2 - t.R)/2, 0.12),
+              tuerKasten(t, t.L + 0.14, t.seite*0.70, 0.14, 0.60));
+  rebuildOcc();
+}
+
+/* Raum in eigenen Achsen: a läuft von der Tür weg, b quer dazu */
+function raumAchsen(V){
+  const t = V.tuer;
+  const mx = (V.x0 + V.w/2)*CS, mz = (V.y0 + V.h/2)*CS;
+  const vx = t.inX, vz = t.inZ, qx = -t.inZ, qz = t.inX;
+  const tiefe = (vx !== 0 ? V.w : V.h)*CS - 0.3, breite = (vx !== 0 ? V.h : V.w)*CS - 0.3;
+  const tb = (t.mx - mx)*qx + (t.mz - mz)*qz;              // Tür quer versetzt
+  const welt = (a, b) => new THREE.Vector3(mx + vx*a + qx*b, 0, mz + vz*a + qz*b);
+  const gier = Math.atan2(vx, vz);                          // lokal +z zeigt in die Tiefe
+  return { mx, mz, tiefe, breite, tb, welt, gier, vx, vz, qx, qz };
+}
+
+/* Lichter der Verstecke laufen im selben Lichtgerüst wie die Deckenröhren */
+function raumLicht(pos, farbe, kraft, mesh, art){
+  const f = { pos:pos.clone(), mesh, dead:false, broken:false, f:3+rnd()*4, ph:rnd()*6.28, on:1,
+              farbe, kraft, basis:new THREE.Color(farbe).multiplyScalar(2.2), art };
+  fixtures.push(f);
+  return f;
+}
+
+function lagerEinrichten(V, R){
+  const s = R.tb > 0 ? -1 : 1;                              // weg von der Türseite
+  const bett = R.welt(R.tiefe/2 - 1.0, s*(R.breite/2 - 0.55));
+  const mat = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.14, 0.95), MAT.matratze);
+  mat.position.set(bett.x, 0.07, bett.z); mat.rotation.y = R.gier + Math.PI/2; props.add(mat);
+  const dk = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 0.9), MAT.decke2);
+  dk.position.set(bett.x, 0.17, bett.z); dk.rotation.y = R.gier + Math.PI/2 + 0.2; props.add(dk);
+  // Laterne
+  const lp = R.welt(R.tiefe/2 - 0.45, s*(R.breite/2 - 2.4));
+  const lat = new THREE.Group();
+  const fuss = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.05, 10), MAT.plastik); fuss.position.y = 0.025;
+  const glas = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.16, 10), new THREE.MeshBasicMaterial({ color:0xffc070 }));
+  glas.position.y = 0.13;
+  const kopf = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.075, 0.05, 10), MAT.plastik); kopf.position.y = 0.235;
+  lat.add(fuss, glas, kopf); lat.position.copy(lp); props.add(lat);
+  V.licht = raumLicht(new THREE.Vector3(lp.x, 0.45, lp.z), 0xffa650, 0.26, glas, 'laterne');
+  // Dosen, ein Rucksack, das Radio
+  for(let i=0;i<6;i++){
+    const p = R.welt(R.tiefe/2 - 0.4 - rnd()*1.6, s*(R.breite/2 - 0.5 - rnd()*2.6));
+    const d = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.11, 8), MAT.dose);
+    if(rnd() < 0.6){ d.rotation.z = Math.PI/2; d.rotation.y = rnd()*6.28; d.position.set(p.x, 0.035, p.z); }
+    else d.position.set(p.x, 0.055, p.z);
+    props.add(d);
+  }
+  const rp = R.welt(R.tiefe/2 - 0.35, -s*(R.breite/2 - 0.8));
+  const radio = new THREE.Group();
+  const kasten = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.12), MAT.plastik); kasten.position.y = 0.1;
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.5, 4), MAT.dose);
+  ant.position.set(0.12, 0.42, 0); ant.rotation.z = -0.4;
+  radio.add(kasten, ant); radio.position.copy(rp); radio.rotation.y = R.gier + (rnd()-0.5)*0.6; props.add(radio);
+  V.klangPos = new THREE.Vector3(rp.x, 0.3, rp.z);
+  // die Striche an der Wand gegenüber der Tür
+  const sp = R.welt(R.tiefe/2 + 0.022, 0);
+  const st = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.8), new THREE.MeshStandardMaterial({
+    map:(() => { const t = new THREE.CanvasTexture(strichTex(41)); t.encoding = THREE.sRGBEncoding; return t; })(),
+    transparent:true, depthWrite:false, roughness:0.9, polygonOffset:true, polygonOffsetFactor:-2 }));
+  st.position.set(sp.x, 1.25, sp.z); st.rotation.y = R.gier + Math.PI; props.add(st);
+  // Zettel auf der Matratze, zwei Akkus daneben
+  const zettel = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.2), new THREE.MeshStandardMaterial({
+    map:new THREE.CanvasTexture(papierTex()), roughness:0.9 }));
+  zettel.rotation.x = -Math.PI/2;
+  const zg = new THREE.Group(); zg.add(zettel); zg.rotation.y = rnd()*6.28;
+  addItem('notiz', zg, new THREE.Vector3(bett.x, 0.206, bett.z), { ruhig:true, text:TEXTE.lager, versteck:V });
+  for(let i=0;i<2;i++){
+    const bp = R.welt(R.tiefe/2 - 0.5 - i*0.25, s*(R.breite/2 - 2.1 - i*0.2));
+    const m = battMesh(); m.rotation.y = rnd()*6.28;
+    addItem('batt', m, new THREE.Vector3(bp.x, 0.03, bp.z), { extra:true });
+  }
+}
+
+/* Der Fernseher im Stuhlkreis: Rauschen, und ab und zu ein Bild */
+const TV = { rt:null, cam:null, mat:null, schirm:null, ich:null, geist:null, zustand:'warten', t:0, V:null };
+function schreinEinrichten(V, R){
+  const mitte = R.welt(0.45, 0);
+  for(let i=0;i<6;i++){
+    const a = i/6*6.283 + 0.4;
+    const ch = chairMesh();
+    const px = mitte.x + Math.cos(a)*1.2, pz = mitte.z + Math.sin(a)*1.2;
+    ch.position.set(px, 0, pz);
+    ch.rotation.y = Math.atan2(mitte.x - px, mitte.z - pz);
+    if(i === 3){ ch.rotation.z = Math.PI/2; ch.position.y = 0.23; }
+    props.add(ch);
+  }
+  const tv = new THREE.Group();
+  const schrank = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.5, 0.48), MAT.holz);
+  schrank.position.y = 0.25; tv.add(schrank);
+  const koerper = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.55), MAT.plastik);
+  koerper.position.y = 0.8; tv.add(koerper);
+  TV.rt = new THREE.WebGLRenderTarget(200, 150, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter });
+  TV.mat = new THREE.ShaderMaterial({
+    uniforms:{ tFeed:{ value:TV.rt.texture }, uZeit:{ value:0 }, uModus:{ value:0 }, uRausch:{ value:1 }, uHell:{ value:1 } },
+    vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader:[
+      'uniform sampler2D tFeed; uniform float uZeit, uModus, uRausch, uHell; varying vec2 vUv;',
+      'float r(vec2 c){ return fract(sin(dot(c, vec2(12.9898,78.233)))*43758.5453); }',
+      'void main(){',
+      '  vec2 uv = vUv;',
+      '  float st = r(floor(uv*vec2(170.0,130.0)) + floor(uZeit*24.0)*1.73);',
+      '  vec3 c = vec3(st*0.5);',
+      '  if(uModus > 0.5){',
+      '    uv.x += (r(vec2(floor(uv.y*120.0), floor(uZeit*18.0))) - 0.5)*0.012*(0.4 + uRausch);',
+      '    vec3 f = texture2D(tFeed, uv).rgb;',
+      // Restlichtkamera: alles hell und grau, was schwarz ist, bleibt schwarz
+      '    float l = pow(dot(f, vec3(0.3, 0.59, 0.11)), 0.75)*0.95;',
+      '    c = mix(vec3(l*0.86, l, l*0.9), vec3(st*0.6), uRausch);',
+      '  }',
+      '  c *= 0.82 + 0.18*sin(vUv.y*380.0);',
+      '  float vg = 1.0 - dot(vUv-0.5, vUv-0.5)*1.6;',
+      '  gl_FragColor = vec4(c*vg*uHell, 1.0);',
+      '}'].join('\n'),
+    fog:false
+  });
+  TV.schirm = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.48), TV.mat);
+  TV.schirm.position.set(0, 0.8, 0.277); tv.add(TV.schirm);
+  tv.position.copy(mitte);
+  tv.rotation.y = R.gier + Math.PI;                         // schaut zur Tür
+  props.add(tv);
+  TV.pos = mitte.clone();
+  V.licht = raumLicht(new THREE.Vector3(mitte.x - R.vx*0.6, 0.6, mitte.z - R.vz*0.6), 0x9fb6ff, 0.32, null, 'tv');
+  V.klangPos = new THREE.Vector3(mitte.x, 0.3, mitte.z);
+  // Die Überwachungskamera hängt über der Tür in der Ecke
+  TV.cam = new THREE.PerspectiveCamera(46, 4/3, 0.1, 14);
+  // in die Ecke, in die das Türblatt nicht aufschwingt
+  const t = V.tuer;
+  const hx = t.cx + Math.cos(t.rot)*t.L, hz = t.cz - Math.sin(t.rot)*t.L;
+  const hb = (hx - R.mx)*R.qx + (hz - R.mz)*R.qz;
+  const ecke = R.welt(-R.tiefe/2 + 0.2, hb > 0 ? -R.breite/2 + 0.2 : R.breite/2 - 0.2);
+  TV.cam.position.set(ecke.x, WH - 0.25, ecke.z);
+  TV.cam.layers.enable(1);
+  // Stellvertreter für den Spieler — nur im Fernsehbild
+  const ich = new THREE.Group();
+  const jacke = new THREE.MeshStandardMaterial({ color:0x2c313a, roughness:0.8 });
+  const haut  = new THREE.MeshStandardMaterial({ color:0x8c7662, roughness:0.8 });
+  const hose  = new THREE.MeshStandardMaterial({ color:0x1d2026, roughness:0.9 });
+  const box = (w,h,d,m,x,y,z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m); b.position.set(x,y,z); ich.add(b); return b; };
+  box(0.42, 0.62, 0.24, jacke, 0, 1.18, 0);
+  box(0.16, 0.82, 0.18, hose, -0.1, 0.41, 0); box(0.16, 0.82, 0.18, hose, 0.1, 0.41, 0);
+  const kopfM = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), haut); kopfM.position.set(0, 1.62, 0); ich.add(kopfM);
+  box(0.1, 0.1, 0.4, jacke, -0.2, 1.42, -0.18).rotation.x = 0.3;
+  box(0.1, 0.1, 0.4, jacke, 0.2, 1.42, -0.18).rotation.x = 0.3;
+  box(0.12, 0.12, 0.24, MAT.plastik, 0, 1.58, -0.3);
+  ich.traverse(o => o.layers.set(1));
+  ich.visible = false;
+  scene.add(ich);
+  TV.ich = ich;
+  // und was hinter ihm steht
+  TV.geist = new THREE.Group();
+  TV.geist.visible = false;
+  scene.add(TV.geist);
+  TV.V = V;
+  // das Geheimband liegt auf dem Fernseher
+  const band = tapeMesh();
+  const auf = new THREE.Vector3(mitte.x, 1.12, mitte.z);
+  addItem('geheim', band, auf, { ruhig:true, versteck:V });
+}
+
+function zimmerEinrichten(V, R){
+  const t = V.tuer;
+  const tap = fromCanvas(kinderTapeteTex(), 3, 2.5);
+  const tapM = new THREE.MeshStandardMaterial({ map:tap, roughness:0.9 });
+  // Tapete über die Innenseiten der Wände — nur die Tapetentür bleibt gelb
+  for(let y=V.y0; y<V.y0+V.h; y++) for(let x=V.x0; x<V.x0+V.w; x++){
+    const seiten = [[x, y, x*CS, y*CS+CS/2, 1, 0, 'V', x, y], [x+1, y, (x+1)*CS, y*CS+CS/2, -1, 0, 'V', x+1, y],
+                    [x, y, x*CS+CS/2, y*CS, 0, 1, 'H', x, y], [x, y+1, x*CS+CS/2, (y+1)*CS, 0, -1, 'H', x, y+1]];
+    for(const [, , wx, wz, nx, nz, typ, gx, gy] of seiten){
+      const zu = typ === 'V' ? wallV[vi(gx,gy)] : wallHz[hi(gx,gy)];
+      if(!zu || (typ === t.typ && gx === t.gx && gy === t.gy)) continue;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(CS, WH - 0.14), tapM);
+      m.position.set(wx + nx*0.123, WH/2 + 0.07, wz + nz*0.123);
+      m.rotation.y = Math.atan2(nx, nz);
+      props.add(m);
+    }
+  }
+  const boden = new THREE.Mesh(new THREE.PlaneGeometry(V.w*CS - 0.26, V.h*CS - 0.26), new THREE.MeshStandardMaterial({
+    map:fromCanvas(holzTex(), V.w*2, V.h*2), roughness:0.7 }));
+  boden.rotation.x = -Math.PI/2;
+  boden.position.set(R.mx, 0.005, R.mz);
+  props.add(boden);
+  // Kinderbett an der Wand gegenüber
+  const s = R.tb > 0 ? -1 : 1;
+  const bp = R.welt(R.tiefe/2 - 0.5, s*(R.breite/2 - 0.95));
+  const bett = new THREE.Group();
+  const box = (w,h,d,m,x,y,z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m); b.position.set(x,y,z); bett.add(b); return b; };
+  box(0.86, 0.3, 1.7, MAT.weiss, 0, 0.15, 0);
+  box(0.8, 0.12, 1.62, MAT.matratze, 0, 0.36, 0);
+  box(0.82, 0.07, 1.05, MAT.blau, 0, 0.44, 0.28);
+  box(0.5, 0.1, 0.28, MAT.weiss, 0, 0.47, -0.62);
+  box(0.86, 0.6, 0.06, MAT.weiss, 0, 0.3, -0.85);
+  bett.position.copy(bp); bett.rotation.y = R.gier + Math.PI/2*s;
+  props.add(bett);
+  // Nachttisch mit Lampe und Spieluhr
+  const np = R.welt(R.tiefe/2 - 0.3, s*(R.breite/2 - 2.15));
+  const nt = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.36), MAT.holz);
+  nt.position.set(np.x, 0.25, np.z); nt.rotation.y = R.gier; props.add(nt);
+  const schirm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 0.14, 12, 1, true), new THREE.MeshBasicMaterial({ color:0xffc48a, side:THREE.DoubleSide }));
+  schirm.position.set(np.x + 0.08*R.qx, 0.72, np.z + 0.08*R.qz); props.add(schirm);
+  const stab = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6), MAT.dose);
+  stab.position.set(np.x + 0.08*R.qx, 0.58, np.z + 0.08*R.qz); props.add(stab);
+  V.licht = raumLicht(new THREE.Vector3(np.x, 0.9, np.z), 0xffb070, 0.28, schirm, 'lampe');
+  const uhr = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.09), MAT.rosa);
+  uhr.position.set(np.x - 0.1*R.qx, 0.54, np.z - 0.1*R.qz); uhr.rotation.y = R.gier + 0.3; props.add(uhr);
+  V.klangPos = new THREE.Vector3(uhr.position.x, 0.55, uhr.position.z);
+  // Bilder an der Wand
+  [0, 1, 2].forEach(k => {
+    const tx = new THREE.CanvasTexture(zeichnungTex(k)); tx.encoding = THREE.sRGBEncoding;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.315), new THREE.MeshStandardMaterial({ map:tx, roughness:0.9,
+      polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 }));
+    const p = R.welt(R.tiefe/2 + 0.015, (k - 1)*0.62 - s*0.3);
+    m.position.set(p.x, 1.22 + (k%2)*0.12, p.z);
+    m.rotation.y = R.gier + Math.PI; m.rotation.z = (rnd()-0.5)*0.12;
+    props.add(m);
+  });
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), MAT.rot);
+  const bl = R.welt(0.3, -s*0.6); ball.position.set(bl.x, 0.1, bl.z); props.add(ball);
+  // Zettel auf dem Bett, ein Akku auf dem Nachttisch
+  const zettel = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.2), new THREE.MeshStandardMaterial({
+    map:new THREE.CanvasTexture(papierTex()), roughness:0.9 }));
+  zettel.rotation.x = -Math.PI/2;
+  const zg = new THREE.Group(); zg.add(zettel); zg.rotation.y = rnd()*6.28;
+  addItem('notiz', zg, new THREE.Vector3(bp.x, 0.485, bp.z), { ruhig:true, text:TEXTE.zimmer, versteck:V });
+  const m = battMesh(); m.rotation.y = rnd()*6.28;
+  addItem('batt', m, new THREE.Vector3(np.x + 0.12*R.qx, 0.53, np.z + 0.12*R.qz), { extra:true });
+}
+
+for(const V of VERSTECKE){
+  if(!V.tuer) continue;
+  tuerBauen(V);
+  const R = raumAchsen(V);
+  V.R = R;
+  if(V.art === 'lager') lagerEinrichten(V, R);
+  else if(V.art === 'schrein') schreinEinrichten(V, R);
+  else zimmerEinrichten(V, R);
+  // draußen ein Hinweis in der Nähe der Tür
+  const HINWEIS = { lager:['HIER', 'WOHNT JEMAND'], schrein:['NICHT', 'HINSEHEN'], zimmer:['HÖRST DU', 'DIE MUSIK?'] };
+  anWand(wandBei(V.tuer.aussen, 1), kritzelTex(HINWEIS[V.art], 'rost'), 1.4, 0.7, 1.5);
+}
+const VERSTECKE_DA = VERSTECKE.filter(V => V.tuer).length;
+
 /* ======================== 7  Die Gestalt ======================== */
 
 function fallbackMonster(){
@@ -4605,9 +5672,50 @@ const MON = {
 MON.group.visible = false;
 scene.add(MON.group);
 
+/* Augen: im normalen Bild kaum zu ahnen, im Nachtsichtbild werfen sie das
+   Infrarot zurück wie bei einem Tier am Straßenrand. */
+function glanzTex(){
+  const s = 64, c = cv(s, s), x = c.getContext('2d');
+  const g = x.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.18, 'rgba(255,255,255,0.85)');
+  g.addColorStop(0.45, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  return c;
+}
+MAT.auge = new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(glanzTex()), color:0x000000, transparent:true,
+  blending:THREE.AdditiveBlending, depthWrite:false, fog:false });
+const AUGEN_FARBE = new THREE.Color();
+function augenSetzen(ziel, koerper){
+  const pos = ziel.position.clone(), rot = ziel.rotation.y;
+  ziel.position.set(0, 0, 0); ziel.rotation.y = 0; ziel.updateMatrixWorld(true);
+  const kopf = koerper.getObjectByName && koerper.getObjectByName('Head');
+  const box = new THREE.Box3();
+  if(kopf) box.setFromObject(kopf);
+  else box.set(new THREE.Vector3(-0.15, 2.58, -0.15), new THREE.Vector3(0.15, 2.98, 0.15));
+  ziel.position.copy(pos); ziel.rotation.y = rot; ziel.updateMatrixWorld(true);
+  const c = new THREE.Vector3(), sz = new THREE.Vector3();
+  box.getCenter(c); box.getSize(sz);
+  for(const alt of ziel.children.filter(o => o.userData.auge)) ziel.remove(alt);
+  for(const sx of [-1, 1]){
+    const a = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.17), MAT.auge);
+    a.position.set(c.x + sx*Math.max(0.045, sz.x*0.17), c.y + sz.y*0.08, box.max.z + 0.02);
+    a.userData.auge = true;
+    a.renderOrder = 3;
+    ziel.add(a);
+  }
+}
+function gestaltKlon(ziel, ebene){
+  // Wechselt die Figur in einer Gruppe gegen einen Abguss der Gestalt aus
+  for(const alt of ziel.children.slice()) ziel.remove(alt);
+  const k = MON.body.clone();
+  ziel.add(k);
+  augenSetzen(ziel, k);
+  if(ebene) ziel.traverse(o => o.layers.set(ebene));
+}
 {
   const fb = fallbackMonster();
   MON.group.add(fb); MON.body = fb;
+  augenSetzen(MON.group, fb);
   const loader = new THREE.GLTFLoader(loadMgr);
   loader.load(A('assets/monster.glb'), gl => {
     const m = gl.scene;
@@ -4620,6 +5728,9 @@ scene.add(MON.group);
     MON.group.remove(fb);
     MON.group.add(m);
     MON.body = m;
+    augenSetzen(MON.group, m);
+    gestaltKlon(glimpse);
+    if(TV.geist) gestaltKlon(TV.geist, 1);
   }, undefined, () => { /* Notfigur bleibt stehen */ });
 }
 
@@ -4642,6 +5753,9 @@ scene.add(MON.group);
 const cellOf = (x,z) => idx(clamp(Math.floor(x/CS),0,G-1), clamp(Math.floor(z/CS),0,G-1));
 
 function monSetPath(toCell){
+  // In ein Versteck führt kein Weg — dann eben vor dessen Tür
+  const vk = SECRET[toCell];
+  if(vk >= 0 && VERSTECKE[vk].tuer) toCell = VERSTECKE[vk].tuer.aussen;
   const from = cellOf(MON.pos.x, MON.pos.z);
   const p = pathToMon(from, toCell);
   MON.path = (p && p.length) ? p : null;
@@ -4678,7 +5792,20 @@ function updateMonster(dt, player, noiseRadius){
   monUnstick();
   const toP = _mv.set(player.x - MON.pos.x, 0, player.z - MON.pos.z);
   const distP = toP.length();
-  const sees = distP < CFG.monSight &&
+  /* Hinter der Tapete findet sie dich nicht. Sie weiß aber, wo du
+     verschwunden bist — und wartet dort. */
+  const vk = versteckVon(player.x, player.z);
+  if(vk >= 0){
+    noiseRadius = 0;
+    const V = VERSTECKE[vk];
+    if(MON.state === 'hunt' && V.tuer){
+      const c = cellCenter(V.tuer.aussen);
+      MON.lastSeen.set(c.x, 0, c.z);
+      MON.state = 'search'; MON.searchT = 16; MON.repath = 0;
+      MON.wartet = vk;
+    }
+  } else MON.wartet = -1;
+  const sees = vk < 0 && distP < CFG.monSight &&
                (distP < 6 || toP.clone().normalize().dot(MON.dir) > CFG.monCone) &&
                losClear(MON.pos.x, MON.pos.z, player.x, player.z);
 
@@ -4717,15 +5844,36 @@ function updateMonster(dt, player, noiseRadius){
     }
   }
 
-  // Schwere Schritte, sobald sie in Hörweite ist — das kündigt sie an
+  // Schwere Schritte, sobald sie in Hörweite ist — das kündigt sie an.
+  // Man hört, aus welcher Richtung sie kommt, und ob eine Wand dazwischen ist.
   MON.sndT -= dt;
   if(MON.sndT <= 0){
-    const hear = MON.state === 'hunt' ? 26 : 17;
-    if(distP < hear){
-      const nah = 1 - distP/hear;
+    const hear = MON.state === 'hunt' ? 30 : 22;
+    if(distP < hear && MON.bewegt){
       MON.sndT = MON.state === 'hunt' ? 0.42 : 0.9 + Math.random()*0.5;
-      burst(0.16, 120 + nah*90, 0.05 + nah*0.20);
-    } else MON.sndT = 1.5;
+      KLANG.gestaltSchritt(MON.pos.x, MON.pos.z, MON.state === 'hunt');
+    } else MON.sndT = 0.6;
+  }
+  // Atmen, wenn sie nah ist; Knurren, wenn sie jagt
+  MON.atemT = (MON.atemT || 2) - dt;
+  if(MON.atemT <= 0){
+    if(MON.state === 'hunt'){
+      MON.atemT = 2.4 + Math.random()*1.8;
+      if(distP < 22) KLANG.knurren(MON.pos.x, MON.pos.z);
+    } else {
+      MON.ein = !MON.ein;
+      MON.atemT = MON.ein ? 1.05 : 1.6 + Math.random()*0.8;
+      if(distP < 13) KLANG.atem(MON.pos.x, MON.pos.z, MON.ein, clamp(1.2 - distP/13, 0.25, 1));
+    }
+  }
+  // Wer sich versteckt, hört sie vor der Tür
+  if(MON.wartet >= 0 && VERSTECKE[MON.wartet].tuer){
+    const t = VERSTECKE[MON.wartet].tuer;
+    MON.kratzT = (MON.kratzT || 4) - dt;
+    if(MON.kratzT <= 0 && Math.hypot(MON.pos.x - t.mx, MON.pos.z - t.mz) < 4.5){
+      MON.kratzT = 5 + Math.random()*6;
+      KLANG.kratzen(t.mx, t.mz);
+    }
   }
 
   MON.repath -= dt;
@@ -4755,15 +5903,22 @@ function updateMonster(dt, player, noiseRadius){
     const c = MON.path[MON.pathIdx];
     tx = (c%G)*CS+CS/2; tz = ((c/G)|0)*CS+CS/2;
     if((MON.pos.x-tx)**2 + (MON.pos.z-tz)**2 < 0.55){ MON.pathIdx++; MON.stuck = 0; }
-  } else { monRoam(); return distP; }
+  } else {
+    // Auf der Suche bleibt sie stehen und lauscht, bis ihr die nächste Stelle einfällt
+    if(MON.state !== 'search') monRoam();
+    MON.bewegt = false;
+    return distP;
+  }
 
   const dx = tx-MON.pos.x, dz = tz-MON.pos.z, dl = Math.hypot(dx,dz) || 1;
   const step = speed*dt;
   const nx = MON.pos.x + dx/dl*step, nz = MON.pos.z + dz/dl*step;
   let moved = false;
+  MON.bewegt = true;
   if(freeM(nx,nz)){ MON.pos.x=nx; MON.pos.z=nz; moved=true; }
   else if(freeM(nx, MON.pos.z)){ MON.pos.x=nx; moved=true; }
   else if(freeM(MON.pos.x, nz)){ MON.pos.z=nz; moved=true; }
+  MON.bewegt = moved;
   if(!moved){
     MON.stuck += dt;
     if(MON.stuck > 0.7){ MON.stuck=0; MON.repath=0; if(MON.state==='roam') monRoam(); }
@@ -4790,12 +5945,27 @@ function updateMonster(dt, player, noiseRadius){
 }
 
 /* ---------- Eine Gestalt am Gangende, die verschwindet ---------- */
-const glimpse = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 1.98), MAT.dark);
+const glimpse = new THREE.Group();
 glimpse.visible = false;
-glimpse.position.y = 0.99;
 scene.add(glimpse);
+gestaltKlon(glimpse);                       // bis das Modell da ist: die Notfigur
+if(TV.geist) gestaltKlon(TV.geist, 1);
 
-const SCARE = { t: 22 + Math.random()*18, glimpseT: 0, blitz: 0 };
+const SCARE = {
+  t: 22 + Math.random()*18, glimpseT: 0, blitz: 0, weg: 0,
+  aus: 0, ausListe: [], imDunkeln: false,
+  echo: 0, echoNach: false,
+  fluesterT: 35 + Math.random()*30, klopfT: 28 + Math.random()*30, grollT: 20 + Math.random()*25
+};
+
+/* Stellen, an denen es von der Decke tropft: dort, wo der Teppich am
+   nassesten ist. */
+const TROPFEN = [];
+for(let v=0; v<400 && TROPFEN.length<14; v++){
+  const x = rnd()*SPAN, z = rnd()*SPAN;
+  if(nassBei(x, z) < 0.55 || !freeP(x, z)) continue;
+  TROPFEN.push({ x, z, t: rnd()*3 });
+}
 
 /* Sucht einen Platz im Blickfeld, auf den freie Sicht besteht. */
 function platzImBlick(minD, maxD){
@@ -4811,61 +5981,170 @@ function platzImBlick(minD, maxD){
   return null;
 }
 
-/* Regie für die kleinen Schrecken zwischendurch. Sie greift nur, wenn die
+/* Eine Röhre in Sichtweite platzt */
+function roehrePlatzt(){
+  let f = null, best = 1e9;
+  for(const k of fixtures){
+    if(k.dead || k.art || k.aus) continue;
+    const d = k.pos.distanceTo(camera.position);
+    if(d < 3 || d > 16) continue;
+    if(!losClear(S.pos.x, S.pos.z, k.pos.x, k.pos.z)) continue;
+    if(d < best){ best = d; f = k; }
+  }
+  if(!f) return false;
+  f.dead = true;
+  SCARE.blitz = 0.12;
+  burst(0.10, 5200, 0.34, 'highpass');                      // Knall
+  if(tonAn()) setTimeout(() => KLANG.knall(f.pos.x, f.pos.z), 60);
+  S.glitch = Math.max(S.glitch, 0.8);
+  if(navigator.vibrate) navigator.vibrate(45);
+  return true;
+}
+
+/* Mit jedem Band wird es dunkler: ein paar Röhren sterben still. */
+function lichterSterben(){
+  setTimeout(() => { if(S.phase === 'play') roehrePlatzt(); }, 2200 + Math.random()*1500);
+  for(const f of fixtures){
+    if(f.dead || f.art || rnd() > 0.05) continue;
+    if(f.pos.distanceTo(camera.position) < 10) continue;
+    f.dead = true;
+  }
+}
+
+/* Stromausfall: alles ringsum geht aus, das Brummen fällt in sich
+   zusammen. Wer jetzt die Nachtsicht anhat, sieht, wer da steht. */
+function stromAus(){
+  SCARE.aus = 3.8 + Math.random()*2.6;
+  SCARE.ausListe.length = 0;
+  for(const f of fixtures){
+    if(f.dead || f.art) continue;
+    if(f.pos.distanceTo(camera.position) < 36){ f.aus = true; f.zuend = undefined; SCARE.ausListe.push(f); }
+  }
+  KLANG.relais();
+  KLANG.brummen(false, 1.4);
+  const p = platzImBlick(5, 10);
+  if(p){
+    glimpse.position.set(p.x, 0, p.z);
+    glimpse.visible = true;
+    SCARE.imDunkeln = true;
+    SCARE.glimpseT = SCARE.aus + 1;
+  }
+  S.glitch = Math.max(S.glitch, 0.5);
+}
+function stromAn(){
+  const l = SCARE.ausListe.slice().sort((a,b) =>
+    a.pos.distanceToSquared(camera.position) - b.pos.distanceToSquared(camera.position));
+  l.forEach((f, i) => { f.zuend = 0.2 + i*0.05 + Math.random()*0.3; });
+  SCARE.ausListe.length = 0;
+  KLANG.brummen(true, 0.7);
+  if(SCARE.imDunkeln){ glimpse.visible = false; SCARE.imDunkeln = false; }
+}
+
+/* Regie für die Schrecken zwischendurch. Sie greift nur, wenn die
    Gestalt gerade nicht ohnehin hinter einem her ist. */
 function scareTick(dt){
+  const versteckt = versteckVon(S.pos.x, S.pos.z) >= 0;
   // Die Gestalt am Gangende wieder einsammeln
   if(glimpse.visible){
     SCARE.glimpseT -= dt;
-    glimpse.lookAt(camera.position.x, 0.99, camera.position.z);
-    const nah = camera.position.distanceTo(glimpse.position) < 7;
-    if(SCARE.glimpseT <= 0 || nah){
+    glimpse.lookAt(camera.position.x, 0, camera.position.z);
+    const dx = glimpse.position.x - camera.position.x, dz = glimpse.position.z - camera.position.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const imBlick = (-Math.sin(S.yaw)*dx - Math.cos(S.yaw)*dz)/d > 0.72;
+    SCARE.weg = imBlick ? 0 : SCARE.weg + dt;
+    const nah = d < (SCARE.imDunkeln ? 3 : 7);
+    // sie ist weg, sobald man wegsieht — oder zu nah kommt
+    if(SCARE.glimpseT <= 0 || nah || (SCARE.weg > 0.35 && !SCARE.imDunkeln)){
       glimpse.visible = false;
-      if(nah) burst(0.20, 900, 0.10, 'highpass');          // ein Rascheln, dann weg
+      if(nah) burst(0.20, 900, 0.10, 'highpass');           // ein Rascheln, dann weg
+      if(nah && SCARE.imDunkeln){ KLANG.fluestern(0, 0.8, 1.2); SCARE.imDunkeln = false; }
     }
   }
   if(SCARE.blitz > 0) SCARE.blitz -= dt;
 
-  if(MON.state === 'hunt') return;
-  SCARE.t -= dt;
-  if(SCARE.t > 0) return;
-  SCARE.t = 28 + Math.random()*34;
+  // Stromausfall läuft
+  if(SCARE.aus > 0){
+    SCARE.aus -= dt;
+    if(SCARE.aus <= 0) stromAn();
+  }
 
+  // Die Schritte hinter dir: jeder deiner Schritte kommt noch einmal
+  if(SCARE.echo > 0){
+    SCARE.echo -= dt;
+    if(S.t - S.lastStep > 0.55 && S.t - S.lastStep < 2 && !SCARE.echoNach){
+      // du bleibst stehen — es macht noch einen Schritt
+      SCARE.echoNach = true;
+      const bx = S.pos.x + Math.sin(S.yaw)*3.2, bz = S.pos.z + Math.cos(S.yaw)*3.2;
+      setTimeout(() => { if(S.phase === 'play') KLANG.fremdSchritt(bx, bz, 1.1); }, 350);
+      SCARE.echo = 0;
+    }
+  }
+
+  // Tropfen
+  for(const tr of TROPFEN){
+    const d2 = (tr.x - S.pos.x)**2 + (tr.z - S.pos.z)**2;
+    if(d2 > 100) continue;
+    tr.t -= dt;
+    if(tr.t <= 0){ tr.t = 1.1 + Math.random()*2.6; KLANG.tropfen(tr.x, tr.z); }
+  }
+
+  if(MON.state === 'hunt') return;
+
+  // Flüstern, öfter im Dunkeln und im Stillstand
+  const dunkel = inDark(S.pos.x, S.pos.z) || SCARE.aus > 0;
+  SCARE.fluesterT -= dt * (dunkel ? 2 : 1) * (S.gait < 0.2 ? 1.6 : 1);
+  if(SCARE.fluesterT <= 0){
+    SCARE.fluesterT = 45 + Math.random()*50;
+    KLANG.fluestern(Math.random() < 0.5 ? -0.85 : 0.85, 1.4 + Math.random()*1.4, 0.9);
+    S.glitch = Math.max(S.glitch, 0.3);
+  }
+  // Klopfen hinter einer Wand
+  SCARE.klopfT -= dt;
+  if(SCARE.klopfT <= 0){
+    SCARE.klopfT = 35 + Math.random()*45;
+    const a = Math.random()*6.283, d = 8 + Math.random()*8;
+    KLANG.klopfen(clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1), 3);
+  }
+  // Das Gebäude arbeitet
+  SCARE.grollT -= dt;
+  if(SCARE.grollT <= 0){
+    SCARE.grollT = 30 + Math.random()*40;
+    const a = Math.random()*6.283;
+    KLANG.grollen(clamp(S.pos.x + Math.cos(a)*25, 1, SPAN-1), clamp(S.pos.z + Math.sin(a)*25, 1, SPAN-1));
+  }
+
+  SCARE.t -= dt;
+  if(SCARE.t > 0 || SCARE.aus > 0) return;
+  SCARE.t = 26 + Math.random()*32;
+  if(versteckt){ SCARE.t = 8; return; }            // in einem Versteck lässt die Regie dich in Ruhe
+
+  const distM = MON.pos.distanceTo(S.pos);
   const wahl = Math.random();
-  if(wahl < 0.45){
+  if(wahl < 0.28){
     // Jemand steht am Ende des Ganges
     const p = platzImBlick(11, 24);
     if(p){
-      glimpse.position.set(p.x, 0.99, p.z);
+      glimpse.position.set(p.x, 0, p.z);
       glimpse.visible = true;
-      SCARE.glimpseT = 1.1 + Math.random()*1.3;
-      burst(0.5, 220, 0.10);
+      SCARE.weg = 0;
+      SCARE.glimpseT = 1.4 + Math.random()*1.6;
+      if(tonAn()) rausch(SND.master, 0.9, 'lowpass', 260, 0.7, 0.12, 0.3, SND.braunBuf);
       S.glitch = Math.max(S.glitch, 0.55);
     }
-  } else if(wahl < 0.78){
-    // Eine Röhre platzt
-    let f = null, best = 1e9;
-    for(const k of fixtures){
-      if(k.dead) continue;
-      const d = k.pos.distanceTo(camera.position);
-      if(d < 3 || d > 16) continue;
-      if(!losClear(S.pos.x, S.pos.z, k.pos.x, k.pos.z)) continue;
-      if(d < best){ best = d; f = k; }
-    }
-    if(f){
-      f.dead = true;
-      SCARE.blitz = 0.12;
-      burst(0.10, 5200, 0.34, 'highpass');                 // Knall
-      setTimeout(() => burst(0.7, 300, 0.16), 90);          // Nachhall
-      S.glitch = Math.max(S.glitch, 0.8);
-      if(navigator.vibrate) navigator.vibrate(45);
-    }
-  } else {
-    // Irgendwo fällt etwas um
-    burst(0.7, 170, 0.30);
-    setTimeout(() => burst(0.35, 120, 0.18), 260);
+  } else if(wahl < 0.48){
+    roehrePlatzt();
+  } else if(wahl < 0.68){
+    stromAus();
+  } else if(wahl < 0.84){
+    // Irgendwo schlägt Metall auf
+    const a = Math.random()*6.283, d = 12 + Math.random()*10;
+    KLANG.knall(clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1));
     S.glitch = Math.max(S.glitch, 0.45);
-  }
+  } else if(distM > 18){
+    // Ab jetzt geht jemand hinter dir
+    SCARE.echo = 7 + Math.random()*6;
+    SCARE.echoNach = false;
+  } else SCARE.t = 5;
 }
 
 /* ============ 8  Bild: Fischauge, Bandfehler, Nachtsicht ============ */
@@ -4919,12 +6198,20 @@ const postMat = new THREE.ShaderMaterial({
     '  float row = floor(uv.y*48.0);',
     '  float blk = step(0.995-uGlitch*0.30, rand(vec2(row, floor(uTime*14.0))));',
     '  uv.x += blk*(rand(vec2(row,uTime))-0.5)*0.15*uGlitch*(0.35+V);',
+    // Kopfumschaltung: die untersten Zeilen reißen seitlich weg
+    '  float kopf = smoothstep(0.045, 0.0, uv.y);',
+    '  uv.x += kopf*(0.010 + 0.03*rand(vec2(floor(uv.y*uRes.y*0.5), floor(uTime*30.0))))*V;',
     '  uv = clamp(uv, 0.002, 0.998);',
     '  float ca = (0.0010 + uGlitch*0.006 + band*0.002)*(0.4+V*0.6);',
     '  vec3 col;',
     '  col.r = texture2D(tDiffuse, uv + vec2(ca,0.0)).r;',
     '  col.g = texture2D(tDiffuse, uv).g;',
     '  col.b = texture2D(tDiffuse, uv - vec2(ca,0.0)).b;',
+    // Die Farbe läuft der Helligkeit hinterher, wie auf jedem Heimvideo
+    '  vec3 sm = texture2D(tDiffuse, uv - vec2(3.0/uRes.x, 0.0)).rgb + texture2D(tDiffuse, uv - vec2(6.0/uRes.x, 0.0)).rgb;',
+    '  vec3 mitt = (col + sm)/3.0;',
+    '  float y0 = dot(col, vec3(0.299,0.587,0.114)), ym = dot(mitt, vec3(0.299,0.587,0.114));',
+    '  col = mix(col, mitt + (y0 - ym), 0.7*V);',
     '  col += bloom(uv) * vec3(1.0,0.95,0.80) * 1.05;',
     '  float lum = dot(col, vec3(0.299,0.587,0.114));',
     '  col = mix(col, vec3(lum), 0.10*V);',
@@ -4962,6 +6249,12 @@ const postMat = new THREE.ShaderMaterial({
     '  float g2 = rand(floor(uv*uRes*0.30) + fract(uTime*0.83)*57.3) - 0.5;',
     '  float korn = (g1*0.085 + g2*0.075) * (0.45 + 0.95*(1.0 - lf));',
     '  col += korn * (0.85 + 0.7*V + uGlitch*0.8);',
+    // Aussetzer: kurze weiße Striche, wo das Band abgenutzt ist
+    '  float zeile = floor(vUv.y*uRes.y*0.5);',
+    '  float aus = step(0.9993 - uGlitch*0.004, rand(vec2(zeile, floor(uTime*24.0))))',
+    '            * step(0.45, rand(vec2(floor(vUv.x*7.0 + rand(vec2(zeile, 3.0))*7.0), zeile + floor(uTime*24.0))));',
+    '  col = mix(col, vec3(0.9), aus*0.65*(0.4+V));',
+    '  col = mix(col, vec3(rand(uv*uRes + uTime*13.1)), kopf*0.30*V);',
     '  float vig = dot(vUv-0.5, vUv-0.5);',
     '  col *= 1.0 - vig*(1.05+0.60*V);',
     '  vec4 hud = texture2D(tHud, vUv + vec2(ca,0.0));',
@@ -4993,6 +6286,11 @@ function drawHud(){
   }
   hudX.fillStyle = 'rgba(238,234,214,0.86)';
   hudX.fillText(HUDS.nv ? 'NIGHTSHOT' : 'SP', PAD, PAD + F*1.3);
+  // Der Camcorder merkt, wenn er nichts mehr sieht
+  if(HUDS.dunkel && !HUDS.nv && Math.sin(HUDS.time*5) > -0.2){
+    hudX.fillStyle = 'rgba(236,196,96,0.92)';
+    hudX.fillText('LOW LIGHT', PAD, PAD + F*2.6);
+  }
 
   /* --- oben rechts: Datum und Zeitcode (Platz für die Pausentaste) --- */
   const sec = HUDS.time + 42.7;
@@ -5002,7 +6300,12 @@ function drawHud(){
         ff = String(Math.floor((sec%1)*30)).padStart(2,'0');
   const rightPad = PAD + Math.round(W*0.085);
   hudX.fillStyle = 'rgba(248,246,236,0.94)';
-  const d1 = '10/17/1989', d2 = hh+':'+mm+':'+ss+':'+ff;
+  let d1 = '10/17/1989', d2 = hh+':'+mm+':'+ss+':'+ff;
+  // In ihrer Nähe verliert der Zeitcode den Takt
+  if(HUDS.stoer > 0.25){
+    const wirr = t => t.replace(/[0-9]/g, z => Math.random() < HUDS.stoer*0.45 ? '-8#?'[Math.random()*4|0] : z);
+    d1 = wirr(d1); d2 = wirr(d2);
+  }
   hudX.fillText(d1, W-rightPad-hudX.measureText(d1).width, PAD);
   hudX.fillText(d2, W-rightPad-hudX.measureText(d2).width, PAD + F*1.3);
 
@@ -5061,42 +6364,175 @@ function drawHud(){
 
 /* ========================== 10  Ton ========================== */
 
+/* Alles, was hier zu hören ist, wird im Spiel selbst erzeugt: Oszillatoren,
+   Rauschen, Filter und ein selbst gebauter Hall. Keine Aufnahmen, keine
+   fremden Dateien — frei verwendbar, ohne dass jemand gefragt werden muss. */
 const SND = { on:true, ctx:null };
+const tonAn = () => !!(SND.ctx && SND.on);
 function initAudio(){
   if(SND.ctx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
   if(!AC) { SND.on = false; return; }
   const ac = new AC();
   SND.ctx = ac;
-  SND.master = ac.createGain(); SND.master.gain.value = 1; SND.master.connect(ac.destination);
+  const sr = ac.sampleRate;
 
-  // Netzbrummen
+  // Alles läuft durch einen Begrenzer, damit Schrei und Knall nicht übersteuern
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 4;
+  comp.attack.value = 0.004; comp.release.value = 0.25;
+  comp.connect(ac.destination);
+  SND.master = ac.createGain(); SND.master.gain.value = 1; SND.master.connect(comp);
+
+  // Hall eines großen, feuchten Raums: frühe Echos, dann ein langer Schwanz
+  const len = Math.floor(sr*2.1);
+  const ir = ac.createBuffer(2, len, sr);
+  for(let ch=0; ch<2; ch++){
+    const d = ir.getChannelData(ch);
+    for(let i=Math.floor(sr*0.006); i<len; i++){
+      const t = i/sr;
+      d[i] = (Math.random()*2-1) * Math.exp(-t*2.9) * (0.55 + 0.45*Math.exp(-t*9));
+    }
+    for(const [ms, a] of [[11,0.7],[19,0.5],[29,0.45],[43,0.35],[61,0.3],[83,0.22]]){
+      const i = Math.floor(sr*(ms + ch*3)/1000);
+      if(i < len) d[i] += (Math.random() < 0.5 ? -a : a);
+    }
+  }
+  SND.hall = ac.createConvolver(); SND.hall.buffer = ir;
+  const hg = ac.createGain(); hg.gain.value = 0.5;
+  SND.hall.connect(hg); hg.connect(SND.master);
+
+  // Nah am Ohr: die eigenen Schritte, mit einem Hauch Raum
+  SND.nah = ac.createGain(); SND.nah.gain.value = 1; SND.nah.connect(SND.master);
+  const nh = ac.createGain(); nh.gain.value = 0.14; SND.nah.connect(nh); nh.connect(SND.hall);
+
+  // Rauschen, einmal erzeugt: weiß und braun (tief, für Grollen)
+  const buf = ac.createBuffer(1, sr*2, sr), d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*0.5;
+  SND.noiseBuf = buf;
+  const bb = ac.createBuffer(1, sr*3, sr), bd = bb.getChannelData(0);
+  let last = 0;
+  for(let i=0;i<bd.length;i++){ last = (last + (Math.random()*2-1)*0.02)/1.02; bd[i] = last*3.2; }
+  SND.braunBuf = bb;
+
+  // Verzerrerkurve für Schrei und Knurren
+  const kurve = new Float32Array(1024);
+  for(let i=0;i<1024;i++){ const x = i/512 - 1; kurve[i] = Math.tanh(x*3.2); }
+  SND.kurve = kurve;
+
+  // Netzbrummen der Röhren: 50 Hz und Obertöne, dazu das Zischeln der Vorschaltgeräte
   const g = ac.createGain(); g.gain.value = 0.05; g.connect(SND.master);
-  [50,100,150].forEach((f,i)=>{
-    const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
-    const gg=ac.createGain(); gg.gain.value=0.35/(i+1);
-    const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=300;
+  SND.humOsc = [];
+  [[50,'sine',0.5],[100,'sawtooth',0.32],[150,'sawtooth',0.14],[200,'square',0.05]].forEach(([f, typ, v]) => {
+    const o = ac.createOscillator(); o.type = typ; o.frequency.value = f;
+    const gg = ac.createGain(); gg.gain.value = v;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
     o.connect(gg); gg.connect(lp); lp.connect(g); o.start();
+    SND.humOsc.push({ o, f });
   });
+  {
+    const s = ac.createBufferSource(); s.buffer = buf; s.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6800; bp.Q.value = 1.4;
+    const sg = ac.createGain(); sg.gain.value = 0.10;
+    s.connect(bp); bp.connect(sg); sg.connect(g); s.start();
+  }
   SND.hum = g;
 
-  // Bandrauschen
-  const buf = ac.createBuffer(1, ac.sampleRate*2, ac.sampleRate), d = buf.getChannelData(0);
-  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*0.5;
+  // Bandrauschen des Camcorders
   const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
-  const hg = ac.createGain(); hg.gain.value = 0.030;
+  const hsg = ac.createGain(); hsg.gain.value = 0.030;
   const hp = ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = 2400;
-  src.connect(hp); hp.connect(hg); hg.connect(SND.master); src.start();
-  SND.hiss = hg;
+  src.connect(hp); hp.connect(hsg); hsg.connect(SND.master); src.start();
+  SND.hiss = hsg;
 
-  // Bedrohung
-  const o2 = ac.createOscillator(); o2.type='sawtooth'; o2.frequency.value = 41;
+  // Raumton: kaum hörbar, aber ohne ihn klingt die Etage nach Studio
+  {
+    const s = ac.createBufferSource(); s.buffer = bb; s.loop = true;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160;
+    const rg = ac.createGain(); rg.gain.value = 0.07;
+    s.connect(lp); lp.connect(rg); rg.connect(SND.master); s.start();
+    SND.raum = rg;
+  }
+
+  // Bedrohung: zwei tiefe, gegeneinander schwebende Töne
   const dg = ac.createGain(); dg.gain.value = 0;
   const lp2 = ac.createBiquadFilter(); lp2.type='lowpass'; lp2.frequency.value = 190;
-  o2.connect(lp2); lp2.connect(dg); dg.connect(SND.master); o2.start();
+  for(const f of [41, 43.3]){
+    const o2 = ac.createOscillator(); o2.type='sawtooth'; o2.frequency.value = f;
+    o2.connect(lp2); o2.start();
+  }
+  const sub = ac.createOscillator(); sub.type = 'sine'; sub.frequency.value = 29;
+  const sg = ac.createGain(); sg.gain.value = 0.8; sub.connect(sg); sg.connect(dg); sub.start();
+  lp2.connect(dg); dg.connect(SND.master);
   SND.drone = dg;
-  SND.noiseBuf = buf;
+
+  verstecktonStarten();
 }
+
+/* ---------- Bausteine ---------- */
+function hoererSetzen(){
+  const ac = SND.ctx; if(!ac) return;
+  const L = ac.listener, p = camera.position;
+  const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
+  if(L.positionX){
+    L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z;
+    L.forwardX.value = fx; L.forwardY.value = 0; L.forwardZ.value = fz;
+    L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else {
+    L.setPosition(p.x, p.y, p.z);
+    L.setOrientation(fx, 0, fz, 0, 1, 0);
+  }
+}
+function setzOrt(pn, x, y, z){
+  if(pn.positionX){ pn.positionX.value = x; pn.positionY.value = y; pn.positionZ.value = z; }
+  else pn.setPosition(x, y, z);
+}
+/* Ein Ort, an dem ein Klang entsteht. Stehen Wände zwischen ihm und der
+   Kamera, kommt er dumpf an. Zurück kommt der Eingang für den Klang. */
+function ort(x, y, z, o){
+  o = o || {};
+  const ac = SND.ctx;
+  const pn = ac.createPanner();
+  pn.panningModel = 'equalpower'; pn.distanceModel = 'inverse';
+  pn.refDistance = o.ref || 1.5; pn.rolloffFactor = o.roll || 1.0; pn.maxDistance = 90;
+  setzOrt(pn, x, y, z);
+  const frei = losClear(camera.position.x, camera.position.z, x, z);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.value = frei ? 16000 : (o.dumpf || 650);
+  lp.connect(pn); pn.connect(SND.master);
+  const weit = Math.hypot(camera.position.x - x, camera.position.z - z);
+  const hs = ac.createGain();
+  hs.gain.value = (o.hall !== undefined ? o.hall : 0.35) * (frei ? 1 : 0.6) / (1 + weit*0.07);
+  lp.connect(hs); hs.connect(SND.hall);
+  return lp;
+}
+function rausch(ziel, dauer, typ, freq, q, vol, an, buf){
+  const ac = SND.ctx, t0 = ac.currentTime;
+  const s = ac.createBufferSource(); s.buffer = buf || SND.noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = typ; f.frequency.value = freq; f.Q.value = q || 0.7;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t0 + (an || 0.004));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dauer);
+  s.connect(f); f.connect(g); g.connect(ziel);
+  s.start(t0, Math.random()*Math.max(0, s.buffer.duration - dauer - 0.1)); s.stop(t0 + dauer + 0.05);
+  return { f, g, s, t0 };
+}
+function ton(ziel, typ, f0, f1, dauer, vol, an, wann){
+  const ac = SND.ctx, t0 = wann || ac.currentTime;
+  const o = ac.createOscillator(); o.type = typ; o.frequency.setValueAtTime(f0, t0);
+  if(f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dauer);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t0 + (an || 0.004));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dauer);
+  o.connect(g); g.connect(ziel); o.start(t0); o.stop(t0 + dauer + 0.05);
+  return { o, g };
+}
+function verzerrer(){
+  const w = SND.ctx.createWaveShaper(); w.curve = SND.kurve; w.oversample = '2x'; return w;
+}
+
 function burst(dur, cut, vol, type){
   const ac = SND.ctx;
   if(!ac || !SND.on) return;
@@ -5117,25 +6553,379 @@ function beep(freq, dur, vol, type){
   g.gain.setTargetAtTime(0, ac.currentTime + dur*0.5, dur*0.25);
   o.connect(g); g.connect(SND.master); o.start(); o.stop(ac.currentTime + dur + 0.3);
 }
-const sndStep    = () => burst(0.11, 520, 0.20);
-const sndRunStep = () => burst(0.13, 700, 0.30);
-const sndClunk   = () => burst(0.5, 190, 0.26);
-const sndPickup  = () => { beep(880, 0.06, 0.08); setTimeout(()=>beep(1320,0.09,0.07), 70); };
+
+/* ---------- Die Geräusche ---------- */
+const KLANG = {
+  // Teppich, feucht: dumpfer Auftritt, Fasern, auf nassen Stellen ein Schmatzen
+  schritt(laut, nass, ziel){
+    if(!tonAn()) return;
+    const ac = SND.ctx, z = ziel || SND.nah;
+    ton(z, 'sine', 90 + Math.random()*25, 45, 0.10, 0.30*laut);
+    rausch(z, 0.09 + Math.random()*0.05, 'bandpass', 650 + Math.random()*550, 0.9, 0.26*laut, 0.006);
+    rausch(z, 0.05, 'highpass', 3500 + Math.random()*1500, 0.7, 0.03*laut, 0.003);
+    if(nass > 0.18){
+      const r = rausch(z, 0.2, 'bandpass', 2100 + Math.random()*900, 3.0, 0.16*nass*laut, 0.012);
+      r.f.frequency.exponentialRampToValueAtTime(650, r.t0 + 0.18);
+    }
+  },
+  // Schritte, die nicht deine sind
+  fremdSchritt(x, z, laut){
+    if(!tonAn()) return;
+    const e = ort(x, 0.1, z, { ref:1.4, hall:0.3 });
+    KLANG.schritt(laut * 2.6, nassBei(x, z), e);
+  },
+  gestaltSchritt(x, z, jagd){
+    if(!tonAn()) return;
+    const e = ort(x, 0.2, z, { ref:2.4, roll:0.9, hall:0.5, dumpf:420 });
+    ton(e, 'sine', 64 + Math.random()*10, 34, 0.26, jagd ? 1.5 : 1.1);
+    rausch(e, 0.2, 'lowpass', 340, 0.7, jagd ? 0.9 : 0.6, 0.003);
+    if(Math.random() < 0.35){
+      const r = rausch(e, 0.45, 'bandpass', 480 + Math.random()*320, 7, 0.12, 0.06);
+      r.f.frequency.linearRampToValueAtTime(r.f.frequency.value*1.4, r.t0 + 0.4);
+    }
+    if(!jagd && Math.random() < 0.25) rausch(e, 0.6, 'bandpass', 1100, 1.2, 0.05, 0.25);   // etwas schleift
+  },
+  // Atmen: ein Rauschen durch zwei Engstellen, rau gemacht durch schnelles Zittern
+  atem(x, z, ein, laut){
+    if(!tonAn()) return;
+    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.2, z, { ref:1.8, roll:1.15, hall:0.35, dumpf:500 });
+    const dauer = ein ? 0.95 : 1.5;
+    const s = ac.createBufferSource(); s.buffer = SND.noiseBuf;
+    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = ein ? 1250 : 560; f1.Q.value = 1.6;
+    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = ein ? 2600 : 1200; f2.Q.value = 2.2;
+    const rau = ac.createGain(); rau.gain.value = 0.55;
+    const lfo = ac.createOscillator(); lfo.frequency.value = 26 + Math.random()*14;
+    const lg = ac.createGain(); lg.gain.value = 0.45; lfo.connect(lg); lg.connect(rau.gain);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.5*laut, t0 + dauer*0.45);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + dauer);
+    s.connect(f1); s.connect(f2); f1.connect(rau); f2.connect(rau); rau.connect(g); g.connect(e);
+    s.start(t0, Math.random()); s.stop(t0 + dauer + 0.05); lfo.start(t0); lfo.stop(t0 + dauer + 0.05);
+  },
+  knurren(x, z){
+    if(!tonAn()) return;
+    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.0, z, { ref:2.5, roll:0.8, hall:0.6 });
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(58 + Math.random()*12, t0);
+    o.frequency.linearRampToValueAtTime(44, t0 + 0.9);
+    const w = verzerrer();
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+    const am = ac.createGain(); am.gain.value = 0.6;
+    const lfo = ac.createOscillator(); lfo.frequency.value = 11 + Math.random()*5;
+    const lg = ac.createGain(); lg.gain.value = 0.4; lfo.connect(lg); lg.connect(am.gain);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.35, t0 + 0.15);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + 1.0);
+    o.connect(w); w.connect(lp); lp.connect(am); am.connect(g); g.connect(e);
+    o.start(t0); o.stop(t0 + 1.05); lfo.start(t0); lfo.stop(t0 + 1.05);
+    rausch(e, 0.9, 'bandpass', 700, 1.1, 0.14, 0.1);
+  },
+  // Der Schrei, wenn sie dich sieht: zwei verstimmte Stimmen, verzerrt, im Hall
+  schrei(x, z){
+    if(!tonAn()) return;
+    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 2.2, z, { ref:5, roll:0.5, hall:0.9, dumpf:1200 });
+    const w = verzerrer();
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.3;
+    const bp2 = ac.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 2700; bp2.Q.value = 2;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.03);
+    g.gain.setTargetAtTime(0.0001, t0 + 0.55, 0.22);
+    for(const [f, d] of [[560, 0], [573, 0.004], [281, 0.01]]){
+      const o = ac.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f, t0 + d);
+      o.frequency.exponentialRampToValueAtTime(f*1.25, t0 + 0.12);
+      o.frequency.exponentialRampToValueAtTime(f*0.34, t0 + 1.2);
+      o.connect(w); o.start(t0 + d); o.stop(t0 + 1.6);
+    }
+    w.connect(bp); w.connect(bp2); bp.connect(g); bp2.connect(g); g.connect(e);
+    rausch(e, 0.9, 'bandpass', 2400, 1.0, 0.25, 0.01);
+  },
+  // Drei Schläge gegen eine Wand, irgendwo
+  klopfen(x, z, n){
+    if(!tonAn()) return;
+    for(let i=0;i<n;i++) setTimeout(() => {
+      if(!tonAn()) return;
+      const e = ort(x, 1.2, z, { ref:1.8, hall:0.8, dumpf:480 });
+      ton(e, 'sine', 150, 78, 0.14, 1.6, 0.002);
+      rausch(e, 0.06, 'bandpass', 1500, 1.3, 1.0, 0.001);
+    }, i*(300 + Math.random()*90));
+  },
+  // Flüstern: Rauschen durch zwei Formanten, die von Silbe zu Silbe springen
+  fluestern(seite, dauer, laut){
+    if(!tonAn()) return;
+    const ac = SND.ctx, t0 = ac.currentTime + 0.02;
+    let ziel;
+    if(ac.createStereoPanner){
+      const sp = ac.createStereoPanner(); sp.pan.value = seite; sp.connect(SND.master);
+      const hs = ac.createGain(); hs.gain.value = 0.3; sp.connect(hs); hs.connect(SND.hall);
+      ziel = sp;
+    } else ziel = SND.master;
+    const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
+    const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250;
+    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 5;
+    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 7;
+    const vg = ac.createGain(); vg.gain.value = 0.0001;
+    const zisch = ac.createBiquadFilter(); zisch.type = 'highpass'; zisch.frequency.value = 4800;
+    const zg = ac.createGain(); zg.gain.value = 0.0001;
+    const aus = ac.createGain(); aus.gain.value = 1.3*laut;
+    s.connect(hp); hp.connect(f1); hp.connect(f2); f1.connect(vg); f2.connect(vg);
+    s.connect(zisch); zisch.connect(zg);
+    vg.connect(aus); zg.connect(aus); aus.connect(ziel);
+    const VOK = [[800,1250],[450,2000],[300,2300],[480,850],[330,800],[650,1750]];
+    let t = t0;
+    while(t < t0 + dauer){
+      const syl = 0.08 + Math.random()*0.15;
+      const [a, b] = VOK[(Math.random()*VOK.length)|0];
+      f1.frequency.setValueAtTime(a, t); f2.frequency.setValueAtTime(b, t);
+      f1.frequency.linearRampToValueAtTime(a*(0.85 + Math.random()*0.3), t + syl);
+      vg.gain.setValueAtTime(0.0001, t);
+      vg.gain.linearRampToValueAtTime(0.5 + Math.random()*0.5, t + syl*0.35);
+      vg.gain.linearRampToValueAtTime(0.0001, t + syl);
+      if(Math.random() < 0.4){
+        const zs = t + syl*(Math.random() < 0.5 ? 0 : 0.7);
+        zg.gain.setValueAtTime(0.0001, zs);
+        zg.gain.linearRampToValueAtTime(0.25, zs + 0.03);
+        zg.gain.linearRampToValueAtTime(0.0001, zs + 0.09 + Math.random()*0.08);
+      }
+      t += syl + (Math.random() < 0.18 ? 0.15 + Math.random()*0.2 : 0.015);
+    }
+    s.start(t0); s.stop(t + 0.1);
+  },
+  // Metall schlägt irgendwo auf: Knall und nachschwingende Teiltöne
+  knall(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, 1.5, z, { ref:3, hall:1.0, dumpf:380 });
+    rausch(e, 0.5, 'lowpass', 700, 0.7, 1.1, 0.002);
+    for(const f of [187, 431, 779, 1123]) ton(e, 'sine', f, f*0.985, 1.4 + Math.random(), 0.15, 0.002);
+  },
+  tropfen(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, 0.05, z, { ref:0.8, roll:1.5, hall:0.7 });
+    ton(e, 'sine', 1300 + Math.random()*900, 420, 0.08, 1.2, 0.001);
+  },
+  // Das Vorschaltgerät zündet: ein hohes Ticken
+  tink(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, WH - 0.1, z, { ref:1.5, hall:0.4 });
+    ton(e, 'square', 3000 + Math.random()*900, 2600, 0.035, 0.18, 0.001);
+    rausch(e, 0.03, 'highpass', 5200, 0.7, 0.4, 0.001);
+  },
+  knistern(x, z, st){
+    if(!tonAn()) return;
+    const e = ort(x, WH - 0.2, z, { ref:1.2, hall:0.2 });
+    rausch(e, 0.03 + Math.random()*0.07, 'bandpass', 2300 + Math.random()*2800, 1.6, 1.1*st, 0.001);
+    ton(e, 'sawtooth', 100, 100, 0.07, 0.22*st, 0.002);
+  },
+  // Die Tapetentür: ein Knarzen aus lauter kleinen Rucken, dann Staub
+  knarren(x, z){
+    if(!tonAn()) return;
+    const ac = SND.ctx, t0 = ac.currentTime, e = ort(x, 1.2, z, { ref:1.6, hall:0.5 });
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(34, t0);
+    o.frequency.linearRampToValueAtTime(68, t0 + 0.35);
+    o.frequency.linearRampToValueAtTime(41, t0 + 0.8);
+    o.frequency.linearRampToValueAtTime(88, t0 + 1.15);
+    const b1 = ac.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = 720; b1.Q.value = 9;
+    const b2 = ac.createBiquadFilter(); b2.type = 'bandpass'; b2.frequency.value = 1460; b2.Q.value = 7;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.9, t0 + 0.06);
+    g.gain.setValueAtTime(0.9, t0 + 1.0); g.gain.linearRampToValueAtTime(0.0001, t0 + 1.3);
+    o.connect(b1); o.connect(b2); b1.connect(g); b2.connect(g); g.connect(e);
+    o.start(t0); o.stop(t0 + 1.35);
+    rausch(e, 1.1, 'lowpass', 900, 0.7, 0.10, 0.25);
+  },
+  // Kratzen an der Wand — sie wartet draußen
+  kratzen(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, 1.3, z, { ref:1.6, hall:0.4, dumpf:900 });
+    for(let i=0;i<5;i++) setTimeout(() => {
+      if(!tonAn()) return;
+      const r = rausch(e, 0.16 + Math.random()*0.1, 'bandpass', 2600 + Math.random()*1400, 3, 2.6, 0.02);
+      r.f.frequency.linearRampToValueAtTime(1500, r.t0 + 0.18);
+    }, i*(170 + Math.random()*120));
+  },
+  // Das Gebäude arbeitet: tiefes Grollen von weit weg
+  grollen(x, z){
+    if(!tonAn()) return;
+    const e = ort(x, 1.5, z, { ref:6, roll:0.5, hall:0.9, dumpf:200 });
+    rausch(e, 3.2, 'lowpass', 90, 0.8, 0.9, 1.2, SND.braunBuf);
+  },
+  herz(st){
+    if(!tonAn()) return;
+    ton(SND.master, 'sine', 64, 40, 0.15, 0.40*st, 0.006);
+    setTimeout(() => { if(tonAn()) ton(SND.master, 'sine', 56, 36, 0.13, 0.28*st, 0.006); }, 165);
+  },
+  pfeifen(){
+    if(!tonAn()) return;
+    ton(SND.master, 'sine', 6300, 6150, 3.4, 0.025, 0.15);
+  },
+  // Kassette rastet ein
+  kassette(){
+    if(!tonAn()) return;
+    rausch(SND.master, 0.025, 'bandpass', 3200, 2, 0.3, 0.001);
+    setTimeout(() => { if(tonAn()) rausch(SND.master, 0.03, 'bandpass', 2400, 2, 0.35, 0.001); }, 70);
+  },
+  // Relais klackt, das Licht geht
+  relais(){
+    if(!tonAn()) return;
+    rausch(SND.master, 0.05, 'bandpass', 1100, 2.2, 0.35, 0.001);
+    ton(SND.master, 'sine', 90, 50, 0.12, 0.25, 0.002);
+  },
+  // Das Netzbrummen fährt herunter oder wieder hoch
+  brummen(an, zeit){
+    if(!SND.ctx) return;
+    const ac = SND.ctx, t0 = ac.currentTime;
+    for(const h of SND.humOsc){
+      h.o.frequency.cancelScheduledValues(t0);
+      h.o.frequency.setValueAtTime(h.o.frequency.value, t0);
+      h.o.frequency.linearRampToValueAtTime(an ? h.f : h.f*0.5, t0 + zeit);
+    }
+    SND.humAus = !an;
+  },
+  // Zu viel auf einmal: der Ton klingelt nach
+  zischen(st){
+    if(!tonAn()) return;
+    rausch(SND.master, 0.4, 'highpass', 3000, 0.7, 0.3*st, 0.004);
+  }
+};
+
+const sndStep    = () => KLANG.schritt(0.8, nassBei(S.pos.x, S.pos.z));
+const sndRunStep = () => KLANG.schritt(1.25, nassBei(S.pos.x, S.pos.z));
+const sndClunk   = () => {
+  if(!tonAn()) return;
+  // irgendwo in den Wänden arbeitet etwas
+  const a = Math.random()*6.283, d = 9 + Math.random()*12;
+  const x = clamp(S.pos.x + Math.cos(a)*d, 1, SPAN-1), z = clamp(S.pos.z + Math.sin(a)*d, 1, SPAN-1);
+  const e = ort(x, WH - 0.3, z, { ref:2, hall:0.8, dumpf:300 });
+  rausch(e, 0.5, 'lowpass', 190, 0.7, 1.6, 0.003);
+  ton(e, 'sine', 120, 60, 0.3, 0.9, 0.003);
+};
+const sndPickup  = () => { KLANG.kassette(); beep(880, 0.06, 0.07); setTimeout(()=>beep(1320,0.09,0.06), 90); };
 const sndDenied  = () => beep(180, 0.16, 0.09, 'sawtooth');
 const sndTick    = () => beep(2100, 0.02, 0.035, 'square');
 const sndDoor    = () => { burst(0.7, 260, 0.30); setTimeout(()=>burst(0.35,150,0.22), 320); };
-function sndScream(){
-  const ac = SND.ctx; if(!ac || !SND.on) return;
-  const o = ac.createOscillator(); o.type='sawtooth';
-  o.frequency.setValueAtTime(320, ac.currentTime);
-  o.frequency.exponentialRampToValueAtTime(70, ac.currentTime+0.9);
-  const g = ac.createGain(); g.gain.value = 0.0;
-  g.gain.setTargetAtTime(0.22, ac.currentTime, 0.02);
-  g.gain.setTargetAtTime(0.0, ac.currentTime+0.5, 0.25);
-  const dist = ac.createBiquadFilter(); dist.type='bandpass'; dist.frequency.value=420; dist.Q.value=1.4;
-  o.connect(dist); dist.connect(g); g.connect(SND.master); o.start(); o.stop(ac.currentTime+1.6);
-  burst(0.8, 900, 0.18, 'bandpass');
+function sndScream(){ KLANG.schrei(MON.pos.x, MON.pos.z); }
+
+/* ---------- Was hinter den Tapetentüren zu hören ist ----------
+   Jedes Versteck hat seinen Klang: ein Radio, das nur noch rauscht, ein
+   Fernseher, eine Spieluhr. Durch die Wand kommt er dumpf an — so findet
+   man die Türen, wenn man hinhört. */
+const VTON = [];
+const SPIELUHR = [[659,1],[784,1],[988,1],[880,2],[784,1],[740,1],[659,2],[587,1],[659,1],[740,1],[784,2],
+                  [740,1],[659,1],[587,1],[494,3],[0,2]];
+function verstecktonStarten(){
+  const ac = SND.ctx;
+  for(const V of VERSTECKE){
+    if(!V.tuer || !V.klangPos) continue;
+    const p = V.klangPos;
+    const pn = ac.createPanner();
+    pn.panningModel = 'equalpower'; pn.distanceModel = 'inverse';
+    pn.refDistance = 1.2; pn.rolloffFactor = 1.35; pn.maxDistance = 60;
+    setzOrt(pn, p.x, p.y, p.z);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
+    const g = ac.createGain(); g.gain.value = 0;
+    g.connect(lp); lp.connect(pn); pn.connect(SND.master);
+    const hs = ac.createGain(); hs.gain.value = 0.25; lp.connect(hs); hs.connect(SND.hall);
+    const Q = { V, pn, lp, g, art:V.art, naechste:ac.currentTime + 1, schlag:0, tempo:0.30, stoer:0 };
+    if(V.art === 'lager' || V.art === 'schrein'){
+      // Grundrauschen: beim Radio schmal und knisternd, beim Fernseher hell
+      const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
+      const f = ac.createBiquadFilter();
+      if(V.art === 'lager'){ f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.7; }
+      else { f.type = 'highpass'; f.frequency.value = 2200; }
+      const sg = ac.createGain(); sg.gain.value = V.art === 'lager' ? 0.35 : 0.45;
+      s.connect(f); f.connect(sg); sg.connect(g); s.start();
+      Q.rausch = sg;
+      if(V.art === 'schrein'){
+        const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 60;
+        const ol = ac.createBiquadFilter(); ol.type = 'lowpass'; ol.frequency.value = 180;
+        const og = ac.createGain(); og.gain.value = 0.12;
+        o.connect(ol); ol.connect(og); og.connect(g); o.start();
+      }
+    }
+    VTON.push(Q);
+  }
 }
+function spieluhrNote(Q, f, wann, dauer){
+  const ac = SND.ctx;
+  for(const [m, v] of [[1, 0.22], [3.01, 0.05], [5.4, 0.02]]){
+    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f*m*Q.verstimmt;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, wann);
+    g.gain.exponentialRampToValueAtTime(v, wann + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, wann + Math.min(1.6, dauer*2.2)/m);
+    o.connect(g); g.connect(Q.g); o.start(wann); o.stop(wann + 1.7);
+  }
+}
+function verstecktonTick(dt){
+  if(!SND.ctx) return;
+  const ac = SND.ctx, jetzt = ac.currentTime;
+  for(const Q of VTON){
+    const V = Q.V, p = V.klangPos;
+    const d = Math.hypot(S.pos.x - p.x, S.pos.z - p.z);
+    const aus = V.art === 'schrein' && TV.zustand === 'aus';
+    const ziel = (!SND.on || d > 26 || aus || S.phase !== 'play') ? 0 : 1;
+    Q.g.gain.setTargetAtTime(ziel, jetzt, 0.3);
+    // durch die geschlossene Tür dumpf, offen und in Sicht klar
+    const drin = versteckVon(S.pos.x, S.pos.z) === VERSTECKE.indexOf(V);
+    const klar = drin || (V.offen && losClear(S.pos.x, S.pos.z, p.x, p.z));
+    Q.lp.frequency.setTargetAtTime(klar ? 9000 : (V.offen ? 900 : 380), jetzt, 0.15);
+    if(ziel === 0) continue;
+    if(V.art === 'zimmer'){
+      // Die Spieluhr läuft langsam ab — und fängt von vorn an
+      if(!Q.verstimmt) Q.verstimmt = 1;
+      while(Q.naechste < jetzt + 0.25){
+        const [f, len] = SPIELUHR[Q.schlag % SPIELUHR.length];
+        if(f) spieluhrNote(Q, f, Math.max(Q.naechste, jetzt), Q.tempo*len);
+        Q.naechste = Math.max(Q.naechste, jetzt) + Q.tempo*len;
+        Q.schlag++;
+        if(Q.schlag % SPIELUHR.length === 0){
+          Q.tempo = Q.tempo < 0.55 ? Q.tempo * 1.08 : 0.30;
+          Q.verstimmt = Q.tempo < 0.55 ? Q.verstimmt * 0.994 : 1;
+          Q.naechste += Q.tempo * 3;
+        }
+      }
+    } else if(V.art === 'lager'){
+      // Knistern und ab und zu Stimmen aus dem Radio
+      if(Math.random() < dt*6) Q.rausch.gain.setValueAtTime(0.1 + Math.random()*0.6, jetzt);
+      Q.stoer -= dt;
+      if(Q.stoer <= 0){
+        Q.stoer = 5 + Math.random()*8;
+        if(d < 16) radioStimme(Q, 1.2 + Math.random()*1.6);
+      }
+    } else if(V.art === 'schrein'){
+      Q.rausch.gain.setTargetAtTime(TV.zustand === 'bild' || TV.zustand === 'geist' ? 0.12 : 0.45, jetzt, 0.1);
+    }
+  }
+}
+function radioStimme(Q, dauer){
+  // wie das Flüstern, nur durch einen engen Telefonfilter und zerhackt
+  const ac = SND.ctx, t0 = ac.currentTime;
+  const s = ac.createBufferSource(); s.buffer = SND.noiseBuf; s.loop = true;
+  const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 6;
+  const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.Q.value = 8;
+  const tel = ac.createBiquadFilter(); tel.type = 'bandpass'; tel.frequency.value = 1300; tel.Q.value = 0.9;
+  const vg = ac.createGain(); vg.gain.value = 0.0001;
+  const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 110 + Math.random()*40;
+  const og = ac.createGain(); og.gain.value = 0.25;
+  s.connect(f1); s.connect(f2); o.connect(og); og.connect(f1); og.connect(f2);
+  f1.connect(vg); f2.connect(vg); vg.connect(tel);
+  const aus = ac.createGain(); aus.gain.value = 2.2; tel.connect(aus); aus.connect(Q.g);
+  const VOK = [[700,1200],[400,2100],[300,2400],[500,900],[350,800]];
+  let t = t0;
+  while(t < t0 + dauer){
+    const syl = 0.07 + Math.random()*0.12;
+    const [a, b] = VOK[(Math.random()*VOK.length)|0];
+    f1.frequency.setValueAtTime(a, t); f2.frequency.setValueAtTime(b, t);
+    vg.gain.setValueAtTime(0.0001, t);
+    vg.gain.linearRampToValueAtTime(Math.random() < 0.15 ? 0.0001 : 0.6, t + syl*0.3);
+    vg.gain.linearRampToValueAtTime(0.0001, t + syl);
+    t += syl + 0.01;
+  }
+  s.start(t0); s.stop(t + 0.1); o.start(t0); o.stop(t + 0.1);
+}
+
 /* ---------- Hintergrundmusik ---------- */
 const MUSIC = {
   list: [], idx: 0, el: null, vol: 0, gap: 0, base: 0.40,
@@ -5414,6 +7204,7 @@ const S = {
   tick: 0,
   clunk: 6,
   nearDoor: false,
+  verstecke: 0, notizen: 0, geheimband: false,
   deathDir: new THREE.Vector3()
 };
 S.pos.copy(cellCenter(startCell, CFG.eye));
@@ -5425,6 +7216,7 @@ if(!freeP(S.pos.x, S.pos.z)){
   }
 }
 S.yaw = S.yawT = rnd()*6.28;
+if(START_BLICK !== null) S.yaw = S.yawT = START_BLICK;     // man wacht vor dem ersten Hinweis auf
 
 /* Setzt einen Schwierigkeitsgrad. Überzählige Fundstücke verschwinden,
    die Werte der Gestalt und des Camcorders wandern in CFG. */
@@ -5448,7 +7240,7 @@ function applyDifficulty(key){
     if(it.kind === 'tape'){
       const an = t++ < d.tapes;
       it.taken = !an; it.obj.visible = an;
-    } else if(it.kind === 'batt'){
+    } else if(it.kind === 'batt' && !it.extra){
       const an = b++ < d.batts;
       it.taken = !an; it.obj.visible = an;
     }
@@ -5525,9 +7317,11 @@ function checkItems(dt){
       const d = Math.sqrt(d2);
       bestSignal = Math.max(bestSignal, clamp((24-d)/24, 0, 1));
     }
-    it.spin += dt*0.9;
-    it.obj.rotation.y = it.spin;
-    it.obj.position.y = it.pos.y + Math.sin(it.spin*1.6)*0.012;
+    if(!it.ruhig){
+      it.spin += dt*0.9;
+      it.obj.rotation.y = it.spin;
+      it.obj.position.y = it.pos.y + Math.sin(it.spin*1.6)*0.012;
+    }
     if(d2 < 1.1){
       it.taken = true;
       it.obj.visible = false;
@@ -5536,6 +7330,7 @@ function checkItems(dt){
       if(it.kind === 'tape'){
         S.tapes++;
         monAlert(S.pos.x, S.pos.z, true);   // das hat sie gehört
+        lichterSterben();                   // und es wird dunkler
         if(S.tapes >= CFG.tapes){
           S.exitOpen = true;
           EXIT.sign.material = MAT.signOn;
@@ -5549,6 +7344,12 @@ function checkItems(dt){
       } else if(it.kind === 'photo'){
         S.hasPhoto = true;
         toast('FOTO GEFUNDEN\nDER AUSGANG STEHT AUF DER RÜCKSEITE', 4.2);
+      } else if(it.kind === 'notiz'){
+        S.notizen++;
+        zeigeNotiz(it.text);
+      } else if(it.kind === 'geheim'){
+        S.geheimband = true;
+        toast('BAND ? GEFUNDEN\nAUF DEM ETIKETT STEHT: NICHT UMDREHEN', 4.5);
       }
     }
   }
@@ -5556,18 +7357,126 @@ function checkItems(dt){
 }
 
 /* ---------- Tür ---------- */
+/* Eine geschlossene Tapetentür, vor der man steht und auf die man sieht */
+function tapetentuerBei(){
+  const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
+  for(const V of VERSTECKE){
+    const t = V.tuer;
+    if(!t || V.offen) continue;
+    const dx = t.mx - S.pos.x, dz = t.mz - S.pos.z, d = Math.hypot(dx, dz) || 1;
+    if(d > 1.8) continue;
+    if((fx*dx + fz*dz)/d < 0.3) continue;
+    return V;
+  }
+  return null;
+}
 function checkDoor(){
   const d = Math.hypot(EXIT.pos.x - S.pos.x, EXIT.pos.z - S.pos.z);
   S.nearDoor = d < 2.6;
-  bUse.classList.toggle('on', S.nearDoor && S.phase === 'play');
-  bUse.textContent = S.exitOpen ? 'TÜR ÖFFNEN' : 'VERSCHLOSSEN';
+  const V = S.nearDoor ? null : tapetentuerBei();
+  bUse.classList.toggle('on', (S.nearDoor || !!V) && S.phase === 'play');
+  const text = V ? 'ABTASTEN' : (S.exitOpen ? 'TÜR ÖFFNEN' : 'VERSCHLOSSEN');
+  if(bUse.textContent !== text) bUse.textContent = text;
   if(IN.use){
     IN.use = false;
     if(S.nearDoor){
       if(S.exitOpen){ sndDoor(); win(); }
       else { sndDenied(); toast('VERSCHLOSSEN — ' + (CFG.tapes-S.tapes) + ' BÄNDER FEHLEN', 2.6); }
+    } else if(V){
+      tuerOeffnen(V);
+      KLANG.knarren(V.tuer.mx, V.tuer.mz);
+      toast('DIE TAPETE GIBT NACH', 2.4);
+      S.glitch = Math.max(S.glitch, 0.4);
+      if(navigator.vibrate) navigator.vibrate(30);
     }
   }
+}
+
+/* ---------- Verstecke im Spiel ---------- */
+let notizEl = null, notizT = 0;
+function zeigeNotiz(text){
+  if(!notizEl){
+    notizEl = document.createElement('div');
+    notizEl.style.cssText = 'position:fixed;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-1.4deg);' +
+      'width:min(80vw,430px);max-height:72vh;overflow:hidden;padding:18px 22px;background:#d6cba8;color:#2a2015;' +
+      'font:15px/1.5 "Courier New",monospace;letter-spacing:.02em;box-shadow:0 10px 36px rgba(0,0,0,.7);' +
+      'opacity:0;transition:opacity .5s;pointer-events:none;white-space:pre-line;z-index:40;' +
+      'background-image:repeating-linear-gradient(transparent 0 21px, rgba(90,110,150,.25) 21px 22px)';
+    document.body.appendChild(notizEl);
+  }
+  notizEl.textContent = text;
+  notizEl.style.opacity = '1';
+  notizT = 6 + text.length/40;
+}
+function versteckeTick(dt){
+  // Türen schwingen auf
+  for(const V of VERSTECKE){
+    const t = V.tuer;
+    if(!t || t.winkel === t.ziel) continue;
+    t.winkel += (t.ziel - t.winkel) * Math.min(dt*2.4, 1);
+    if(Math.abs(t.ziel - t.winkel) < 0.002) t.winkel = t.ziel;
+    t.angel.rotation.y = t.winkel;
+  }
+  // Wer zum ersten Mal drin steht, hat es gefunden
+  const vk = versteckVon(S.pos.x, S.pos.z);
+  if(vk >= 0 && !VERSTECKE[vk].gefunden){
+    VERSTECKE[vk].gefunden = true;
+    S.verstecke++;
+    toast('VERSTECK GEFUNDEN  ' + S.verstecke + '/' + VERSTECKE_DA, 3.0);
+    beep(660, 0.08, 0.05, 'triangle'); setTimeout(() => beep(990, 0.12, 0.05, 'triangle'), 110);
+  }
+  if(notizT > 0){ notizT -= dt; if(notizT <= 0 && notizEl) notizEl.style.opacity = '0'; }
+  tvTick(dt);
+}
+
+/* Der Fernseher im Stuhlkreis zeigt, was die Kamera in der Ecke sieht */
+function tvTick(dt){
+  if(!TV.V) return;
+  const U = TV.mat.uniforms;
+  U.uZeit.value = S.t;
+  const d = Math.hypot(S.pos.x - TV.pos.x, S.pos.z - TV.pos.z);
+  const drin = versteckVon(S.pos.x, S.pos.z) === VERSTECKE.indexOf(TV.V);
+  TV.t += dt;
+  if(TV.zustand === 'warten'){
+    U.uModus.value = 0; U.uHell.value = 1; U.uRausch.value = 1;
+    if(drin && d < 2.8){ TV.zustand = 'bild'; TV.t = 0; burst(0.3, 3000, 0.10, 'highpass'); }
+  } else if(TV.zustand === 'bild'){
+    U.uModus.value = 1;
+    U.uRausch.value = TV.t < 0.35 ? 1 - TV.t/0.35 : 0.10 + Math.random()*0.08;
+    if(TV.t > 3.0){
+      TV.zustand = 'geist'; TV.t = 0;
+      // es steht jetzt hinter dir — im Bild
+      const kx = TV.cam.position.x - S.pos.x, kz = TV.cam.position.z - S.pos.z, kl = Math.hypot(kx, kz) || 1;
+      const gx = S.pos.x + kx/kl*0.85, gz = S.pos.z + kz/kl*0.85;
+      TV.geist.position.set(gx, 0, gz);
+      TV.geist.rotation.y = Math.atan2(S.pos.x - gx, S.pos.z - gz);
+      KLANG.fluestern(0, 1.6, 0.7);
+    }
+  } else if(TV.zustand === 'geist'){
+    U.uModus.value = 1;
+    U.uRausch.value = 0.14 + TV.t*0.14 + Math.random()*0.1;
+    if(TV.t > 2.2){
+      TV.zustand = 'knall'; TV.t = 0;
+      burst(0.7, 4200, 0.4, 'highpass');
+      KLANG.zischen(1); KLANG.pfeifen();
+      S.glitch = 1;
+      if(navigator.vibrate) navigator.vibrate([40,30,90]);
+    }
+  } else if(TV.zustand === 'knall'){
+    U.uModus.value = 0; U.uRausch.value = 1; U.uHell.value = 1.5;
+    if(TV.t > 0.4){
+      TV.zustand = 'aus'; TV.t = 0; U.uHell.value = 0.03;
+      monAlert(S.pos.x, S.pos.z, false);
+    }
+  }
+  const zeigen = TV.zustand === 'bild' || TV.zustand === 'geist';
+  TV.ich.visible = zeigen;
+  if(zeigen){
+    TV.ich.position.set(S.pos.x, 0, S.pos.z);
+    TV.ich.rotation.y = S.yaw;
+    TV.cam.lookAt(S.pos.x, 1.05, S.pos.z);
+  }
+  TV.geist.visible = TV.zustand === 'geist';
 }
 
 /* ---------- Zustandswechsel ---------- */
@@ -5598,10 +7507,13 @@ function pauseGame(){
   if(S.phase !== 'play') return;
   S.phase = 'pause';
   steuerungLoslassen();
+  if(notizEl){ notizEl.style.opacity = '0'; notizT = 0; }
   if(document.pointerLockElement) document.exitPointerLock();
   $('pauseStats').innerHTML =
     'BÄNDER ' + S.tapes + '/' + CFG.tapes + '<br>AKKU ' + Math.round(S.battery) + '%' +
+    '<br>VERSTECKE ' + S.verstecke + '/' + VERSTECKE_DA +
     '<br>ZEIT ' + fmtTime(S.t) + '<br>SEED ' + CFG.seed;
+  verstecktonTick(0);
   scPause.classList.remove('hidden');
 }
 function resumeGame(){
@@ -5625,7 +7537,11 @@ function endScreen(title, text){
   $('endText').innerHTML = text;
   $('endStats').innerHTML =
     'BÄNDER ' + S.tapes + '/' + CFG.tapes + ' &nbsp;·&nbsp; ZEIT ' + fmtTime(S.t) +
+    '<br>VERSTECKE ' + S.verstecke + '/' + VERSTECKE_DA +
+    (S.notizen ? ' &nbsp;·&nbsp; NOTIZEN ' + S.notizen : '') +
+    (S.geheimband ? ' &nbsp;·&nbsp; BAND ?' : '') +
     '<br>SEED ' + CFG.seed;
+  verstecktonTick(0);
   scEnd.classList.remove('hidden');
   elHud.classList.add('hidden');
   bUse.classList.remove('on');
@@ -5660,6 +7576,7 @@ function jumpscareTon(){
 function die(){
   if(S.phase !== 'play') return;
   S.phase = 'dead'; S.endT = 0;
+  if(notizEl){ notizEl.style.opacity = '0'; notizT = 0; }
   // Der Blick springt sofort auf sie - kein Nachziehen, kein Suchen
   const dx = MON.pos.x - S.pos.x, dz = MON.pos.z - S.pos.z;
   S.yaw = S.yawT = Math.atan2(-dx, -dz);
@@ -5678,6 +7595,7 @@ function die(){
 function win(){
   if(S.phase !== 'play') return;
   S.phase = 'won'; S.endT = 0;
+  if(notizEl){ notizEl.style.opacity = '0'; notizT = 0; }
   if(SND.ctx && SND.on){
     SND.drone.gain.setTargetAtTime(0.0, SND.ctx.currentTime, 0.3);
     SND.hiss.gain.setTargetAtTime(0.22, SND.ctx.currentTime+0.6, 0.4);
@@ -5759,6 +7677,12 @@ function step(dt){
     if(Math.sin(S.bob) < -0.9 && S.t - S.lastStep > 0.19){
       S.lastStep = S.t;
       g > 1.35 ? sndRunStep() : sndStep();
+      if(SCARE.echo > 0){
+        // jemand geht hinter dir, im selben Takt
+        const bx = S.pos.x + Math.sin(S.yaw)*3.4, bz = S.pos.z + Math.cos(S.yaw)*3.4;
+        const laut = g > 1.35 ? 1.2 : 0.9;
+        setTimeout(() => { if(S.phase === 'play') KLANG.fremdSchritt(bx, bz, laut); }, 230 + Math.random()*70);
+      }
     }
   }
 
@@ -5774,6 +7698,9 @@ function step(dt){
                       -S.swing + Math.cos(S.bob*0.5)*0.007*Math.min(g,1.4));
   camera.fov = 74 + Math.min(g,2)*1.1;
   camera.updateProjectionMatrix();
+  hoererSetzen();
+  versteckeTick(dt);
+  verstecktonTick(dt);
 
   // Akku und Nachtsicht
   if(IN.nv && S.battery <= 0){ IN.nv = false; bNv.classList.remove('act'); toast('AKKU LEER', 2.2); }
@@ -5792,7 +7719,14 @@ function step(dt){
   // Die Gestalt
   let distP = updateMonster(dt, S.pos, noise);
   if(!isFinite(distP)) distP = 999;
-  if(distP < CFG.monCatch) die();
+  const inVersteck = versteckVon(S.pos.x, S.pos.z) >= 0 && versteckVon(MON.pos.x, MON.pos.z) < 0;
+  if(distP < CFG.monCatch && !inVersteck) die();
+
+  // Augen: im Nachtsichtbild hell, auf der Jagd ein schwaches Rot
+  {
+    const nv = postMat.uniforms.uNv.value, j = MON.state === 'hunt' ? 1 : 0;
+    MAT.auge.color.setRGB(0.05 + nv*1.1 + j*0.35, 0.02 + nv*1.1 + j*0.04, 0.012 + nv*1.1);
+  }
 
   const near = clamp((24 - distP)/24, 0, 1);
   const dangerTarget = near * (MON.state === 'hunt' ? 1 : (MON.state === 'search' ? 0.5 : 0.3));
@@ -5816,8 +7750,7 @@ function step(dt){
   S.heart -= dt;
   if(S.danger > 0.32 && S.heart <= 0){
     S.heart = lerp(1.15, 0.42, clamp((S.danger-0.32)/0.68, 0, 1));
-    burst(0.10, 90, 0.16 + S.danger*0.2);
-    setTimeout(()=>burst(0.08, 80, 0.10 + S.danger*0.14), 150);
+    KLANG.herz(0.45 + S.danger*0.6);
   }
   S.tick -= dt;
   if(signal > 0.06 && S.tick <= 0){ S.tick = lerp(1.7, 0.14, signal); sndTick(); }
@@ -5843,6 +7776,8 @@ function step(dt){
   HUDS.tapes = S.tapes; HUDS.battery = S.battery; HUDS.time = S.t;
   HUDS.stamina = S.stamina/CFG.staminaMax; HUDS.signal = signal; HUDS.nv = IN.nv;
   HUDS.ausgepustet = S.pusteLos;
+  HUDS.dunkel = SCARE.aus > 0 || lichtHier < 0.12;
+  HUDS.stoer = clamp(1 - distP/13, 0, 1);
   bRun.classList.toggle('leer', S.erschoepft || S.stamina < CFG.staminaMax*0.25);
   // Der Pfeil erscheint mit dem Foto — und spätestens, wenn alle Bänder da sind
   HUDS.exit = (S.hasPhoto || S.exitOpen)
@@ -5877,6 +7812,7 @@ function deathStep(dt){
   camera.updateProjectionMatrix();
 
   updateLights(dt, S.t, 1);
+  MAT.auge.color.setRGB(1.3, 0.22, 0.08);
   S.glitch = 1;
   postMat.uniforms.uRed.value = Math.max(0, 0.55 - t*0.5);
   postMat.uniforms.uStatic.value = t < 0.10 ? 1 : (t > 0.55 ? Math.min((t-0.55)*4, 1) : 0);
@@ -5909,6 +7845,20 @@ function winStep(dt){
 function render(){
   postMat.uniforms.uTime.value = S.t;
   postMat.uniforms.uGlitch.value = S.glitch;
+  if(TV.V && (TV.zustand === 'bild' || TV.zustand === 'geist')){
+    TV.bild = (TV.bild || 0) + 1;
+    if(TV.bild % 2 === 0){
+      // der Schirm darf sich nicht selbst filmen
+      TV.schirm.visible = false;
+      const a = MAT.auge.color.clone(); MAT.auge.color.setRGB(1.2, 1.2, 1.2);
+      const bel = renderer.toneMappingExposure;
+      renderer.toneMappingExposure = bel*1.3;
+      renderer.setRenderTarget(TV.rt);
+      renderer.render(scene, TV.cam);
+      renderer.toneMappingExposure = bel;
+      TV.schirm.visible = true; MAT.auge.color.copy(a);
+    }
+  }
   renderer.setRenderTarget(rt);
   renderer.render(scene, camera);
   renderer.setRenderTarget(null);
@@ -6100,8 +8050,22 @@ window.FT = {
   stand(){ return { x:+S.pos.x.toFixed(2), z:+S.pos.z.toFixed(2), phase:S.phase,
     gier:+S.yaw.toFixed(3), gierZ:+S.yawT.toFixed(3),
     schwung:+S.swing.toFixed(3), kipp:+S.tilt.toFixed(3),
-    akku:Math.round(S.battery), baender:S.tapes }; },
+    akku:Math.round(S.battery), baender:S.tapes, versteck:versteckVon(S.pos.x, S.pos.z),
+    verstecke:S.verstecke, notizen:S.notizen, geheim:S.geheimband, tv:TV.zustand, gestalt:MON.state }; },
   blick(g,n){ S.yaw=S.yawT=g; if(n!==undefined) S.pitch=S.pitchT=n; },
+  verstecke(){ return VERSTECKE.map(V => ({ art:V.art, offen:V.offen, gefunden:V.gefunden,
+    tuer: V.tuer ? { mx:+V.tuer.mx.toFixed(2), mz:+V.tuer.mz.toFixed(2), inX:V.tuer.inX, inZ:V.tuer.inZ } : null })); },
+  hin(x, z, g){ S.pos.x = x; S.pos.z = z; if(g !== undefined) S.yaw = S.yawT = g; return this.stand(); },
+  vorTuer(k, abstand){
+    const t = VERSTECKE[k].tuer; const a = abstand === undefined ? 1.1 : abstand;
+    S.pos.x = t.mx - t.inX*a; S.pos.z = t.mz - t.inZ*a;
+    S.yaw = S.yawT = Math.atan2(-t.inX, -t.inZ);
+    return this.stand();
+  },
+  gestalt(x, z){ MON.pos.set(x, 0, z); MON.path = null; },
+  strom(){ stromAus(); }, tv(){ return TV.zustand; },
+  lauf(sek){ const n = Math.round(sek/0.05); for(let i=0;i<n && S.phase==='play';i++) step(0.05); return this.stand(); },
+  MON, SCARE, TV, VERSTECKE,
   empf(){ return EMPF; },
   S, IN,
 };

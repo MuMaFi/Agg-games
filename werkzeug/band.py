@@ -6,6 +6,7 @@ games/foundtape.html trägt alle drei Bänder in sich: Stil, Rumpf und Code
 liegen dort als eingebettete Blöcke. Zum Lesen und Ändern taugt das nicht,
 deshalb gibt es die Ebenen zusätzlich als gewöhnliche Ordner:
 
+    games/flur/        Ebene 0
     games/poolrooms/   Ebene 1
     games/wiese/       Ebene 2
 
@@ -15,7 +16,9 @@ Dieses Werkzeug hält beides deckungsgleich.
     python3 werkzeug/band.py bauen      Ordner         -> Komplettdatei
     python3 werkzeug/band.py pruefen    meldet Unterschiede, ändert nichts
 
-Ebene 0 lebt nur in der Komplettdatei und wird hier nicht angefasst.
+Ebene 0 läuft nur in der Komplettdatei (sie braucht three.js in der alten
+Fassung, den Lader und die Bilder daraus); ihr Ordner hält Stil, Rumpf und
+Code nur zum Lesen und Ändern.
 """
 import json, re, sys, os
 
@@ -26,6 +29,7 @@ DATEI  = os.path.join(WURZEL, 'games', 'foundtape.html')
 # im Ordner liegen die Dateien daneben, in der Komplettdatei stecken sie
 # als Datenadresse in window.FT_ASSETS.   (in der Datei, im Ordner)
 BAENDER = {
+    'b0': dict(ordner='games/flur', block='spiel0', ersatz=[]),
     'b1': dict(ordner='games/poolrooms', block='spiel1', ersatz=[]),
     'b2': dict(ordner='games/wiese', block='spiel2', ersatz=[
         ("(window.FT_ASSETS['wiese/modelle/sirene.glb'])", "'./modelle/sirene.glb'"),
@@ -35,6 +39,9 @@ BAENDER = {
 # Was im Ordner unter dem Rumpf steht und in der Komplettdatei keinen Sinn
 # ergäbe: die Importkarte und die beiden Skript-Zeilen.
 SCHWANZ = {
+ 'b0': '''<script type="importmap">{}</script>
+<!-- Ebene 0 läuft nur in der Komplettdatei: python3 werkzeug/band.py bauen,
+     dann games/foundtape.html#b0 öffnen. -->''',
  'b1': '''<script type="importmap">
 {"imports":{"three":"../bloxrot/lib/three.module.js","three/addons/":"../bloxrot/lib/jsm/"}}
 </script>
@@ -82,6 +89,11 @@ def ordnerTeile(pfad):
     return h, (sa, sb), (ba, bb)
 
 def ordnerSchreiben(pfad, stil, rumpf, schwanz):
+    if not os.path.exists(pfad):
+        os.makedirs(os.path.dirname(pfad), exist_ok=True)
+        with open(pfad, 'w', encoding='utf-8') as f:
+            f.write('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<style></style>\n</head>\n<body>\n\n'
+                    + schwanz + '\n</body>\n</html>\n')
     h, (sa, sb), (ba, bb) = ordnerTeile(pfad)
     neu = h[:ba] + '\n\n' + rumpf + '\n\n' + h[bb:]
     # Stilgrenzen verschieben sich nicht, der Stil steht vor dem Rumpf
