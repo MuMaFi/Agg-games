@@ -1105,6 +1105,33 @@ const STAND = { phase:'menu', t:0, endT:0, tode:0,
                 /* Das Funkgerät und der Ruf: suchen, tragen, senden. */
                 amMast:false, sendet:false, senden:0 };
 let ladeStand = 0;
+/* Vom Hauptmenü oder aus dem Band davor? Dann steht hier, womit — und
+   das eigene Titelbild fällt weg. Gilt nur für dieses eine Laden. */
+const FT_START = (() => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('ft_start') || 'null');
+    sessionStorage.removeItem('ft_start');
+    return s;
+  } catch(e){ return null; }
+})();
+const sanft = x => x<0 ? 0 : x>1 ? 1 : x*x*(3-2*x);
+function wechsel(ziel, text){
+  if(window.FT_WECHSEL) window.FT_WECHSEL(ziel, text);
+  else location.href = '../foundtape.html#' + ziel;
+}
+const zumMenue = () => wechsel('menu', 'HAUPTMENÜ');
+/* Die Gesamtzeit, wenn das Band in Ebene 0 begonnen hat und keine Ebene
+   ausgelassen wurde. Sonst nichts. */
+function gesamtZeile(){
+  try {
+    const l = JSON.parse(sessionStorage.getItem('ft_lauf') || 'null');
+    if(!l || l.ab !== 'b0' || l.b0 === undefined || l.b1 === undefined) return '';
+    sessionStorage.removeItem('ft_lauf');
+    const g = l.b0 + l.b1 + STAND.t;
+    return '<br><br>ALLE DREI BÄNDER AM STÜCK: ' + zeitStr(g) +
+      '<br>EBENE 0 ' + zeitStr(l.b0) + ' &nbsp;·&nbsp; EBENE 1 ' + zeitStr(l.b1) + ' &nbsp;·&nbsp; EBENE 2 ' + zeitStr(STAND.t);
+  } catch(e){ return ''; }
+}
 
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
       scPause = $('scPause'), scEnd = $('scEnd');
@@ -1220,8 +1247,36 @@ function spielStart(){
   tonStart();
   if(SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume();
   neuStart();
+  if(FT_START && FT_START.art === 'weiter' && !STAND.angekommen){
+    // aus der Luke ins Licht: erst sieht man nichts als Weiß und Himmel
+    for(const m of MENUES) m.classList.add('hidden');
+    STAND.phase = 'ankunft'; STAND.ank = 0; STAND.angekommen = true;
+    const w = document.createElement('div');
+    w.style.cssText = 'position:fixed;inset:0;background:#fffdf6;opacity:1;pointer-events:none;z-index:60';
+    document.body.appendChild(w);
+    STAND.weiss = w;
+    return;
+  }
   STAND.phase = 'spiel';
   zeige(null);
+}
+/* ---------- Ankunft: geblendet auf der Wiese ----------
+   Das Weiß der Luke geht langsam weg, der Blick kommt vom Himmel herunter
+   auf den Horizont. Hinter einem ist nichts, wo eine Tür gewesen sein müsste. */
+function ankunftSchritt(dt){
+  STAND.ank += dt;
+  const t = STAND.ank;
+  IN.mx = IN.mz = 0; IN.dyaw = IN.dpitch = 0; IN.run = false;
+  spielerSchritt(dt);
+  const runter = sanft((t - 0.4)/2.8);
+  const nick = lerp(0.62, P.nick, runter);
+  camera.rotation.set(nick + Math.sin(t*1.3)*0.01, P.gier + Math.sin(t*0.7)*0.02, Math.sin(t*0.9)*0.012, 'YXZ');
+  if(STAND.weiss) STAND.weiss.style.opacity = String(1 - sanft(t/2.6));
+  if(t > 3.4){
+    if(STAND.weiss){ STAND.weiss.remove(); STAND.weiss = null; }
+    STAND.phase = 'spiel';
+    zeige(null);
+  }
 }
 function pause(){
   if(STAND.phase !== 'spiel') return;
@@ -1237,7 +1292,8 @@ function endBild(titel, text){
     '<br>ZUM MAST ' + (MAST.erreicht ? 'ANGEKOMMEN' : Math.round(mastAbstand()) + ' m GEFEHLT') +
     ' &nbsp;·&nbsp; ZEIT ' + zeitStr(STAND.t) +
     '<br>GELAUFEN ' + Math.round(P.gelaufen) + ' m &nbsp;·&nbsp; SPRÜNGE ' +
-    SIE.reduce((n,g) => n + g.spruenge, 0);
+    SIE.reduce((n,g) => n + g.spruenge, 0) +
+    (STAND.phase === 'fertig' ? gesamtZeile() : '');
   zeige(scEnd);
   if(document.pointerLockElement) document.exitPointerLock();
 }
@@ -1429,6 +1485,8 @@ function schritt(dt){
         SND.ctx.currentTime, STAND.windStill > 0.3 ? 0.10 : 0.35);
     }
     hudSchritt(dt);
+  } else if(STAND.phase === 'ankunft'){
+    ankunftSchritt(dt);
   } else if(STAND.phase === 'tot'){
     STAND.endT += dt;
     /* Jetzt läuft die Animation — zum ersten und einzigen Mal sieht man
@@ -1508,7 +1566,18 @@ $('bTon').addEventListener('click', () => tonSchalten(!SND.an));
 $('bNeu').addEventListener('click', () => { neuStart(); STAND.phase='spiel'; zeige(null); });
 $('bNochmal').addEventListener('click', () => { neuStart(); STAND.phase='spiel'; zeige(null); });
 for(const id of ['bRaus','bRaus2'])
-  $(id).addEventListener('click', () => location.href = '#b0');
+  $(id).addEventListener('click', zumMenue);
+/* Ton, der ohne Berührung starten musste, spätestens jetzt wecken */
+addEventListener('pointerdown', () => tonWecken(), { passive:true });
+/* Zurück-Taste der App: im Spiel Pause, in der Pause weiter, sonst ins Menü */
+window.androidZurueck = () => {
+  if(STAND.phase === 'spiel'){ pause(); return true; }
+  if(STAND.phase === 'pause'){ STAND.phase = 'spiel'; zeige(null); tonWecken(); return true; }
+  if(STAND.phase === 'ankunft') return true;
+  zumMenue();
+  return true;
+};
+if(FT_START) for(const m of MENUES) m.classList.add('hidden');
 
 /* Ladeanzeige: das Modell wiegt drei Megabyte, das darf man sehen. */
 {
@@ -1519,6 +1588,9 @@ for(const id of ['bRaus','bRaus2'])
       clearInterval(tick);
       b.disabled = false;
       b.textContent = '▶ BAND ABSPIELEN';
+      if(FT_START && FT_START.art === 'weiter') spielStart();
+      else if(FT_START) zeige(scBrief);
+      if(window.FT_RAUSCHEN_AUS) window.FT_RAUSCHEN_AUS(FT_START && FT_START.art === 'weiter' ? 0.3 : 0.8);
     }
   }, 120);
   if(IS_TOUCH) $('titelHint').textContent = 'LINKS LAUFEN · RECHTS UMSEHEN · KNÖPFE RENNEN UND SENDEN';
@@ -1545,6 +1617,7 @@ window.WI = {
   setzMast(x,z){ MAST.x=modW(x); MAST.z=modW(z); mastNachfuehren(); },
   setzFunk(x,z){ FUNK.x=modW(x); FUNK.z=modW(z); funkNachfuehren(); },
   P, SIE, STAND, IN, GR, ABDRUCK, DURCH, MAST, FUNK,
+  gewinnen(){ gesendet(); return STAND.phase; },
 };
 
 bild();

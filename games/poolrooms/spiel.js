@@ -2387,6 +2387,29 @@ addEventListener('mousemove', e => {
 
 /* ======================= 13  Ablauf ======================= */
 const S = { phase:'menu', t:0, spulT:0, tode:0, endT:0 };
+/* Vom Hauptmenü oder aus dem Band davor? Dann steht hier, womit — und
+   das eigene Titelbild fällt weg. Gilt nur für dieses eine Laden. */
+const FT_START = (() => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('ft_start') || 'null');
+    sessionStorage.removeItem('ft_start');
+    return s;
+  } catch(e){ return null; }
+})();
+const sanft = x => x<0 ? 0 : x>1 ? 1 : x*x*(3-2*x);
+function wechsel(ziel, text){
+  if(window.FT_WECHSEL) window.FT_WECHSEL(ziel, text);
+  else location.href = '../foundtape.html#' + ziel;
+}
+const zumMenue = () => wechsel('menu', 'HAUPTMENÜ');
+function laufMerken(band, sek){
+  try {
+    const l = JSON.parse(sessionStorage.getItem('ft_lauf') || 'null');
+    if(!l || l.ab !== 'b0') return;
+    l[band] = sek;
+    sessionStorage.setItem('ft_lauf', JSON.stringify(l));
+  } catch(e){}
+}
 const scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief'),
       scPause = $('scPause'), scEnd = $('scEnd');
 const MENUES = [scTitle, scDiff, scBrief, scPause, scEnd];
@@ -2417,8 +2440,98 @@ function spielStart(){
   tonStart();
   if(SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume();
   neuStart();
+  if(FT_START && FT_START.art === 'weiter' && !S.angekommen){
+    // aus Ebene 0 durchgefallen: erst kommt man an
+    for(const m of MENUES) m.classList.add('hidden');
+    S.phase = 'ankunft'; S.ank = 0; S.angekommen = true;
+    return;
+  }
   S.phase = 'spiel';
   zeige(null);
+}
+
+/* ---------- Ankunft: durch die Decke gefallen ----------
+   Ein Stück freier Fall aus der Decke, harter Aufschlag auf nassen Kacheln,
+   in die Knie — und langsam wieder hoch. */
+function ankunftSchritt(dt){
+  S.ank += dt;
+  const t = S.ank;
+  const d = deckeBei(P.x, P.z);
+  const oben = d > P.y + 2.4 ? d - 0.25 : P.y + 3.6;
+  const FALL = 0.62, unten = P.y + 0.5;
+  let y, nick, roll = 0;
+  if(t < FALL){
+    const k = t/FALL;
+    y = lerp(oben, unten, k*k);
+    nick = lerp(-1.25, -0.7, k);
+    roll = Math.sin(t*9)*0.05;
+  } else {
+    const k = t - FALL;
+    if(!S.ankTon){
+      S.ankTon = true;
+      knall(0.28, 240, 0.55); platsch(0.7);
+      if(navigator.vibrate) navigator.vibrate([0, 90]);
+    }
+    const hoch = sanft((k - 0.5)/1.4);
+    y = lerp(unten, P.y + AUGEN, hoch) - Math.max(0, 0.12 - k*0.6);
+    nick = lerp(-0.7, P.nick, sanft((k - 0.2)/1.6));
+    roll = (1 - hoch)*0.16*Math.cos(k*2.2);
+  }
+  const wack = t >= FALL && t < FALL + 0.25 ? 0.06*(1 - (t - FALL)/0.25) : 0.002;
+  camera.position.set(P.x + (Math.random()-0.5)*wack, y + (Math.random()-0.5)*wack, P.z + (Math.random()-0.5)*wack);
+  camera.rotation.set(nick, P.gier + (Math.random()-0.5)*wack, roll, 'YXZ');
+  postMat.uniforms.uSpul.value = t < FALL ? 0.6*(1 - t/FALL) : 0;
+  if(t > FALL + 2.0){
+    S.phase = 'spiel';
+    zeige(null);
+  }
+}
+
+/* ---------- Ausstieg: durch die Luke ins Licht ----------
+   Das Rad dreht durch, die Tür schwingt nach außen, und dahinter ist es
+   so hell, dass das Band nichts mehr erkennt. */
+function ausstiegVorbereiten(){
+  const gr = LUKE.gruppe;
+  const angel = new T.Group(); angel.position.set(-0.8, 0, 0); gr.add(angel);
+  angel.add(LUKE.tuer); LUKE.tuer.position.set(0.8, 0, 0.07);
+  angel.add(LUKE.rad); LUKE.rad.position.set(0.8, -0.1, 0.22);
+  const licht = new T.Mesh(new T.PlaneGeometry(1.56, 2.16), new T.MeshBasicMaterial({ color:0x000000 }));
+  licht.position.set(0, 0, 0.036); gr.add(licht);
+  const flut = new T.PointLight(0xfff2dc, 0, 16, 1.6);
+  flut.position.set(-1.0, 0.3, 0); gr.add(flut);
+  _auV.setFromMatrixPosition(camera.matrixWorld);
+  let ziel = -Math.PI/2;
+  while(ziel - P.gier >  Math.PI) ziel -= Math.PI*2;
+  while(ziel - P.gier < -Math.PI) ziel += Math.PI*2;
+  const weiss = document.createElement('div');
+  weiss.style.cssText = 'position:fixed;inset:0;background:#fffdf6;opacity:0;pointer-events:none;z-index:60';
+  document.body.appendChild(weiss);
+  S.aus = { t:0, angel, licht, flut, weiss, von:_auV.clone(), vonGier:P.gier, zuGier:ziel, vonNick:P.nick, weg:false };
+  $('hud').classList.remove('an'); $('steuer').classList.remove('an');
+  laufMerken('b1', S.t);
+}
+const _auV = new T.Vector3(), _auZ = new T.Vector3();
+function ausstiegSchritt(dt){
+  const A = S.aus; A.t += dt; S.t += dt;
+  const t = A.t;
+  LUKE.rad.rotation.z += dt*(t < 1.1 ? 3.0 : 0.8);
+  const auf = sanft((t - 1.1)/1.3);
+  A.angel.rotation.y = 1.7*auf;
+  if(!A.knarrt && t > 1.1){ A.knarrt = true; knall(1.2, 500, 0.3, 'bandpass'); knall(0.5, 160, 0.4); }
+  const hell = sanft((t - 1.15)/1.6);
+  A.licht.material.color.setScalar(lerp(0, 3.2, hell));
+  A.flut.intensity = lerp(0, 60, hell);
+  // vor die Luke schweben, dann hinein
+  const vor = sanft(t/1.3), rein = sanft((t - 2.3)/1.6);
+  _auZ.set(LUKE.pos.x - lerp(1.35, 0.15, rein), LUKE.pos.y - 0.05, LUKE.pos.z);
+  camera.position.set(lerp(A.von.x, _auZ.x, vor), lerp(A.von.y, _auZ.y, vor) + Math.sin(t*1.6)*0.02, lerp(A.von.z, _auZ.z, vor));
+  camera.rotation.set(lerp(A.vonNick, 0.02, vor), lerp(A.vonGier, A.zuGier, sanft(t/1.0)), Math.sin(t*0.9)*0.01, 'YXZ');
+  A.weiss.style.opacity = String(sanft((t - 2.6)/1.1));
+  if(!A.weg && t > 3.8){
+    A.weg = true;
+    try { sessionStorage.setItem('ft_start', JSON.stringify({ art:'weiter', von:'b1' })); } catch(e){}
+    wechsel('b2', 'EBENE 2 · DIE WIESE');
+  }
 }
 function pause(){
   if(S.phase !== 'spiel') return;
@@ -2484,6 +2597,7 @@ function gewonnen(){
   const weiter = $('bWeiterWiese');
   if(weiter) weiter.style.display = '';
   LUKE.offen = true;
+  if(window.FT_WECHSEL) ausstiegVorbereiten();
   piep(520, 0.3, 0.1); setTimeout(()=>piep(780,0.5,0.09), 220);
   knall(1.8, 900, 0.3);
   if(navigator.vibrate) navigator.vibrate([0, 70, 50, 150]);
@@ -2613,6 +2727,10 @@ function schritt(dt){
     S.spulT -= dt;
     postMat.uniforms.uNah.value *= 0.9;
     if(S.spulT <= 0) wiederAufsetzen();
+  } else if(S.phase === 'ankunft'){
+    ankunftSchritt(dt);
+  } else if(S.phase === 'gewonnen' && S.aus){
+    ausstiegSchritt(dt);
   } else if(S.phase === 'gewonnen'){
     S.endT += dt;
     LUKE.rad.rotation.z += dt*3.0;
@@ -2669,9 +2787,23 @@ $('bWeiter').addEventListener('click', weiter);
 $('bTon').addEventListener('click', () => tonSchalten(!SND.an));
 $('bNeu').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
 $('bNochmal').addEventListener('click', () => { neuStart(); S.phase = 'spiel'; zeige(null); });
-$('bWeiterWiese').addEventListener('click', () => location.href = '#b2');
+$('bWeiterWiese').addEventListener('click', () => {
+  try { sessionStorage.setItem('ft_start', JSON.stringify({ art:'menu' })); } catch(e){}
+  wechsel('b2', 'EBENE 2 · DIE WIESE');
+});
 for(const id of ['bRaus','bRaus2'])
-  $(id).addEventListener('click', () => location.href = '#b0');
+  $(id).addEventListener('click', zumMenue);
+/* Ton, der ohne Berührung starten musste, spätestens jetzt wecken */
+addEventListener('pointerdown', () => tonWecken(), { passive:true });
+/* Zurück-Taste der App: im Spiel Pause, in der Pause weiter, sonst ins Menü */
+window.androidZurueck = () => {
+  if(S.phase === 'spiel'){ pause(); return true; }
+  if(S.phase === 'pause'){ weiter(); return true; }
+  if(S.phase === 'ankunft' || S.phase === 'gewonnen' || S.phase === 'spult') return true;
+  zumMenue();
+  return true;
+};
+if(FT_START) for(const m of MENUES) m.classList.add('hidden');
 
 /* Ladeanzeige: hier wird nichts nachgeladen, aber der Bau der Netze und
    Texturen dauert einen Moment — den zeigen wir ehrlich an. */
@@ -2685,6 +2817,9 @@ for(const id of ['bRaus','bRaus2'])
       clearInterval(tick);
       b.disabled = false;
       b.textContent = '▶ BAND ABSPIELEN';
+      if(FT_START && FT_START.art === 'weiter') spielStart();
+      else if(FT_START) zeige(scBrief);
+      if(window.FT_RAUSCHEN_AUS) window.FT_RAUSCHEN_AUS(FT_START && FT_START.art === 'weiter' ? 0.35 : 0.8);
     }
   }, 90);
   if(IS_TOUCH) $('titelHint').textContent = 'LINKS LAUFEN · RECHTS UMSEHEN · KNÖPFE RECHTS UNTEN';
@@ -2709,6 +2844,8 @@ window.PR = {
   darfTauch(x,z,y){ const alt=P.tauchY; P.tauchY=y; const r=darfHin(x,z,'tauchen',P.y); P.tauchY=alt; return r; },
   pegel:(x,z)=>pegelBei(x,z),
   luke:LUKE, schwimmTiefe:SCHWIMM_TIEFE,
+  S, P, gewinnen(){ WASSER.h = WASSER.ziel = 5.0; P.x = LUKE.pos.x - 1.6; P.z = LUKE.pos.z; P.modus = 'schwimmen';
+    P.gier = P.gierZ = -Math.PI/2 + 0.7; setTimeout(gewonnen, 400); return S.phase; },
   ziel:()=>{ const z = zielObjekt(); return z ? (z.art==='luke'?'luke':'schieber'+z.s.nr) : null; },
   monErreicht(vx, vz, zx, zz){
     navBau();

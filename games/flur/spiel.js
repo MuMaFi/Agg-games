@@ -110,6 +110,13 @@ const A = u => (window.FT_ASSETS && window.FT_ASSETS[u]) || u;
 /* Die Folgeebenen liegen als eigene Ordner neben dieser Seite. In der
    Einzeldatei-Fassung gibt es die nicht — dort bleiben sie zu. */
 const EBENEN_DA = !window.FT_EINZELDATEI;
+const FT_START = (() => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('ft_start') || 'null');
+    sessionStorage.removeItem('ft_start');
+    return s;
+  } catch(e){ return null; }
+})();
 
 /* ====================== 2  Renderer und Material ====================== */
 
@@ -1109,7 +1116,7 @@ const EXIT = {};
   scene.add(g);
   EXIT.group = g;
   // Der Türblock steht ein Stück in den Raum
-  EXIT.door = door;
+  EXIT.door = door; EXIT.griff = handle;
 }
 
 rebuildOcc();
@@ -3729,8 +3736,13 @@ function startGame(){
   for(const m of MENUS) if(m) m.classList.add('hidden');
   elHud.classList.remove('hidden');
   musikStopp();                      // im Spiel läuft keine Musik
-  S.phase = 'play';
   clock.getDelta();
+  if(FT_START){                      // vom Hauptmenü: erst auf dem Teppich aufwachen
+    elHud.classList.add('hidden');
+    S.phase = 'ankunft'; S.ank = 0;
+    return;
+  }
+  S.phase = 'play';
   toast('BAND LÄUFT', 2.0);
 }
 function pauseGame(){
@@ -3845,11 +3857,174 @@ function die(){
 function win(){
   if(S.phase !== 'play') return;
   S.phase = 'won'; S.endT = 0;
+  if(EBENEN_DA) ausstiegVorbereiten();
   if(notizEl){ notizEl.style.opacity = '0'; notizT = 0; }
   if(SND.ctx && SND.on){
     SND.drone.gain.setTargetAtTime(0.0, SND.ctx.currentTime, 0.3);
     SND.hiss.gain.setTargetAtTime(0.22, SND.ctx.currentTime+0.6, 0.4);
   }
+}
+
+/* ---------- Ankunft: Aufwachen auf dem Teppich ----------
+   Wer vom Hauptmenü kommt, liegt erst. Die Augen gehen zweimal auf, dann
+   setzt man sich auf und steht. Erst danach gehört die Kamera dem Spieler. */
+const sanft = x => x<0 ? 0 : x>1 ? 1 : x*x*(3-2*x);
+function ankunftStep(dt){
+  S.ank += dt;
+  const t = S.ank, DAUER = 4.0;
+  const auf = sanft((t - 1.5)/1.1), steh = sanft((t - 2.5)/1.3);
+  const py = lerp(lerp(0.2, 0.92, auf), CFG.eye, steh);
+  const roll = lerp(lerp(1.32, 0.18, auf), 0, steh);
+  const pitch = lerp(lerp(0.28, -0.5, auf), S.pitch, steh);
+  const yaw = S.yaw + (1 - steh)*lerp(0.7, 0.25, auf);
+  const zitter = (1 - steh)*0.006;
+  camera.position.set(S.pos.x, py, S.pos.z);
+  camera.rotation.set(pitch + (Math.random()-0.5)*zitter, yaw + Math.sin(t*0.8)*0.02, roll);
+  camera.fov = 74; camera.updateProjectionMatrix();
+  // die Augen: auf, wieder zu, dann richtig auf
+  const U = postMat.uniforms;
+  U.uFade.value = t < 0.6 ? sanft(t/0.6)*0.45 : t < 0.85 ? lerp(0.45, 0.03, sanft((t-0.6)/0.25))
+                : t < 1.6 ? lerp(0.03, 0.8, sanft((t-0.85)/0.75)) : lerp(0.8, 1, sanft((t-1.6)/0.8));
+  S.glitch = 0.06 + 0.55*Math.max(0, 1 - t/2.2);
+  if(!S.ankTon && t > 0.9){ S.ankTon = true; if(tonAn()){ KLANG.keuchen(); setTimeout(() => KLANG.rascheln(), 700); } }
+  updateLights(dt, S.t, 0);
+  hoererSetzen();
+  if(t >= DAUER){
+    S.phase = 'play'; S.wach = true;
+    S.eyeY = CFG.eye;
+    elHud.classList.remove('hidden');
+    clock.getDelta();
+    toast('BAND LÄUFT', 2.0);
+  }
+}
+
+/* ---------- Ausstieg: durch die Tür, die Treppe hinunter, und dann durch ----------
+   Hinter der Tür liegt ein Treppenhaus, das es auf dem Plan nicht gibt.
+   Unten schimmert Wasser. Zwei Stufen weit trägt es noch — dann fällt man
+   durch den Boden ins nächste Band. */
+function ausstiegVorbereiten(){
+  const g = EXIT.group;
+  // die Wand hinter der Tür bekommt ein Loch: das eine Stück raus, drei neue rein
+  let best = -1, bestD = 1e9;
+  segs.forEach((sg, i) => { const d = Math.hypot(sg[0] - EXIT.pos.x, sg[1] - EXIT.pos.z); if(d < bestD){ bestD = d; best = i; } });
+  if(best >= 0 && bestD < 0.5){
+    const null4 = new THREE.Matrix4().makeScale(0, 0, 0);
+    wallMesh.setMatrixAt(best, null4); baseMesh.setMatrixAt(best, null4);
+    wallMesh.instanceMatrix.needsUpdate = baseMesh.instanceMatrix.needsUpdate = true;
+  }
+  const hw = 0.72, wl = CS/2 - hw;
+  const stueck = (w, h, d, x, y, z, m) => { const k = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); k.position.set(x, y, z); g.add(k); return k; };
+  stueck(wl, WH, 0.24, -(hw + wl/2), WH/2, -0.18, MAT.wall);
+  stueck(wl, WH, 0.24,  (hw + wl/2), WH/2, -0.18, MAT.wall);
+  stueck(hw*2, WH - 2.44, 0.24, 0, (WH + 2.44)/2, -0.18, MAT.wall);
+  stueck(wl, 0.13, 0.32, -(hw + wl/2), 0.065, -0.18, MAT.base);
+  stueck(wl, 0.13, 0.32,  (hw + wl/2), 0.065, -0.18, MAT.base);
+
+  // das Treppenhaus
+  const beton = new THREE.MeshStandardMaterial({ color:0x48443a, roughness:0.95, metalness:0 });
+  const schacht = new THREE.Mesh(new THREE.BoxGeometry(1.5, 6.4, 5.2),
+    new THREE.MeshStandardMaterial({ color:0x2e2b24, roughness:0.97, metalness:0, side:THREE.BackSide }));
+  schacht.position.set(0, -0.6, -2.9); g.add(schacht);
+  stueck(1.5, 0.12, 0.9, 0, -0.06, -0.75, beton);                    // Absatz
+  for(let i=0; i<11; i++) stueck(1.42, 0.2, 0.32, 0, -0.2*(i+1) + 0.1 - 0.2, -1.36 - 0.3*i, beton);
+  const wasser = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.4),
+    new THREE.MeshBasicMaterial({ color:new THREE.Color(0.12, 0.62, 0.6), transparent:true, opacity:0.85 }));
+  wasser.rotation.x = -Math.PI/2; wasser.position.set(0, -2.55, -4.0); g.add(wasser);
+  const glimm = new THREE.PointLight(0x48d8d0, 0, 9, 2);
+  glimm.position.set(0, -2.1, -3.6); g.add(glimm);
+
+  // Scharnier: die Tür schwingt nach außen, in den Schacht
+  const angel = new THREE.Group();
+  angel.position.set(-0.575, 0, 0); g.add(angel);
+  angel.add(EXIT.door); EXIT.door.position.set(0.575, 1.075, 0);
+  if(EXIT.griff){ angel.add(EXIT.griff); EXIT.griff.position.set(0.995, 1.05, 0.09); }
+
+  let ziel = EXIT.rot;
+  while(ziel - S.yaw >  Math.PI) ziel -= Math.PI*2;
+  while(ziel - S.yaw < -Math.PI) ziel += Math.PI*2;
+  S.aus = { t:0, angel, glimm, wasser, vonX:S.pos.x, vonZ:S.pos.z, vonY:S.eyeY || CFG.eye,
+            vonYaw:S.yaw, zuYaw:ziel, vonPitch:S.pitch, knarrt:false, faellt:false, weg:false };
+  elHud.classList.add('hidden');
+  bUse.classList.remove('on');
+  $('toast').classList.remove('on'); toastT = 0;
+  localStorage.setItem('ft_ebene1', '1');
+  laufMerken('b0', S.t);
+}
+const _ausP = new THREE.Vector3();
+function ausstiegStep(dt){
+  const A = S.aus, g = EXIT.group, U = postMat.uniforms;
+  A.t += dt; S.t += dt;               // die Bandzeit läuft weiter, die Röhren flackern weiter
+  const t = A.t;
+  const lokal = (x, y, z) => g.localToWorld(_ausP.set(x, y, z));
+  let x, y, z, pitch, roll = 0, yaw = A.zuYaw;
+
+  // 1 — vor die Tür treten und hinsehen
+  const a = sanft(t/1.0);
+  if(t < 1.9){
+    const p = lokal(0, CFG.eye, 1.25);
+    x = lerp(A.vonX, p.x, a); z = lerp(A.vonZ, p.z, a); y = lerp(A.vonY, CFG.eye, a);
+    yaw = lerp(A.vonYaw, A.zuYaw, sanft(t/0.8));
+    pitch = lerp(A.vonPitch, 0.02, a);
+  } else if(t < 3.4){
+    // 2 — durch die Tür auf den Absatz, Blick die Treppe hinunter
+    const b = sanft((t - 1.9)/1.5);
+    const p = lokal(0, CFG.eye, lerp(1.25, -0.72, b));
+    x = p.x; z = p.z; y = CFG.eye + Math.sin(b*Math.PI*3)*0.02;
+    pitch = lerp(0.02, -0.46, b);
+  } else if(t < 4.6){
+    // 3 — zwei Stufen hinunter
+    const c = sanft((t - 3.4)/1.2);
+    const p = lokal(0, 0, lerp(-0.72, -1.62, c));
+    x = p.x; z = p.z; y = lerp(CFG.eye, CFG.eye - 0.42, c) + Math.abs(Math.sin(c*Math.PI*2))*0.03;
+    pitch = lerp(-0.46, -0.36, c);
+  } else {
+    // 4 — und durch. Die Stufe trägt nicht mehr.
+    const d = t - 4.6;
+    const p = lokal(0, 0, -1.62 - d*0.4);
+    x = p.x; z = p.z; y = CFG.eye - 0.42 - 4.8*d*d;
+    pitch = lerp(-0.36, -1.25, sanft(d/0.8));
+    roll = d*d*1.6;
+    yaw += d*0.6;
+  }
+  // die Tür
+  A.angel.rotation.y = 1.75*sanft((t - 0.6)/1.3);
+  if(!A.knarrt && t > 0.6){ A.knarrt = true; if(tonAn()) KLANG.knarren(EXIT.pos.x, EXIT.pos.z); }
+  A.glimm.intensity = 1.4*sanft((t - 0.8)/1.5) + (t > 4.6 ? (t - 4.6)*4 : 0);
+  A.wasser.material.color.setRGB(0.12, 0.62, 0.6).multiplyScalar(0.9 + Math.sin(t*3)*0.1);
+
+  const wack = t > 4.6 ? 0.04 : 0.004;
+  camera.position.set(x + (Math.random()-0.5)*wack, y + (Math.random()-0.5)*wack, z + (Math.random()-0.5)*wack);
+  camera.rotation.set(pitch + (Math.random()-0.5)*wack, yaw, roll);
+  camera.fov = t > 4.6 ? lerp(74, 96, sanft((t - 4.6)/0.9)) : 74;
+  camera.updateProjectionMatrix();
+  hoererSetzen();
+  updateLights(dt, S.t, A.t > 4.6 ? 1 : 0.1);
+
+  S.glitch = t < 3.4 ? 0.1 + t*0.04 : t < 4.6 ? 0.25 + (t - 3.4)*0.2 : 1;
+  U.uStatic.value = t > 4.7 ? Math.min((t - 4.7)*1.3, 1) : 0;
+  U.uRed.value = 0;
+  if(!A.faellt && t > 4.6){
+    A.faellt = true;
+    if(tonAn()){ KLANG.squelch(); spiele('rauschen', SND.master, { vol:0.9 }); spiele('knall_2', SND.master, { vol:0.6, rate:0.6 }); }
+    if(navigator.vibrate) navigator.vibrate([0, 60, 40, 120]);
+  }
+  if(!A.weg && t > 5.25){
+    A.weg = true;
+    try { sessionStorage.setItem('ft_start', JSON.stringify({ art:'weiter', von:'b0' })); } catch(e){}
+    if(window.FT_WECHSEL) window.FT_WECHSEL('b1', 'EBENE 1 · POOLROOMS', 350);
+    else location.href = '#b1';
+  }
+}
+
+/* Gesamtzeit über alle Bänder: das Menü legt sie bei „Neues Band“ an,
+   jedes Band trägt seine Zeit ein, das letzte zählt zusammen. */
+function laufMerken(band, sek){
+  try {
+    const l = JSON.parse(sessionStorage.getItem('ft_lauf') || 'null');
+    if(!l || l.ab !== 'b0') return;
+    l[band] = sek;
+    sessionStorage.setItem('ft_lauf', JSON.stringify(l));
+  } catch(e){}
 }
 
 /* ---------- Hauptschleife ---------- */
@@ -4026,7 +4201,7 @@ function step(dt){
   dust.position.set(camera.position.x, 0, camera.position.z);
   dustGeo.attributes.position.needsUpdate = true;
 
-  postMat.uniforms.uFade.value = Math.min(S.t*0.8, 1);
+  postMat.uniforms.uFade.value = S.wach ? 1 : Math.min(S.t*0.8, 1);
 
   HUDS.tapes = S.tapes; HUDS.battery = S.battery; HUDS.time = S.t;
   HUDS.stamina = S.stamina/CFG.staminaMax; HUDS.signal = signal; HUDS.nv = IN.nv;
@@ -4121,6 +4296,7 @@ function deathStep(dt){
 }
 
 function winStep(dt){
+  if(S.aus){ ausstiegStep(dt); return; }
   S.endT += dt;
   S.glitch = Math.min(1, S.endT*0.8);
   postMat.uniforms.uStatic.value = S.endT > 0.6 ? Math.min((S.endT-0.6)*2, 1) : 0;
@@ -4169,6 +4345,7 @@ function frame(){
   if(S.phase === 'play') step(dt);
   else if(S.phase === 'dead') deathStep(dt);
   else if(S.phase === 'won')  winStep(dt);
+  else if(S.phase === 'ankunft') ankunftStep(dt);
   else if(S.phase === 'menu' || S.phase === 'pause') return;   // Bild einfrieren, Akku sparen
   hudAcc += dt;
   if(hudAcc > 0.08){ hudAcc = 0; drawHud(); }
@@ -4179,6 +4356,19 @@ applyDifficulty(diffKey);        // gespeicherte Wahl gilt sofort
 
 /* ---------- Menüfluss: Vorspann, Titel, Schwierigkeit, Briefing ---------- */
 const scSplash = $('scSplash'), scTitle = $('scTitle'), scDiff = $('scDiff'), scBrief = $('scBrief');
+
+/* Vom Hauptmenü gestartet? Dann steht hier, womit. Gilt nur für dieses
+   eine Laden — ein Neuladen von Hand führt wieder über das Titelbild. */
+function zumMenue(){
+  if(window.FT_WECHSEL) window.FT_WECHSEL('menu', 'HAUPTMENÜ');
+  else location.reload();
+}
+/* Nochmal: wieder vom Auftrag aus, nicht vom Titelbild */
+function nochmal(suche){
+  try { sessionStorage.setItem('ft_start', JSON.stringify({ art:'menu' })); } catch(e){}
+  if(window.FT_RAUSCHEN_AN) window.FT_RAUSCHEN_AN('EBENE 0 · FLUR');
+  setTimeout(() => { if(suche) location.search = suche; else location.reload(); }, 250);
+}
 const MENUS = [scSplash, scTitle, scDiff, scBrief, scPause, scEnd];
 function zeige(el){
   for(const m of MENUS) if(m) m.classList.add('hidden');
@@ -4186,9 +4376,11 @@ function zeige(el){
 }
 
 // Der Vorspann läuft einmal je Sitzung; nach einem Neuladen wegen der
-// Bildqualität soll man nicht wieder davorsitzen.
+// Bildqualität soll man nicht wieder davorsitzen. Wer aus dem Hauptmenü
+// kommt, hat beides schon hinter sich und landet gleich beim Auftrag.
 let vorspannLaeuft = sessionStorage.getItem('ft_intro') !== '1';
-if(!vorspannLaeuft) zeige(scTitle);
+if(FT_START) zeige(null);
+else if(!vorspannLaeuft) zeige(scTitle);
 else {
   sessionStorage.setItem('ft_intro', '1');
   setTimeout(() => { if(!scSplash.classList.contains('hidden')) zeige(scTitle); }, 3200);
@@ -4234,9 +4426,13 @@ $('bResume').addEventListener('click', resumeGame);
   zeigen();
   bm.addEventListener('click', () => { setMusic(!MUSIC.on); zeigen(); });
 }
-$('bQuit').addEventListener('click', () => location.reload());
-$('bNewSeed').addEventListener('click', () => { location.search = '?seed=' + (Math.random()*1e9|0); });
-$('bWeiterPool').addEventListener('click', () => location.href = '#b1');
+$('bQuit').addEventListener('click', zumMenue);
+$('bNewSeed').addEventListener('click', () => nochmal('?seed=' + (Math.random()*1e9|0)));
+$('bWeiterPool').addEventListener('click', () => {
+  try { sessionStorage.setItem('ft_start', JSON.stringify({ art:'menu' })); } catch(e){}
+  if(window.FT_WECHSEL) window.FT_WECHSEL('b1', 'EBENE 1 · POOLROOMS'); else location.href = '#b1';
+});
+{ const m = $('bMenuEnd'); if(m) m.addEventListener('click', zumMenue); }
 
 /* ---------- Bandwahl: dieselbe Kassette, zwei Ebenen ----------
    Ebene 1 liegt in einer eigenen Datei, weil sie eine neuere three-Fassung
@@ -4281,8 +4477,20 @@ $('bWeiterPool').addEventListener('click', () => location.href = '#b1');
     });
   }
 }
-$('bAgain').addEventListener('click', () => location.reload());
-$('bAgainSeed').addEventListener('click', () => { location.search = '?seed=' + (Math.random()*1e9|0); });
+$('bAgain').addEventListener('click', () => nochmal());
+$('bAgainSeed').addEventListener('click', () => nochmal('?seed=' + (Math.random()*1e9|0)));
+/* Ton, der ohne Berührung starten musste, spätestens jetzt wecken */
+addEventListener('pointerdown', () => tonWecken(), { passive:true });
+
+/* Zurück-Taste der App: im Spiel Pause, in der Pause weiter, sonst ins Menü */
+window.androidZurueck = () => {
+  if(S.phase === 'play'){ pauseGame(); return true; }
+  if(S.phase === 'pause'){ resumeGame(); return true; }
+  if(S.phase === 'ankunft' || S.phase === 'won' || S.phase === 'dead') return true;
+  if(!EBENEN_DA) return false;
+  zumMenue();
+  return true;
+};
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){ if(S.phase === 'play') pauseGame(); }
   else tonWecken();
@@ -4301,6 +4509,8 @@ document.addEventListener('visibilitychange', () => {
     // Shader einmal übersetzen, damit der erste Schritt nicht ruckelt
     camera.position.copy(S.pos);
     render();
+    if(FT_START){ applyDifficulty(diffKey); zeige(scBrief); }
+    if(window.FT_RAUSCHEN_AUS) window.FT_RAUSCHEN_AUS(FT_START ? 0.8 : 0.4);
   };
   const poll = setInterval(() => {
     const total = Math.max(1, loadMgr.itemsTotal || 1);
@@ -4364,6 +4574,9 @@ window.FT = {
   strom(){ stromAus(); }, tv(){ return TV.zustand; },
   lauf(sek){ const n = Math.round(sek/0.05); for(let i=0;i<n && S.phase==='play';i++) step(0.05); return this.stand(); },
   MON, SCARE, TV, VERSTECKE,
-  empf(){ return EMPF; },
+  ausgang(){ return { x:+EXIT.pos.x.toFixed(2), z:+EXIT.pos.z.toFixed(2), rot:EXIT.rot }; },
+  vorAusgang(){ const r = EXIT.rot; S.pos.x = EXIT.pos.x + Math.sin(r)*1.6; S.pos.z = EXIT.pos.z + Math.cos(r)*1.6;
+    S.yaw = S.yawT = r + 0.6; return this.stand(); },
+  gewinnen(){ S.exitOpen = true; win(); return S.phase; },
   S, IN,
 };

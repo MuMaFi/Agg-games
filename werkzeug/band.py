@@ -6,6 +6,7 @@ games/foundtape.html trägt alle drei Bänder in sich: Stil, Rumpf und Code
 liegen dort als eingebettete Blöcke. Zum Lesen und Ändern taugt das nicht,
 deshalb gibt es die Ebenen zusätzlich als gewöhnliche Ordner:
 
+    games/ftmenu/      Hauptmenü (Kamerafahrt, Ebenenwahl, Einstellungen)
     games/flur/        Ebene 0
     games/poolrooms/   Ebene 1
     games/wiese/       Ebene 2
@@ -16,9 +17,9 @@ Dieses Werkzeug hält beides deckungsgleich.
     python3 werkzeug/band.py bauen      Ordner         -> Komplettdatei
     python3 werkzeug/band.py pruefen    meldet Unterschiede, ändert nichts
 
-Ebene 0 läuft nur in der Komplettdatei (sie braucht three.js in der alten
-Fassung, den Lader und die Bilder daraus); ihr Ordner hält Stil, Rumpf und
-Code nur zum Lesen und Ändern.
+Ebene 0 und das Menü laufen nur in der Komplettdatei (sie brauchen three.js
+in der alten Fassung, den Lader und die Bilder daraus); ihre Ordner halten
+Stil, Rumpf und Code nur zum Lesen und Ändern.
 
 Die Geräusche von Ebene 0 liegen als MP3 in games/flur/ton/. Beim Bauen
 wandern sie als Datenadresse nach window.FT_ASSETS ('flur/ton/<name>.mp3');
@@ -33,6 +34,7 @@ DATEI  = os.path.join(WURZEL, 'games', 'foundtape.html')
 # im Ordner liegen die Dateien daneben, in der Komplettdatei stecken sie
 # als Datenadresse in window.FT_ASSETS.   (in der Datei, im Ordner)
 BAENDER = {
+    'menu': dict(ordner='games/ftmenu', block='menu', ersatz=[]),
     'b0': dict(ordner='games/flur', block='spiel0', ersatz=[]),
     'b1': dict(ordner='games/poolrooms', block='spiel1', ersatz=[]),
     'b2': dict(ordner='games/wiese', block='spiel2', ersatz=[
@@ -43,6 +45,9 @@ BAENDER = {
 # Was im Ordner unter dem Rumpf steht und in der Komplettdatei keinen Sinn
 # ergäbe: die Importkarte und die beiden Skript-Zeilen.
 SCHWANZ = {
+ 'menu': '''<script type="importmap">{}</script>
+<!-- Das Menü läuft nur in der Komplettdatei: python3 werkzeug/band.py bauen,
+     dann games/foundtape.html öffnen. -->''',
  'b0': '''<script type="importmap">{}</script>
 <!-- Ebene 0 läuft nur in der Komplettdatei: python3 werkzeug/band.py bauen,
      dann games/foundtape.html#b0 öffnen. -->''',
