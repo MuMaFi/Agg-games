@@ -2057,6 +2057,25 @@ function augenSetzen(ziel, koerper){
     ziel.add(a);
   }
 }
+/* Die Arme sind im Modell eigene Teile. Jeder bekommt ein Gelenk an der
+   Schulter, damit er ausholen und zuschlagen kann. */
+function armeGelenkig(koerper){
+  koerper.updateMatrixWorld(true);
+  MON.arme = {};
+  for(const [name, seite] of [['RightArm', 'r'], ['LeftArm', 'l']]){
+    const arm = koerper.getObjectByName(name);
+    if(!arm) continue;
+    const box = new THREE.Box3().setFromObject(arm);
+    const schulter = new THREE.Vector3((box.min.x + box.max.x)/2, box.max.y - 0.08, (box.min.z + box.max.z)/2);
+    const gelenk = new THREE.Group();
+    koerper.add(gelenk);
+    koerper.worldToLocal(gelenk.position.copy(schulter));
+    gelenk.updateMatrixWorld(true);
+    gelenk.attach(arm);
+    gelenk.name = 'Gelenk_' + seite;
+    MON.arme[seite] = gelenk;
+  }
+}
 function gestaltKlon(ziel, ebene){
   // Wechselt die Figur in einer Gruppe gegen einen Abguss der Gestalt aus
   for(const alt of ziel.children.slice()) ziel.remove(alt);
@@ -2081,6 +2100,7 @@ function gestaltKlon(ziel, ebene){
     MON.group.remove(fb);
     MON.group.add(m);
     MON.body = m;
+    armeGelenkig(m);
     augenSetzen(MON.group, m);
     gestaltKlon(glimpse);
     if(TV.geist) gestaltKlon(TV.geist, 1);
@@ -2518,14 +2538,14 @@ const postMat = new THREE.ShaderMaterial({
   uniforms:{
     tDiffuse:{value:rt.texture}, tHud:{value:hudTex},
     uTime:{value:0}, uGlitch:{value:0.06}, uStatic:{value:0}, uFade:{value:0},
-    uRed:{value:0}, uNv:{value:0}, uVhs:{value:CFG.vhs}, uLens:{value:CFG.lens},
+    uRed:{value:0}, uBlitz:{value:0}, uNv:{value:0}, uVhs:{value:CFG.vhs}, uLens:{value:CFG.lens},
     uYellow:{value:CFG.yellow},
     uRes:{value:new THREE.Vector2(RT_W,RT_H)}
   },
   vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
   fragmentShader:[
     'uniform sampler2D tDiffuse, tHud;',
-    'uniform float uTime,uGlitch,uStatic,uFade,uRed,uNv,uVhs,uLens,uYellow;',
+    'uniform float uTime,uGlitch,uStatic,uFade,uRed,uBlitz,uNv,uVhs,uLens,uYellow;',
     'uniform vec2 uRes;',
     'varying vec2 vUv;',
     'float rand(vec2 c){ return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453); }',
@@ -2613,6 +2633,7 @@ const postMat = new THREE.ShaderMaterial({
     '  vec4 hud = texture2D(tHud, vUv + vec2(ca,0.0));',
     '  col = mix(col, hud.rgb*(1.0-uNv*0.35), hud.a*0.95);',
     '  col = mix(col, vec3(rand(uv*uRes*0.7+uTime*57.3)), uStatic);',
+    '  col = mix(col, vec3(1.0, 0.97, 0.9), uBlitz);',
     '  gl_FragColor = vec4(col*uFade, 1.0);',
     '}'
   ].join('\n')
@@ -2750,7 +2771,11 @@ function initAudio(){
   comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 4;
   comp.attack.value = 0.004; comp.release.value = 0.25;
   comp.connect(ac.destination);
-  SND.master = ac.createGain(); SND.master.gain.value = 1; SND.master.connect(comp);
+  SND.comp = comp;
+  // Hinter dem Hauptregler ein Tiefpass: offen, bis einen etwas taub schlägt
+  SND.taub = ac.createBiquadFilter(); SND.taub.type = 'lowpass'; SND.taub.frequency.value = 20000;
+  SND.taub.connect(comp);
+  SND.master = ac.createGain(); SND.master.gain.value = 1; SND.master.connect(SND.taub);
 
   // Hall eines großen, feuchten Raums (berechnet, kein Geräusch für sich)
   const len = Math.floor(sr*2.1);
@@ -3752,22 +3777,60 @@ function endScreen(title, text){
   bUse.classList.remove('on');
   if(document.pointerLockElement) document.exitPointerLock();
 }
-/* Der Schrei im Moment des Zugriffs: Kreischen, Knacken, ein Schlag. */
+/* Der Zugriff: sie kreischt, während man sich umdreht … */
 function jumpscareTon(){
   if(!tonAn()) return;
-  spiele('kreischen', SND.master, { vol:1.3 });
-  spiele('genick', SND.master, { vol:1.1, nach:0.06 });
+  // für diesen einen Moment darf es laut werden
+  SND.comp.threshold.setValueAtTime(-4, SND.ctx.currentTime);
+  SND.master.gain.setValueAtTime(1.5, SND.ctx.currentTime);
+  spiele('kreischen', SND.master, { vol:1.5 });
+  KLANG.schrei(MON.pos.x, MON.pos.z);
+}
+/* … und dann der Schlag: ein Krachen, danach ist man taub. Alles wird dumpf
+   und weit weg, nur das Pfeifen im Ohr bleibt. */
+function getroffenTon(){
+  if(!tonAn()) return;
+  const ac = SND.ctx, t0 = ac.currentTime;
+  spiele('genick', SND.master, { vol:1.6 });
+  spiele('knall_1', SND.master, { vol:1.7 });
   KLANG.schock(1);
+  // Explosionstaub: alles hinter einem Tiefpass, der sich nur langsam öffnet
+  SND.taub.frequency.cancelScheduledValues(t0);
+  SND.taub.frequency.setValueAtTime(20000, t0);
+  SND.taub.frequency.setValueAtTime(20000, t0 + 0.08);
+  SND.taub.frequency.exponentialRampToValueAtTime(260, t0 + 0.25);
+  SND.taub.frequency.setValueAtTime(260, t0 + 2.2);
+  SND.taub.frequency.exponentialRampToValueAtTime(1200, t0 + 5);
+  SND.master.gain.setTargetAtTime(0.7, t0 + 0.3, 0.6);
+  // das Piepen — laut, direkt ins Ohr, am Tiefpass vorbei
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(4100, t0);
+  o.frequency.linearRampToValueAtTime(3950, t0 + 5);
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = 4135;   // leichte Schwebung
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.12);
+  g.gain.setValueAtTime(0.16, t0 + 1.8);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 5.2);
+  const g2 = ac.createGain(); g2.gain.value = 0.35;
+  o.connect(g); o2.connect(g2); g2.connect(g); g.connect(SND.comp);
+  o.start(t0); o2.start(t0); o.stop(t0 + 5.3); o2.stop(t0 + 5.3);
 }
 
 function die(){
   if(S.phase !== 'play') return;
   S.phase = 'dead'; S.endT = 0;
   if(notizEl){ notizEl.style.opacity = '0'; notizT = 0; }
-  // Der Blick springt sofort auf sie - kein Nachziehen, kein Suchen
+  /* Man dreht sich zu ihr um — schnell, aber man dreht sich. Sie steht
+     schon da und holt aus. */
   const dx = MON.pos.x - S.pos.x, dz = MON.pos.z - S.pos.z;
-  S.yaw = S.yawT = Math.atan2(-dx, -dz);
-  S.pitch = S.pitchT = 0.12;
+  S.todVon = S.yaw;
+  let ziel = Math.atan2(-dx, -dz);
+  while(ziel - S.yaw >  Math.PI) ziel -= Math.PI*2;
+  while(ziel - S.yaw < -Math.PI) ziel += Math.PI*2;
+  S.todZu = ziel;
+  S.todPitch = S.pitch;
+  S.getroffen = false;
   musikStopp();
   jumpscareTon();
   if(navigator.vibrate) navigator.vibrate([0,90,40,180,60,320]);
@@ -3981,35 +4044,78 @@ function step(dt){
 function deathStep(dt){
   S.endT += dt;
   const t = S.endT;
+  const ease = x => x<0 ? 0 : x>1 ? 1 : x*x*(3-2*x);
 
-  /* Sie steht im nächsten Bild vor der Linse: der Kopf wandert auf Augenhöhe,
-     das Bild schlägt auf, dann reißt das Band. */
-  const rein = Math.min(t/0.11, 1);
-  const d = lerp(2.2, 0.92, rein);
-  const gx = S.pos.x - Math.sin(S.yaw)*d, gz = S.pos.z - Math.cos(S.yaw)*d;
+  /* 0 – 0,35 s: man reißt den Kopf herum. Sie steht dicht vor einem, aufrecht,
+     und man muss zu ihr hochsehen. */
+  const dreh = ease(t/0.35);
+  const yaw = lerp(S.todVon, S.todZu, dreh);
+  const d = 1.35;
+  const gx = S.pos.x - Math.sin(S.todZu)*d, gz = S.pos.z - Math.cos(S.todZu)*d;
   MON.group.visible = true;
-  MON.group.position.set(gx, lerp(0, -0.66, rein), gz);          // Kopf auf Augenhöhe
-  MON.group.rotation.y = Math.atan2(S.pos.x - gx, S.pos.z - gz);  // schaut in die Kamera
+  MON.group.position.set(gx, 0, gz);
+  MON.group.rotation.y = Math.atan2(S.pos.x - gx, S.pos.z - gz);
+  const lehn = Math.max(0, Math.min(1, (t - 0.6)/0.2));
+  if(MON.body){ MON.body.rotation.set(0.08 + lehn*0.28, 0, 0); }   // sie legt sich in den Schlag
 
-  const schuett = Math.max(0, 1 - t/0.9);
-  camera.position.set(
-    S.pos.x + (Math.random()-0.5)*0.10*schuett,
-    CFG.eye - Math.min(t*0.35, 0.30) + (Math.random()-0.5)*0.12*schuett,
-    S.pos.z + (Math.random()-0.5)*0.10*schuett);
-  camera.rotation.set(S.pitch + (Math.random()-0.5)*0.10*schuett,
-                      S.yaw + (Math.random()-0.5)*0.10*schuett,
-                      (Math.random()-0.5)*0.22*schuett);
-  camera.fov = lerp(74, 101, rein) - Math.max(0, t-0.3)*9;
-  camera.fov = clamp(camera.fov, 62, 101);
+  /* 0,35 – 0,62 s: der rechte Arm geht hoch und nach außen.
+     0,62 – 0,78 s: er fegt quer durchs Bild — Treffer. */
+  const TREFF = 0.78;
+  const arm = MON.arme && MON.arme.r, arm2 = MON.arme && MON.arme.l;
+  if(arm){
+    const hol = ease((t - 0.35)/0.27), schlag = ease((t - 0.62)/0.16);
+    arm.rotation.z = lerp(0, 1.75, hol) - schlag*2.5;
+    arm.rotation.x = lerp(0, -0.5, hol) - schlag*1.4;
+    arm.rotation.y = -schlag*0.4;
+  }
+  if(arm2){                                         // der andere Arm zuckt mit
+    const zu = ease((t - 0.3)/0.4);
+    arm2.rotation.z = -0.5*zu; arm2.rotation.x = -0.6*zu;
+  }
+
+  if(t >= TREFF && !S.getroffen){
+    S.getroffen = true;
+    getroffenTon();
+    if(navigator.vibrate) navigator.vibrate([0, 250, 60, 120]);
+  }
+
+  const nach = Math.max(0, t - TREFF);
+  let px = S.pos.x, py = CFG.eye, pz = S.pos.z;
+  let pitch = lerp(S.todPitch, 0.42, dreh), roll = 0, fyaw = yaw;
+  let wack = t < TREFF ? 0.035 : 0;
+  if(S.getroffen){
+    /* Der Schlag wirft einen um: der Blick fliegt zur Seite, man kippt
+       und bleibt liegen. */
+    const flug = ease(nach/0.45);
+    fyaw += flug*0.9;
+    roll = flug*1.35;
+    pitch = lerp(0.42, -0.15, flug);
+    py = lerp(CFG.eye, 0.28, ease(nach/0.6)) + Math.max(0, Math.sin(Math.min(nach, 0.9)*9))*0.05*(1 - Math.min(nach, 1));
+    px += Math.sin(S.todZu)*flug*0.6; pz += Math.cos(S.todZu)*flug*0.6;
+    wack = nach < 0.25 ? 0.18*(1 - nach/0.25) : 0;
+  }
+  camera.position.set(px + (Math.random()-0.5)*wack, py + (Math.random()-0.5)*wack, pz + (Math.random()-0.5)*wack);
+  camera.rotation.set(pitch + (Math.random()-0.5)*wack, fyaw + (Math.random()-0.5)*wack, roll + (Math.random()-0.5)*wack*1.5);
+  camera.fov = S.getroffen ? lerp(74, 88, Math.min(nach*3, 1)) : lerp(74, 68, dreh);
   camera.updateProjectionMatrix();
 
   updateLights(dt, S.t, 1);
   MAT.auge.color.setRGB(1.3, 0.22, 0.08);
-  S.glitch = 1;
-  postMat.uniforms.uRed.value = Math.max(0, 0.55 - t*0.5);
-  postMat.uniforms.uStatic.value = t < 0.10 ? 1 : (t > 0.55 ? Math.min((t-0.55)*4, 1) : 0);
-  if(t > 1.5) postMat.uniforms.uFade.value = Math.max(0, 1-(t-1.5)*1.6);
-  if(t > 2.4 && scEnd.classList.contains('hidden')){
+  const U = postMat.uniforms;
+  if(!S.getroffen){
+    S.glitch = 0.35 + dreh*0.4;
+    U.uRed.value = 0.15*dreh;
+    U.uBlitz.value = 0;
+  } else {
+    /* Weißer Schlag, dann zerfällt das Bild langsam — wie beim Ausstieg,
+       nur ohne Tür. */
+    U.uBlitz.value = Math.max(0, 1 - nach/0.35);
+    S.glitch = Math.min(1, 0.4 + nach*0.35);
+    U.uRed.value = Math.max(0, 0.35 - nach*0.12);
+    U.uStatic.value = nach > 1.4 ? Math.min((nach - 1.4)*0.45, 1) : 0;
+    if(nach > 2.6) U.uFade.value = Math.max(0, 1 - (nach - 2.6)*0.7);
+  }
+  if(nach > 4.2 && scEnd.classList.contains('hidden')){
     endScreen('END OF TAPE', 'Das Band bricht an dieser Stelle ab.<br>Was danach kommt, hat niemand gesehen.');
   }
 }
