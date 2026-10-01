@@ -4,9 +4,11 @@
 #
 # Anstoßen: Actions -> "APK bauen" -> Run workflow, dann die App wählen:
 #   pocketcraft  nur Pocketcraft, eigener Name und eigenes Symbol
+#   foundtape    nur Found Tape (Menü und alle drei Ebenen in einer Datei)
 #   alle         alle Spiele mit der Übersicht (AGG Games)
-#   beide        beides in einem Lauf
-# Ergebnis: unter dem Lauf als Artefakt "pocketcraft-apk" bzw. "agg-games-apk".
+#   beide        Pocketcraft und AGG Games in einem Lauf
+# Ergebnis: unter dem Lauf als Artefakt "pocketcraft-apk", "found-tape-apk"
+# bzw. "agg-games-apk".
 name: APK bauen
 
 on:
@@ -15,7 +17,7 @@ on:
       app:
         description: 'Welche App'
         type: choice
-        options: [pocketcraft, alle, beide]
+        options: [pocketcraft, foundtape, alle, beide]
         default: pocketcraft
 
 jobs:
@@ -53,6 +55,13 @@ jobs:
             # LIESMICH bleibt draußen, die Quellenangaben der Geräusche kommen mit
             rsync -a --delete --exclude 'LIESMICH.md' games/pocketcraft/ "$ziel/games/pocketcraft/"
             cp games/heim.js "$ziel/games/heim.js"
+          elif [ "$APP" = foundtape ]; then
+            # Eine Datei trägt Menü, alle drei Ebenen, Bilder und Geräusche.
+            # Dazu der Heimknopf (blendet sich in dieser App selbst aus) und
+            # die Herkunft der Geräusche.
+            rm -rf "$ziel"; mkdir -p "$ziel/games/flur/ton"
+            cp games/foundtape.html games/heim.js "$ziel/games/"
+            cp games/flur/ton/QUELLEN.md "$ziel/games/flur/ton/"
           else
             # Alles außer Werkzeugkram — die Seite ist statisch und läuft so,
             # wie sie im Netz liegt, auch aus der Anwendung heraus.
@@ -73,7 +82,11 @@ jobs:
       - name: Umbenennen und Signatur prüfen
         run: |
           set -eu
-          name=$([ "$APP" = pocketcraft ] && echo pocketcraft || echo agg-games)
+          case "$APP" in
+            pocketcraft) name=pocketcraft ;;
+            foundtape)   name=found-tape ;;
+            *)           name=agg-games ;;
+          esac
           mkdir -p ausgabe
           ziel="ausgabe/$name-$(date +%Y%m%d)-$(git rev-parse --short HEAD).apk"
           cp "android/app/build/outputs/apk/$APP/release/app-$APP-release.apk" "$ziel"

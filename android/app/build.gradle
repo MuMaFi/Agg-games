@@ -27,10 +27,10 @@ android {
 
   buildFeatures { buildConfig true }
 
-  /* Zwei Apps aus einer Hülle: alle Spiele mit Übersicht, oder nur
-     Pocketcraft mit eigenem Namen und Symbol. Verschiedene Kennungen,
-     also können beide nebeneinander installiert sein. Die Spiele legt der
-     Workflow je Variante unter src/<variante>/assets ab. */
+  /* Drei Apps aus einer Hülle: alle Spiele mit Übersicht, nur Pocketcraft
+     oder nur Found Tape, jede mit eigenem Namen und Symbol. Verschiedene
+     Kennungen, also können alle nebeneinander installiert sein. Die Spiele
+     legt der Workflow je Variante unter src/<variante>/assets ab. */
   flavorDimensions 'app'
   productFlavors {
     alle {
@@ -44,6 +44,12 @@ android {
       applicationId 'de.agg.pocketcraft'
       versionName spielFassung
       buildConfigField 'String', 'START', '"games/pocketcraft/index.html"'
+      buildConfigField 'boolean', 'EINZELN', 'true'
+    }
+    foundtape {
+      dimension 'app'
+      applicationId 'de.agg.foundtape'
+      buildConfigField 'String', 'START', '"games/foundtape.html"'
       buildConfigField 'boolean', 'EINZELN', 'true'
     }
   }
