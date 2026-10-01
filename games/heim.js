@@ -42,6 +42,8 @@
   const a = document.createElement('a');
   a.id = 'heimKnopf';
   a.href = ziel;
+  // Läuft das Spiel in einem Rahmen (Found Tape im Vollbild), geht es für die ganze Seite zurück
+  if(window.top !== window) a.target = '_top';
   a.title = 'Zurück zu allen Spielen';
   a.setAttribute('aria-label', 'Zurück zu allen Spielen');
   a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 11h2.6v9h5.1v-5.6h3.6V20h5.1v-9h2.6L12 3z"/></svg>';

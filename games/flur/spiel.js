@@ -3722,9 +3722,12 @@ let wakeLock = null;
 
 async function goFullscreen(){
   try{
-    if(IS_TOUCH && document.documentElement.requestFullscreen && !document.fullscreenElement)
-      await document.documentElement.requestFullscreen({ navigationUI:'hide' });
-    if(screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    if(window.FT_VOLLBILD) await window.FT_VOLLBILD();       // die Komplettdatei regelt das für alle Bänder
+    else {
+      if(IS_TOUCH && document.documentElement.requestFullscreen && !document.fullscreenElement)
+        await document.documentElement.requestFullscreen({ navigationUI:'hide' });
+      if(screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    }
   }catch(e){}
   try{ if('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
 }

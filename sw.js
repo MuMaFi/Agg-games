@@ -5,7 +5,7 @@
    gesehen. So ist man nie offline blockiert und trotzdem nie lange
    veraltet.
    Beim Wechsel der Fassung unten wird der alte Speicher verworfen. */
-const FASSUNG = 'agg-2026-10-01b';
+const FASSUNG = 'agg-2026-10-01c';
 const KERN = [
   './',
   './index.html',
@@ -43,8 +43,10 @@ self.addEventListener('fetch', e => {
     const speicher = await caches.open(FASSUNG);
     const gespeichert = await speicher.match(anfrage, { ignoreSearch: true });
     const ausDemNetz = fetch(anfrage).then(antwort => {
+      // ohne ?…: gelesen wird ohnehin ohne (ignoreSearch), und jede neue
+      // Abfrage (?seed=…, ?innen=…) legte sonst eine weitere Kopie ab
       if(antwort && antwort.ok && antwort.status === 200)
-        speicher.put(anfrage, antwort.clone()).catch(() => {});
+        speicher.put(url.origin + url.pathname, antwort.clone()).catch(() => {});
       return antwort;
     }).catch(() => null);
 
