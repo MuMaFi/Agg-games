@@ -202,6 +202,7 @@ MODELLE = {
     'villager': (M+'npc/VillagerModel', 'createBodyModel()%sMeshDefinition;' % L, [], [64, 64]),
     'golem': (M+'animal/golem/IronGolemModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'player': (M+'player/PlayerModel', 'createMesh(%sCubeDeformation;Z)%sMeshDefinition;' % (L, L), [NONE(), 0], [64, 64]),
+    'player_slim': (M+'player/PlayerModel', 'createMesh(%sCubeDeformation;Z)%sMeshDefinition;' % (L, L), [NONE(), 1], [64, 64]),
     'chest': (M+'object/chest/ChestModel', 'createSingleBodyLayer()%sLayerDefinition;' % L, [], None),
 }
 

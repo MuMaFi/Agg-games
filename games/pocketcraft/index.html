@@ -247,6 +247,12 @@ body.mcOffen .screen{visibility:hidden}
 #spannung{position:absolute; left:50%; top:calc(50% + 22px); width:44px; height:5px; margin-left:-22px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.35); display:none}
 #spannung.on{display:block}
 #spannung i{display:block; height:100%; width:0; background:#ffd24a}
+/* Aufladen des Schlags (wie beim Vorbild unter dem Fadenkreuz) */
+#abklingen{position:absolute; left:50%; top:calc(50% + 18px); width:32px; height:8px; margin-left:-16px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.4); display:none; image-rendering:pixelated}
+#abklingen.on{display:block}
+#abklingen i{display:block; height:100%; width:0; background:#fff}
+body.mcGui #abklingen{border:0; background:var(--mc-angriffGrund) 0 0/100% 100% no-repeat}
+body.mcGui #abklingen i{background:var(--mc-angriffVoll) 0 0/32px 8px no-repeat}
 
 #vitals{position:absolute; left:14px; top:12px; display:grid; gap:6px}
 .bar{display:flex; gap:3px}
@@ -480,6 +486,23 @@ body.mcGui .flame, body.mcGui .progbar{background:#8b8b8b}
 body.mcGui .sheet.beh .btn, body.mcGui .sheet.beh .tabs button, body.mcGui .sheet.beh .schalter, body.mcGui .angebot{
   background:#8b8b8b; color:#fff; text-shadow:2px 2px 0 #3f3f3f; border:2px solid #000; box-shadow:inset 2px 2px 0 #c6c6c6, inset -2px -2px 0 #555}
 body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .schalter[aria-pressed=true], body.mcGui .angebot.kann{background:#6e8a5a}
+/* Titelbild: Name und Skin unter den Knöpfen */
+.titelIch{display:grid; grid-template-columns:1fr auto; gap:10px; margin-top:12px}
+.titelIch .mc-feld{min-height:44px}
+#tSkin{width:52px; min-height:44px; padding:4px; display:grid; place-items:center}
+#tSkin img, .skinKnopf img{width:32px; height:32px; image-rendering:pixelated; display:block}
+.skinKnopf img[src=""], #tSkin img[src=""]{visibility:hidden}
+.msIch{flex:1 1 auto; align-self:center; font-size:15px; color:#e0e0e0}
+/* Skin-Auswahl */
+.skinRumpf{display:flex; gap:20px; align-items:center; justify-content:center; flex-wrap:wrap; width:min(620px, 100%); margin:auto 0}
+#skVorschau{width:96px; height:192px; image-rendering:pixelated; filter:drop-shadow(0 6px 6px rgba(0,0,0,.5))}
+.skinWahl{display:grid; gap:8px; width:min(380px, 100%)}
+.skinKnopf{display:flex; align-items:center; gap:12px; justify-content:flex-start; text-align:left}
+.skinKnopf.gewaehlt{outline:3px solid #ffffa0; outline-offset:-3px; color:#ffffa0}
+.skPaket{display:grid; gap:6px; color:#ffe66b !important; min-height:0}
+.skFormat{font-size:12px; min-height:0}
+#skStatus{min-height:0}
+#skStatus:empty{display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 
@@ -493,6 +516,7 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
   <div id="hurt"></div>
   <div id="crosshair"><i></i><i></i></div>
   <div id="spannung"><i></i></div>
+  <div id="abklingen"><i></i></div>
   <div id="vitals">
     <div class="bar" id="hp"></div>
     <div class="bar" id="food"></div>
@@ -564,6 +588,10 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
     <button class="mc" id="tEinzel">Einzelspieler</button>
     <button class="mc" id="tMehr">Mitspieler</button>
     <div class="mc-halb"><button class="mc" id="tOptionen">Optionen …</button><button class="mc" id="tMitw">Mitwirkende</button></div>
+    <div class="titelIch">
+      <input id="tName" class="mc-feld" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Dein Name" aria-label="Dein Name">
+      <button class="mc" id="tSkin" aria-label="Skin wählen" title="Skin wählen"><img id="tSkinKopf" alt=""></button>
+    </div>
   </div>
   <div class="titelFuss"><span id="tVersion"></span><span>AGG Games</span></div>
 </div>
@@ -623,7 +651,7 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
 <div class="mc-schirm dunkel" id="mitspieler">
   <h2 class="mc-titel">Mitspieler</h2>
   <div class="wKopf">
-    <input id="msName" class="mc-feld" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Dein Name" aria-label="Dein Name">
+    <span class="msIch" id="msIch"></span>
     <button class="mc klein" id="msFarbe" aria-label="Hemdfarbe wechseln"><i class="farbPunkt"></i><span>Farbe</span></button>
   </div>
   <div class="mc-liste" id="msListe"></div>
@@ -736,6 +764,27 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
   <button class="mc" id="mwFertig">Fertig</button>
 </div>
 
+<!-- Skin: wie man für die anderen und an der eigenen Hand aussieht (skin.js) -->
+<div class="mc-schirm dunkel" id="skins">
+  <h2 class="mc-titel">Skin</h2>
+  <div class="skinRumpf">
+    <canvas id="skVorschau" width="128" height="256" aria-label="Vorschau des Skins"></canvas>
+    <div class="skinWahl">
+      <p class="mc-hinweis skPaket" id="skPaket">Für Steve braucht Pocketcraft erst die Minecraft-Texturen aus deinem Minecraft.
+        <button class="mc klein" id="skPaketLaden">Minecraft-Paket laden …</button></p>
+      <button class="mc skinKnopf" id="skSteve"><img alt=""><span>Steve</span></button>
+      <button class="mc skinKnopf" id="skOg"><img alt=""><span>OG (Pocketcraft)</span></button>
+      <button class="mc skinKnopf" id="skEigen"><img alt=""><span>Eigener Skin</span></button>
+      <button class="mc" id="skHoch">Eigenen Skin hochladen …</button>
+      <p class="mc-hinweis" id="skStatus"></p>
+      <p class="mc-hinweis skFormat">PNG im Minecraft-Format: 64 × 64 (auch das alte 64 × 32), oder dieselbe Aufteilung in 16 × 16, 32 × 32 oder 128 × 128.
+        Die äußere Schicht — Hut, Jacke, Ärmel, Hosenbeine — wird mit angezeigt, schmale Arme erkennt Pocketcraft selbst.</p>
+    </div>
+  </div>
+  <button class="mc" id="skFertig">Fertig</button>
+  <input type="file" id="skDatei" accept="image/png" hidden>
+</div>
+
 <!-- Minecraft-Paket: Texturen und Geräusche aus dem eigenen Minecraft (mcpaket.js) -->
 <div class="mc-schirm dunkel" id="minecraft">
   <h2 class="mc-titel">Minecraft-Paket</h2>
@@ -801,6 +850,7 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
 <script src="klang.js"></script>
 <script src="mcwesen.js"></script>
 <script src="mcpaket.js"></script>
+<script src="skin.js"></script>
 <script src="wetter.js"></script>
 <script src="handwerk.js"></script>
 <script src="speicher.js"></script>

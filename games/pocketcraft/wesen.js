@@ -131,7 +131,7 @@ class Player{
     this.food = 20; this.saturation = 5; this.exhaustion = 0;
     this.air = 20; this.maxAir = 20;
     this.inWater = false; this.headInWater = false;
-    this.fallFrom = null; this.hurtTimer = 0; this.regenTimer = 0; this.starveTimer = 0;
+    this.fallFrom = null; this.hurtTimer = 0; this.trefferT = 0; this.letzterTreffer = 0; this.regenTimer = 0; this.starveTimer = 0;
     this.creative = false; this.flying = false;
     this.dead = false; this.deathCause = '';
     this.bob = 0; this.swing = 0; this.swinging = false;
@@ -143,11 +143,25 @@ class Player{
     const cp = Math.cos(this.pitch);
     return [-Math.sin(this.yaw)*cp, Math.sin(this.pitch), -Math.cos(this.yaw)*cp];
   }
+  /* Wie beim Vorbild: nach einem Treffer eine halbe Sekunde unverwundbar —
+     ein stärkerer Treffer zählt dann nur mit dem, was er mehr bringt, und
+     stößt nicht noch einmal. Rückstoß: die eigene Bewegung halbiert, dazu
+     der Stoß (kx, kz: Richtung mal Stärke, 1 = normal, 2 = im Sprint); am
+     Boden hebt er einen ein Stück an. */
   hurt(dmg, cause, kx, kz){
-    if(this.creative || this.dead || this.hurtTimer > 0.35) return;
-    if(kx !== undefined) dmg = Ruestung.abfangen(dmg);      // Rüstung hilft gegen Wesen
+    if(this.creative || this.dead) return;
+    let stoss = kx !== undefined;
+    if(this.trefferT > 0){
+      if(dmg <= this.letzterTreffer) return;
+      const mehr = dmg - this.letzterTreffer;
+      this.letzterTreffer = dmg; dmg = mehr; stoss = false;
+    } else { this.letzterTreffer = dmg; this.trefferT = 0.5; }
+    if(kx !== undefined) dmg = Ruestung.abfangen(dmg);      // Rüstung hilft gegen Wesen und Spieler
     this.health -= dmg; this.hurtTimer = 0.5;
-    if(kx !== undefined){ this.vx += kx*5.5; this.vz += kz*5.5; this.vy = Math.max(this.vy, 5); }
+    if(stoss){
+      this.vx = this.vx/2 + kx*6.5; this.vz = this.vz/2 + kz*6.5;
+      if(this.onGround) this.vy = Math.min(7.5, this.vy/2 + 7.5);
+    }
     if(this.health <= 0){ this.health = 0; this.dead = true; this.deathCause = cause || ''; }
     return true;
   }

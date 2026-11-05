@@ -20,7 +20,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */,
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
-  KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */ };
+  KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
+  BETTKOPF:253 /* Kopfteil eines Betts, jede Farbe: die Farbe trägt das Fußteil daneben */ };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -176,7 +177,22 @@ const BETTEN = [
   { key:'rosa',    name:'Rosa Bett',       farbe:[246, 142, 180], mc:'pink_bed' },
 ];
 const bettId = key => B.BETT + BETTEN.findIndex(b => b.key === key);
-const isBett = id => id === B.BED || (id >= B.BETT && id < B.BETT + BETTEN.length);
+const isBett = id => id === B.BED || id === B.BETTKOPF || (id >= B.BETT && id < B.BETT + BETTEN.length);
+/* Betten sind wie beim Vorbild zwei Blöcke lang: das Fußteil trägt die Farbe
+   (B.BED, B.BETT + i), das Kopfteil ist für alle Farben B.BETTKOPF. Für
+   jede Farbe und Richtung eine eigene Nummer gäbe es nicht — die Nummern
+   sind fast alle vergeben. Die beiden finden sich über die Nachbarschaft. */
+const bettSchluessel = id => id === B.BED ? 'rot' : (id >= B.BETT && id < B.BETT + BETTEN.length ? BETTEN[id - B.BETT].key : 'rot');
+const BETT_TEILE = ['head_up', 'head_east', 'head_west', 'foot_up', 'foot_east', 'foot_west', 'foot_south'];
+/** Seite (Index in SEITE) zum anderen Teil des Betts, oder −1; get(x, y, z) liest Blöcke */
+function bettPartner(get, x, y, z, id){
+  const kopf = id === B.BETTKOPF;
+  for(let k = 0; k < 4; k++){
+    const n = get(x + SEITE[k][0], y, z + SEITE[k][1]);
+    if(kopf ? (isBett(n) && n !== B.BETTKOPF) : n === B.BETTKOPF) return k;
+  }
+  return -1;
+}
 const ladderId = s => B.LADDER + s;
 const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
 const isWheat = id => id >= B.WHEAT && id < B.WHEAT + 4;
@@ -282,7 +298,7 @@ function initBlocks(){
   defBlock(B.TALLGRASS,{name:'Hohes Gras', tex:'tallgrass', model:'cross', solid:false, opaque:false, hardness:.05, drop:B.AIR, replaceable:true, item:false});
   defBlock(B.ROSE,{name:'Mohn', tex:'rose', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});
   defBlock(B.DANDELION,{name:'Löwenzahn', tex:'dandelion', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});
-  defBlock(B.CACTUS,{name:'Kaktus', tex:['cactus_top','cactus_top','cactus_side'], hardness:.4, opaque:false, model:'cutout', hurt:1});
+  defBlock(B.CACTUS,{name:'Kaktus', tex:['cactus_top','cactus_top','cactus_side'], hardness:.4, opaque:false, model:'cutout', kaktus:true, hurt:1});
   defBlock(B.STONEBRICK,{name:'Steinziegel', tex:'stonebrick', hardness:2, tool:'pickaxe', tier:1});
   defBlock(B.SANDSTONE,{name:'Sandstein', tex:['sandstone_top','sandstone_top','sandstone'], hardness:1.6, tool:'pickaxe', tier:1});
   defBlock(B.SNOW,{name:'Schnee', tex:'snow', hardness:.4, tool:'shovel'});
@@ -307,6 +323,8 @@ function initBlocks(){
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
       hardness:2, tool:'axe', drop:B.DOOR, item:!oben && !offen && s === 0, icon:'i_door'});
   }
+  defBlock(B.BETTKOPF,{name:'Bett', tex:['bed_top','planks','bed_side'], model:'bett', box:[0,0,0,16,9,16], opaque:false,
+    hardness:.3, item:false, drop:B.AIR});
   BETTEN.forEach((b, i) => defBlock(B.BETT + i,{name:b.name, tex:['bett_' + b.key,'planks','bed_side'], model:'bett', box:[0,0,0,16,9,16],
     opaque:false, hardness:.3}));
   // Kürbis; mit der Schere geschnitzt, schaut er einen an — auf vier Eisenblöcken wird daraus ein Golem
@@ -341,14 +359,23 @@ let nextItem = ITEM0;
 function defItem(key, o){
   const id = nextItem++;
   items[id] = Object.assign({ id, key, name:key, tex:'i_'+key, stack:64,
-    tool:null, tier:0, speed:1, dmg:1, dur:0, food:0, heal:0, fuel:0, armor:null }, o);
+    tool:null, tier:0, speed:1, dmg:1, tempo:4, dur:0, food:0, heal:0, fuel:0, armor:null }, o);
   ITEM[key] = id; return id;
 }
 const WERKZEUGART = { pickaxe:['Spitzhacke',2], axe:['Axt',3], shovel:['Schaufel',1], sword:['Schwert',4], hoe:['Hacke',0] };
+/* Schaden und Schlagtempo (Schläge je Sekunde) wie beim Vorbild seit der
+   Kampf-Überarbeitung: Schwerter schnell, Äxte langsam und hart. Was hier
+   nicht steht (Hand, Blöcke, andere Dinge): 1 Schaden, Tempo 4. */
+const KAMPF = {
+  sword:   { wood:[4, 1.6], gold:[4, 1.6], stone:[5, 1.6], iron:[6, 1.6], diamond:[7, 1.6] },
+  axe:     { wood:[7, 0.8], gold:[7, 1.0], stone:[9, 0.8], iron:[9, 0.9], diamond:[9, 1.0] },
+  pickaxe: { wood:[2, 1.2], gold:[2, 1.2], stone:[3, 1.2], iron:[4, 1.2], diamond:[5, 1.2] },
+  shovel:  { wood:[2.5, 1], gold:[2.5, 1], stone:[3.5, 1], iron:[4.5, 1], diamond:[5.5, 1] },
+  hoe:     { wood:[1, 1],   gold:[1, 1],   stone:[1, 2],   iron:[1, 3],   diamond:[1, 4] },
+};
 function defTool(mk, mn, kk, tier, mult, dur, fuel){
-  const [kn, bonus] = WERKZEUGART[kk];
-  defItem(mk + '_' + kk, { name: mn + kn.toLowerCase(), stack:1, tool:kk, tier, speed:1 + mult*1.6,
-    dmg:1 + bonus + tier, dur, fuel });
+  const [kn] = WERKZEUGART[kk], [dmg, tempo] = KAMPF[kk][mk];
+  defItem(mk + '_' + kk, { name: mn + kn.toLowerCase(), stack:1, tool:kk, tier, speed:1 + mult*1.6, dmg, tempo, dur, fuel });
 }
 function initItems(){
   // Reihenfolge der ersten 24 wie in der ersten Fassung — alte Spielstände

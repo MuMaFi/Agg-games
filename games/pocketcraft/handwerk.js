@@ -96,17 +96,27 @@ const Ruestung = {
     for(const s of Inv.ruestung) if(s && items[s.id] && items[s.id].armor) p += items[s.id].armor.pts;
     return p;
   },
-  /** Treffer von Wesen: Rüstung fängt 4 % je Punkt ab und nutzt sich dabei ab */
+  /** Härte: Diamant hält harte Schläge besser ab (je Teil 2, wie beim Vorbild) */
+  haerte(){
+    let h = 0;
+    for(const s of Inv.ruestung) if(s && items[s.id] && items[s.id].key.startsWith('diamond')) h += 2;
+    return h;
+  },
+  /** Treffer von Wesen und Spielern, wie beim Vorbild: die Rüstung fängt
+      Punkte/25 ab, bei harten Schlägen weniger (es sei denn, sie ist hart);
+      jedes Teil nutzt sich um ein Viertel des Schadens ab, mindestens 1 */
   abfangen(dmg){
     const p = this.punkte();
     if(!p) return dmg;
+    const ab = Math.max(1, Math.floor(dmg/4));
     for(let i=0; i<4; i++){
       const s = Inv.ruestung[i];
       if(!s) continue;
-      s.dur -= 1;
+      s.dur -= ab;
       if(s.dur <= 0){ Inv.ruestung[i] = null; Sfx.play('break'); hint(nameOf(s.id) + ' ist zerbrochen'); }
     }
-    return dmg * (1 - Math.min(0.8, p*0.04));
+    const wirkt = Math.min(20, Math.max(p/5, p - 4*dmg/(this.haerte() + 8)));
+    return dmg * (1 - wirkt/25);
   },
   /** Was man trägt, als eine Zahl fürs Netz: je Platz drei Bit,
       0 = nichts, sonst 1 Leder, 2 Eisen, 3 Gold, 4 Diamant */

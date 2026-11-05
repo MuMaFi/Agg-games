@@ -229,7 +229,21 @@ const Menue = {
     knopf('#msAuffrischen', () => this.serverAuffrischen());
     knopf('#msZurueck', () => { this.nameSichern(); this.zeige('titel'); });
     knopf('#msFarbe', () => { Netz.ich.farbe = (Netz.ich.farbe + 1) % SPIELER_FARBEN.length; Netz.ichSichern(); this.farbeZeigen(); });
-    $('#msName').addEventListener('change', () => this.nameSichern());
+    // Name und Skin: im Titelbild unter den Knöpfen
+    $('#tName').addEventListener('change', () => { this.nameSichern(); this.ichZeigen(); });
+    $('#tName').addEventListener('keydown', e => { if(e.key === 'Enter') e.target.blur(); });
+    knopf('#tSkin', () => { this.nameSichern(); this.zuSkins(); });
+    knopf('#skSteve', () => { Skin.setzen('steve'); this.skinsZeigen(); });
+    knopf('#skOg', () => { Skin.setzen('og'); this.skinsZeigen(); });
+    knopf('#skEigen', () => { if(Skin.bild){ Skin.setzen('eigen'); this.skinsZeigen(); } });
+    knopf('#skHoch', () => $('#skDatei').click());
+    $('#skDatei').addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      $('#skStatus').textContent = ''; $('#skStatus').classList.remove('fehler');
+      Skin.hochladen(f).then(() => this.skinsZeigen(), err => { $('#skStatus').textContent = err.message || String(err); $('#skStatus').classList.add('fehler'); });
+    });
+    knopf('#skPaketLaden', () => { this._mcZurueck = 'skins'; this.zeige('minecraft'); McPaket.zeigen(); });
+    knopf('#skFertig', () => this.zeige('titel'));
     knopf('#sfOk', () => this.serverFormOk());
     knopf('#sfAbbruch', () => this.zuMitspieler());
     for(const id of ['#sfName', '#sfCode']) $(id).addEventListener('keydown', e => { if(e.key === 'Enter') this.serverFormOk(); });
@@ -270,18 +284,18 @@ const Menue = {
   },
 
   zeige(name){
-    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende','minecraft'])
+    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende','minecraft','skins'])
       $('#' + id).classList.toggle('on', id === name);
     this.aktiv = name;
     document.body.classList.toggle('imMenue', !!name && !Game.running);
     document.body.classList.toggle('mcOffen', !!name);
-    if(name === 'titel') this.logo();
+    if(name === 'titel'){ this.logo(); this.ichZeigen(); }
     if(name === 'optionen') this.optionenZeigen();
   },
   alleZu(){ this.zeige(null); this.aktiv = null; document.body.classList.remove('imMenue', 'mcOffen'); },
   /** Escape und Zurück-Taste */
   zurueck(){
-    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen', minecraft:'optionen' };
+    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen', minecraft:'optionen', skins:'titel' };
     if(this.aktiv === 'optionen' || this.aktiv === 'oeffnen'){ this.optionenZu(); return; }
     if(this.aktiv === 'verbinden'){ this.vbZurueck(); return; }
     if(this.aktiv === 'mitspieler'){ this.nameSichern(); this.zeige('titel'); return; }
@@ -501,15 +515,36 @@ const Menue = {
 
   /* — Mitspieler: die Serverliste — */
   zuMitspieler(){
-    $('#msName').value = Netz.ich.name;
+    this.nameSichern();
+    $('#msIch').textContent = 'Du spielst als ' + Netz.ich.name;
     this.farbeZeigen();
     this.zeige('mitspieler');
     this.serverZeichnen();
     this.serverAuffrischen();
   },
   nameSichern(){
-    const n = ($('#msName').value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
+    const n = ($('#tName').value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
     if(n && n !== Netz.ich.name){ Netz.ich.name = n; Netz.ichSichern(); }
+  },
+  /** Titelbild: Name ins Feld, der Kopf des Skins auf den Knopf */
+  async ichZeigen(){
+    if(!Netz.ich) return;
+    if(document.activeElement !== $('#tName')) $('#tName').value = Netz.ich.name;
+    $('#tSkinKopf').src = await Skin.kopfURL(Skin.netz());
+  },
+  /* — Skin wählen (skin.js) — */
+  zuSkins(){ $('#skStatus').textContent = ''; this.zeige('skins'); this.skinsZeigen(); },
+  async skinsZeigen(){
+    const hatPaket = !!McPaket.texturen, w = Skin.wirksam();
+    $('#skPaket').style.display = hatPaket ? 'none' : '';
+    $('#skSteve').disabled = !hatPaket;
+    $('#skEigen').disabled = !Skin.bild;
+    for(const [id, a] of [['#skSteve', 'steve'], ['#skOg', 'og'], ['#skEigen', 'eigen']]) $(id).classList.toggle('gewaehlt', w === a);
+    $('#skOg img').src = await Skin.kopfURL({ a:'og' });
+    $('#skSteve img').src = hatPaket ? await Skin.kopfURL({ a:'steve' }) : '';
+    $('#skEigen img').src = Skin.bild ? await Skin.kopfURL({ a:'eigen', b:Skin.bild }) : '';
+    await Skin.vorschau($('#skVorschau'), Skin.netz());
+    this.ichZeigen();
   },
   farbeZeigen(){
     const f = SPIELER_FARBEN[Netz.ich.farbe];

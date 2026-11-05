@@ -592,7 +592,16 @@ function drawSpieler(fogCol, near, far){
     const geht = !liegt && (s.flags & 8) !== 0, sw = Math.sin(s.walkPhase) * (geht ? 0.62 : 0);
     const schlag = !liegt && s.schlagT > 0 ? 0.5 + Math.abs(Math.sin(s.schlagT*9))*1.1 : 0;
     figur.liegt = liegt;
-    if(liegt){ figur.x = s.x; figur.y = s.y + 0.13; figur.z = s.z + 1.31; figur.yaw = Math.PI; }
+    if(liegt){
+      // Kopf aufs Kissen, die Füße zum Fußteil (beim alten Strohbett nach +z)
+      let d = SEITE[2];
+      const bxx = Math.floor(s.x), byy = Math.floor(s.y), bzz = Math.floor(s.z);
+      if(Game.world.getBlock(bxx, byy, bzz) === B.BETTKOPF){
+        const k = bettPartner((a, b, c) => Game.world.getBlock(a, b, c), bxx, byy, bzz, B.BETTKOPF);
+        if(k >= 0) d = SEITE[k];
+      }
+      figur.x = s.x + d[0]*1.31; figur.y = s.y + 0.13; figur.z = s.z + d[1]*1.31; figur.yaw = Math.PI; figur.liegeDreh = Math.atan2(d[0], d[1]);
+    }
     else { figur.x = s.x; figur.y = s.y - ((s.flags & 1) ? 0.12 : 0); figur.z = s.z; figur.yaw = s.yaw; }
     const f = SPIELER_FARBEN[s.farbe] ? SPIELER_FARBEN[s.farbe].rgb : [1, 1, 1];
     // getroffen: kurz rot, wie die Wesen
@@ -620,7 +629,9 @@ function drawSpieler(fogCol, near, far){
       gl.uniform1fv(P.u.uLayers, _layers);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     };
-    const mcFigur = McWesen.teile({ type:'spieler' });
+    // sein Skin (skin.js, vom Host verteilt); ältere Mitspieler ohne Skin: mit dem Paket Steve
+    const sk = Netz.skins.get(s.id), fertig = sk ? Skin.fertig(sk) : null;
+    const mcFigur = sk ? (fertig ? fertig.teile : null) : McWesen.teile({ type:'spieler' });
     for(const part of mcFigur || d.parts){
       if(part.hemd && !mcFigur) gl.uniform4f(P.u.uTint, f[0]*rot[0], f[1]*rot[1], f[2]*rot[2], 1); else gl.uniform4f(P.u.uTint, rot[0], rot[1], rot[2], 1);
       teil(part);
@@ -745,7 +756,10 @@ function partMatrix(out, mob, part, ang, bisGelenk){
 function wesenGrund(out, mob, kopf, kopfPunkt){
   M4.ident(out);
   M4.translate(out, out, mob.x, mob.y, mob.z);
-  if(mob.liegt) M4.rotX(out, out, -Math.PI/2);               // Mitspieler im Bett: auf dem Rücken
+  if(mob.liegt){                                              // Mitspieler im Bett: auf dem Rücken, längs zum Bett
+    if(mob.liegeDreh) M4.rotY(out, out, mob.liegeDreh);
+    M4.rotX(out, out, -Math.PI/2);
+  }
   M4.rotY(out, out, mob.yaw);
   // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
   if(mob.groesse){
@@ -859,7 +873,8 @@ function drawHeld(fogCol){
 
   if(!s){
     mcArmLage(_hand, sw);
-    for(const t of (McWesen.an && McWesen.hand) || pocketHand()){
+    // der Arm im gewählten Skin (skin.js); OG oder noch nicht fertig: Pocketcrafts Arm
+    for(const t of Skin.hand() || pocketHand()){
       M4.mul(_hand2, _hand, t.H);
       gl.uniformMatrix4fv(P.u.uModel, false, _hand2);
       gl.uniform1fv(P.u.uLayers, t.lagen);

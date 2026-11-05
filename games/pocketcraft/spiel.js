@@ -31,7 +31,7 @@ const Game = {
   running:false, time: DAY_LEN*0.12, tick:0,
   settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
-  meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
+  meshes: new Map(), angriffT:10, lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
   hurtFlash:0, mobTimer:0, camShake:0,
   bett:null, schlafT:0,             // im Bett: wo, und wo man vorher stand · schlafT: Abblenden über Nacht
@@ -516,6 +516,15 @@ const Game = {
       const oy = doorInfo(id).oben ? y-1 : y+1;
       if(isDoor(w.getBlock(x,oy,z))) w.setBlock(x,oy,z,B.AIR);
     }
+    // Bett: das andere Teil geht mit; wer das Kopfteil abbaut, bekommt das Bett aus dem Fußteil
+    if(isBett(id)){
+      const k2 = bettPartner((a, b, c) => w.getBlock(a, b, c), x, y, z, id);
+      if(k2 >= 0){
+        const fx = x + SEITE[k2][0], fz = z + SEITE[k2][1];
+        if(id === B.BETTKOPF) this.entfernen(fx, y, fz, tierOk);
+        else if(w.getBlock(fx, y, fz) === B.BETTKOPF) w.setBlock(fx, y, fz, B.AIR);
+      }
+    }
     // Kolben: Kopf und Fuß gehören zusammen — wer den Kopf abbaut, bekommt den Kolben
     if(isKopf(id)){
       const [dx, dy, dz] = RICHTUNG6[kopfRichtung(id)];
@@ -760,6 +769,21 @@ const Game = {
       Sfx.block('setzen', B.DOOR, bx, by, bz); schwing();
       return;
     }
+    // Bett: wie beim Vorbild zwei Blöcke in Blickrichtung — hier das Fußteil (mit der Farbe), dahinter das Kopfteil
+    if(isBett(s.id)){
+      const f = p.forward(), quer = Math.abs(f[0]) > Math.abs(f[2]);
+      const hx = bx + (quer ? Math.sign(f[0]) : 0), hz = bz + (quer ? 0 : (Math.sign(f[2]) || 1));
+      const hb = w.getBlock(hx, by, hz);
+      if(hb !== B.AIR && !(blocks[hb] && blocks[hb].replaceable)){ hint('Ein Bett ist zwei Blöcke lang — dahinter ist kein Platz'); return; }
+      if(!blocksMovement(w.getBlock(bx, by-1, bz)) || !blocksMovement(w.getBlock(hx, by-1, hz))) return;
+      if(this.belegt(bx, by, bz, s.id) || this.belegt(hx, by, hz, B.BETTKOPF)) return;
+      if(w.setBlock(bx, by, bz, s.id)){
+        w.setBlock(hx, by, hz, B.BETTKOPF);
+        if(!p.creative) Inv.consumeHeld();
+        Sfx.block('setzen', s.id, bx, by, bz); schwing();
+      }
+      return;
+    }
     // Pflanzen, Fackeln und Betten brauchen Boden
     if((bd.model === 'cross' || s.id === B.TORCH || isBett(s.id) || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
     if(bd.solid && this.belegt(bx,by,bz,setzId)) return;
@@ -805,6 +829,12 @@ const Game = {
       liegen (schlafPruefen); bis dahin kann man wieder aufstehen. */
   schlafen(x, y, z){
     const p = this.player;
+    // im zweiteiligen Bett liegt man im Kopfteil
+    const bid = this.world.getBlock(x, y, z);
+    if(bid !== B.BETTKOPF){
+      const k = bettPartner((a, b, c) => this.world.getBlock(a, b, c), x, y, z, bid);
+      if(k >= 0){ x += SEITE[k][0]; z += SEITE[k][1]; }
+    }
     p.spawnX = x + 0.5; p.spawnY = y + 0.6; p.spawnZ = z + 0.5;
     if(this.bett) return;
     if(!this.istNacht()){ hint('Schlafen geht nur nachts — dein Startpunkt ist jetzt hier', 2600); return; }
@@ -920,27 +950,45 @@ const Game = {
     this.wesenGenau = false;
     return best;
   },
+  /* ── Kampf wie beim Vorbild (Java, seit der Kampf-Überarbeitung) ──────
+     Jeder Schlag muss sich wieder aufladen: wie schnell, sagt die Waffe
+     (tempo, Schläge je Sekunde — Schwert 1,6, Axt 0,8 … 1, Hand 4). Wer
+     früher zuschlägt, trifft schwächer: Schaden × (0,2 + 0,8 · Ladung²).
+     Voll aufgeladen gibt es mehr: im Fallen einen kritischen Treffer (× 1,5),
+     im Sprint einen weiten Rückstoß, mit dem Schwert am Boden einen Schwung,
+     der alle dicht beim Ziel mittrifft. Auch ein Schlag ins Leere oder ein
+     Wechsel der Waffe fängt das Aufladen von vorn an. */
+  angriffLadung(){
+    const s = Inv.held(), it = s && items[s.id], tempo = it && it.tempo ? it.tempo : 4;
+    return clamp((this.angriffT + 0.025)*tempo, 0, 1);
+  },
   attack(){
     if(this.bett) return false;
     const best = this.wesenImBlick(3.4, true);
-    if(!best) return false;
-    const p = this.player, s = Inv.held();
-    const dmg = s && items[s.id] ? items[s.id].dmg : 1;
-    const l = Math.hypot(best.x-p.x, best.z-p.z) || 1;
+    if(!best){ if(!this.targetBlock()) this.angriffT = 0; return false; }
+    const p = this.player, s = Inv.held(), it = s && items[s.id];
+    const lade = this.angriffLadung(), voll = lade > 0.9;
+    this.angriffT = 0;
+    let dmg = (it ? it.dmg : 1)*(0.2 + lade*lade*0.8);
+    const krit = voll && !p.onGround && p.vy < 0 && !p.inWater && !p.flying && !Input.sprint;
+    if(krit) dmg *= 1.5;
+    const sprintStoss = voll && Input.sprint;
+    const schwung = voll && it && it.tool === 'sword' && p.onGround && !Input.sprint;
+    const l = Math.hypot(best.x-p.x, best.z-p.z) || 1, kx = (best.x-p.x)/l, kz = (best.z-p.z)/l;
     // ein Mitspieler: der Treffer geht übers Netz, hier blitzt er nur rot auf
-    if(!(best instanceof Mob)){
-      if(best.schlagCd > 0) return true;
-      best.schlagCd = 0.45; best.rotT = 0.4;
-      Netz.pvpTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
-      if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
-      this.player.addExhaustion(0.1);
-      Sfx.play('hurt', best.x, best.y + 1, best.z);
-      return true;
-    }
-    this.mobTreffer(best, dmg, (best.x-p.x)/l, (best.z-p.z)/l);
-    if(s && items[s.id] && items[s.id].dur && items[s.id].tool !== 'bow') Inv.damageHeld(1);
-    this.player.addExhaustion(0.1);
-    Sfx.wesen(best, 'au');
+    const treffen = (z, d, k) => { if(z instanceof Mob) this.mobTreffer(z, d, kx*k, kz*k); else { z.rotT = 0.4; Netz.pvpTreffer(z, d, kx*k, kz*k); } };
+    treffen(best, dmg, sprintStoss ? 2 : 1);
+    if(schwung) for(const z of this.mobs.concat(this.gegner()))
+      if(z !== best && !z.dead && !z.tot && Math.hypot(z.x - best.x, z.z - best.z) < 1.5 && Math.abs(z.y - best.y) < 1.2 && Math.hypot(z.x - p.x, z.z - p.z) < 3.6)
+        treffen(z, 1, 1);
+    if(it && it.dur && it.tool !== 'bow') Inv.damageHeld(1);
+    p.addExhaustion(0.1);
+    // die Geräusche des Vorbilds (mit dem Minecraft-Paket), dazu das Aua des Getroffenen
+    Sfx.probe(krit ? 'angriff_krit' : schwung ? 'angriff_schwung' : sprintStoss ? 'angriff_rueck' : voll ? 'angriff_stark' : 'angriff_schwach',
+      { gain: .6, rate: zufall(.9, 1.1), x: best.x, y: best.y + 1, z: best.z });
+    if(best instanceof Mob) Sfx.wesen(best, 'au'); else Sfx.play('hurt', best.x, best.y + 1, best.z);
+    if(krit) for(let k = 0; k < 8; k++) this.partikel.push({ x: best.x + (Math.random() - .5)*.8, y: best.y + best.h*(.4 + Math.random()*.5),
+      z: best.z + (Math.random() - .5)*.8, t: -k*0.015, dauer: .5, gr: .1, tex: 'p_dotter' });     // goldene Funken
     return true;
   },
   herz(m, verzug){
@@ -965,8 +1013,12 @@ const Game = {
     if(m.dead) return;
     // Als Gast rechnet der Host: nur fragen, aufblitzen lassen
     if(Netz.istGast){ Netz.wesenAnfrage('treffer', m, { dmg, kx: r2(kx), kz: r2(kz) }); m.hurtTimer = 0.4; return; }
+    // eine halbe Sekunde unverwundbar wie beim Vorbild: dann zählt nur, was ein Treffer mehr bringt, ohne neuen Stoß
+    let stoss = true;
+    if(m.trefferT > 0){ if(dmg <= (m.letzterTreffer || 0)) return; const mehr = dmg - m.letzterTreffer; m.letzterTreffer = dmg; dmg = mehr; stoss = false; }
+    else { m.letzterTreffer = dmg; m.trefferT = 0.5; }
     m.health -= dmg; m.hurtTimer = 0.4;
-    if(!m.def.golem){ m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5); }
+    if(!m.def.golem && stoss){ m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5); }
     if(!m.def.hostile && !m.def.golem){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
     if(von !== GOLEM_HAND && (m.def.golem || m.def.dorf)) this.golemZorn(m, von);
     if(m.health <= 0){
@@ -1590,6 +1642,7 @@ const Game = {
         if(m.herzT <= 0){ m.herzT = 0.7 + Math.random()*0.4; this.herz(m); }
       }
       if(m.hurtTimer > 0) m.hurtTimer -= dt;
+      if(m.trefferT > 0) m.trefferT -= dt;
       if(m.attackCd > 0) m.attackCd -= dt;
       if(m.jumpCd > 0) m.jumpCd -= dt;
 
@@ -1745,6 +1798,10 @@ const Game = {
     const p = this.player, w = this.world;
     if(p.dead) return;
     if(p.hurtTimer > 0) p.hurtTimer -= dt;
+    if(p.trefferT > 0) p.trefferT -= dt;
+    this.angriffT += dt;                                      // Abklingzeit des Schlags (angriffLadung)
+    const hid = Inv.held() ? Inv.held().id : 0;
+    if(hid !== this._angriffId){ this._angriffId = hid; this.angriffT = 0; }   // Waffe gewechselt: neu aufladen
     if(this.bett){ this.imBett(input); return; }
 
     const feetId = w.getBlock(Math.floor(p.x), Math.floor(p.y+0.1), Math.floor(p.z));
@@ -2226,6 +2283,10 @@ function frame(now){
   const sp = $('#spannung');
   sp.classList.toggle('on', Game.bogen.aktiv);
   if(Game.bogen.aktiv) sp.firstElementChild.style.width = Math.round(Math.min(1, Game.bogen.t)*100) + '%';
+  // Aufladen des Schlags unter dem Fadenkreuz, wie beim Vorbild — nur solange er nicht voll ist
+  const ak = $('#abklingen'), lade = Game.angriffLadung();
+  ak.classList.toggle('on', lade < 1 && !Game.bogen.aktiv && !p.dead);
+  if(lade < 1) ak.firstElementChild.style.width = Math.round(lade*100) + '%';
   if(Game.settings.debug) updateDebug();
 
   Sfx.hoerer(p.x, p.eyeY(), p.z, p.yaw, p.pitch);

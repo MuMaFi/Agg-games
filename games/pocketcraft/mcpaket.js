@@ -56,6 +56,10 @@ const MC_TEX = {
   i_feather:'item/feather', i_redstone:'item/redstone', i_schleimball:'item/slime_ball', i_smaragd:'item/emerald',
   i_egg:'item/egg', i_verstaerker:'item/repeater', i_hebel:'block/lever',
 };
+/* Betten (zweiteilig, Bilder je Farbe und Seite; siehe emitBett in welt.js) */
+for(const [key, mc] of [['rot', 'red_bed'], ...BETTEN.map(b => [b.key, b.mc])])
+  for(const t of BETT_TEILE) MC_TEX['bettmc_' + key + '_' + t] = 'block/' + mc + '_' + t;
+MC_TEX.bettmc_unten = 'block/bed_down'; MC_TEX.bettmc_kopf_nord = 'block/bed_head_north';
 for(let f = 0; f < 8; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
 for(let s = 0; s < 8; s++) MC_TEX['crack' + s] = { p:'block/destroy_stage_' + Math.round(s*9/7), riss:true };
 for(const [w, mw] of [['wheat0', 0], ['wheat1', 2], ['wheat2', 5], ['wheat3', 7]]) MC_TEX[w] = 'block/wheat_stage' + mw;
@@ -93,6 +97,9 @@ const MC_KLANG = {
   schleim_au:mcV('mob/slime/big', 4), schleim_tot:mcV('mob/slime/big', 4),
   dorf_hmm:mcV('mob/villager/idle', 3), dorf_au:mcV('mob/villager/hit', 4),
   schalter:mcV('random/click'), kolben_raus:mcV('tile/piston/out'), kolben_rein:mcV('tile/piston/in'),
+  angriff_stark:mcV('entity/player/attack/strong', 6), angriff_schwach:mcV('entity/player/attack/weak', 4),
+  angriff_krit:mcV('entity/player/attack/crit', 3), angriff_schwung:mcV('entity/player/attack/sweep', 7),
+  angriff_rueck:mcV('entity/player/attack/knockback', 4),
 };
 /* Blöcke: Minecraft klingt beim Laufen und Hacken mit »step«, beim Abbauen
    und Setzen mit »dig« — Hacken eine Oktave tiefer, Abbauen und Setzen
@@ -241,7 +248,7 @@ const McPaket = {
     if(Object.keys(this._fertig).length) return this._fertig;
     const hol = p => this._px(p);
     for(const [name, v] of Object.entries(MC_TEX)){
-      if(TEX[name] === undefined) continue;
+      if(TEX[name] === undefined && !name.startsWith('bettmc_')) continue;
       const o = typeof v === 'string' ? { p:v } : v, grund = await hol(o.p);
       if(!grund) continue;
       const d = mcBildAus(grund, o.bild);
@@ -281,7 +288,7 @@ const McPaket = {
       if(typeof Klassik !== 'undefined' && Klassik.an){ Klassik.setzen(false); Game.settings.klassik = false; }
       let neu;
       try{ neu = await this._umrechnen(); }catch(e){ return false; }
-      const namen = Object.keys(neu);
+      const alle = Object.keys(neu), betten = alle.filter(n => n.startsWith('bettmc_')), namen = alle.filter(n => !n.startsWith('bettmc_'));
       if(!namen.length) return false;
       for(const n of namen){
         const L = TEX[n];
@@ -290,6 +297,7 @@ const McPaket = {
       }
       this.texAn = true;
       texturenNeuLaden(namen);
+      this._bettenSetzen(betten, neu);
       // Wesen, Hand und Truhe aus Minecrafts Modellen (mcwesen.js), einmal je Paket
       if(!this._wesenFertig && this.hatWesen()){
         this._wesenFertig = true;
@@ -302,10 +310,45 @@ const McPaket = {
       for(const n of namen) texData[TEX[n]] = this._orig[n];
       this.texAn = false;
       texturenNeuLaden(namen);
+      if(this.bettenAn){ this.bettenAn = false; this._chunksNeu(); }
       McWesen.setzen(false);
       McGui.setzen(false);
     }
     return true;
+  },
+
+  /* Betten: Minecraft hat je Farbe, Teil und Seite ein Bild. Blöcke dürfen
+     nur Bildlagen unter 256 benutzen (das Gitter der Chunks zählt in Bytes,
+     texturen.js füllt sie schon ganz). Platz schafft ein Tausch: ein Bild,
+     das nur Wesen und Gegenstände brauchen (i_, m_, p_), wandert ans Ende —
+     die werden beim Zeichnen über ihren Namen gefunden. */
+  bettenAn: false,
+  _chunkLage(name){
+    if(texNames.length + 1 > (gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) || 256)) return -1;
+    for(let k = 0; k < Math.min(256, texNames.length); k++){
+      const alt = texNames[k];
+      if(!/^(i_|m_|p_)/.test(alt)) continue;
+      TEX[alt] = texNames.length; texNames.push(alt); texData.push(texData[k]);
+      texNames[k] = name; TEX[name] = k;
+      return k;
+    }
+    return -1;
+  },
+  _bettenSetzen(betten, neu){
+    if(!betten.length) return;
+    let neueLage = false;
+    for(const n of betten){
+      if(TEX[n] === undefined){ if(this._chunkLage(n) < 0) return; neueLage = true; }
+      texData[TEX[n]] = neu[n];
+    }
+    if(neueLage){ gl.deleteTexture(R.texArr); R.buildTexArray(); _layerCanvas.clear(); _iconCache.clear(); }
+    else R.lagenNeu(betten);
+    this.bettenAn = true;
+    this._chunksNeu();
+  },
+  /** alle sichtbaren Chunks neu bauen (die Betten wechseln ihre Bilder) */
+  _chunksNeu(){
+    if(Game.world && Game.meshes) for(const k of Game.meshes.keys()) Game.world.dirty.add(k);
   },
 
   /* — Geräusche — */
@@ -542,7 +585,10 @@ const McPaket = {
       this.klaengeSetzen(Game.settings.mcKlaenge); Game.saveOpts(); this.zeigen();
     });
     knopf('#mcWeg', () => this.entfernen());
-    knopf('#mcFertig', () => Menue.zeige('optionen'));
+    knopf('#mcFertig', () => {
+      const z = Menue._mcZurueck || 'optionen'; Menue._mcZurueck = null;
+      Menue.zeige(z); if(z === 'skins') Menue.skinsZeigen();
+    });
   },
   zeigen(){
     if(!this._arbeit){

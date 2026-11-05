@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 15;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse
+const NETZ_VERSION = 16;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse · 16: Betten zweiteilig, Skins, Kampf wie Java
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -262,6 +262,7 @@ const Netz = {
       case 'kueken': this.kuekenHost(g, m); break;
       case 'drop': this.dropHost(g, m); break;
       case 'pvp': this.pvpHost(g, m); break;
+      case 'skin': if(this.nichtZuSchnell(g)){ g.skin = Skin.pruefen(m.s); this.skins.set(g.id, g.skin); this.skinsVerteilen(); } break;
       case 'aufheben': this.aufhebenHost(g, m); break;
       case 'chat': if(this.nichtZuSchnell(g)) Chat.verteilen({ n: g.name, f: g.farbe, text: String(m.text || '').slice(0, CHAT_MAX) }); break;
       case 'befehl': if(this.nichtZuSchnell(g)) Befehle.vonGast(g, String(m.text || '').slice(0, CHAT_MAX)); break;
@@ -281,6 +282,7 @@ const Netz = {
     if(this.bereiteGaeste().length >= NETZ_MAX - 1){ nein('Die Welt ist voll (' + NETZ_MAX + ' Spieler).'); return; }
     g.id = id; g.name = String(m.name || 'Gast').replace(/\s+/g, ' ').trim().slice(0, 16) || 'Gast';
     g.farbe = Math.abs(m.farbe | 0) % SPIELER_FARBEN.length;
+    g.skin = Skin.pruefen(m.skin); this.skins.set(id, g.skin);
     g.bereit = true;
     this.gaeste.set(g.conn.connectionId, g);
     const p = Game.player, du = Game.gaeste[id] || null;
@@ -295,6 +297,7 @@ const Netz = {
     this._ofenSig = {};
     this._t.pos = this._t.wesen = 1;
     Chat.system(g.name + ' ist beigetreten');
+    this.skinsVerteilen();
     if(typeof Menue !== 'undefined' && Menue.netzAnzeigen) Menue.netzAnzeigen();
   },
   gastWeg(g){
@@ -355,6 +358,21 @@ const Netz = {
     this.senden(g.conn, { t:'bekommen', n: d.nid, l: [d.id, d.count, d.dur | 0] });
     this.dropsSenden();                      // gleich allen Bescheid: weg ist weg
   },
+  /* ── Skins: wer wie aussieht ─────────────────────────────────────────
+     Jeder schickt seinen beim Beitreten (oder wenn er ihn ändert) an den
+     Host; der verteilt die Liste an alle, seinen eigenen dabei. */
+  skins: new Map(),
+  skinsVerteilen(){
+    if(!this.istHost) return;
+    const l = [[this.ich.id, Skin.netz()]];
+    for(const g of this.gaeste.values()) if(g.bereit) l.push([g.id, g.skin || { a:'og' }]);
+    this.anAlle({ t:'skins', l });
+  },
+  skinGeaendert(){
+    if(this.istGast) this.senden(this.hostConn, { t:'skin', s: Skin.netz() });
+    else if(this.istHost) this.skinsVerteilen();
+  },
+
   /* ── Spieler gegen Spieler ─────────────────────────────────────────
      Auch hier rechnet der Host: Trifft er selbst, bekommt der Gast »autsch«;
      trifft ein Gast, fragt er den Host, und der trifft sich selbst oder
@@ -367,7 +385,7 @@ const Netz = {
   },
   pvpHost(g, m){
     if(!Game.regeln.pvp || g.tot) return;
-    const n = Number.isFinite(+m.n) ? clamp(+m.n, 0, 20) : 1, kx = clamp(+m.kx || 0, -1, 1), kz = clamp(+m.kz || 0, -1, 1);
+    const n = Number.isFinite(+m.n) ? clamp(+m.n, 0, 20) : 1, kx = clamp(+m.kx || 0, -2.5, 2.5), kz = clamp(+m.kz || 0, -2.5, 2.5);   // Rückstoß im Sprint: bis 2
     const grund = g.name + ' hat dich besiegt';
     if(m.z === this.ich.id){
       const p = Game.player;
@@ -551,7 +569,7 @@ const Netz = {
     }, 25000);
     conn.on('open', () => {
       Menue.verbindenZeigen('Verbinde mit ' + netzCodeZeigen(code) + ' …', 'Welt wird übertragen …');
-      this.senden(conn, { t:'hallo', v: NETZ_VERSION, id: this.ich.id, name: this.ich.name, farbe: this.ich.farbe });
+      this.senden(conn, { t:'hallo', v: NETZ_VERSION, id: this.ich.id, name: this.ich.name, farbe: this.ich.farbe, skin: Skin.netz() });
     });
     conn.on('data', roh => { if(this.hostConn !== conn) return; const m = this.lesen('host', roh); if(m) this.gastEmpfang(m); });
     conn.on('close', () => { if(this.hostConn === conn) this.hostWeg(); });
@@ -569,6 +587,7 @@ const Netz = {
     if(this.rolle !== 'gast') return;
     switch(m.t){
       case 's': this.spielerEmpfangen(m.l); break;
+      case 'skins': this.skins = new Map((Array.isArray(m.l) ? m.l : []).filter(e => Array.isArray(e)).map(([id, s]) => [String(id), Skin.pruefen(s)])); break;
       case 'w': this.wesenEmpfangen(m.l); break;
       case 'b': this.bloeckeEmpfangen(m.l); break;
       case 'zeit': if(isFinite(m.a)) Game.time = +m.a; if(isFinite(m.z)) Game.gesamtZeit = +m.z; if(m.w !== undefined) Wetter.vomHost(m.w); break;

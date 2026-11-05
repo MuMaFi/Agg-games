@@ -464,7 +464,7 @@ pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.s
   const drauf = TW.getLight(0, 9, -4) & 15, drunter = TW.getLight(0, 8, -4) & 15, frei = TW.getLight(0, 8, -10) & 15;
   return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
 // 26.10.04: Stufen, farbige Betten, Kornblume — Nummern hinten angehängt, alle unter 256, genug Bildlagen
-pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && !blocks[253]
+pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && B.BETTKOPF === 253 && !blocks[254]
   && texNames.length <= 256`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
 pruef(T(`STUFEN.every((t, a) => blocks[stufeId(a, false)].item && !blocks[stufeId(a, true)].item && blocks[stufeId(a, true)].drop === stufeId(a, false)
   && blocks[stufeId(a, false)].box[4] === 8 && blocks[stufeId(a, true)].box[1] === 8 && LOPQ[stufeId(a, false)] === LICHT_STAU && SOL[stufeId(a, true)] === 1)`),
@@ -568,5 +568,31 @@ pruef(T(`(() => { const P = MOBS.villager.parts, zeigt = b => P.filter(p => !p.w
   return ['kutte','guertel','arme','haende','nase'].every(n => zeigt(0).includes(n)) && zeigt(0).includes('hutkrempe') && !zeigt(1).includes('hutkrempe')
     && zeigt(1).includes('filzkopf') && zeigt(2).includes('schuerze') && zeigt(3).includes('stola0') && !zeigt(0).includes('schuerze')
     && P.every(p => TEX[p.tex] !== undefined) && texNames.length <= 256; })()`), 'Dorfbewohner: Kutte, Gürtel und Kleidung je Beruf');
+// 26.11.05: Betten zweiteilig wie beim Vorbild, Kaktus mit eingerückten Seiten
+pruef(T(`isBett(B.BETTKOPF) && blocks[B.BETTKOPF].item === false && blocks[B.BETTKOPF].drop === B.AIR && bettSchluessel(B.BED) === 'rot'
+  && bettSchluessel(bettId('blau')) === 'blau' && texNames.length <= 256`), 'Kopfteil: ein Block für alle Farben, kein eigener Gegenstand');
+pruef(T(`(() => { TW.setBlock(4, 9, 4, bettId('gruen')); TW.setBlock(4, 9, 3, B.BETTKOPF);
+  const get = (a, b, c) => TW.getBlock(a, b, c);
+  return SEITE[bettPartner(get, 4, 9, 4, bettId('gruen'))][1] === -1 && SEITE[bettPartner(get, 4, 9, 3, B.BETTKOPF)][1] === 1
+    && bettPartner(get, 4, 9, 6, B.AIR) === -1; })()`), 'Fuß- und Kopfteil finden sich');
+pruef(T(`(() => { TW.setBlock(6, 9, 4, B.CACTUS); TW.setBlock(6, 10, 4, B.CACTUS); TW.setBlock(8, 9, 4, B.BED);
+  const M = [new MeshBuf(), new MeshBuf()], c = TW.getChunk(0, 0); TW.buildMesh(c, M[0], M[1]);
+  const b = M[0], eck = [], lage = new Set();
+  for(let i = 0; i < b.n; i++){ const x = Math.round((b.u16[i*6] - .5)/4), y = Math.round((b.u16[i*6 + 1] - .5)/4), z = Math.round((b.u16[i*6 + 2] - .5)/4);
+    lage.add(b.u8[i*12 + 7]);
+    if(y >= 9*16 && y <= 11*16 && x >= 6*16 && x <= 7*16 && z >= 4*16 && z <= 5*16) eck.push([x - 96, y, z - 64, b.u8[i*12 + 6] >> 2]); }
+  const innen = eck.some(e => e[0] === 1 && e[3] < 2) && eck.some(e => e[0] === 15 && e[3] < 2) && eck.some(e => e[2] === 1 && e[3] > 3) && eck.some(e => e[2] === 15 && e[3] > 3);
+  const deckelZwischen = eck.filter(e => e[1] === 10*16 && (e[3] === 2 || e[3] === 3)).length;     // zwischen den beiden Kakteen kein Deckel
+  return innen && deckelZwischen === 0 && lage.has(TEX.bed_side) && lage.has(TEX.bed_top) && b.n > 0; })()`), 'Kaktus: Seiten ein Sechzehntel eingerückt, gestapelt ohne Zwischendeckel; Betten gezeichnet');
+// 26.11.05: Kampf wie beim Vorbild (Java): Waffenwerte, Rüstung mit Härte, Unverwundbarkeit
+pruef(T(`items[ITEM.diamond_sword].dmg === 7 && items[ITEM.diamond_sword].tempo === 1.6 && items[ITEM.iron_axe].dmg === 9 && items[ITEM.iron_axe].tempo === 0.9
+  && items[ITEM.wood_hoe].dmg === 1 && items[ITEM.stick].tempo === 4 && items[ITEM.gold_sword].dmg === 4`), 'Waffen: Schaden und Schlagtempo wie beim Vorbild');
+pruef(T(`(() => { const alt = Inv.ruestung.slice();
+  Inv.ruestung = ['helmet','chestplate','leggings','boots'].map(k => Inv.make(ITEM['diamond_' + k], 1));
+  const d0 = Inv.ruestung[1].dur, r = Ruestung.abfangen(10), ab = d0 - Inv.ruestung[1].dur;
+  Inv.ruestung = [null, null, null, null]; const ohne = Ruestung.abfangen(10);
+  Inv.ruestung = alt; return Math.abs(r - 3) < 0.01 && ab === 2 && ohne === 10; })()`), 'Rüstung: volle Diamantrüstung fängt 70 % von 10 ab und nutzt sich um 2 ab');
+pruef(T(`(() => { const p = new Player(); p.health = 20; p.hurt(4, 'a'); const a = p.health; p.hurt(3, 'b'); const b = p.health; p.hurt(6, 'c'); const c = p.health;
+  p.trefferT = 0; p.hurt(2, 'd'); return a === 16 && b === 16 && c === 14 && p.health === 12; })()`), 'nach einem Treffer: unverwundbar, nur ein stärkerer zählt mit dem Unterschied');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

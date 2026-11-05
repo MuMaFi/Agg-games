@@ -52,6 +52,36 @@ const FACES = [
   { n:[ 0, 0,-1], nAx:2, uAx:0, vAx:1, v:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]], uv:[[0,1],[0,0],[1,0],[1,1]] },
 ];
 
+/* Flächen eines Modellkastens wie beim Vorbild: Ecken von außen gesehen
+   (oben links, oben rechts, unten rechts, unten links), dazu die Normale */
+const ELEMENT_ECKEN = {
+  north: (a, b, c, d, e, f) => [[d, e, c], [a, e, c], [a, b, c], [d, b, c]],
+  south: (a, b, c, d, e, f) => [[a, e, f], [d, e, f], [d, b, f], [a, b, f]],
+  west:  (a, b, c, d, e, f) => [[a, e, c], [a, e, f], [a, b, f], [a, b, c]],
+  east:  (a, b, c, d, e, f) => [[d, e, f], [d, e, c], [d, b, c], [d, b, f]],
+  up:    (a, b, c, d, e, f) => [[a, e, c], [d, e, c], [d, e, f], [a, e, f]],
+  down:  (a, b, c, d, e, f) => [[a, b, f], [d, b, f], [d, b, c], [a, b, c]],
+};
+const ELEMENT_NORMALE = { north:[0, 0, -1], south:[0, 0, 1], west:[-1, 0, 0], east:[1, 0, 0], up:[0, 1, 0], down:[0, -1, 0] };
+/* Bett des Vorbilds (block/template_bed_head und _foot, nach Norden): Matratze
+   und zwei Beine je Teil. t: welches Bild (up, down, north, …), cull: am Blockrand */
+const BETT_KOPF_EL = [
+  { from:[0, 3, 0], to:[16, 9, 16], faces:{ down:{ uv:[0, 0, 16, 16], t:'down' }, up:{ uv:[0, 0, 16, 16], t:'up' },
+    north:{ uv:[0, 7, 16, 13], t:'north', cull:1 }, west:{ uv:[0, 7, 16, 13], t:'west', cull:1 }, east:{ uv:[0, 7, 16, 13], t:'east', cull:1 } } },
+  { from:[0, 0, 0], to:[3, 3, 3], faces:{ down:{ uv:[6, 13, 9, 16], t:'west', cull:1 }, north:{ uv:[13, 13, 16, 16], t:'north', cull:1 },
+    south:{ uv:[3, 13, 6, 16], t:'west' }, west:{ uv:[0, 13, 3, 16], t:'west', cull:1 }, east:{ uv:[10, 13, 13, 16], t:'north' } } },
+  { from:[13, 0, 0], to:[16, 3, 3], faces:{ down:{ uv:[7, 13, 10, 16], t:'east', cull:1 }, north:{ uv:[0, 13, 3, 16], t:'north', cull:1 },
+    south:{ uv:[10, 13, 13, 16], t:'east' }, west:{ uv:[3, 13, 6, 16], t:'north' }, east:{ uv:[13, 13, 16, 16], t:'east', cull:1 } } },
+];
+const BETT_FUSS_EL = [
+  { from:[0, 3, 0], to:[16, 9, 16], faces:{ down:{ uv:[0, 0, 16, 16], t:'down' }, up:{ uv:[0, 0, 16, 16], t:'up' },
+    south:{ uv:[0, 7, 16, 13], t:'south', cull:1 }, west:{ uv:[0, 7, 16, 13], t:'west', cull:1 }, east:{ uv:[0, 7, 16, 13], t:'east', cull:1 } } },
+  { from:[0, 0, 13], to:[3, 3, 16], faces:{ down:{ uv:[7, 13, 10, 16], t:'west', cull:1 }, north:{ uv:[10, 13, 13, 16], t:'west' },
+    south:{ uv:[0, 13, 3, 16], t:'south', cull:1 }, west:{ uv:[13, 13, 16, 16], t:'west', cull:1 }, east:{ uv:[3, 13, 6, 16], t:'south' } } },
+  { from:[13, 0, 13], to:[16, 3, 16], faces:{ down:{ uv:[6, 13, 9, 16], t:'east', cull:1 }, north:{ uv:[3, 13, 6, 16], t:'east' },
+    south:{ uv:[13, 13, 16, 16], t:'south', cull:1 }, west:{ uv:[10, 13, 13, 16], t:'south' }, east:{ uv:[0, 13, 3, 16], t:'east', cull:1 } } },
+];
+
 /* ── Mesh-Puffer ───────────────────────────────────────────────────── */
 class MeshBuf{
   constructor(){ this.cap = 2048; this.buf = new ArrayBuffer(this.cap*12);
@@ -579,7 +609,8 @@ class World{
           if(bd.model === 'verstaerker'){ this.emitVerstaerker(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'kolben'){ this.emitKolben(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'treppe'){ this.emitTreppe(opaqueBuf, x, y, z, id, bd); continue; }
-          if(bd.model === 'bett'){ this.emitBett(opaqueBuf, x, y, z, bd); continue; }
+          if(bd.model === 'bett'){ this.emitBett(opaqueBuf, x, y, z, bd, id); continue; }
+          if(bd.kaktus){ this.emitKaktus(opaqueBuf, x, y, z, id, bd); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -748,12 +779,75 @@ class World{
     }
   }
 
-  /* Bett: oben die Decke, an den Seiten ihr Rand aus dem Bild der Decke
-     (so braucht jede Farbe nur ein Bild), darunter Rahmen und Beine. */
-  emitBett(buf, x, y, z, bd){
+  /* Kaktus wie beim Vorbild: Deckel und Boden bündig, die vier Seiten
+     um ein Sechzehntel nach innen gerückt, aber über die volle Breite —
+     so stehen die Stacheln am Rand des Bilds über, und der durchsichtige
+     Rand des Bilds zeigt keine Lücke. Gestapelte Kakteen zeigen sich
+     innen keinen Deckel. */
+  emitKaktus(buf, x, y, z, id, bd){
+    const unten = this.pb(x + 1, y - 1, z + 1) === id, oben = this.pb(x + 1, y + 1, z + 1) === id;
+    const weg = 0b110011 | (oben ? 1 << 2 : 0) | (unten ? 1 << 3 : 0);
+    this.emitBox(buf, x, y, z, bd, [0, 0, 0, 16, 16, 16], weg);
+    this.emitBox(buf, x, y, z, bd, [0, 0, 1, 16, 16, 15], 0b001111);
+    this.emitBox(buf, x, y, z, bd, [1, 0, 0, 15, 16, 16], 0b111100);
+  }
+
+  /* Bett wie beim Vorbild: Kopf- und Fußteil, je eine Matratze (Höhe 3 … 9)
+     auf zwei Beinen. Wohin es zeigt, sagt der Nachbar: das Fußteil sucht
+     das Kopfteil daneben und umgekehrt (bettPartner). Ein einzelnes altes
+     Bett ohne Kopfteil bleibt das Strohbett von früher. */
+  emitBett(buf, x, y, z, bd, id){
+    const px = x + 1, pz = z + 1, kopf = id === B.BETTKOPF;
+    const s = bettPartner(this._pbHol || (this._pbHol = (a, b, c) => this.pb(a, b, c)), px, y, pz, id);
+    if(s >= 0 || kopf){
+      // Richtung vom Fuß zum Kopf → Drehung wie beim Vorbild (Norden 0, Osten 1, Süden 2, Westen 3)
+      let dx = s >= 0 ? SEITE[s][0] : 0, dz = s >= 0 ? SEITE[s][1] : -1;
+      if(kopf && s >= 0){ dx = -dx; dz = -dz; }
+      const dreh = dz < 0 ? 0 : dx > 0 ? 1 : dz > 0 ? 2 : 3;
+      const farbe = bettSchluessel(kopf ? (s >= 0 ? this.pb(px + SEITE[s][0], y, pz + SEITE[s][1]) : B.BED) : id);
+      const teil = kopf ? 'head' : 'foot';
+      // mit dem Minecraft-Paket dessen Bilder je Teil und Seite (mcpaket.js legt sie in Lagen unter 256);
+      // sonst Pocketcrafts Strohbett-Bilder: oben die Decke (am Fuß nur ihre untere Hälfte), an den Seiten
+      // Rahmen und Beine, unten Bretter — dieselbe Aufteilung wie beim Vorbild
+      const mc = typeof McPaket !== 'undefined' && McPaket.bettenAn;
+      const bild = (rolle, uv) => mc
+        ? [rolle === 'down' ? 'bettmc_unten' : (kopf && rolle === 'north') ? 'bettmc_kopf_nord' : 'bettmc_' + farbe + '_' + teil + '_' + rolle, uv]
+        : rolle === 'up' ? [farbe === 'rot' ? 'bed_top' : 'bett_' + farbe, kopf ? uv : [0, 8, 16, 16]]
+        : rolle === 'down' ? ['planks', uv] : ['bed_side', uv];
+      for(const el of (kopf ? BETT_KOPF_EL : BETT_FUSS_EL)) this.emitElement(buf, x, y, z, el, dreh, bild);
+      return;
+    }
     if(!bd.decke){ const t = bd.faces[2]; bd.decke = { faces:[t, t, t, bd.faces[3], t, t] }; }
     this.emitBox(buf, x, y, z, bd.decke, [0, 6, 0, 16, 9, 16], 1 << 3);
     this.emitBox(buf, x, y, z, bd, [0, 0, 0, 16, 6, 16], 1 << 2);
+  }
+
+  /** ein Kasten aus einem Blockmodell des Vorbilds (from/to in Sechzehnteln,
+      je Fläche uv [u1, v1, u2, v2], Bildrolle, cullface), um dreh × 90° um die
+      Blockmitte gedreht wie »y« im Blockzustand; bild(rolle, uv) → [Bildlage, uv] */
+  emitElement(buf, x, y, z, el, dreh, bild){
+    const [x0, y0, z0] = el.from, [x1, y1, z1] = el.to;
+    const px = x + 1, pz = z + 1, own = this.getLightLocal(px, y, pz);
+    const drehe = p => { let [a, b, c] = p; for(let k = 0; k < dreh; k++) [a, c] = [16 - c, a]; return [a, b, c]; };
+    for(const [dir, f] of Object.entries(el.faces)){
+      // Ecken von außen gesehen: oben links, oben rechts, unten rechts, unten links
+      const E = ELEMENT_ECKEN[dir](x0, y0, z0, x1, y1, z1).map(drehe);
+      const n = ELEMENT_NORMALE[dir], nr = drehe([n[0]*8 + 8, n[1], n[2]*8 + 8]);
+      const nx = Math.round((nr[0] - 8)/8), ny = n[1], nz = Math.round((nr[2] - 8)/8);
+      let lv = own;
+      if(f.cull){
+        const nid = this.pb(px + nx, y + ny, pz + nz);
+        if(OPQ[nid] === 1) continue;
+        lv = this.getLightLocal(px + nx, y + ny, pz + nz);
+      }
+      const fi = nx > 0 ? 0 : nx < 0 ? 1 : ny > 0 ? 2 : ny < 0 ? 3 : nz > 0 ? 4 : 5;
+      const [name, uv] = bild(f.t, f.uv), layer = TEX[name] !== undefined ? TEX[name] : 0;
+      const [u1, v1, u2, v2] = uv, UV = [[u1, v1], [u2, v1], [u2, v2], [u1, v2]];
+      const sky = lv & 15, blk = lv >> 4;
+      for(const i of [3, 2, 1, 0])                     // gegen den Uhrzeigersinn, von außen gesehen
+        buf.vert(x*16 + E[i][0], y*16 + E[i][1], z*16 + E[i][2], 3 | (fi << 2), layer, sky, blk, UV[i][0], UV[i][1]);
+      buf.quad(false);
+    }
   }
 
   /* Treppe: eine Platte und darüber (umgedreht darunter) die Stufe aus
