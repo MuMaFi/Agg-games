@@ -1,0 +1,57 @@
+plugins { id 'com.android.application' }
+
+/* Jeder Bau auf GitHub zählt hoch (-Pfassung=<Laufnummer>), damit ein neues
+   APK über das alte installiert werden kann und die Projekte bleiben. */
+def fassung = (project.findProperty('fassung') ?: '1') as int
+
+android {
+  namespace 'de.mumafi.blockwerk'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'de.mumafi.blockwerk'
+    minSdk 26
+    targetSdk 34
+    versionCode fassung
+    versionName "1.${fassung}"
+  }
+
+  /* Ein fester Schlüssel statt des Fehlersuch-Schlüssels, den jeder Rechner
+     neu würfelt — sonst ließe sich ein neues APK nicht über das alte
+     installieren. Er liegt offen im Archiv: gut genug zum Selbstinstallieren,
+     nicht für den Play Store. */
+  signingConfigs {
+    fest {
+      storeFile rootProject.file('blockwerk.keystore')
+      storePassword 'android'
+      keyAlias 'blockwerk'
+      keyPassword 'android'
+    }
+  }
+
+  buildTypes {
+    debug { signingConfig signingConfigs.fest }
+    release {
+      minifyEnabled false
+      signingConfig signingConfigs.fest
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  lint { abortOnError false; checkReleaseBuilds false }
+
+  testOptions { unitTests { includeAndroidResources = true; all { maxHeapSize = '2g' } } }
+}
+
+/* Keine Abhängigkeiten: Editor, Bühne, Klänge und Malprogramm zeichnen bzw.
+   erzeugen sich selbst, JSON kommt aus org.json im System. */
+dependencies {
+  // Nur für die Prüfungen auf dem Rechner (Robolectric zeichnet mit echter
+  // Android-Grafik), nicht im APK.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.robolectric:robolectric:4.14.1'
+}

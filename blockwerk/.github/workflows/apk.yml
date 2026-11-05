@@ -1,0 +1,60 @@
+# Baut das APK auf einem GitHub-Läufer.
+#
+# Anstoßen: Actions -> "APK bauen" -> Run workflow.
+# Ergebnis: unter dem Lauf als Artefakt "blockwerk-apk" zum Herunterladen.
+name: APK bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prüfen
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Bauen
+        run: gradle --no-daemon -Pfassung=${{ github.run_number }} assembleRelease
+
+      - name: Umbenennen und Signatur prüfen
+        run: |
+          set -eu
+          mkdir -p ausgabe
+          ziel="ausgabe/blockwerk-$(date +%Y%m%d)-$(git rev-parse --short HEAD).apk"
+          cp app/build/outputs/apk/release/app-release.apk "$ziel"
+          werkzeug="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$werkzeug/apksigner" verify --print-certs "$ziel" | head -3
+          ls -lh ausgabe
+
+      - name: Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockwerk-apk
+          path: ausgabe/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Bildschirmfotos hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bildschirmfotos
+          path: app/build/bilder/*.png
+          if-no-files-found: ignore
+          retention-days: 14
