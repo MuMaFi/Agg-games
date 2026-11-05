@@ -139,14 +139,16 @@ const Sfx = {
   probe(name, o){
     if(!this.on) return true;                      // stumm geschaltet: nichts nachholen
     this.init(); if(!this.ctx) return false;
-    const n = KLANG_DATEIEN[name];
-    if(n === undefined) return false;
     o = o || {};
     const weit = o.weit || 24;
     if(o.x !== undefined && this._ort){
       const d = Math.hypot(o.x - this._ort[0], o.y - this._ort[1], o.z - this._ort[2]);
       if(d > weit) return true;                    // zu weit weg: nicht zu hören
     }
+    // Minecraft-Geräusche, wenn eingeschaltet (mcpaket.js); sonst die eigenen
+    if(typeof McPaket !== 'undefined' && McPaket.klingt(name, o, weit)) return true;
+    const n = KLANG_DATEIEN[name];
+    if(n === undefined) return false;
     // zufällige Variante, aber nicht zweimal hintereinander dieselbe
     let i = n ? 1 + ((Math.random()*n) | 0) : 0;
     if(n > 1 && i === this._letzte[name]) i = (i % n) + 1;
@@ -154,6 +156,10 @@ const Sfx = {
     const datei = n ? name + '_' + i : name;
     const buf = this.puffer.get(datei);
     if(!buf){ if(buf === undefined) this.laden(datei); return false; }
+    return this.abspielen(buf, o, weit);
+  },
+  /** einen fertigen Klang abspielen, mit o.x/y/z aus dieser Richtung */
+  abspielen(buf, o, weit){
     const c = this.ctx, src = c.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = o.rate || 1;
@@ -174,11 +180,13 @@ const Sfx = {
   },
   /** Blockgeräusch nach Material: art = schritt · hacken · weg · setzen */
   block(art, id, x, y, z, laut){
-    const m = KLANG_MAT[materialVon(id)], e = m && m[art];
+    const stoff = materialVon(id), m = KLANG_MAT[stoff], e = m && m[art];
     if(!e) return;
     const rate = art === 'hacken' ? zufall(.8, 1) : (art === 'schritt' ? zufall(.9, 1.1) : zufall(.85, 1.05));
     const o = { gain: e[1]*(laut || 1), rate };
     if(x !== undefined){ o.x = x + .5; o.y = y + .5; o.z = z + .5; o.weit = 16; }
+    const mc = typeof McPaket !== 'undefined' && McPaket.blockKlang(art, stoff);
+    if(mc && this.probe(mc.name, Object.assign({}, o, { rate: mc.rate*zufall(.92, 1.08) }))) return;
     if(!this.probe(e[0], o)) this.synth(art === 'schritt' ? 'step' : art === 'hacken' ? 'dig' : art === 'weg' ? 'break' : 'place');
   },
   /** Wesen: art = laut · au · tot; Junge klingen höher */

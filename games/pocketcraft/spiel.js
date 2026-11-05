@@ -29,7 +29,7 @@ const GOLEM_HAND = Object.freeze({ creative: false, golem: true });
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -2342,6 +2342,7 @@ function boot(){
   Game.loadOpts();
   if(Game.settings.superGrafik && !Super.setzen(true)) Game.settings.superGrafik = false;
   if(Game.settings.klassik) Klassik.setzen(true);
+  McPaket.start();                   // Minecraft-Texturen und -Geräusche, falls geladen (läuft im Hintergrund an)
   // früher gab es nur »Ton an/aus«
   if(Game.settings.ton === false){ Game.settings.geraeusche = 0; delete Game.settings.ton; Game.saveOpts(); }
   Sfx.lautSetzen(Game.settings.geraeusche/100);

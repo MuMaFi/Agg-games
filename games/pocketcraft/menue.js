@@ -191,12 +191,19 @@ const Menue = {
       else if(an) hint('SUPER DUPER GRAFIK PAKET an — braucht ein schnelles Gerät', 2600);
       Game.saveOpts(); this.optionenZeigen();
     });
-    knopf('#oKlassik', () => {
-      Game.settings.klassik = !Game.settings.klassik;
-      Klassik.setzen(Game.settings.klassik);
+    // Texturen: Modern → Klassisch → Minecraft (wenn geladen) → Modern
+    knopf('#oKlassik', async () => {
+      const s = Game.settings, jetzt = s.mcTexturen ? 'mc' : s.klassik ? 'klassik' : 'modern';
+      const naechst = jetzt === 'modern' ? 'klassik' : jetzt === 'klassik' && McPaket.texturen ? 'mc' : 'modern';
+      if(jetzt === 'mc'){ await McPaket.texturenSetzen(false); s.mcTexturen = false; }
+      s.klassik = naechst === 'klassik';
+      Klassik.setzen(s.klassik);
+      if(naechst === 'mc') s.mcTexturen = await McPaket.texturenSetzen(true);
       Game.saveOpts(); this.optionenZeigen();
       if(this.aktiv === 'welten') this.listeZeichnen();
     });
+    knopf('#oMinecraft', () => { this.zeige('minecraft'); McPaket.zeigen(); });
+    McPaket.init(knopf);
     knopf('#oMonster', () => {
       const i = MONSTER_REIHE.indexOf(Game.settings.monster);
       Game.settings.monster = MONSTER_REIHE[(i + 1) % MONSTER_REIHE.length];
@@ -263,7 +270,7 @@ const Menue = {
   },
 
   zeige(name){
-    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende'])
+    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende','minecraft'])
       $('#' + id).classList.toggle('on', id === name);
     this.aktiv = name;
     document.body.classList.toggle('imMenue', !!name && !Game.running);
@@ -274,7 +281,7 @@ const Menue = {
   alleZu(){ this.zeige(null); this.aktiv = null; document.body.classList.remove('imMenue', 'mcOffen'); },
   /** Escape und Zurück-Taste */
   zurueck(){
-    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen' };
+    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen', minecraft:'optionen' };
     if(this.aktiv === 'optionen' || this.aktiv === 'oeffnen'){ this.optionenZu(); return; }
     if(this.aktiv === 'verbinden'){ this.vbZurueck(); return; }
     if(this.aktiv === 'mitspieler'){ this.nameSichern(); this.zeige('titel'); return; }
@@ -705,7 +712,7 @@ const Menue = {
     $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks' + (s.rd > 12 ? ' · braucht ein schnelles Gerät' : '');
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
-    $('#oKlassik').textContent = 'Texturen: ' + (s.klassik ? 'Klassisch (wie früher)' : 'Modern');
+    $('#oKlassik').textContent = 'Texturen: ' + (s.mcTexturen ? 'Minecraft' : s.klassik ? 'Klassisch (wie früher)' : 'Modern');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
     $('#oMonster').textContent = 'Monster: ' + (MONSTER_MENGE[s.monster] || MONSTER_MENGE.normal).name;
     const pz = v => v > 0 ? v + ' %' : 'Aus';

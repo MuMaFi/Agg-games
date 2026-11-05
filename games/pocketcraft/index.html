@@ -191,6 +191,15 @@ body.mcOffen #hud{visibility:hidden}
 #laden.on{display:flex}
 .ladenLeiste{width:min(300px, 70vw); height:10px; background:#3a3a3a; border:2px solid #000}
 #ladenBalken{display:block; height:100%; width:0; background:#80ff20}
+/* Minecraft-Paket */
+#ladenBalken, #mcBalken{display:block; height:100%; width:0; background:#80ff20}
+.mcText{margin:0 0 10px; font-family:var(--ui); font-size:14px; text-shadow:none}
+.mcText b{color:#ffe66b}
+.mcGitter{margin-top:0}
+.mcStatusZeile{display:grid; gap:6px; justify-items:center; text-align:center; min-height:3.2em}
+.mcLeiste{display:block}
+#mcStatus.fehler{color:#ff9a8f}
+#minecraft .steuerHilfe code{font-size:12px; background:#1c1c1c; padding:0 4px; word-break:break-all}
 .ladenKlein{font-size:14px; color:#c0c0c0}
 .mc-karte{display:grid; gap:10px; width:min(400px, 90vw); font-family:var(--pix); color:#fff; text-shadow:2px 2px 0 #3f3f3f; text-align:center}
 #death{background:rgba(110,0,0,.5)}
@@ -624,6 +633,10 @@ body.superGrafik #vignette{display:block}
     <p><b>Pixel Perfection</b> von <b>XSSheep</b>, wie es im freien Spiel <b>VoxeLibre</b> liegt (dort weiterbearbeitet von dessen Mitwirkenden) · CC BY-SA 4.0.
       Für Pocketcraft teils eingefärbt, zugeschnitten und zusammengesetzt; diese Bilder stehen ebenfalls unter CC BY-SA 4.0.</p>
     <p class="klein">Die Zuordnung: <code>werkzeug/pp-texturen.py</code> im Quellcode.</p>
+    <h3>Minecraft-Paket</h3>
+    <p>Wer es unter Optionen → Minecraft-Paket einschaltet, sieht und hört Texturen und Geräusche aus <b>Minecraft</b> von <b>Mojang</b>.
+      Sie kommen direkt von Mojang oder aus dem eigenen Minecraft, liegen nur im Browser und gehören nicht zu Pocketcraft.
+      Pocketcraft ist kein offizielles Minecraft-Produkt und nicht von Mojang oder Microsoft genehmigt oder mit ihnen verbunden.</p>
     <h3>Geräusche</h3>
     <p>Echte Aufnahmen aus freien Spielen, gekürzt, in der Lautstärke angeglichen und in MP3 umgewandelt.
       Gesammelt über <b>Minetest Game</b>, <b>VoxeLibre</b> und die Luanti-Mod <b>stamina</b>.</p>
@@ -672,6 +685,30 @@ body.superGrafik #vignette{display:block}
   <button class="mc" id="mwFertig">Fertig</button>
 </div>
 
+<!-- Minecraft-Paket: Texturen und Geräusche aus dem eigenen Minecraft (mcpaket.js) -->
+<div class="mc-schirm dunkel" id="minecraft">
+  <h2 class="mc-titel">Minecraft-Paket</h2>
+  <p class="mc-text mcText">Besitzt du Minecraft Java? Dann kann Pocketcraft dessen Blöcke, Gegenstände und Geräusche benutzen.
+    Die Dateien kommen direkt von Mojang oder von deinem eigenen Rechner und bleiben nur in diesem Browser. AGG Games verteilt nichts davon.
+    <b>Bitte nur benutzen, wenn dir Minecraft gehört.</b></p>
+  <div class="mc-gitter mcGitter">
+    <button class="mc" id="mcMojang">Von Mojang laden (≈ 40 MB)</button>
+    <button class="mc" id="mcJar">Eigene client.jar wählen …</button>
+    <button class="mc" id="mcOrdner" style="grid-column:1 / -1">Geräusche aus eigenem assets-Ordner …</button>
+    <p class="mc-hinweis mcStatusZeile" style="grid-column:1 / -1"><span id="mcStatus"></span>
+      <span class="ladenLeiste mcLeiste" style="visibility:hidden"><i id="mcBalken"></i></span></p>
+    <button class="mc" id="mcTexAn"></button>
+    <button class="mc" id="mcKlangAn"></button>
+  </div>
+  <div class="steuerHilfe">
+    <p><b>client.jar</b> liegt im Minecraft-Ordner unter <code>versions/&lt;Version&gt;/&lt;Version&gt;.jar</code> — Windows: <code>%APPDATA%\.minecraft</code>, macOS: <code>~/Library/Application Support/minecraft</code>, Linux: <code>~/.minecraft</code>.</p>
+    <p><b>assets-Ordner</b> liegt daneben (<code>.minecraft/assets</code>). Der Browser fragt eventuell, ob er „Dateien hochladen“ soll — es wird nichts hochgeladen, Pocketcraft liest nur die Geräusche heraus. Damit klingen sie auch aus der richtigen Richtung.</p>
+  </div>
+  <div class="mc-reihe"><button class="mc" id="mcWeg">Entfernen</button><button class="mc" id="mcFertig">Fertig</button></div>
+  <input type="file" id="mcJarDatei" accept=".jar,application/java-archive" hidden>
+  <input type="file" id="mcOrdnerWahl" webkitdirectory directory multiple hidden>
+</div>
+
 <!-- Optionen -->
 <div class="mc-schirm dunkel" id="optionen">
   <h2 class="mc-titel">Optionen</h2>
@@ -681,7 +718,8 @@ body.superGrafik #vignette{display:block}
     <div class="mc-schieber"><input type="range" id="oGer" min="0" max="100" step="5" aria-label="Geräusche"><span id="oGerText"></span></div>
     <div class="mc-schieber"><input type="range" id="oMusik" min="0" max="100" step="5" aria-label="Musik"><span id="oMusikText"></span></div>
     <button class="mc" id="oSuper" style="grid-column:1 / -1"></button>
-    <button class="mc" id="oKlassik" style="grid-column:1 / -1"></button>
+    <button class="mc" id="oKlassik"></button>
+    <button class="mc" id="oMinecraft">Minecraft-Paket …</button>
     <button class="mc" id="oMonster"></button>
     <button class="mc" id="oSprung"></button>
     <button class="mc" id="oDebug"></button>
@@ -710,6 +748,7 @@ body.superGrafik #vignette{display:block}
 <script src="superduper.js"></script>
 <script src="wesen.js"></script>
 <script src="klang.js"></script>
+<script src="mcpaket.js"></script>
 <script src="wetter.js"></script>
 <script src="handwerk.js"></script>
 <script src="speicher.js"></script>
