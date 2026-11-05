@@ -60,6 +60,35 @@ final class Darstellung {
       if (f.sichtbar && f.blase != null) zeichneBlase(c, f, m);
     }
     zeichneMonitore(c, p, m);
+    if (motor != null && !motor.konsole.isEmpty()) zeichneKonsole(c, motor, m);
+  }
+
+  private final Paint konsolenSchrift = konsolenSchrift();
+
+  private static Paint konsolenSchrift() {
+    Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+    p.setTypeface(android.graphics.Typeface.MONOSPACE);
+    p.setTextSize(10);
+    p.setColor(0xFFE5E7EB);
+    return p;
+  }
+
+  /** Die letzten Zeilen der Konsole unten auf der Bühne */
+  private void zeichneKonsole(Canvas c, Motor motor, float m) {
+    int n = Math.min(4, motor.konsole.size());
+    float zh = 13, h = n * zh + 8;
+    c.save();
+    c.scale(m, m);
+    fuell.setColor(0xD91F2329);
+    c.drawRect(0, H - h, B, H, fuell);
+    float y = H - h + 4 + 10;
+    for (int i = motor.konsole.size() - n; i < motor.konsole.size(); i++) {
+      String z = "> " + motor.konsole.get(i);
+      if (z.length() > 76) z = z.substring(0, 76) + "…";
+      c.drawText(z, 6, y, konsolenSchrift);
+      y += zh;
+    }
+    c.restore();
   }
 
   void zeichneFigur(Canvas c, Figur f, float m) {
@@ -197,12 +226,12 @@ final class Darstellung {
     c.save();
     c.scale(m, m);
     fuell.setColor(0xFFFFFFFF);
-    rand.setColor(0xFFB9BECE);
+    rand.setColor(0xFF9CA3AF);
     rand.setStrokeWidth(1.4f);
     r.set(bx, by, bx + bw, by + bh);
     if (f.denkt) {
-      c.drawRoundRect(r, 14, 14, fuell);
-      c.drawRoundRect(r, 14, 14, rand);
+      c.drawRoundRect(r, 8, 8, fuell);
+      c.drawRoundRect(r, 8, 8, rand);
       float ax = rechts ? bx + 14 : bx + bw - 14;
       float dx = (spitzeX - ax), dy = (spitzeY - (by + bh));
       for (int i = 1; i <= 2; i++) {
@@ -213,7 +242,7 @@ final class Darstellung {
     } else {
       float ax = rechts ? bx + 12 : bx + bw - 28;
       pfad.reset();
-      pfad.addRoundRect(r, 10, 10, Path.Direction.CW);
+      pfad.addRoundRect(r, 5, 5, Path.Direction.CW);
       Path spitze = new Path();
       spitze.moveTo(ax, by + bh - 1);
       spitze.lineTo(spitzeX, spitzeY);
@@ -223,7 +252,7 @@ final class Darstellung {
       c.drawPath(pfad, fuell);
       c.drawPath(pfad, rand);
     }
-    schrift.setColor(0xFF2B2D42);
+    schrift.setColor(0xFF111827);
     float y = by + pad + 11;
     for (String z : zeilen) {
       c.drawText(z, bx + pad, y, schrift);
@@ -251,16 +280,16 @@ final class Darstellung {
       schrift.setFakeBoldText(false);
       float bw = nw + ww + 16, bh = 22;
       r.set(5, y, 5 + bw, y + bh);
-      fuell.setColor(0xF2EEF0F6);
-      c.drawRoundRect(r, 5, 5, fuell);
-      rand.setColor(0xFFC3C8D6);
+      fuell.setColor(0xF2F3F4F6);
+      c.drawRoundRect(r, 3, 3, fuell);
+      rand.setColor(0xFFD1D5DB);
       rand.setStrokeWidth(1);
-      c.drawRoundRect(r, 5, 5, rand);
-      schrift.setColor(0xFF3A3F55);
+      c.drawRoundRect(r, 3, 3, rand);
+      schrift.setColor(0xFF374151);
       c.drawText(name, 11, y + 15, schrift);
       r.set(11 + nw + 5, y + 3, 11 + nw + 5 + ww, y + bh - 3);
       fuell.setColor(Kategorie.VARIABLEN.farbe);
-      c.drawRoundRect(r, 8, 8, fuell);
+      c.drawRoundRect(r, 3, 3, fuell);
       schrift.setColor(0xFFFFFFFF);
       schrift.setFakeBoldText(true);
       c.drawText(wert, r.centerX() - schrift.measureText(wert) / 2, y + 15, schrift);

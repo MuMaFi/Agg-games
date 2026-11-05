@@ -2,15 +2,15 @@ package de.mumafi.blockwerk;
 
 /** Die Farbgruppen der Blöcke, in der Reihenfolge der Palette. */
 enum Kategorie {
-  BEWEGUNG("Bewegung", 0xFF3E8EF7),
-  AUSSEHEN("Aussehen", 0xFF8A5CF5),
-  KLANG("Klang", 0xFFD453C4),
-  EREIGNISSE("Ereignisse", 0xFFEBAE05),
-  STEUERUNG("Steuerung", 0xFFF29420),
-  FUEHLEN("Fühlen", 0xFF2FA9D6),
-  OPERATOREN("Operatoren", 0xFF47B347),
-  VARIABLEN("Variablen", 0xFFF2702A),
-  STIFT("Stift", 0xFF10AD85);
+  BEWEGUNG("Bewegung", 0xFF4A78C2),
+  AUSSEHEN("Aussehen", 0xFF7A63C0),
+  KLANG("Klang", 0xFF9E5AA3),
+  EREIGNISSE("Ereignisse", 0xFFB08A2E),
+  STEUERUNG("Steuerung", 0xFFC2772F),
+  FUEHLEN("Fühlen", 0xFF3A8AAD),
+  OPERATOREN("Operatoren", 0xFF4A9659),
+  VARIABLEN("Variablen", 0xFFC0653A),
+  STIFT("Stift", 0xFF2F8A7B);
 
   final String name;
   final int farbe;
@@ -22,8 +22,8 @@ enum Kategorie {
   Kategorie(String name, int farbe) {
     this.name = name;
     this.farbe = farbe;
-    this.rand = abdunkeln(farbe, 0.80f);
-    this.dunkel = abdunkeln(farbe, 0.84f);
+    this.rand = abdunkeln(farbe, 0.82f);
+    this.dunkel = abdunkeln(farbe, 0.86f);
   }
 
   static int abdunkeln(int c, float f) {

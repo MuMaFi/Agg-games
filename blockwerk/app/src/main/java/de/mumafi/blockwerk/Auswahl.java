@@ -90,9 +90,9 @@ final class Auswahl {
       int ip = (int) (6 * d);
       k.setPadding(ip, ip, ip, ip);
       GradientDrawable g = new GradientDrawable();
-      g.setColor(0xFFF6F5FC);
-      g.setCornerRadius(10 * d);
-      g.setStroke(Math.max(1, (int) d), 0xFFDCDBEA);
+      g.setColor(0xFFF9FAFB);
+      g.setCornerRadius(6 * d);
+      g.setStroke(Math.max(1, (int) d), 0xFFD1D5DB);
       k.setBackground(g);
       ImageView iv = new ImageView(a);
       iv.setImageBitmap(bilder.get(i));
@@ -101,7 +101,7 @@ final class Auswahl {
       TextView t = new TextView(a);
       t.setText(namen.get(i));
       t.setTextSize(12);
-      t.setTextColor(0xFF4A4E66);
+      t.setTextColor(0xFF374151);
       t.setSingleLine(true);
       t.setGravity(Gravity.CENTER);
       k.addView(t);
@@ -148,7 +148,7 @@ final class Auswahl {
       View v = new View(a);
       GradientDrawable gd = new GradientDrawable();
       gd.setColor(f);
-      gd.setCornerRadius(8 * d);
+      gd.setCornerRadius(4 * d);
       gd.setStroke(Math.max(1, (int) d), 0x33000000);
       v.setBackground(gd);
       GridLayout.LayoutParams lp = new GridLayout.LayoutParams();

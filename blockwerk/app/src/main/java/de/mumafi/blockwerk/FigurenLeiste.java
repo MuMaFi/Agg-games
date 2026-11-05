@@ -75,7 +75,7 @@ final class FigurenLeiste extends View {
 
   @Override protected void onDraw(Canvas c) {
     if (projekt == null) return;
-    c.drawColor(0xFFF3F2FA);
+    c.drawColor(0xFFF3F4F6);
     List<Figur> k = kacheln();
     int sp = spalten();
     float kb = kachelB(), kh = kachelH();
@@ -86,15 +86,15 @@ final class FigurenLeiste extends View {
       r.set(x + 3 * d, y + 3 * d, x + kb - 3 * d, y + kh - 3 * d);
       Figur f = k.get(i);
       boolean gewaehlt = f != null && f == auswahl;
-      p.setColor(i == kachelGedrueckt ? 0xFFE6E4FA : 0xFFFFFFFF);
-      c.drawRoundRect(r, 10 * d, 10 * d, p);
+      p.setColor(i == kachelGedrueckt ? 0xFFE5E7EB : 0xFFFFFFFF);
+      c.drawRoundRect(r, 6 * d, 6 * d, p);
       p.setStyle(Paint.Style.STROKE);
-      p.setStrokeWidth(gewaehlt ? 2.5f * d : Math.max(1, d));
-      p.setColor(gewaehlt ? 0xFF5B4BDB : 0xFFD9DAE6);
-      c.drawRoundRect(r, 10 * d, 10 * d, p);
+      p.setStrokeWidth(gewaehlt ? 2 * d : Math.max(1, d));
+      p.setColor(gewaehlt ? 0xFF2563EB : 0xFFD1D5DB);
+      c.drawRoundRect(r, 6 * d, 6 * d, p);
       p.setStyle(Paint.Style.FILL);
       if (f == null) {
-        p.setColor(0xFF5B4BDB);
+        p.setColor(0xFF2563EB);
         float cx = r.centerX(), cy = r.centerY() - 6 * d, s = Math.min(r.width(), r.height()) * 0.18f;
         c.drawCircle(cx, cy, s * 1.5f, p);
         p.setColor(0xFFFFFFFF);
@@ -104,7 +104,7 @@ final class FigurenLeiste extends View {
         c.drawLine(cx - s * 0.7f, cy, cx + s * 0.7f, cy, p);
         c.drawLine(cx, cy - s * 0.7f, cx, cy + s * 0.7f, p);
         p.setStyle(Paint.Style.FILL);
-        text(c, "Neue Figur", r, 0xFF5B4BDB);
+        text(c, "Neue Figur", r, 0xFF2563EB);
         continue;
       }
       Kostuem ko = f.aktuell();
@@ -123,15 +123,15 @@ final class FigurenLeiste extends View {
           float oy = by + (g - bh) / 2;
           p.setStyle(Paint.Style.STROKE);
           p.setStrokeWidth(Math.max(1, d));
-          p.setColor(0xFFCFD1DE);
+          p.setColor(0xFFD1D5DB);
           c.drawRect(bx, oy, bx + g, oy + bh, p);
           p.setStyle(Paint.Style.FILL);
         }
       }
-      text(c, f.istBuehne ? "Bühne" : f.name, r, gewaehlt ? 0xFF3F31B8 : 0xFF4A4E66);
+      text(c, f.istBuehne ? "Bühne" : f.name, r, gewaehlt ? 0xFF1D4ED8 : 0xFF374151);
       if (!f.istBuehne && !f.sichtbar) {
         p.setColor(0x99FFFFFF);
-        c.drawRoundRect(r, 10 * d, 10 * d, p);
+        c.drawRoundRect(r, 6 * d, 6 * d, p);
       }
     }
   }

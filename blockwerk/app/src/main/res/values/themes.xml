@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <style name="Thema" parent="@android:style/Theme.Material.Light.NoActionBar">
-    <item name="android:colorPrimary">#5B4BDB</item>
-    <item name="android:colorPrimaryDark">#463AB0</item>
-    <item name="android:colorAccent">#5B4BDB</item>
-    <item name="android:statusBarColor">#463AB0</item>
-    <item name="android:navigationBarColor">#F3F2FA</item>
+    <item name="android:colorPrimary">#2563EB</item>
+    <item name="android:colorPrimaryDark">#1F2329</item>
+    <item name="android:colorAccent">#2563EB</item>
+    <item name="android:statusBarColor">#1F2329</item>
+    <item name="android:navigationBarColor">#F3F4F6</item>
     <item name="android:windowBackground">@color/grund</item>
     <item name="android:alertDialogTheme">@style/Dialog</item>
   </style>
   <style name="Dialog" parent="@android:style/Theme.Material.Light.Dialog.Alert">
-    <item name="android:colorAccent">#5B4BDB</item>
+    <item name="android:colorAccent">#2563EB</item>
   </style>
 </resources>

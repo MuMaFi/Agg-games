@@ -27,7 +27,7 @@ import java.util.List;
 public class KostuemActivity extends Activity {
 
   private static final int WAHL_FOTO = 1;
-  private static final int AKZENT = 0xFF5B4BDB;
+  private static final int AKZENT = 0xFF2563EB;
 
   private Figur figur;
   private MalView mal;
@@ -98,21 +98,21 @@ public class KostuemActivity extends Activity {
 
     LinearLayout wurzel = new LinearLayout(this);
     wurzel.setOrientation(LinearLayout.VERTICAL);
-    wurzel.setBackgroundColor(0xFFF3F2FA);
+    wurzel.setBackgroundColor(0xFFF3F4F6);
 
     // Kopfzeile
     LinearLayout kopf = new LinearLayout(this);
-    kopf.setBackgroundColor(AKZENT);
+    kopf.setBackgroundColor(0xFF1F2329);
     kopf.setGravity(Gravity.CENTER_VERTICAL);
     kopf.setPadding((int) (14 * d), 0, (int) (8 * d), 0);
     TextView t = new TextView(this);
     t.setText(figur.istBuehne ? "Bühnenbilder" : "Kostüme von " + figur.name);
     t.setTextColor(0xFFFFFFFF);
-    t.setTextSize(17);
+    t.setTextSize(16);
     t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
     t.setSingleLine(true);
     kopf.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
-    TextView fertig = knopfText("Fertig", 0xFFFFFFFF, 0x33FFFFFF);
+    TextView fertig = knopfText("Fertig", 0xFFFFFFFF, 0xFF2563EB);
     fertig.setOnClickListener(v -> { uebernehmen(); setResult(RESULT_OK); finish(); });
     kopf.addView(fertig);
     wurzel.addView(kopf, new LinearLayout.LayoutParams(-1, (int) (52 * d)));
@@ -147,7 +147,7 @@ public class KostuemActivity extends Activity {
     wz.setHorizontalScrollBarEnabled(false);
     LinearLayout wzReihe = new LinearLayout(this);
     for (int i = 0; i < namen.length; i++) {
-      TextView k = knopfText(namen[i], 0xFF3F3F55, 0xFFF0EFF8);
+      TextView k = knopfText(namen[i], 0xFF374151, 0xFFF3F4F6);
       final int nr = i;
       k.setOnClickListener(v -> { mal.werkzeug = nr; werkzeugeMarkieren(); });
       werkzeugKnoepfe.add(k);
@@ -155,15 +155,15 @@ public class KostuemActivity extends Activity {
       lp.setMargins(0, 0, (int) (6 * d), 0);
       wzReihe.addView(k, lp);
     }
-    TextView zurueck = knopfText("↶ Zurück", 0xFF3F3F55, 0xFFF0EFF8);
+    TextView zurueck = knopfText("↶ Zurück", 0xFF374151, 0xFFF3F4F6);
     zurueck.setOnClickListener(v -> mal.rueckgaengig());
     LinearLayout.LayoutParams zp = new LinearLayout.LayoutParams(-2, (int) (36 * d));
     zp.setMargins(0, 0, (int) (6 * d), 0);
     wzReihe.addView(zurueck, zp);
-    TextView spiegeln = knopfText("⇋ Spiegeln", 0xFF3F3F55, 0xFFF0EFF8);
+    TextView spiegeln = knopfText("⇋ Spiegeln", 0xFF374151, 0xFFF3F4F6);
     spiegeln.setOnClickListener(v -> mal.spiegeln());
     wzReihe.addView(spiegeln, zp);
-    TextView leeren = knopfText("Leeren", 0xFFC23238, 0xFFFCEDEE);
+    TextView leeren = knopfText("Leeren", 0xFFB91C1C, 0xFFFEE2E2);
     leeren.setOnClickListener(v -> mal.leeren());
     wzReihe.addView(leeren, new LinearLayout.LayoutParams(-2, (int) (36 * d)));
     wz.addView(wzReihe);
@@ -182,8 +182,8 @@ public class KostuemActivity extends Activity {
     HorizontalScrollView fs = new HorizontalScrollView(this);
     fs.setHorizontalScrollBarEnabled(false);
     LinearLayout farben = new LinearLayout(this);
-    int[] schnell = {0xFF000000, 0xFFFFFFFF, 0xFF9E9E9E, 0xFFE63946, 0xFFFF8C1A, 0xFFFFD23F, 0xFF52B788,
-        0xFF2EC4B6, 0xFF3E8EF7, 0xFF8A5CF5, 0xFFFF7BAC, 0xFF8B5E3C};
+    int[] schnell = {0xFF000000, 0xFFFFFFFF, 0xFF6B7280, 0xFFDC2626, 0xFFEA580C, 0xFFEAB308, 0xFF16A34A,
+        0xFF0D9488, 0xFF2563EB, 0xFF7C3AED, 0xFFDB2777, 0xFF78350F};
     for (int f : schnell) {
       View v = new View(this);
       GradientDrawable g = new GradientDrawable();
@@ -204,7 +204,7 @@ public class KostuemActivity extends Activity {
     reihe3.setGravity(Gravity.CENTER_VERTICAL);
     TextView dl = new TextView(this);
     dl.setText("Dicke");
-    dl.setTextColor(0xFF4A4E66);
+    dl.setTextColor(0xFF374151);
     reihe3.addView(dl);
     SeekBar dicke = new SeekBar(this);
     dicke.setMax(80);
@@ -244,7 +244,7 @@ public class KostuemActivity extends Activity {
     k.setPadding((int) (12 * d), (int) (6 * d), (int) (12 * d), (int) (6 * d));
     GradientDrawable g = new GradientDrawable();
     g.setColor(grund);
-    g.setCornerRadius(18 * d);
+    g.setCornerRadius(6 * d);
     k.setBackground(g);
     k.setClickable(true);
     return k;
@@ -255,10 +255,10 @@ public class KostuemActivity extends Activity {
       TextView k = werkzeugKnoepfe.get(i);
       boolean an = i == mal.werkzeug;
       GradientDrawable g = new GradientDrawable();
-      g.setColor(an ? AKZENT : 0xFFF0EFF8);
-      g.setCornerRadius(18 * d);
+      g.setColor(an ? AKZENT : 0xFFF3F4F6);
+      g.setCornerRadius(6 * d);
       k.setBackground(g);
-      k.setTextColor(an ? 0xFFFFFFFF : 0xFF3F3F55);
+      k.setTextColor(an ? 0xFFFFFFFF : 0xFF374151);
     }
   }
 
@@ -296,9 +296,9 @@ public class KostuemActivity extends Activity {
       kachel.setGravity(Gravity.CENTER_HORIZONTAL);
       kachel.setPadding((int) (4 * d), (int) (4 * d), (int) (4 * d), (int) (2 * d));
       GradientDrawable hg = new GradientDrawable();
-      hg.setColor(i == gewaehlt ? 0xFFEDEBFC : 0xFFF7F7FB);
-      hg.setCornerRadius(10 * d);
-      hg.setStroke((int) ((i == gewaehlt ? 2.5f : 1) * d), i == gewaehlt ? AKZENT : 0xFFDCDBEA);
+      hg.setColor(i == gewaehlt ? 0xFFE8F0FE : 0xFFF9FAFB);
+      hg.setCornerRadius(6 * d);
+      hg.setStroke((int) ((i == gewaehlt ? 2.5f : 1) * d), i == gewaehlt ? AKZENT : 0xFFD1D5DB);
       kachel.setBackground(hg);
       ImageView iv = new ImageView(this);
       iv.setImageBitmap(Darstellung.vorschau(k, g));
@@ -308,7 +308,7 @@ public class KostuemActivity extends Activity {
       n.setTextSize(11);
       n.setSingleLine(true);
       n.setMaxWidth((int) (84 * d));
-      n.setTextColor(0xFF4A4E66);
+      n.setTextColor(0xFF374151);
       kachel.addView(n);
       final int nr = i;
       kachel.setOnClickListener(v -> { if (nr != gewaehlt) waehle(nr); });

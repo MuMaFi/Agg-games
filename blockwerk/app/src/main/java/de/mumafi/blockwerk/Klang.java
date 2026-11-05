@@ -16,10 +16,9 @@ final class Klang implements Runnable {
   static final int RATE = 22050;
 
   static final String[][] KLAENGE = {
-      {"plopp", "Plopp"}, {"piep", "Piep"}, {"boing", "Boing"}, {"sprung", "Sprung"},
-      {"muenze", "Münze"}, {"trommel", "Trommel"}, {"becken", "Becken"}, {"klatschen", "Klatschen"},
-      {"glocke", "Glocke"}, {"laser", "Laser"}, {"hupe", "Hupe"}, {"tropfen", "Tropfen"},
-      {"zwitschern", "Zwitschern"},
+      {"piep", "Piep"}, {"plopp", "Klick"}, {"muenze", "Signal"}, {"sprung", "Aufwärts"},
+      {"tropfen", "Tropfen"}, {"glocke", "Glocke"}, {"trommel", "Trommel"}, {"becken", "Becken"},
+      {"klatschen", "Klatschen"}, {"laser", "Abwärts"},
   };
 
   static final String[][] INSTRUMENTE = {

@@ -25,10 +25,9 @@ final class Projekt {
     Projekt p = new Projekt();
     p.buehne = new Figur("Bühne", true);
     p.buehne.kostueme.add(Bibliothek.kostuem("weiss"));
-    Figur robbi = new Figur("Robbi", false);
-    robbi.kostueme.add(Bibliothek.kostuem("robbi1"));
-    robbi.kostueme.add(Bibliothek.kostuem("robbi2"));
-    p.neueFigur(robbi);
+    Figur zeiger = new Figur("Zeiger", false);
+    zeiger.kostueme.add(Bibliothek.kostuem("zeiger"));
+    p.neueFigur(zeiger);
     p.variablen.put("meine Variable", 0.0);
     p.nachrichten.add("Nachricht1");
     return p;

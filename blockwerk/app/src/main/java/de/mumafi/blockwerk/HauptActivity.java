@@ -53,17 +53,21 @@ import java.util.Map;
 
 /** Der Editor: Werkzeugleiste, Bühne, Figuren und Skriptbereich. */
 public class HauptActivity extends Activity implements Motor.Ansicht, EditorView.Wirt, FigurenLeiste.Wirt,
-    BuehneView.Wirt, SensorEventListener {
+    BuehneView.Wirt, SensorEventListener, CodeAnsicht.Wirt {
 
   static Projekt projekt;
   static Motor motor;
   static Figur figur;
 
-  private static final int WAHL_FOTO = 1, WAHL_EXPORT = 2, WAHL_IMPORT = 3, KOSTUEME = 4;
-  private static final int AKZENT = 0xFF5B4BDB;
+  private static final int WAHL_FOTO = 1, WAHL_EXPORT = 2, WAHL_IMPORT = 3, KOSTUEME = 4, WAHL_JAVA = 5;
+  private static final int AKZENT = 0xFF2563EB;
 
   private float d;
   private EditorView editor;
+  private CodeAnsicht codeAnsicht;
+  private FrameLayout bereich;
+  private boolean codeModus;
+  private SymbolKnopf codeKnopf;
   private BuehneView buehne, gross;
   private FigurenLeiste leiste;
   private Steuerkreuz kreuz;
@@ -72,7 +76,7 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
   private SymbolKnopf flagge, flaggeGross;
   private boolean vollbild;
   private AlertDialog frageDialog;
-  private boolean frageBeantwortet;
+  private boolean[] frageErledigt;
   private SensorManager sensoren;
   private float glattX, glattY;
   private final Handler handler = new Handler(Looper.getMainLooper());
@@ -94,6 +98,7 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
     editor = new EditorView(this);
     editor.wirt = this;
     editor.motor = motor;
+    codeAnsicht = new CodeAnsicht(this, this);
     buehne = new BuehneView(this, false);
     gross = new BuehneView(this, true);
     for (BuehneView b : new BuehneView[]{buehne, gross}) { b.projekt = projekt; b.motor = motor; b.wirt = this; }
@@ -154,14 +159,19 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
   }
 
   private void aufbauen() {
-    for (View v : new View[]{editor, buehne, gross, leiste, kreuz}) loesen(v);
+    for (View v : new View[]{editor, codeAnsicht, buehne, gross, leiste, kreuz}) loesen(v);
+    bereich = new FrameLayout(this);
+    bereich.addView(editor, new FrameLayout.LayoutParams(-1, -1));
+    bereich.addView(codeAnsicht, new FrameLayout.LayoutParams(-1, -1));
+    editor.setVisibility(codeModus ? View.GONE : View.VISIBLE);
+    codeAnsicht.setVisibility(codeModus ? View.VISIBLE : View.GONE);
     Configuration k = getResources().getConfiguration();
     boolean quer = k.orientation == Configuration.ORIENTATION_LANDSCAPE;
     int w = (int) (k.screenWidthDp * d), h = (int) (k.screenHeightDp * d);
     int leisteH = (int) (52 * d);
 
     wurzel = new FrameLayout(this);
-    wurzel.setBackgroundColor(0xFFF3F2FA);
+    wurzel.setBackgroundColor(0xFFF3F4F6);
     LinearLayout spalte = new LinearLayout(this);
     spalte.setOrientation(LinearLayout.VERTICAL);
     spalte.addView(werkzeugleiste(), new LinearLayout.LayoutParams(-1, leisteH));
@@ -171,7 +181,7 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
       reihe.setOrientation(LinearLayout.HORIZONTAL);
       int rechtsB = (int) Math.min(w * 0.42f, (h - leisteH - 110 * d) * 4 / 3f + 8 * d);
       int buehneH = (int) ((rechtsB - 8 * d) * 3 / 4f + 8 * d);
-      reihe.addView(editor, new LinearLayout.LayoutParams(0, -1, 1));
+      reihe.addView(bereich, new LinearLayout.LayoutParams(0, -1, 1));
       LinearLayout rechts = new LinearLayout(this);
       rechts.setOrientation(LinearLayout.VERTICAL);
       rechts.addView(buehne, new LinearLayout.LayoutParams(-1, buehneH));
@@ -187,9 +197,9 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
       oben.addView(leiste, new LinearLayout.LayoutParams(0, buehneH, 1));
       spalte.addView(oben, new LinearLayout.LayoutParams(-1, buehneH));
       View trenner = new View(this);
-      trenner.setBackgroundColor(0xFFD9DAE6);
+      trenner.setBackgroundColor(0xFFD1D5DB);
       spalte.addView(trenner, new LinearLayout.LayoutParams(-1, Math.max(1, (int) d)));
-      spalte.addView(editor, new LinearLayout.LayoutParams(-1, 0, 1));
+      spalte.addView(bereich, new LinearLayout.LayoutParams(-1, 0, 1));
     }
     wurzel.addView(spalte, new FrameLayout.LayoutParams(-1, -1));
 
@@ -237,18 +247,18 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
     LinearLayout l = new LinearLayout(this);
     l.setOrientation(LinearLayout.HORIZONTAL);
     l.setGravity(Gravity.CENTER_VERTICAL);
-    l.setBackgroundColor(AKZENT);
-    l.setPadding((int) (12 * d), 0, (int) (4 * d), 0);
+    l.setBackgroundColor(0xFF1F2329);
+    l.setPadding((int) (14 * d), 0, (int) (4 * d), 0);
 
     TextView logo = new TextView(this);
     logo.setText("Blockwerk");
     logo.setTextColor(0xFFFFFFFF);
-    logo.setTextSize(18);
-    logo.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+    logo.setTextSize(16);
+    logo.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
     l.addView(logo);
 
     titel = new TextView(this);
-    titel.setTextColor(0xDDFFFFFF);
+    titel.setTextColor(0xFF9CA3AF);
     titel.setTextSize(14);
     titel.setSingleLine(true);
     titel.setEllipsize(TextUtils.TruncateAt.END);
@@ -261,11 +271,44 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
     flagge = knopf(SymbolKnopf.FLAGGE, "Start", v -> motor.flagge());
     l.addView(flagge, new LinearLayout.LayoutParams(g, g));
     l.addView(knopf(SymbolKnopf.STOPP, "Stopp", v -> motor.stoppeAlles()), new LinearLayout.LayoutParams(g, g));
+    codeKnopf = knopf(SymbolKnopf.CODE, "Java-Code", v -> setzeCodeModus(!codeModus));
+    codeKnopf.setAktiv(codeModus);
+    l.addView(codeKnopf, new LinearLayout.LayoutParams(g, g));
     l.addView(knopf(SymbolKnopf.VOLLBILD, "Vollbild", v -> setzeVollbild(true)), new LinearLayout.LayoutParams(g, g));
     SymbolKnopf menue = knopf(SymbolKnopf.MENUE, "Menü", null);
     menue.setOnClickListener(v -> zeigeMenue(menue));
     l.addView(menue, new LinearLayout.LayoutParams((int) (40 * d), g));
     return l;
+  }
+
+  /** Zwischen Blöcken und Java-Code umschalten */
+  void setzeCodeModus(boolean an) {
+    codeModus = an;
+    if (an) codeAnsicht.zeige(projekt);
+    editor.setVisibility(an ? View.GONE : View.VISIBLE);
+    codeAnsicht.setVisibility(an ? View.VISIBLE : View.GONE);
+    if (codeKnopf != null) codeKnopf.setAktiv(an);
+  }
+
+  private String laufzeit() throws java.io.IOException {
+    try (InputStream ein = getAssets().open("laufzeit.java")) {
+      return lies(ein);
+    }
+  }
+
+  @Override public void codeKopieren() {
+    android.content.ClipboardManager k = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+    k.setPrimaryClip(android.content.ClipData.newPlainText("Java", new JavaExport(projekt).programm()));
+    meldung("Programmcode kopiert (ohne Bilder und Laufzeit).");
+  }
+
+  @Override public void codeExportieren() {
+    speichern();
+    Intent in = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+    in.addCategory(Intent.CATEGORY_OPENABLE);
+    in.setType("application/octet-stream");
+    in.putExtra(Intent.EXTRA_TITLE, new JavaExport(projekt).klasse + ".java");
+    try { startActivityForResult(in, WAHL_JAVA); } catch (Exception e) { meldung("Nicht möglich."); }
   }
 
   private void titelAktualisieren() {
@@ -333,26 +376,29 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
   }
 
   @Override public void frage(String text) {
-    if (frageDialog != null) { frageBeantwortet = true; frageDialog.dismiss(); }
+    frageSchliessen();
     EditText feld = new EditText(this);
     feld.setSingleLine(true);
     feld.setInputType(InputType.TYPE_CLASS_TEXT);
     FrameLayout rahmen = new FrameLayout(this);
     rahmen.setPadding((int) (20 * d), (int) (8 * d), (int) (20 * d), 0);
     rahmen.addView(feld);
-    frageBeantwortet = false;
+    // Jeder Dialog merkt sich selbst, ob er schon geantwortet hat — der
+    // Schließen-Rückruf kommt verzögert und darf keine neuere Frage beantworten.
+    final boolean[] erledigt = {false};
     AlertDialog dlg = new AlertDialog.Builder(this)
         .setTitle(text.isEmpty() ? "Deine Antwort" : text)
         .setView(rahmen)
-        .setPositiveButton("OK", (x, y) -> { frageBeantwortet = true; motor.beantworte(feld.getText().toString()); })
+        .setPositiveButton("OK", (x, y) -> {
+          if (!erledigt[0]) { erledigt[0] = true; motor.beantworte(feld.getText().toString()); }
+        })
         .create();
     dlg.setOnDismissListener(x -> {
-      if (!frageBeantwortet) { frageBeantwortet = true; motor.beantworte(feld.getText().toString()); }
-      if (frageDialog == dlg) frageDialog = null;
+      if (!erledigt[0]) { erledigt[0] = true; motor.beantworte(feld.getText().toString()); }
+      if (frageDialog == dlg) { frageDialog = null; frageErledigt = null; }
     });
     feld.setOnEditorActionListener((v, id, ev) -> {
-      frageBeantwortet = true;
-      motor.beantworte(feld.getText().toString());
+      if (!erledigt[0]) { erledigt[0] = true; motor.beantworte(feld.getText().toString()); }
       dlg.dismiss();
       return true;
     });
@@ -361,15 +407,17 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
       dlg.getWindow().setGravity(Gravity.BOTTOM);
     }
     frageDialog = dlg;
+    frageErledigt = erledigt;
     dlg.show();
     feld.requestFocus();
   }
 
   @Override public void frageSchliessen() {
     if (frageDialog != null) {
-      frageBeantwortet = true;
+      if (frageErledigt != null) frageErledigt[0] = true;
       frageDialog.dismiss();
       frageDialog = null;
+      frageErledigt = null;
     }
   }
 
@@ -682,6 +730,15 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
           meldung("Export fehlgeschlagen.");
         }
         break;
+      case WAHL_JAVA:
+        try (OutputStream aus = getContentResolver().openOutputStream(uri)) {
+          if (aus == null) throw new java.io.IOException();
+          aus.write(new JavaExport(projekt).datei(laufzeit()).getBytes(StandardCharsets.UTF_8));
+          meldung("Java-Datei gespeichert. Starten mit: java " + new JavaExport(projekt).klasse + ".java");
+        } catch (Exception e) {
+          meldung("Speichern fehlgeschlagen.");
+        }
+        break;
       case WAHL_IMPORT:
         try (InputStream ein = getContentResolver().openInputStream(uri)) {
           if (ein == null) throw new java.io.IOException();
@@ -795,6 +852,7 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
     leiste.vorschauenVergessen();
     leiste.invalidate();
     editor.zeige(p, figur);
+    if (codeModus) codeAnsicht.zeige(p);
     titelAktualisieren();
     buehne.invalidate();
   }
@@ -814,22 +872,24 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
 
   private void zeigeMenue(View anker) {
     PopupMenu m = new PopupMenu(this, anker);
-    String[] punkte = {"Neues Projekt", "Projekt öffnen …", "Beispiele …", "Speichern", "Kopie speichern unter …",
-        "Exportieren …", "Importieren …", "Projekt löschen …", "Über Blockwerk"};
+    String[] punkte = {"Neues Projekt", "Projekt öffnen …", "Beispiele …", "Speichern", "Als Java speichern …",
+        "Kopie speichern unter …", "Projektdatei exportieren …", "Projektdatei importieren …", "Projekt löschen …",
+        "Über Blockwerk"};
     for (int i = 0; i < punkte.length; i++) m.getMenu().add(0, i, i, punkte[i]);
     m.setOnMenuItemClickListener(item -> {
-      switch (item.getItemId()) {
-        case 0:
+      switch (punkte[item.getItemId()]) {
+        case "Neues Projekt":
           speichern();
           Projekt p = Projekt.neu();
           p.name = freierProjektName("Mein Projekt");
           wechsleProjekt(p);
           speichern();
           break;
-        case 1: projektOeffnen(); break;
-        case 2: beispiele(); break;
-        case 3: speichern(); meldung("Gespeichert."); break;
-        case 4:
+        case "Projekt öffnen …": projektOeffnen(); break;
+        case "Beispiele …": beispiele(); break;
+        case "Speichern": speichern(); meldung("Gespeichert."); break;
+        case "Als Java speichern …": codeExportieren(); break;
+        case "Kopie speichern unter …":
           Auswahl.eingabe(this, "Kopie speichern unter", freierProjektName(projekt.name), false, t -> {
             String n = t.trim();
             if (n.isEmpty()) return;
@@ -840,7 +900,7 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
             titelAktualisieren();
           });
           break;
-        case 5: {
+        case "Projektdatei exportieren …": {
           speichern();
           Intent in = new Intent(Intent.ACTION_CREATE_DOCUMENT);
           in.addCategory(Intent.CATEGORY_OPENABLE);
@@ -849,14 +909,14 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
           try { startActivityForResult(in, WAHL_EXPORT); } catch (Exception e) { meldung("Nicht möglich."); }
           break;
         }
-        case 6: {
+        case "Projektdatei importieren …": {
           Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
           in.addCategory(Intent.CATEGORY_OPENABLE);
           in.setType("*/*");
           try { startActivityForResult(in, WAHL_IMPORT); } catch (Exception e) { meldung("Nicht möglich."); }
           break;
         }
-        case 7: projektLoeschen(); break;
+        case "Projekt löschen …": projektLoeschen(); break;
         default: ueber(); break;
       }
       return true;
@@ -923,14 +983,15 @@ public class HauptActivity extends Activity implements Motor.Ansicht, EditorView
   }
 
   private void ueber() {
-    String text = "Blockwerk ist ein Baukasten zum Programmieren mit Blöcken.\n\n"
-        + "• Ziehe Blöcke aus der Palette in den Skriptbereich und stecke sie zusammen.\n"
-        + "• Die grüne Flagge startet alle Skripte mit „Wenn Flagge angeklickt“.\n"
-        + "• Tippe einen Stapel an, um nur ihn laufen zu lassen.\n"
-        + "• Lange drücken öffnet Menüs: auf Blöcken, auf der Fläche und auf Figuren.\n"
-        + "• Ziehe Blöcke zurück auf die Palette, um sie zu löschen.\n"
-        + "• Zwei Finger auf dem Skriptbereich zoomen.\n"
-        + "• Im Vollbild erscheinen Pfeiltasten, wenn ein Projekt Tasten abfragt.\n\n"
+    String text = "Blockwerk: Programmieren mit Blöcken, Ergebnis als Java.\n\n"
+        + "• Blöcke aus der Palette auf die Fläche ziehen und zusammenstecken.\n"
+        + "• ▶ startet alle Skripte mit „Wenn das Programm startet“, ■ hält alles an.\n"
+        + "• Einen Stapel antippen startet nur ihn.\n"
+        + "• Lange drücken öffnet Menüs: auf Blöcken, auf der Fläche, auf Figuren.\n"
+        + "• Blöcke zurück auf die Palette ziehen löscht sie.\n"
+        + "• </> zeigt das Projekt als Java-Code.\n"
+        + "• „Als Java speichern“ erzeugt eine einzelne .java-Datei mit Bildern und Laufzeit. "
+        + "Auf einem Rechner mit JDK (ab Version 11) startet sie mit: java Datei.java\n\n"
         + "Projekte werden automatisch gespeichert.";
     new AlertDialog.Builder(this).setTitle("Über Blockwerk").setMessage(text).setPositiveButton("OK", null).show();
   }

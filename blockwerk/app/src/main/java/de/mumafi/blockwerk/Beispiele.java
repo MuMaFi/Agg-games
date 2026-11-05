@@ -5,17 +5,18 @@ final class Beispiele {
   private Beispiele() {}
 
   static final String[] NAMEN = {
-      "Hallo Robbi", "Malroboter", "Sternenfänger (Spiel)", "Ballspiel", "Aquarium (Klone)", "Alle meine Entchen"
+      "Quadrat zeichnen", "Spirale", "Zahlenraten", "Fangspiel", "Pong", "Partikel (Klone)", "Melodie"
   };
 
   static Projekt erzeuge(int i) {
     switch (i) {
-      case 1: return malroboter();
-      case 2: return sternenfaenger();
-      case 3: return ballspiel();
-      case 4: return aquarium();
-      case 5: return entchen();
-      default: return halloRobbi();
+      case 1: return spirale();
+      case 2: return zahlenraten();
+      case 3: return fangspiel();
+      case 4: return pong();
+      case 5: return partikel();
+      case 6: return melodie();
+      default: return quadrat();
     }
   }
 
@@ -39,6 +40,13 @@ final class Beispiele {
   /** Schleife oder „falls“ mit Inhalt */
   private static Block mund(Block c, Block... innen) {
     c.sub[0] = kette(innen);
+    return c;
+  }
+
+  /** falls … sonst mit zwei Innenstapeln */
+  private static Block sonst(Block c, Block[] dann, Block[] sonst) {
+    c.sub[0] = kette(dann);
+    c.sub[1] = kette(sonst);
     return c;
   }
 
@@ -79,33 +87,35 @@ final class Beispiele {
 
   // ------------------------------------------------------------- Beispiele
 
-  private static Projekt halloRobbi() {
-    Projekt p = projekt("Hallo Robbi", "himmel");
-    Figur r = figur("Robbi", "robbi1", "robbi2");
-    skripte(r,
+  private static Projekt quadrat() {
+    Projekt p = projekt("Quadrat zeichnen", "gitter");
+    Figur z = figur("Zeiger", "zeiger");
+    z.groesse = 50;
+    skripte(z,
         kette(b("ereignis.flagge"),
-            b("bewegung.gehezuxy", 0, -40),
-            b("aussehen.effekteAus"),
-            b("aussehen.sageZeit", "Hallo! Tippe mich an.", 3),
-            mund(b("steuerung.fortlaufend"),
-                b("aussehen.naechstesKostuem"),
-                b("steuerung.warte", 0.4))),
-        kette(b("ereignis.figurAngetippt"),
-            b("klang.spiele", "boing"),
-            mund(b("steuerung.wiederhole", 12),
-                b("bewegung.rechts", 30),
-                b("aussehen.aendereEffekt", "farbe", 25)),
-            b("aussehen.sageZeit", "Huii!", 1)));
-    p.neueFigur(r);
+            b("stift.loesche"),
+            b("stift.hoch"),
+            b("bewegung.gehezuxy", -50, -50),
+            b("bewegung.richtung", 90),
+            b("stift.dicke", 3),
+            b("stift.farbe", "#2563EB"),
+            b("stift.runter"),
+            mund(b("steuerung.wiederhole", 4),
+                b("bewegung.gehe", 100),
+                b("bewegung.links", 90),
+                b("steuerung.warte", 0.3)),
+            b("stift.hoch"),
+            b("fuehlen.konsole", "Fertig: ein Quadrat mit Seitenlänge 100")));
+    p.neueFigur(z);
     return p;
   }
 
-  private static Projekt malroboter() {
-    Projekt p = projekt("Malroboter", "weiss");
+  private static Projekt spirale() {
+    Projekt p = projekt("Spirale", "weiss");
     p.variablen.put("Länge", 0.0);
-    Figur r = figur("Robbi", "robbi1", "robbi2");
-    r.groesse = 40;
-    skripte(r,
+    Figur z = figur("Zeiger", "zeiger");
+    z.groesse = 50;
+    skripte(z,
         kette(b("ereignis.flagge"),
             b("stift.loesche"),
             b("stift.hoch"),
@@ -121,58 +131,74 @@ final class Beispiele {
                 b("var.aendere", "Länge", 2),
                 b("stift.aendereFarbton", 1)),
             b("stift.hoch"),
-            b("aussehen.sageZeit", "Fertig!", 2)));
-    p.neueFigur(r);
+            b("fuehlen.konsole", b("op.verbinde", "Letzte Länge: ", v("Länge")))));
+    p.neueFigur(z);
     return p;
   }
 
-  private static Projekt sternenfaenger() {
-    Projekt p = projekt("Sternenfänger", "weltraum");
+  private static Projekt zahlenraten() {
+    Projekt p = projekt("Zahlenraten", "weiss");
+    p.variablen.put("geheim", 0.0);
+    p.variablen.put("Versuche", 0.0);
+    p.monitore.add("Versuche");
+    Figur f = figur("Person", "person1", "person2");
+    f.x = -150;
+    f.y = -60;
+    skripte(f,
+        kette(b("ereignis.flagge"),
+            b("var.setze", "geheim", zufall(1, 100)),
+            b("var.setze", "Versuche", 1),
+            b("fuehlen.frage", "Ich denke mir eine Zahl von 1 bis 100. Welche?"),
+            mund(b("steuerung.wiederholeBis", b("op.gleich", b("fuehlen.antwort"), v("geheim"))),
+                b("var.aendere", "Versuche", 1),
+                sonst(b("steuerung.fallsSonst", b("op.kleiner", b("fuehlen.antwort"), v("geheim"))),
+                    new Block[]{b("fuehlen.frage", "Zu klein. Noch ein Versuch?")},
+                    new Block[]{b("fuehlen.frage", "Zu groß. Noch ein Versuch?")})),
+            b("aussehen.sage", b("op.verbinde", "Richtig! Versuche: ", v("Versuche"))),
+            b("fuehlen.konsole", b("op.verbinde", "Geraten in Versuchen: ", v("Versuche")))));
+    p.neueFigur(f);
+    return p;
+  }
+
+  private static Projekt fangspiel() {
+    Projekt p = projekt("Fangspiel", "dunkel");
     p.variablen.put("Punkte", 0.0);
     p.monitore.add("Punkte");
-    Figur r = figur("Robbi", "robbi1", "robbi2");
-    r.groesse = 60;
-    r.y = -130;
-    skripte(r,
+    Figur s = figur("Schläger", "schlaeger");
+    s.y = -150;
+    skripte(s,
         kette(b("ereignis.flagge"),
             b("var.setze", "Punkte", 0),
-            b("bewegung.gehezuxy", 0, -130),
-            b("bewegung.drehtyp", "links-rechts"),
+            b("bewegung.gehezuxy", 0, -150),
             mund(b("steuerung.fortlaufend"),
                 mund(b("steuerung.falls", b("fuehlen.taste", "rechts")),
-                    b("bewegung.richtung", 90),
-                    b("bewegung.aendereX", 8),
-                    b("aussehen.naechstesKostuem")),
+                    b("bewegung.aendereX", 9)),
                 mund(b("steuerung.falls", b("fuehlen.taste", "links")),
-                    b("bewegung.richtung", -90),
-                    b("bewegung.aendereX", -8),
-                    b("aussehen.naechstesKostuem")),
-                b("bewegung.aendereX", b("op.durch", b("fuehlen.neigung", "lr"), 3)))),
-        kette(b("ereignis.flagge"),
-            b("aussehen.sageZeit", "Fang die Sterne! Pfeiltasten oder Handy kippen.", 3)));
-    p.neueFigur(r);
+                    b("bewegung.aendereX", -9)),
+                b("bewegung.aendereX", b("op.durch", b("fuehlen.neigung", "lr"), 3)))));
+    p.neueFigur(s);
 
-    Figur s = figur("Stern", "stern");
-    s.groesse = 70;
-    s.y = 170;
-    skripte(s,
+    Figur st = figur("Stern", "stern");
+    st.groesse = 70;
+    st.y = 170;
+    skripte(st,
         kette(b("ereignis.flagge"),
             b("bewegung.gehezuxy", zufall(-220, 220), 180),
             mund(b("steuerung.fortlaufend"),
                 b("bewegung.aendereY", -5),
-                b("bewegung.rechts", 4),
-                mund(b("steuerung.falls", b("fuehlen.beruehrt", "Robbi")),
+                mund(b("steuerung.falls", b("fuehlen.beruehrt", "Schläger")),
                     b("var.aendere", "Punkte", 1),
                     b("klang.spiele", "muenze"),
                     b("bewegung.gehezuxy", zufall(-220, 220), 180)),
                 mund(b("steuerung.falls", b("op.kleiner", b("bewegung.y"), -170)),
+                    b("fuehlen.konsole", b("op.verbinde", "Verpasst bei Punkten: ", v("Punkte"))),
                     b("bewegung.gehezuxy", zufall(-220, 220), 180)))));
-    p.neueFigur(s);
+    p.neueFigur(st);
     return p;
   }
 
-  private static Projekt ballspiel() {
-    Projekt p = projekt("Ballspiel", "wiese");
+  private static Projekt pong() {
+    Projekt p = projekt("Pong", "dunkel");
     p.variablen.put("Treffer", 0.0);
     p.monitore.add("Treffer");
     Figur s = figur("Schläger", "schlaeger");
@@ -185,6 +211,7 @@ final class Beispiele {
     p.neueFigur(s);
 
     Figur ball = figur("Ball", "ball");
+    ball.groesse = 60;
     ball.y = 100;
     skripte(ball,
         kette(b("ereignis.flagge"),
@@ -201,47 +228,42 @@ final class Beispiele {
                     b("bewegung.gehe", 10)),
                 mund(b("steuerung.falls", b("op.kleiner", b("bewegung.y"), -165)),
                     b("klang.spiele", "laser"),
-                    b("aussehen.sageZeit", "Daneben!", 1),
+                    b("fuehlen.konsole", b("op.verbinde", "Treffer: ", v("Treffer"))),
                     b("var.setze", "Treffer", 0),
                     b("bewegung.gehezuxy", 0, 100),
-                    b("bewegung.richtung", zufall(150, 210))))),
-        kette(b("ereignis.flagge"),
-            b("aussehen.sageZeit", "Wische unten über die Bühne!", 2)));
+                    b("bewegung.richtung", zufall(150, 210))))));
     p.neueFigur(ball);
     return p;
   }
 
-  private static Projekt aquarium() {
-    Projekt p = projekt("Aquarium", "unterwasser");
-    Figur f = figur("Fisch", "fisch");
-    skripte(f,
+  private static Projekt partikel() {
+    Projekt p = projekt("Partikel", "dunkel");
+    Figur k = figur("Kreis", "kreis");
+    skripte(k,
         kette(b("ereignis.flagge"),
             b("aussehen.verstecke"),
-            mund(b("steuerung.wiederhole", 7),
+            mund(b("steuerung.wiederhole", 12),
                 b("steuerung.klon", "_selbst_"),
-                b("steuerung.warte", 0.3))),
+                b("steuerung.warte", 0.15))),
         kette(b("steuerung.klonStart"),
             b("bewegung.gehezu", "_zufall_"),
             b("aussehen.setzeEffekt", "farbe", zufall(0, 200)),
-            b("aussehen.setzeGroesse", zufall(45, 100)),
-            b("bewegung.drehtyp", "links-rechts"),
+            b("aussehen.setzeGroesse", zufall(30, 80)),
             b("bewegung.richtung", zufall(-180, 180)),
             b("aussehen.zeige"),
             mund(b("steuerung.fortlaufend"),
-                b("bewegung.gehe", 2),
-                b("bewegung.abprallen"),
-                mund(b("steuerung.falls", b("op.gleich", zufall(1, 50), 1)),
-                    b("bewegung.rechts", zufall(-40, 40))))),
+                b("bewegung.gehe", 3),
+                b("bewegung.abprallen"))),
         kette(b("ereignis.figurAngetippt"),
             b("klang.spiele", "tropfen"),
-            b("aussehen.sageZeit", "Blubb!", 1)));
-    p.neueFigur(f);
+            b("steuerung.loescheKlon")));
+    p.neueFigur(k);
     return p;
   }
 
-  private static Projekt entchen() {
-    Projekt p = projekt("Alle meine Entchen", "strand");
-    Figur r = figur("Robbi", "robbi1", "robbi2");
+  private static Projekt melodie() {
+    Projekt p = projekt("Melodie", "weiss");
+    Figur f = figur("Person", "person1", "person2");
     double[][] lied = {
         {60, .35}, {62, .35}, {64, .35}, {65, .35}, {67, .7}, {67, .7},
         {69, .35}, {69, .35}, {69, .35}, {69, .35}, {67, 1.2},
@@ -249,20 +271,18 @@ final class Beispiele {
         {65, .35}, {65, .35}, {65, .35}, {65, .35}, {64, .7}, {64, .7},
         {62, .35}, {62, .35}, {62, .35}, {62, .35}, {60, 1.2},
     };
-    Block[] noten = new Block[lied.length + 3];
+    Block[] noten = new Block[lied.length + 2];
     noten[0] = b("ereignis.flagge");
     noten[1] = b("klang.instrument", "klavier");
-    noten[2] = b("aussehen.sage", "♪");
-    for (int i = 0; i < lied.length; i++) noten[i + 3] = b("klang.note", Werte.zahlText(lied[i][0]), Werte.zahlText(lied[i][1]));
-    Block tanz = kette(b("ereignis.flagge"),
+    for (int i = 0; i < lied.length; i++) noten[i + 2] = b("klang.note", Werte.zahlText(lied[i][0]), Werte.zahlText(lied[i][1]));
+    Block gehen = kette(b("ereignis.flagge"),
         mund(b("steuerung.wiederhole", 37),
             b("aussehen.naechstesKostuem"),
-            b("steuerung.warte", 0.35)),
-        b("aussehen.sageZeit", "Noch mal? Tippe die Flagge!", 2));
-    skripte(r, kette(noten), tanz,
+            b("steuerung.warte", 0.35)));
+    skripte(f, kette(noten), gehen,
         kette(b("ereignis.taste", "leertaste"), b("klang.spiele", "trommel")));
-    r.y = -60;
-    p.neueFigur(r);
+    f.y = -40;
+    p.neueFigur(f);
     return p;
   }
 }

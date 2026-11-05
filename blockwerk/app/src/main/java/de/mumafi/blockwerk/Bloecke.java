@@ -72,8 +72,8 @@ final class Bloecke {
     def("aussehen.groesse", AUSSEHEN, WERT, "Größe").nurFigur();
 
     // ---------------------------------------------------------- Klang
-    def("klang.spieleGanz", KLANG, BEFEHL, "spiele Klang %D:klang ganz", "plopp");
-    def("klang.spiele", KLANG, BEFEHL, "spiele Klang %D:klang", "plopp");
+    def("klang.spieleGanz", KLANG, BEFEHL, "spiele Klang %D:klang ganz", "piep");
+    def("klang.spiele", KLANG, BEFEHL, "spiele Klang %D:klang", "piep");
     def("klang.note", KLANG, BEFEHL, "spiele Note %n für %n Sekunden", "60", "0.5");
     def("klang.instrument", KLANG, BEFEHL, "setze Instrument auf %d:instrument", "klavier");
     def("klang.stoppe", KLANG, BEFEHL, "stoppe alle Klänge");
@@ -82,7 +82,7 @@ final class Bloecke {
     def("klang.lautstaerke", KLANG, WERT, "Lautstärke");
 
     // ---------------------------------------------------------- Ereignisse
-    def("ereignis.flagge", EREIGNISSE, HUT, "Wenn @flagge angeklickt");
+    def("ereignis.flagge", EREIGNISSE, HUT, "Wenn das Programm startet");
     def("ereignis.taste", EREIGNISSE, HUT, "Wenn Taste %d:taste gedrückt", "leertaste");
     def("ereignis.figurAngetippt", EREIGNISSE, HUT, "Wenn diese Figur angetippt").nurFigur();
     def("ereignis.buehneAngetippt", EREIGNISSE, HUT, "Wenn Bühne angetippt").nurBuehne();
@@ -107,10 +107,11 @@ final class Bloecke {
 
     // ---------------------------------------------------------- Fühlen
     def("fuehlen.beruehrt", FUEHLEN, BOOL, "wird %D:beruehrt berührt?", "_finger_").nurFigur();
-    def("fuehlen.farbe", FUEHLEN, BOOL, "wird Farbe %f berührt?", "#E8303A").nurFigur();
+    def("fuehlen.farbe", FUEHLEN, BOOL, "wird Farbe %f berührt?", "#DC2626").nurFigur();
     def("fuehlen.entfernung", FUEHLEN, WERT, "Entfernung von %D:entfernung", "_finger_").nurFigur();
     def("fuehlen.frage", FUEHLEN, BEFEHL, "frage %s und warte", "Wie heißt du?");
     def("fuehlen.antwort", FUEHLEN, WERT, "Antwort");
+    def("fuehlen.konsole", FUEHLEN, BEFEHL, "schreibe %s in die Konsole", "Hallo Welt");
     def("fuehlen.taste", FUEHLEN, BOOL, "Taste %D:taste gedrückt?", "leertaste");
     def("fuehlen.fingerUnten", FUEHLEN, BOOL, "Finger auf der Bühne?");
     def("fuehlen.fingerX", FUEHLEN, WERT, "Finger x");
@@ -153,7 +154,7 @@ final class Bloecke {
     def("stift.abdruck", STIFT, BEFEHL, "hinterlasse Abdruck").nurFigur();
     def("stift.runter", STIFT, BEFEHL, "Stift runter").nurFigur();
     def("stift.hoch", STIFT, BEFEHL, "Stift hoch").nurFigur();
-    def("stift.farbe", STIFT, BEFEHL, "setze Stiftfarbe auf %f", "#3E8EF7").nurFigur();
+    def("stift.farbe", STIFT, BEFEHL, "setze Stiftfarbe auf %f", "#2563EB").nurFigur();
     def("stift.aendereFarbton", STIFT, BEFEHL, "ändere Stift-Farbton um %n", "10").nurFigur();
     def("stift.setzeFarbton", STIFT, BEFEHL, "setze Stift-Farbton auf %n", "50").nurFigur();
     def("stift.dicke", STIFT, BEFEHL, "setze Stiftdicke auf %n", "1").nurFigur();

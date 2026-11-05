@@ -270,15 +270,16 @@ final class EditorView extends View {
     float wl = wsLinks();
     c.save();
     c.clipRect(wl, 0, w, h);
-    grund.setColor(0xFFF8F8FC);
+    grund.setColor(0xFFFAFAFA);
     c.drawRect(wl, 0, w, h, grund);
-    // Punktraster
-    float raster = 26 * d * zoom;
+    // Linienraster wie auf Karopapier
+    float raster = 24 * d * zoom;
     if (raster > 8) {
-      p.setColor(0xFFE2E3EC);
+      p.setColor(0xFFEDEEF2);
+      p.setStrokeWidth(Math.max(1, d * 0.75f));
       float ox = wl + ((panX % raster) + raster) % raster, oy = ((panY % raster) + raster) % raster;
-      float rad = Math.max(1, 1.3f * d * Math.min(1, zoom));
-      for (float x = ox; x < w; x += raster) for (float y = oy; y < h; y += raster) c.drawCircle(x, y, rad, p);
+      for (float x = ox; x < w; x += raster) c.drawLine(x, 0, x, h, p);
+      for (float y = oy; y < h; y += raster) c.drawLine(wl, y, w, y, p);
     }
     c.translate(wl + panX, panY);
     c.scale(d * zoom, d * zoom);
@@ -294,7 +295,7 @@ final class EditorView extends View {
     c.restore();
 
     if (figur.skripte.isEmpty() && gezogen == null) {
-      schrift.setColor(0xFFA4A8BA);
+      schrift.setColor(0xFF9CA3AF);
       float mx = wl + (w - wl) / 2, platz = (w - wl) - 24 * d;
       String[] zeilen = {"Ziehe Blöcke hierher.", "Tippe einen Stapel an,", "um ihn zu starten."};
       float y = h / 2f - 20 * d;
@@ -311,7 +312,7 @@ final class EditorView extends View {
     // ---- Palette
     c.save();
     c.clipRect(katB, 0, wl, h);
-    grund.setColor(0xFFEEEEF6);
+    grund.setColor(0xFFF3F4F6);
     c.drawRect(katB, 0, wl, h, grund);
     c.translate(katB, -palScroll);
     c.scale(d * palZoom, d * palZoom);
@@ -321,7 +322,7 @@ final class EditorView extends View {
       zeichneEintrag(c, e);
     }
     c.restore();
-    grund.setColor(0xFFD9DAE6);
+    grund.setColor(0xFFD1D5DB);
     c.drawRect(wl - Math.max(1, d), 0, wl, h, grund);
 
     // ---- Farbgruppen
@@ -329,7 +330,7 @@ final class EditorView extends View {
 
     // ---- Papierkorb beim Ziehen über die Palette
     if (gezogen != null && ueberPalette) {
-      grund.setColor(0xCCEEEEF6);
+      grund.setColor(0xDDF3F4F6);
       c.drawRect(0, 0, wl, h, grund);
       zeichnePapierkorb(c, wl / 2, h / 2f);
     }
@@ -354,15 +355,16 @@ final class EditorView extends View {
   private void zeichneEintrag(Canvas c, Eintrag e) {
     switch (e.art) {
       case KOPF:
-        schrift.setTextSize(13.5f);
-        schrift.setColor(0xFF4A4E66);
-        schrift.setFakeBoldText(true);
-        c.drawText(e.kat.name, 10, e.y + 20, schrift);
-        schrift.setFakeBoldText(false);
+        schrift.setTextSize(12);
+        schrift.setColor(0xFF6B7280);
+        String kopf = e.kat.name.toUpperCase(java.util.Locale.GERMAN);
+        schrift.setLetterSpacing(0.06f);
+        c.drawText(kopf, 10, e.y + 20, schrift);
+        schrift.setLetterSpacing(0);
         break;
       case HINWEIS: {
         schrift.setTextSize(11.5f);
-        schrift.setColor(0xFF7A7F96);
+        schrift.setColor(0xFF6B7280);
         float breite = palB / (d * palZoom) - 20;
         float y = e.y + 14;
         StringBuilder z = new StringBuilder();
@@ -381,14 +383,14 @@ final class EditorView extends View {
       case KNOPF: {
         r.set(10, e.y, Math.min(170, palB / (d * palZoom) - 10), e.y + e.h);
         p.setColor(0xFFFFFFFF);
-        c.drawRoundRect(r, 8, 8, p);
+        c.drawRoundRect(r, 4, 4, p);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(1.2f);
-        p.setColor(0xFFC8CADA);
-        c.drawRoundRect(r, 8, 8, p);
+        p.setColor(0xFFD1D5DB);
+        c.drawRoundRect(r, 4, 4, p);
         p.setStyle(Paint.Style.FILL);
         schrift.setTextSize(13);
-        schrift.setColor(0xFF4A4E66);
+        schrift.setColor(0xFF374151);
         c.drawText(e.text, r.centerX() - schrift.measureText(e.text) / 2, r.centerY() + 4.5f, schrift);
         break;
       }
@@ -426,7 +428,7 @@ final class EditorView extends View {
   private void zeichneKategorien(Canvas c, int h) {
     grund.setColor(0xFFFFFFFF);
     c.drawRect(0, 0, katB, h, grund);
-    grund.setColor(0xFFD9DAE6);
+    grund.setColor(0xFFD1D5DB);
     c.drawRect(katB - Math.max(1, d), 0, katB, h, grund);
     float kh = katHoehe(h);
     boolean mitText = kh >= 42 * d;
@@ -436,22 +438,19 @@ final class EditorView extends View {
       Kategorie k = ks[i];
       float y0 = 4 * d + i * kh;
       float cx = katB / 2, cy = y0 + (mitText ? kh * 0.38f : kh / 2);
-      float rad = Math.min(11 * d, kh * 0.26f);
+      float rad = Math.min(8 * d, kh * 0.2f);
       if (k == aktiv) {
-        p.setColor(0xFFE9E8FA);
-        r.set(3 * d, y0 + 1 * d, katB - 4 * d, y0 + kh - 1 * d);
-        c.drawRoundRect(r, 8 * d, 8 * d, p);
+        p.setColor(0xFFEFF4FF);
+        c.drawRect(0, y0, katB - Math.max(1, d), y0 + kh, p);
+        p.setColor(0xFF2563EB);
+        c.drawRect(0, y0 + 4 * d, 3 * d, y0 + kh - 4 * d, p);
       }
       p.setColor(k.farbe);
-      c.drawCircle(cx, cy, rad, p);
-      p.setStyle(Paint.Style.STROKE);
-      p.setStrokeWidth(Math.max(1, d));
-      p.setColor(k.rand);
-      c.drawCircle(cx, cy, rad, p);
-      p.setStyle(Paint.Style.FILL);
+      r.set(cx - rad, cy - rad, cx + rad, cy + rad);
+      c.drawRoundRect(r, 3 * d, 3 * d, p);
       if (mitText) {
         schrift.setTextSize(Math.min(10 * d, katB / 6.2f));
-        schrift.setColor(0xFF575B73);
+        schrift.setColor(0xFF4B5563);
         String t = k.name;
         float tw = schrift.measureText(t);
         if (tw > katB - 4 * d) {
@@ -475,16 +474,17 @@ final class EditorView extends View {
     float rad = 17 * d;
     for (int i = 0; i < 3; i++) {
       float cx = w - 26 * d, cy = h - 26 * d - (2 - i) * 44 * d;
+      r.set(cx - rad, cy - rad, cx + rad, cy + rad);
       p.setColor(0xF2FFFFFF);
-      c.drawCircle(cx, cy, rad, p);
+      c.drawRoundRect(r, 6 * d, 6 * d, p);
       p.setStyle(Paint.Style.STROKE);
       p.setStrokeWidth(Math.max(1, d));
-      p.setColor(0xFFCBCDDB);
-      c.drawCircle(cx, cy, rad, p);
+      p.setColor(0xFFD1D5DB);
+      c.drawRoundRect(r, 6 * d, 6 * d, p);
       p.setStyle(Paint.Style.FILL);
-      schrift.setTextSize(19 * d);
-      schrift.setColor(0xFF5B4BDB);
-      c.drawText(z[i], cx - schrift.measureText(z[i]) / 2, cy + 6.5f * d, schrift);
+      schrift.setTextSize(18 * d);
+      schrift.setColor(0xFF374151);
+      c.drawText(z[i], cx - schrift.measureText(z[i]) / 2, cy + 6 * d, schrift);
     }
   }
 
@@ -498,7 +498,7 @@ final class EditorView extends View {
   }
 
   private void zeichnePapierkorb(Canvas c, float cx, float cy) {
-    p.setColor(0xFFE5484D);
+    p.setColor(0xFFDC2626);
     p.setStyle(Paint.Style.STROKE);
     p.setStrokeWidth(2.5f * d);
     p.setStrokeJoin(Paint.Join.ROUND);
@@ -516,7 +516,7 @@ final class EditorView extends View {
     c.drawLine(cx + s * 0.2f, cy - s * 0.2f, cx + s * 0.15f, cy + s * 0.65f, p);
     p.setStyle(Paint.Style.FILL);
     schrift.setTextSize(12 * d);
-    schrift.setColor(0xFFC23238);
+    schrift.setColor(0xFFB91C1C);
     String t = "Löschen";
     c.drawText(t, cx - schrift.measureText(t) / 2, cy + s + 20 * d, schrift);
   }
@@ -542,7 +542,7 @@ final class EditorView extends View {
     p.setColor(blasenBlock.spec.kat.farbe);
     c.drawRoundRect(r, 10 * d, 10 * d, p);
     p.setStyle(Paint.Style.FILL);
-    schrift.setColor(0xFF2B2D42);
+    schrift.setColor(0xFF111827);
     c.drawText(t, x + 11 * d, y + bh / 2 + 5 * d, schrift);
   }
 

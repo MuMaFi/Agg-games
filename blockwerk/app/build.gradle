@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 
 /* Jeder Bau auf GitHub zählt hoch (-Pfassung=<Laufnummer>), damit ein neues
    APK über das alte installiert werden kann und die Projekte bleiben. */
-def fassung = (project.findProperty('fassung') ?: '1') as int
+def fassung = (project.findProperty('fassung') ?: '2') as int
 
 android {
   namespace 'de.mumafi.blockwerk'
@@ -13,7 +13,7 @@ android {
     minSdk 26
     targetSdk 34
     versionCode fassung
-    versionName "1.${fassung}"
+    versionName project.hasProperty('fassung') ? "2.${fassung}" : "2.0"
   }
 
   /* Ein fester Schlüssel statt des Fehlersuch-Schlüssels, den jeder Rechner

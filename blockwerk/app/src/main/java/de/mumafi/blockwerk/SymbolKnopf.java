@@ -9,7 +9,7 @@ import android.view.View;
 
 /** Ein runder Knopf mit selbst gezeichnetem Symbol. */
 final class SymbolKnopf extends View {
-  static final int FLAGGE = 0, STOPP = 1, VOLLBILD = 2, MENUE = 3, SCHLIESSEN = 4, KLEIN = 5;
+  static final int FLAGGE = 0, STOPP = 1, VOLLBILD = 2, MENUE = 3, SCHLIESSEN = 4, KLEIN = 5, CODE = 6;
 
   private final int art;
   private final float d;
@@ -42,44 +42,45 @@ final class SymbolKnopf extends View {
       p.setColor(0x66000000);
       c.drawCircle(cx, cy, s * 1.75f, p);
     }
-    if (aktiv) {
-      p.setColor(art == FLAGGE ? 0x553DDC84 : 0x33FFFFFF);
+    if (aktiv && art != CODE) {
+      p.setColor(art == FLAGGE ? 0x4422C55E : 0x22FFFFFF);
       c.drawCircle(cx, cy, s * 1.75f, p);
     }
     p.setStyle(Paint.Style.FILL);
     switch (art) {
       case FLAGGE: {
-        p.setColor(0xFF4CC75A);
+        // Start: ein Dreieck wie in einer Entwicklungsumgebung
+        p.setColor(0xFF22C55E);
         pfad.reset();
-        float l = cx - s * 0.75f, t = cy - s;
-        pfad.moveTo(l, t + s * 0.1f);
-        pfad.cubicTo(l + s * 0.6f, t - s * 0.25f, l + s * 0.9f, t + s * 0.5f, l + s * 1.6f, t + s * 0.1f);
-        pfad.lineTo(l + s * 1.6f, t + s * 1.1f);
-        pfad.cubicTo(l + s * 0.9f, t + s * 1.5f, l + s * 0.6f, t + s * 0.75f, l, t + s * 1.1f);
+        pfad.moveTo(cx - s * 0.6f, cy - s * 0.85f);
+        pfad.lineTo(cx + s * 0.85f, cy);
+        pfad.lineTo(cx - s * 0.6f, cy + s * 0.85f);
         pfad.close();
         c.drawPath(pfad, p);
-        p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(2.2f * d);
-        p.setStrokeCap(Paint.Cap.ROUND);
-        p.setColor(0xFF2E9E3C);
-        c.drawPath(pfad, p);
-        p.setColor(farbe == 0xFFFFFFFF ? 0xFFE8FFE8 : 0xFF2E9E3C);
-        c.drawLine(l, t - s * 0.05f, l, cy + s, p);
         break;
       }
       case STOPP: {
-        p.setColor(0xFFF0484E);
-        pfad.reset();
-        for (int i = 0; i < 8; i++) {
-          double a = Math.PI / 8 + i * Math.PI / 4;
-          float x = cx + (float) Math.cos(a) * s * 1.02f, y = cy + (float) Math.sin(a) * s * 1.02f;
-          if (i == 0) pfad.moveTo(x, y); else pfad.lineTo(x, y);
-        }
-        pfad.close();
-        c.drawPath(pfad, p);
+        p.setColor(0xFFEF4444);
+        android.graphics.RectF r = new android.graphics.RectF(cx - s * 0.7f, cy - s * 0.7f, cx + s * 0.7f, cy + s * 0.7f);
+        c.drawRoundRect(r, 2 * d, 2 * d, p);
+        break;
+      }
+      case CODE: {
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(1.6f * d);
-        p.setColor(0xFFB3262B);
+        p.setStrokeWidth(2.2f * d);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeJoin(Paint.Join.ROUND);
+        p.setColor(aktiv ? 0xFF60A5FA : farbe);
+        float e = s * 0.9f;
+        pfad.reset();
+        pfad.moveTo(cx - e * 0.45f, cy - e * 0.65f);
+        pfad.lineTo(cx - e * 1.1f, cy);
+        pfad.lineTo(cx - e * 0.45f, cy + e * 0.65f);
+        pfad.moveTo(cx + e * 0.45f, cy - e * 0.65f);
+        pfad.lineTo(cx + e * 1.1f, cy);
+        pfad.lineTo(cx + e * 0.45f, cy + e * 0.65f);
+        pfad.moveTo(cx + e * 0.2f, cy - e * 0.8f);
+        pfad.lineTo(cx - e * 0.2f, cy + e * 0.8f);
         c.drawPath(pfad, p);
         break;
       }

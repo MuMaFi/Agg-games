@@ -18,28 +18,25 @@ final class Bibliothek {
 
   /** Figuren: Anzeigename, dann die Kennungen ihrer Kostüme */
   static final String[][] FIGUREN = {
-      {"Robbi", "robbi1", "robbi2"},
-      {"Ball", "ball"},
+      {"Zeiger", "zeiger"},
+      {"Person", "person1", "person2"},
+      {"Kreis", "kreis"},
+      {"Quadrat", "quadrat"},
+      {"Dreieck", "dreieck"},
       {"Stern", "stern"},
-      {"Herz", "herz"},
+      {"Ball", "ball"},
+      {"Schläger", "schlaeger"},
+      {"Pfeil", "pfeil"},
       {"Rakete", "rakete"},
-      {"Fisch", "fisch"},
-      {"Vogel", "vogel1", "vogel2"},
-      {"Käfer", "kaefer"},
-      {"Geist", "geist"},
-      {"Apfel", "apfel"},
       {"Auto", "auto"},
+      {"Herz", "herz"},
+      {"Münze", "muenze"},
+      {"Haus", "haus"},
       {"Baum", "baum"},
       {"Wolke", "wolke"},
-      {"Pfeil", "pfeil"},
-      {"Quadrat", "quadrat"},
-      {"Schläger", "schlaeger"},
-      {"Münze", "muenze"},
   };
 
-  static final String[] BUEHNENBILDER = {
-      "weiss", "himmel", "wiese", "weltraum", "unterwasser", "nacht", "strand", "gitter"
-  };
+  static final String[] BUEHNENBILDER = {"weiss", "gitter", "dunkel", "himmel", "wiese", "weltraum"};
 
   static String bildName(String id) {
     switch (id) {
@@ -51,12 +48,17 @@ final class Bibliothek {
       case "nacht": return "Nacht";
       case "strand": return "Strand";
       case "gitter": return "Koordinaten";
+      case "dunkel": return "Dunkel";
       default: return id;
     }
   }
 
+  /** Bühnenbilder früherer Fassungen, damit alte Projekte sich öffnen lassen */
+  private static final String[] ALTE_BILDER = {"unterwasser", "nacht", "strand"};
+
   static Kostuem kostuem(String id) {
     for (String b : BUEHNENBILDER) if (b.equals(id)) return buehnenbild(id);
+    for (String b : ALTE_BILDER) if (b.equals(id)) return buehnenbild(id);
     float w, h;
     switch (id) {
       case "robbi1": case "robbi2": w = 100; h = 110; break;
@@ -76,6 +78,11 @@ final class Bibliothek {
       case "quadrat": w = 50; h = 50; break;
       case "schlaeger": w = 100; h = 18; break;
       case "muenze": w = 40; h = 40; break;
+      case "zeiger": w = 60; h = 48; break;
+      case "kreis": w = 44; h = 44; break;
+      case "dreieck": w = 48; h = 44; break;
+      case "person1": case "person2": w = 44; h = 90; break;
+      case "haus": w = 80; h = 76; break;
       default: return null;
     }
     float res = 2;
@@ -96,6 +103,8 @@ final class Bibliothek {
       case "vogel2": return "Vogel-b";
       case "kaefer": return "Käfer";
       case "schlaeger": return "Schläger";
+      case "person1": return "Person-a";
+      case "person2": return "Person-b";
       case "muenze": return "Münze";
       default: return Character.toUpperCase(id.charAt(0)) + id.substring(1);
     }
@@ -140,29 +149,14 @@ final class Bibliothek {
     switch (id) {
       case "robbi1": robbi(c, false); break;
       case "robbi2": robbi(c, true); break;
-      case "ball": {
-        kreis(c, 20, 20, 18, 0xFFFF5A5F);
-        Path p = new Path();
-        p.addCircle(20, 20, 18, Path.Direction.CW);
-        c.save();
-        c.clipPath(p);
-        c.drawRect(2, 15, 38, 25, fuell(0xFFFFFFFF));
-        c.drawRect(2, 17, 38, 23, fuell(0xFF3E8EF7));
-        c.restore();
-        c.drawCircle(20, 20, 18, strich(0xFFB8333A, 2));
-        kreis(c, 13, 11, 4, 0x88FFFFFF);
+      case "ball":
+        kreis(c, 20, 20, 18, 0xFFEF4444);
+        c.drawCircle(20, 20, 18, strich(0xFFB91C1C, 1.6f));
         break;
-      }
       case "stern": {
         Path p = sternPfad(26, 26.5f, 24, 10.5f, 5);
-        c.drawPath(p, fuell(0xFFFFD23F));
-        c.drawPath(p, strich(0xFFD9A400, 2.4f));
-        kreis(c, 22, 25, 2.2f, 0xFF3A2E00);
-        kreis(c, 31, 25, 2.2f, 0xFF3A2E00);
-        Path m = new Path();
-        m.moveTo(22.5f, 30);
-        m.quadTo(26.5f, 34, 30.5f, 30);
-        c.drawPath(m, strich(0xFF3A2E00, 1.6f));
+        c.drawPath(p, fuell(0xFFF59E0B));
+        c.drawPath(p, strich(0xFFD97706, 1.6f));
         break;
       }
       case "herz": {
@@ -173,9 +167,8 @@ final class Bibliothek {
         p.cubicTo(28, 1, 39, 3, 42, 11);
         p.cubicTo(45, 18, 40, 28, 23, 39);
         p.close();
-        c.drawPath(p, fuell(0xFFFF4D6D));
-        c.drawPath(p, strich(0xFFC22745, 2));
-        kreis(c, 13, 12, 3.5f, 0x88FFFFFF);
+        c.drawPath(p, fuell(0xFFEF4444));
+        c.drawPath(p, strich(0xFFB91C1C, 1.6f));
         break;
       }
       case "rakete": {
@@ -205,9 +198,7 @@ final class Bibliothek {
         Path s = new Path();
         s.moveTo(76, 15.2f); s.quadTo(90, 18, 94, 24); s.quadTo(90, 30, 76, 32.8f); s.close();
         c.drawPath(s, fuell(0xFFE63946));
-        kreis(c, 56, 24, 6, 0xFF8D99AE);
-        kreis(c, 56, 24, 4.5f, 0xFF7FD1FF);
-        kreis(c, 54.5f, 22.5f, 1.4f, 0xCCFFFFFF);
+        kreis(c, 56, 24, 5.5f, 0xFF60A5FA);
         break;
       }
       case "fisch": {
@@ -347,10 +338,7 @@ final class Bibliothek {
         kreis(c, 24, 58, 22, g);
         kreis(c, 66, 58, 22, g);
         kreis(c, 45, 66, 20, g);
-        kreis(c, 36, 26, 8, 0x3389FFB0);
-        kreis(c, 30, 52, 3, 0xFFE63946);
-        kreis(c, 60, 40, 3, 0xFFE63946);
-        kreis(c, 56, 66, 3, 0xFFE63946);
+
         break;
       }
       case "wolke": {
@@ -367,22 +355,64 @@ final class Bibliothek {
         Path p = new Path();
         p.moveTo(4, 15); p.lineTo(40, 15); p.lineTo(40, 4); p.lineTo(68, 22);
         p.lineTo(40, 40); p.lineTo(40, 29); p.lineTo(4, 29); p.close();
-        c.drawPath(p, fuell(0xFF3E8EF7));
-        c.drawPath(p, strich(0xFF1F5FB8, 2));
+        c.drawPath(p, fuell(0xFF2563EB));
+        c.drawPath(p, strich(0xFF1D4ED8, 1.6f));
         break;
       }
       case "quadrat":
-        rr(c, 3, 3, 47, 47, 7, 0xFF8A5CF5, 0xFF5F37C4, 2.4f);
+        rr(c, 3, 3, 47, 47, 4, 0xFF6366F1, 0xFF4F46E5, 1.6f);
         break;
       case "schlaeger":
-        rr(c, 2, 2, 98, 16, 7, 0xFF2B2D42, 0xFF111111, 1.5f);
-        rr(c, 8, 5, 92, 8, 1.5f, 0x55FFFFFF, 0, 0);
+        rr(c, 2, 2, 98, 16, 4, 0xFF94A3B8, 0xFF64748B, 1.4f);
         break;
       case "muenze": {
-        kreis(c, 20, 20, 18, 0xFFFFC300);
-        c.drawCircle(20, 20, 18, strich(0xFFC98E00, 2));
-        c.drawCircle(20, 20, 13, strich(0xFFE0A800, 1.6f));
-        c.drawPath(sternPfad(20, 20.5f, 8, 3.5f, 5), fuell(0xFFFFF1A8));
+        kreis(c, 20, 20, 18, 0xFFEAB308);
+        c.drawCircle(20, 20, 18, strich(0xFFA16207, 1.6f));
+        c.drawCircle(20, 20, 12, strich(0xFFCA8A04, 1.6f));
+        break;
+      }
+      case "zeiger": {
+        Path p = new Path();
+        p.moveTo(4, 4); p.lineTo(57, 24); p.lineTo(4, 44); p.lineTo(16, 24); p.close();
+        c.drawPath(p, fuell(0xFF2563EB));
+        c.drawPath(p, strich(0xFF1D4ED8, 1.6f));
+        break;
+      }
+      case "kreis":
+        kreis(c, 22, 22, 20, 0xFF3B82F6);
+        c.drawCircle(22, 22, 20, strich(0xFF2563EB, 1.6f));
+        break;
+      case "dreieck": {
+        Path p = new Path();
+        p.moveTo(4, 4); p.lineTo(45, 22); p.lineTo(4, 40); p.close();
+        c.drawPath(p, fuell(0xFF10B981));
+        c.drawPath(p, strich(0xFF059669, 1.6f));
+        break;
+      }
+      case "person1": case "person2": {
+        boolean b = id.equals("person2");
+        int farbe = 0xFF475569;
+        Paint glied = strich(farbe, 6);
+        if (!b) {
+          c.drawLine(18, 56, 13, 85, glied); c.drawLine(26, 56, 31, 85, glied);
+          c.drawLine(14, 30, 8, 52, glied); c.drawLine(30, 30, 36, 52, glied);
+        } else {
+          c.drawLine(18, 56, 24, 85, glied); c.drawLine(26, 56, 20, 85, glied);
+          c.drawLine(14, 30, 18, 53, glied); c.drawLine(30, 30, 26, 53, glied);
+        }
+        rr(c, 12, 23, 32, 60, 6, farbe, 0, 0);
+        kreis(c, 22, 12, 9, farbe);
+        break;
+      }
+      case "haus": {
+        rr(c, 12, 34, 68, 72, 1, 0xFFF3F4F6, 0xFF6B7280, 1.6f);
+        Path dach = new Path();
+        dach.moveTo(6, 37); dach.lineTo(40, 6); dach.lineTo(74, 37); dach.close();
+        c.drawPath(dach, fuell(0xFFDC2626));
+        c.drawPath(dach, strich(0xFF991B1B, 1.6f));
+        rr(c, 34, 48, 46, 72, 1, 0xFF6B7280, 0, 0);
+        rr(c, 18, 44, 28, 54, 1, 0xFF93C5FD, 0, 0);
+        rr(c, 52, 44, 62, 54, 1, 0xFF93C5FD, 0, 0);
         break;
       }
       default:
@@ -480,9 +510,7 @@ final class Bibliothek {
     Random z = new Random(7);
     switch (id) {
       case "himmel":
-        verlauf(c, 0, 360, 0xFF6EC1F5, 0xFFD9F1FF);
-        kreis(c, 410, 62, 34, 0x55FFF3B0);
-        kreis(c, 410, 62, 26, 0xFFFFE066);
+        verlauf(c, 0, 360, 0xFF7DB9E8, 0xFFE3F1FB);
         wolke(c, 60, 80, 1.2f);
         wolke(c, 250, 140, 0.9f);
         wolke(c, 330, 260, 1.4f);
@@ -495,11 +523,7 @@ final class Bibliothek {
         c.drawOval(new RectF(-120, 210, 300, 480), fuell(0xFF74C365));
         c.drawOval(new RectF(160, 230, 620, 500), fuell(0xFF5DB352));
         c.drawRect(0, 300, 480, 360, fuell(0xFF5DB352));
-        for (int i = 0; i < 40; i++) {
-          float x = z.nextFloat() * 480, y = 270 + z.nextFloat() * 85;
-          int[] fb = {0xFFFFFFFF, 0xFFFFD23F, 0xFFFF7BAC};
-          kreis(c, x, y, 2.4f, fb[i % 3]);
-        }
+
         break;
       case "weltraum": {
         verlauf(c, 0, 360, 0xFF070B1F, 0xFF1C2452);
@@ -583,6 +607,13 @@ final class Bibliothek {
         c.drawPath(sand, fuell(0xFFF2D59B));
         for (int i = 0; i < 6; i++) kreis(c, z.nextFloat() * 480, 300 + z.nextFloat() * 50, 3, 0xFFFFF4E0);
         break;
+      case "dunkel": {
+        c.drawColor(0xFF1F2329);
+        Paint linie = strich(0xFF2A3038, 1);
+        for (int x = 0; x <= 480; x += 40) c.drawLine(x, 0, x, 360, linie);
+        for (int y = 0; y <= 360; y += 40) c.drawLine(0, y, 480, y, linie);
+        break;
+      }
       case "gitter": {
         c.drawColor(0xFFFFFFFF);
         Paint fein = strich(0xFFE6E9F0, 1);

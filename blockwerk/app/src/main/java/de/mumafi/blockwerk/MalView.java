@@ -25,7 +25,7 @@ final class MalView extends View {
   static final int PINSEL = 0, RADIERER = 1, FUELLEN = 2, LINIE = 3, RECHTECK = 4, KREIS = 5;
 
   int werkzeug = PINSEL;
-  int farbe = 0xFF3E8EF7;
+  int farbe = 0xFF2563EB;
   float dicke = 8;
   boolean geaendert;
   Runnable beiAenderung;
@@ -189,7 +189,7 @@ final class MalView extends View {
   @Override protected void onSizeChanged(int w, int h, int ow, int oh) { ansichtGesetzt = false; }
 
   @Override protected void onDraw(Canvas c) {
-    c.drawColor(0xFFE9E8F2);
+    c.drawColor(0xFFE5E7EB);
     if (bild == null) return;
     ansichtSetzen();
     ansicht.reset();

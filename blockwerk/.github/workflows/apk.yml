@@ -30,7 +30,7 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest
 
       - name: Bauen
-        run: gradle --no-daemon -Pfassung=${{ github.run_number }} assembleRelease
+        run: gradle --no-daemon -Pfassung=$(( ${{ github.run_number }} + 2 )) assembleRelease
 
       - name: Umbenennen und Signatur prüfen
         run: |

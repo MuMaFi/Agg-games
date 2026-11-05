@@ -85,14 +85,23 @@ public class BlockwerkTest {
   @Test public void editorHochformat() {
     HauptActivity a = starte();
     bild(wurzel(a), "1-editor-hoch");
+    a.wechsleProjekt(Beispiele.erzeuge(2));
+    warte(50);
+    bild(wurzel(a), "1-editor-hoch-zahlenraten");
+    a.setzeCodeModus(true);
+    warte(50);
+    bild(wurzel(a), "1-code-hoch");
   }
 
   @Test @Config(qualifiers = "w891dp-h411dp-land-xhdpi")
   public void editorQuerformat() {
     HauptActivity a = starte();
-    a.wechsleProjekt(Beispiele.erzeuge(2));
+    a.wechsleProjekt(Beispiele.erzeuge(3));
     warte(100);
-    bild(wurzel(a), "2-editor-quer-sternenfaenger");
+    bild(wurzel(a), "2-editor-quer-fangspiel");
+    a.setzeCodeModus(true);
+    warte(100);
+    bild(wurzel(a), "2-code-quer");
   }
 
   @Test public void beispieleLaufenOhneFehler() {
@@ -109,29 +118,40 @@ public class BlockwerkTest {
     }
   }
 
-  @Test public void halloRobbiSprichtUndDreht() {
+  @Test public void quadratUndKonsole() {
     HauptActivity a = starte();
     a.wechsleProjekt(Beispiele.erzeuge(0));
-    Projekt p = HauptActivity.projekt;
-    Figur r = p.figuren.get(0);
+    Figur z = HauptActivity.projekt.figuren.get(0);
     HauptActivity.motor.flagge();
-    warte(500);
-    assertEquals("Hallo! Tippe mich an.", r.blase);
     warte(3000);
-    assertNull(r.blase);
-    int k0 = r.kostuem;
-    warte(450);
-    assertTrue("Kostüm wechselt", r.kostuem != k0);
-    HauptActivity.motor.figurAngetippt(r);
-    warte(200);
-    assertTrue("dreht sich", r.richtung != 90);
-    assertTrue("Farbeffekt", r.effektFarbe != 0);
-    warte(2000);
-    assertEquals(90, r.richtung, 0.001);
+    assertEquals(-50, z.x, 0.5);
+    assertEquals(-50, z.y, 0.5);
+    assertEquals(1, HauptActivity.motor.konsole.size());
+    assertTrue(HauptActivity.motor.konsole.get(0).startsWith("Fertig"));
+    bild(wurzel(a), "4-quadrat");
     assertNull(Motor.letzterFehler);
   }
 
-  @Test public void malroboterMalt() {
+  @Test public void zahlenratenFragtUndZaehlt() {
+    HauptActivity a = starte();
+    a.wechsleProjekt(Beispiele.erzeuge(2));
+    Projekt p = HauptActivity.projekt;
+    Motor m = HauptActivity.motor;
+    m.flagge();
+    warte(100);
+    double geheim = Werte.zahl(p.variablen.get("geheim"));
+    assertTrue(geheim >= 1 && geheim <= 100);
+    m.beantworte(Werte.zahlText(geheim == 1 ? 2 : geheim - 1));
+    warte(100);
+    assertEquals(2.0, Werte.zahl(p.variablen.get("Versuche")), 0);
+    m.beantworte(Werte.zahlText(geheim));
+    warte(200);
+    assertEquals("Richtig! Versuche: 2", p.figuren.get(0).blase);
+    assertEquals("Geraten in Versuchen: 2", m.konsole.get(0));
+    assertNull(Motor.letzterFehler);
+  }
+
+  @Test public void spiraleMalt() {
     HauptActivity a = starte();
     a.wechsleProjekt(Beispiele.erzeuge(1));
     HauptActivity.motor.flagge();
@@ -143,39 +163,39 @@ public class BlockwerkTest {
         if ((stift.getPixel(x, y) >>> 24) != 0) gemalt++;
     assertTrue("Stiftspuren: " + gemalt, gemalt > 500);
     assertEquals(242.0, Werte.zahl(HauptActivity.projekt.variablen.get("Länge")), 0.001);
-    bild(wurzel(a), "4-malroboter-fertig");
+    bild(wurzel(a), "4-spirale-fertig");
   }
 
-  @Test public void sternenfaengerSteuerung() {
+  @Test public void fangspielSteuerung() {
     HauptActivity a = starte();
-    a.wechsleProjekt(Beispiele.erzeuge(2));
+    a.wechsleProjekt(Beispiele.erzeuge(3));
     Projekt p = HauptActivity.projekt;
-    Figur robbi = p.figur("Robbi"), stern = p.figur("Stern");
+    Figur schlaeger = p.figur("Schläger"), stern = p.figur("Stern");
     Motor m = HauptActivity.motor;
     m.flagge();
     warte(100);
-    double sy = stern.y, rx = robbi.x;
+    double sy = stern.y, sx = schlaeger.x;
     m.tasteRunter("rechts");
     warte(500);
     m.tasteHoch("rechts");
-    assertTrue("Robbi geht nach rechts", robbi.x > rx + 50);
+    assertTrue("Schläger geht nach rechts", schlaeger.x > sx + 50);
     assertTrue("Stern fällt", stern.y < sy - 30);
-    // Stern direkt auf Robbi setzen: Punkt zählen
-    stern.x = robbi.x;
-    stern.y = robbi.y + 10;
+    stern.x = schlaeger.x;
+    stern.y = schlaeger.y + 8;
     warte(100);
     assertEquals(1.0, Werte.zahl(p.variablen.get("Punkte")), 0.001);
     assertNull(Motor.letzterFehler);
   }
 
-  @Test public void aquariumMachtKlone() {
+  @Test public void partikelMachenKlone() {
     HauptActivity a = starte();
-    a.wechsleProjekt(Beispiele.erzeuge(4));
+    a.wechsleProjekt(Beispiele.erzeuge(5));
     HauptActivity.motor.flagge();
     warte(3000);
     int klone = 0;
     for (Figur f : HauptActivity.projekt.ebenen) if (f.istKlon) klone++;
-    assertEquals(7, klone);
+    assertEquals(12, klone);
+    bild(wurzel(a), "4-partikel");
     HauptActivity.motor.stoppeAlles();
     klone = 0;
     for (Figur f : HauptActivity.projekt.ebenen) if (f.istKlon) klone++;
@@ -327,7 +347,7 @@ public class BlockwerkTest {
 
   @Test public void vollbildMitSteuerkreuz() {
     HauptActivity a = starte();
-    a.wechsleProjekt(Beispiele.erzeuge(2));
+    a.wechsleProjekt(Beispiele.erzeuge(3));
     a.setzeVollbild(true);
     HauptActivity.motor.flagge();
     warte(800);
@@ -380,7 +400,7 @@ public class BlockwerkTest {
     raster.getChildAt(4).performClick();
     warte(50);
     assertEquals(vorher + 1, HauptActivity.projekt.figuren.size());
-    assertEquals("Rakete", HauptActivity.figur.name);
+    assertEquals("Dreieck", HauptActivity.figur.name);
 
     // Farbwahl
     Auswahl.farbe(a, "Farbe wählen", x -> {});

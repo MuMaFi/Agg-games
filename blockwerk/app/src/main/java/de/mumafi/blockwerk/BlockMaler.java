@@ -10,15 +10,15 @@ import android.graphics.Typeface;
  *  Alle Maße sind Einheiten; der Canvas wird vorher passend skaliert. */
 final class BlockMaler {
 
-  static final float SCHRIFT = 12.5f;
+  static final float SCHRIFT = 12f;
   static final float LUECKE = 5;
-  static final float BEFEHL_MIN_H = 38, BEFEHL_PAD_Y = 7;
-  static final float WERT_MIN_H = 28, WERT_PAD_Y = 3;
+  static final float BEFEHL_MIN_H = 36, BEFEHL_PAD_Y = 7;
+  static final float WERT_MIN_H = 26, WERT_PAD_Y = 3;
   static final float SLOT_H = 22, SLOT_MIN_W = 28;
   static final float KX = 14, KB = 18, KT = 5;
-  static final float HUT_H = 16, HUT_B = 86;
+  static final float HUT_H = 11, HUT_B = 90;
   static final float MUND_EINZUG = 16, MUND_MIN_H = 24, ARM_H = 22;
-  static final float ECKE = 5;
+  static final float ECKE = 3;
 
   Projekt projekt;
   Figur figur;
@@ -223,7 +223,8 @@ final class BlockMaler {
     }
     if (s.istHut()) {
       p.moveTo(x, y + HUT_H);
-      p.cubicTo(x + HUT_B * 0.25f, y - HUT_H / 3, x + HUT_B * 0.75f, y - HUT_H / 3, x + HUT_B, y + HUT_H);
+      // flacher Bogen statt runder Kuppel
+      p.cubicTo(x + HUT_B * 0.2f, y - HUT_H / 3, x + HUT_B * 0.8f, y - HUT_H / 3, x + HUT_B, y + HUT_H);
       p.lineTo(x + w - e, y + HUT_H);
       p.quadTo(x + w, y + HUT_H, x + w, y + HUT_H + e);
     } else {
@@ -272,8 +273,8 @@ final class BlockMaler {
 
   void zeichneStapel(Canvas c, Block oben, boolean leuchten) {
     if (leuchten) {
-      glanz.setColor(0xFFFFE14D);
-      glanz.setStrokeWidth(7);
+      glanz.setColor(0xFF60A5FA);
+      glanz.setStrokeWidth(6);
       for (Block b = oben; b != null; b = b.next) {
         form(pfad, b, b.ax, b.ay);
         c.drawPath(pfad, glanz);

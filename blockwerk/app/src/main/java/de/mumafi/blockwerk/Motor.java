@@ -69,6 +69,8 @@ final class Motor {
   Ansicht ansicht;
 
   final ArrayList<Faden> faeden = new ArrayList<>();
+  /** Ausgaben von „schreibe … in die Konsole“ — in Java System.out */
+  final ArrayList<String> konsole = new ArrayList<>();
   final HashSet<String> tasten = new HashSet<>();
   boolean fingerUnten;
   double fingerX, fingerY;
@@ -249,6 +251,7 @@ final class Motor {
 
   void flagge() {
     stoppeAlles();
+    konsole.clear();
     stoppuhrStart = jetzt();
     starteHuete("ereignis.flagge", null, null, true);
     ansicht.laufendGeaendert();
@@ -991,6 +994,11 @@ final class Motor {
         }
         return WARTEN;
       case "fuehlen.stoppuhrNeu": stoppuhrStart = jetzt(); return WEITER;
+      case "fuehlen.konsole":
+        konsole.add(text(b, 0, z));
+        while (konsole.size() > 200) konsole.remove(0);
+        neuZeichnen = true;
+        return WEITER;
 
       // -------------------------------------------------- Variablen
       case "var.setze":
