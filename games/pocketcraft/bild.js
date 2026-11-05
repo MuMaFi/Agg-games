@@ -519,7 +519,9 @@ function drawMobs(fogCol, near, far){
     const hurt = m.hurtTimer > 0;
     gl.uniform1f(P.u.uLight, light);
     const sw = Math.sin(m.walkPhase) * (m.moving || m.def.hostile ? 0.62 : 0.06);
-    for(const part of m.def.parts){
+    // mit dem Minecraft-Paket: Minecrafts Modell und Bilder (mcwesen.js)
+    const mc = McWesen.teile(m);
+    for(const part of mc || m.def.parts){
       if(part.wenn && !part.wenn(m)) continue;
       if(part.huelle){ _huellen.push(m, part, light); continue; }   // durchscheinend: nach allem anderen
       const f = part.farbe ? part.farbe(m) : null;
@@ -534,9 +536,9 @@ function drawMobs(fogCol, near, far){
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
       // Flügel: in der Luft schlagen sie, am Boden liegen sie an
       else if(part.anim === 'fluegel') ang = m.onGround ? 0 : (0.25 + Math.abs(Math.sin(m.age*19))*1.05) * (part.ph ? 1 : -1);
-      partMatrix(_m, m, part, ang);
+      if(part.mc){ mcTeilMatrix(_m, m, part, ang); gl.uniform1fv(P.u.uLayers, part.lagen); }
+      else { partMatrix(_m, m, part, ang); setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined); }
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
-      setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     }
   }
@@ -561,9 +563,9 @@ function drawHuellen(fogCol, near, far){
     const hurt = m.hurtTimer > 0;
     gl.uniform1f(P.u.uLight, light);
     gl.uniform4f(P.u.uTint, hurt ? 1.6 : 1, hurt ? 0.45 : 1, hurt ? 0.45 : 1, 1);
-    partMatrix(_m, m, part, 0);
+    if(part.mc){ mcTeilMatrix(_m, m, part, 0); gl.uniform1fv(P.u.uLayers, part.lagen); }
+    else { partMatrix(_m, m, part, 0); setLayers(P, TEX[part.tex]); }
     gl.uniformMatrix4fv(P.u.uModel, false, _m);
-    setLayers(P, TEX[part.tex]);
     gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
   gl.disable(gl.BLEND);
@@ -602,6 +604,13 @@ function drawSpieler(fogCol, near, far){
       return 0;
     };
     const teil = part => {
+      if(part.mc){
+        mcTeilMatrix(_m, figur, part, winkel(part));
+        gl.uniformMatrix4fv(P.u.uModel, false, _m);
+        gl.uniform1fv(P.u.uLayers, part.lagen);
+        gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+        return;
+      }
       partMatrix(_m, figur, part, winkel(part));
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       for(let i = 0; i < 6; i++) _layers[i] = TEX[part.tex];
@@ -611,8 +620,9 @@ function drawSpieler(fogCol, near, far){
       gl.uniform1fv(P.u.uLayers, _layers);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     };
-    for(const part of d.parts){
-      if(part.hemd) gl.uniform4f(P.u.uTint, f[0]*rot[0], f[1]*rot[1], f[2]*rot[2], 1); else gl.uniform4f(P.u.uTint, rot[0], rot[1], rot[2], 1);
+    const mcFigur = McWesen.teile({ type:'spieler' });
+    for(const part of mcFigur || d.parts){
+      if(part.hemd && !mcFigur) gl.uniform4f(P.u.uTint, f[0]*rot[0], f[1]*rot[1], f[2]*rot[2], 1); else gl.uniform4f(P.u.uTint, rot[0], rot[1], rot[2], 1);
       teil(part);
     }
     // Rüstung: je Platz drei Bit, 0 = nichts, sonst Material + 1
@@ -714,23 +724,7 @@ function drawPartikel(){
 /** bisGelenk: nur bis zum Drehpunkt, ohne den Kasten selbst — daran hängt
     drawSpieler, was eine Figur in der Hand hält */
 function partMatrix(out, mob, part, ang, bisGelenk){
-  M4.ident(out);
-  M4.translate(out, out, mob.x, mob.y, mob.z);
-  if(mob.liegt) M4.rotX(out, out, -Math.PI/2);               // Mitspieler im Bett: auf dem Rücken
-  M4.rotY(out, out, mob.yaw);
-  // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
-  if(mob.groesse){
-    const g = mob.groesse, q = (mob.quetsch || 0)/(g*0.5 + 1), f = 1/(q + 1);
-    M4.scale(out, out, f*g, g/f, f*g);
-  }
-  // Junge: kleiner, mit verhältnismäßig großem Kopf
-  if(mob.kind > 0){
-    M4.scale(out, out, BABY, BABY, BABY);
-    if(part.kopf && mob.def.kopfPunkt){
-      const [kx, ky, kz] = mob.def.kopfPunkt;
-      M4.translate(out, out, kx, ky, kz); M4.scale(out, out, BABYKOPF, BABYKOPF, BABYKOPF); M4.translate(out, out, -kx, -ky, -kz);
-    }
-  }
+  wesenGrund(out, mob, part.kopf, mob.def && mob.def.kopfPunkt);
   const [ox, oy, oz, w, h, d] = part.box;
   if(ang || part.gier){
     // Drehpunkt: Kopf in der Mitte, Glieder oben — oder wo pivot ihn hinlegt
@@ -745,6 +739,28 @@ function partMatrix(out, mob, part, ang, bisGelenk){
   if(bisGelenk) return;
   M4.translate(out, out, ox, oy, oz);
   M4.scale(out, out, w, h, d);
+}
+/** das Wesen an seinen Platz: Ort, liegend, Blickrichtung, Schleimgröße,
+    Junge kleiner mit großem Kopf (kopf: dieser Teil gehört zum Kopf) */
+function wesenGrund(out, mob, kopf, kopfPunkt){
+  M4.ident(out);
+  M4.translate(out, out, mob.x, mob.y, mob.z);
+  if(mob.liegt) M4.rotX(out, out, -Math.PI/2);               // Mitspieler im Bett: auf dem Rücken
+  M4.rotY(out, out, mob.yaw);
+  // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
+  if(mob.groesse){
+    const g = mob.groesse, q = (mob.quetsch || 0)/(g*0.5 + 1), f = 1/(q + 1);
+    M4.scale(out, out, f*g, g/f, f*g);
+  }
+  // Junge: kleiner, mit verhältnismäßig großem Kopf
+  if(mob.kind > 0){
+    M4.scale(out, out, BABY, BABY, BABY);
+    if(kopf && kopfPunkt){
+      const [kx, ky, kz] = kopfPunkt;
+      M4.translate(out, out, kx, ky, kz); M4.scale(out, out, BABYKOPF, BABYKOPF, BABYKOPF); M4.translate(out, out, -kx, -ky, -kz);
+    }
+  }
+  return out;
 }
 
 /** ein Block als Gegenstand: ein Würfel, eine Treppe, Stufe oder ein Bett in
@@ -816,6 +832,12 @@ function drawSelection(target, fogCol, near, far){
   gl.disable(gl.BLEND);
 }
 
+/* Die eigene Hand und was sie hält, wie in Minecraft (Zahlen und Ablauf
+   in mcwesen.js): leer der rechte Arm schräg von unten rechts, beim
+   Schlagen holt er aus; ein Block schräg gedreht, Werkzeuge und andere
+   Dinge flach und schräg nach oben. Mit dem Minecraft-Paket trägt der Arm
+   dessen Haut, sonst Pocketcrafts Hemd und Hand. */
+const _hand = M4.create(), _hand2 = M4.create();
 function drawHeld(fogCol){
   const p = Game.player;
   const s = Inv.held();
@@ -827,43 +849,40 @@ function drawHeld(fogCol){
   gl.uniform3fv(P.u.uFogCol, fogCol);
   gl.uniform1f(P.u.uFogNear, 900); gl.uniform1f(P.u.uFogFar, 1000);
   gl.uniform1f(P.u.uLight, Math.max(0.42, blockLightAt(p.x, p.eyeY(), p.z)));
+  gl.bindVertexArray(R.cubeVAO);
 
-  M4.ident(_cam);
-  M4.translate(_cam, _cam, p.x, p.eyeY() + (p.stufeGlatt || 0), p.z);
-  M4.rotY(_cam, _cam, p.yaw);
-  M4.rotX(_cam, _cam, p.pitch);
-
-  const sw = p.swinging ? Math.sin(clamp(p.swing,0,1)*Math.PI) : 0;
-  M4.translate(_cam, _cam, 0.40 - sw*0.07, -0.36 + sw*0.10, -0.78 + sw*0.10);
-  M4.rotY(_cam, _cam, -0.46);
-  M4.rotZ(_cam, _cam, 0.16 + sw*0.45);
-  M4.rotX(_cam, _cam, -sw*0.70);
+  M4.ident(_hand);
+  M4.translate(_hand, _hand, p.x, p.eyeY() + (p.stufeGlatt || 0), p.z);
+  M4.rotY(_hand, _hand, p.yaw);
+  M4.rotX(_hand, _hand, p.pitch);
+  const sw = p.swinging ? clamp(p.swing, 0, 1) : 0;
 
   if(!s){
-    M4.rotZ(_cam, _cam, 0.25);
-    M4.scale(_cam, _cam, 0.115, 0.34, 0.115);
-    M4.translate(_cam, _cam, -0.5, -0.85, -0.5);
-    gl.uniformMatrix4fv(P.u.uModel, false, _cam);
-    setLayers(P, TEX['m_skin']);
+    mcArmLage(_hand, sw);
+    for(const t of (McWesen.an && McWesen.hand) || pocketHand()){
+      M4.mul(_hand2, _hand, t.H);
+      gl.uniformMatrix4fv(P.u.uModel, false, _hand2);
+      gl.uniform1fv(P.u.uLayers, t.lagen);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    }
   } else if(!isFlat(s.id)){
-    M4.rotY(_cam, _cam, 0.22); M4.rotX(_cam, _cam, 0.16);
-    M4.scale(_cam, _cam, 0.21, 0.21, 0.21);
-    if(isTreppe(s.id)) M4.rotY(_cam, _cam, Math.PI/2);        // Treppe: das Profil nach vorn, die Stufe links
-    M4.translate(_cam, _cam, -0.5, -0.5, -0.5);
-    gl.uniformMatrix4fv(P.u.uModel, false, _cam);
+    mcDingLage(_hand, sw, true);
+    if(isTreppe(s.id)){ M4.translate(_hand, _hand, .5, .5, .5); M4.rotY(_hand, _hand, Math.PI/2); M4.translate(_hand, _hand, -.5, -.5, -.5); }
+    gl.uniformMatrix4fv(P.u.uModel, false, _hand);
     const b = blocks[s.id];
     for(let i=0;i<6;i++) _layers[i] = TEX[b.faces[i]];
     if(b.dirFront) _layers[5] = TEX[b.dirFront];
     gl.uniform1fv(P.u.uLayers, _layers);
+    blockDingZeichnen(s.id);
   } else {
-    M4.rotY(_cam, _cam, 0.26);
-    M4.scale(_cam, _cam, 0.30, 0.30, 0.035);
-    M4.translate(_cam, _cam, -0.5, -0.35, -0.5);
-    gl.uniformMatrix4fv(P.u.uModel, false, _cam);
+    mcDingLage(_hand, sw, false);
+    // ein Pixel dick, mitten im Würfel (wie Minecrafts flache Gegenstände)
+    M4.translate(_hand, _hand, 0, 0, 7.5/16);
+    M4.scale(_hand, _hand, 1, 1, 1/16);
+    gl.uniformMatrix4fv(P.u.uModel, false, _hand);
     setLayers(P, TEX[flatTexOf(s.id)]);
+    blockDingZeichnen(0);
   }
-  gl.bindVertexArray(R.cubeVAO);
-  blockDingZeichnen(s && !isFlat(s.id) ? s.id : 0);
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
 }
 

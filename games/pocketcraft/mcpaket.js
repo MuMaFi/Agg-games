@@ -68,7 +68,7 @@ for(const t of ['helmet', 'chestplate', 'leggings', 'boots'])
 
 /** alle Bildpfade, die aus der client.jar gebraucht werden */
 function mcBildPfade(){
-  const s = new Set();
+  const s = new Set(typeof mcWesenPfade === 'function' ? mcWesenPfade() : []);
   for(const v of Object.values(MC_TEX)){
     if(typeof v === 'string') s.add(v); else { s.add(v.p); if(v.drauf) s.add(v.drauf); }
   }
@@ -217,21 +217,29 @@ const McPaket = {
     }catch(e){}
     this._geladen = true;
     const s = Game.settings;
-    if(s.mcTexturen && this.texturen && !s.klassik) await this.texturenSetzen(true);
+    if(s.mcTexturen && this.texturen && !s.klassik){
+      await this.texturenSetzen(true);
+      if(!this.hatWesen()) setTimeout(() => hint('Minecraft-Paket: einmal neu laden, dann sehen auch Tiere, Hand und Inventar aus wie in Minecraft', 5200), 1500);
+    }
     else if(s.mcTexturen){ s.mcTexturen = false; Game.saveOpts(); }
     this.klaengeSetzen(!!s.mcKlaenge && !!this.klaenge);
     if(typeof Menue !== 'undefined' && Menue.aktiv === 'minecraft') this.zeigen();
   },
 
   /* — Texturen — */
+  /** Pixel eines Bilds aus dem Paket (Pfad ohne .png), gemerkt */
+  async _px(p){
+    const c = this._pxCache || (this._pxCache = {});
+    if(c[p] !== undefined) return c[p];
+    const b = this.texturen && this.texturen.bilder[p + '.png'];
+    c[p] = b ? await mcPixel(b).catch(() => null) : null;
+    return c[p];
+  },
+  /** sind Tiere, Hand und Oberfläche im Paket? (ältere Pakete hatten nur Blöcke und Gegenstände) */
+  hatWesen(){ return !!(this.texturen && this.texturen.bilder['entity/cow/cow_temperate.png']); },
   async _umrechnen(){
     if(Object.keys(this._fertig).length) return this._fertig;
-    const B = this.texturen.bilder, px = {};
-    const hol = async p => {
-      if(px[p] !== undefined) return px[p];
-      px[p] = B[p + '.png'] ? await mcPixel(B[p + '.png']).catch(() => null) : null;
-      return px[p];
-    };
+    const hol = p => this._px(p);
     for(const [name, v] of Object.entries(MC_TEX)){
       if(TEX[name] === undefined) continue;
       const o = typeof v === 'string' ? { p:v } : v, grund = await hol(o.p);
@@ -262,6 +270,8 @@ const McPaket = {
       ausbluten(d);
       this._fertig[name] = d;
     }
+    const truhe = await hol(MC_TRUHE);
+    if(truhe) Object.assign(this._fertig, mcTruhe(truhe));
     return this._fertig;
   },
   async texturenSetzen(an){
@@ -280,11 +290,20 @@ const McPaket = {
       }
       this.texAn = true;
       texturenNeuLaden(namen);
+      // Wesen, Hand und Truhe aus Minecrafts Modellen (mcwesen.js), einmal je Paket
+      if(!this._wesenFertig && this.hatWesen()){
+        this._wesenFertig = true;
+        try{ await McWesen.bauen(p => this._px(p)); }catch(e){ console.warn('Minecraft-Wesen:', e); }
+      }
+      McWesen.setzen(true);
+      McGui.setzen(true, this.texturen.bilder);
     } else {
       const namen = Object.keys(this._orig);
       for(const n of namen) texData[TEX[n]] = this._orig[n];
       this.texAn = false;
       texturenNeuLaden(namen);
+      McWesen.setzen(false);
+      McGui.setzen(false);
     }
     return true;
   },
@@ -405,7 +424,7 @@ const McPaket = {
       this._status('Texturen werden entpackt …', ++i/pfade.length);
     }
     this.texturen = { version, quelle, zeit: Date.now(), bilder };
-    this._fertig = {};
+    this._fertig = {}; this._pxCache = {}; this._wesenFertig = false;
     await McDB.set('texturen', this.texturen);
     return Object.keys(bilder).length;
   },
@@ -500,7 +519,7 @@ const McPaket = {
     if(this._arbeit) return;
     await this.texturenSetzen(false);
     this.klaengeSetzen(false);
-    this.texturen = this.klaenge = null; this._fertig = {}; this._puffer.clear(); this._audio = [];
+    this.texturen = this.klaenge = null; this._fertig = {}; this._pxCache = {}; this._wesenFertig = false; this._puffer.clear(); this._audio = [];
     Game.settings.mcTexturen = Game.settings.mcKlaenge = false; Game.saveOpts();
     try{ await McDB.weg('texturen'); await McDB.weg('klaenge'); }catch(e){}
     this.zeigen();
@@ -531,6 +550,7 @@ const McPaket = {
       if(!this._geladen) this._status('…');
       else if(!t) this._status('Noch nichts geladen.');
       else this._status('Minecraft ' + t.version + ' · ' + Object.keys(t.bilder).length + ' Bilder ' +
+        (this.hatWesen() ? '' : '(älteres Paket: neu laden für Tiere, Hand und Inventar) ') +
         (t.quelle === 'datei' ? 'aus deiner client.jar' : 'von Mojang') +
         (k ? ' · Geräusche ' + (k.art === 'lokal' ? 'aus deinem assets-Ordner' : 'von Mojang') : '') +
         (k && !this.kannKlaenge() ? ' (spielt dieser Browser nicht ab — nimm den assets-Ordner)' : ''));

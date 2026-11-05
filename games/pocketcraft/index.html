@@ -2,7 +2,25 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<script>
+/* Kein Zoomen. Auf dem iPad gehören zwei Finger dem Laufen und Umsehen,
+   nicht der Lupe — Safari übergeht aber user-scalable=no. Deshalb die
+   Gesten selbst abfangen: Zwei-Finger-Zoom, und am Rechner Strg+Mausrad
+   und Strg+/-. Doppeltippen schaltet das CSS ab (touch-action), ein
+   Finger scrollt Listen weiter wie gewohnt. */
+(() => {
+  const nein = e => e.preventDefault();
+  for(const art of ['gesturestart', 'gesturechange', 'gestureend']) addEventListener(art, nein, { passive:false });
+  addEventListener('touchmove', e => {
+    if(e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault();
+  }, { passive:false });
+  addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+  addEventListener('keydown', e => {
+    if((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0', 'Add', 'Subtract'].indexOf(e.key) >= 0) e.preventDefault();
+  });
+})();
+</script>
 <meta name="theme-color" content="#0e1118">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -44,6 +62,8 @@
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{height:100%; overflow:hidden; overscroll-behavior:none; touch-action:none}
+/* kein Doppeltipp-Zoom, auch nicht in Listen, die selbst scrollen (dort gilt touch-action neu) */
+:where(*){touch-action:manipulation}
 body{
   margin:0; background:var(--ground); color:var(--ink);
   font-family:var(--ui); font-size:15px; line-height:1.45;
@@ -429,6 +449,37 @@ body.superGrafik #vignette{display:block}
   #btnWerfen{right:84px; top:68px; width:48px; height:48px; font-size:10px}
   #hotbar{--slot:42px}
 }
+
+/* ── Minecraft-Paket: Leiste, Fächer, Inventar und Herzen mit Minecrafts
+   eigenen Bildern (mcwesen.js setzt die --mc-… und body.mcGui) ─────── */
+body.mcGui #hotbar{--slot:60px; --k:calc(var(--slot)/20); gap:0; padding:var(--k); border:0; backdrop-filter:none;
+  width:calc(var(--k)*182); height:calc(var(--k)*22); background:var(--mc-hotbar) 0 0/100% 100% no-repeat; image-rendering:pixelated}
+body.mcGui #hotbar .slot{width:calc(var(--k)*20); height:calc(var(--k)*20); background:none; border:0}
+body.mcGui #hotbar .slot .ic{width:80%; height:80%}
+body.mcGui #hotbar .slot.sel{transform:none; box-shadow:none; border:0}
+body.mcGui #hotbar .slot.sel::after{content:""; position:absolute; left:calc(var(--k)*-2); top:calc(var(--k)*-2); width:calc(var(--k)*24); height:calc(var(--k)*23);
+  background:var(--mc-auswahl) 0 0/100% 100% no-repeat; image-rendering:pixelated; pointer-events:none}
+@media (max-width:820px){ body.mcGui #hotbar{--slot:40px} }
+body.mcGui .pip{filter:none; image-rendering:pixelated}
+body.mcGui .pip::before, body.mcGui .pip::after{clip-path:none; background:var(--mc-herzLeer) 0 0/var(--pipW, 18px) 100% no-repeat}
+body.mcGui .pip::after{background-image:var(--mc-herz)}
+body.mcGui .pip.food::before{background-image:var(--mc-essenLeer)} body.mcGui .pip.food::after{background-image:var(--mc-essen)}
+body.mcGui .pip.arm::before{background-image:var(--mc-ruestLeer)} body.mcGui .pip.arm::after{background-image:var(--mc-ruest)}
+body.mcGui .pip.air::before{background-image:var(--mc-luftLeer)} body.mcGui .pip.air::after{background-image:var(--mc-luft)}
+/* Behälter: hellgraues Blatt mit Minecrafts Rahmen, eingelassene Fächer, dunkelgraue Schrift */
+body.mcGui .sheet.beh{background:#c6c6c6; color:#404040; box-shadow:none; border:calc(var(--s)*.18) solid #c6c6c6;
+  border-image:var(--mc-rahmen) 4 fill / calc(var(--s)*.18) stretch; image-rendering:pixelated}
+body.mcGui .sheet.beh h2, body.mcGui .sheet.beh .lbl, body.mcGui #behInfo, body.mcGui .buchLeer{color:#404040; text-shadow:none}
+body.mcGui .sheet.beh .slot, body.mcGui .sheet.beh .rz{background:var(--mc-slot) 0 0/100% 100% no-repeat; border:0; image-rendering:pixelated}
+body.mcGui .sheet.beh .slot.ergebnis.bereit{box-shadow:inset 0 0 0 2px #7fbf4a}
+body.mcGui .sheet.beh .slot.muell{box-shadow:inset 0 0 0 2px #a33}
+body.mcGui .sheet.beh .rz.ok{box-shadow:inset 0 0 0 2px #7fbf4a}
+body.mcGui .sheet.beh .rz.bank{box-shadow:inset 0 0 0 2px #b8792a}
+body.mcGui .pfeil, body.mcGui .hpfeil{color:#8b8b8b}
+body.mcGui .flame, body.mcGui .progbar{background:#8b8b8b}
+body.mcGui .sheet.beh .btn, body.mcGui .sheet.beh .tabs button, body.mcGui .sheet.beh .schalter, body.mcGui .angebot{
+  background:#8b8b8b; color:#fff; text-shadow:2px 2px 0 #3f3f3f; border:2px solid #000; box-shadow:inset 2px 2px 0 #c6c6c6, inset -2px -2px 0 #555}
+body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .schalter[aria-pressed=true], body.mcGui .angebot.kann{background:#6e8a5a}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 </style>
 
@@ -634,7 +685,7 @@ body.superGrafik #vignette{display:block}
       Für Pocketcraft teils eingefärbt, zugeschnitten und zusammengesetzt; diese Bilder stehen ebenfalls unter CC BY-SA 4.0.</p>
     <p class="klein">Die Zuordnung: <code>werkzeug/pp-texturen.py</code> im Quellcode.</p>
     <h3>Minecraft-Paket</h3>
-    <p>Wer es unter Optionen → Minecraft-Paket einschaltet, sieht und hört Texturen und Geräusche aus <b>Minecraft</b> von <b>Mojang</b>.
+    <p>Wer es unter Optionen → Minecraft-Paket einschaltet, sieht und hört Texturen, Wesen, Oberfläche und Geräusche aus <b>Minecraft</b> von <b>Mojang</b>; die Modelle baut Pocketcraft nach Minecrafts eigenen Bauplänen nach.
       Sie kommen direkt von Mojang oder aus dem eigenen Minecraft, liegen nur im Browser und gehören nicht zu Pocketcraft.
       Pocketcraft ist kein offizielles Minecraft-Produkt und nicht von Mojang oder Microsoft genehmigt oder mit ihnen verbunden.</p>
     <h3>Geräusche</h3>
@@ -748,6 +799,7 @@ body.superGrafik #vignette{display:block}
 <script src="superduper.js"></script>
 <script src="wesen.js"></script>
 <script src="klang.js"></script>
+<script src="mcwesen.js"></script>
 <script src="mcpaket.js"></script>
 <script src="wetter.js"></script>
 <script src="handwerk.js"></script>
