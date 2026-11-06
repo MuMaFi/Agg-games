@@ -115,6 +115,9 @@ class Stroemung{
 
   ausbreiten(x, y, z, id){
     const w = this.w;
+    // Wasser, das an Lava kommt, lässt sie erstarren: Obsidian, wie beim Vorbild
+    for(const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], [0, 1, 0]])
+      if(w.getBlock(x + dx, y + dy, z + dz) === B.LAVA) this.setzen(x + dx, y + dy, z + dz, B.OBSIDIAN);
     const unten = y > 1 ? w.getBlock(x, y - 1, z) : B.BEDROCK;
     // nach unten, wenn es geht — fließendes Wasser darunter wird zu fallendem
     if(flutbar(unten) || (isWasser(unten) && unten !== B.WATER && unten !== B.FALL)){

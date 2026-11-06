@@ -23,8 +23,10 @@ const LICHT_STAU = 16;
 const _formK = new Float32Array(30);      // Kästen einer Stufe oder Treppe für den Blick-Strahl
 const COLL = new Float32Array(256*6); // Kollisionskasten je Block, in Blockeinheiten
 const VOLL = new Uint8Array(256);     // Kollision füllt den ganzen Block
+const LEUCHTET = new Uint8Array(256); // gibt Licht ab (Fackeln, Lava, …)
 function buildBlockTables(){
   for(let i=0;i<256;i++){
+    LEUCHTET[i] = blocks[i] && blocks[i].light > 0 ? 1 : 0;
     const b = blocks[i];
     if(!b){ OPQ[i] = 0; SOL[i] = 0; LOPQ[i] = 0; continue; }
     OPQ[i] = b.opaque ? 1 : 0;
@@ -227,7 +229,7 @@ class World{
     this.gen = gen === 2 ? 2 : 1;
     this.typ = typ === 'flach' ? 'flach' : 'normal';
     this.doerfer = !!doerfer && (this.gen === 2 || this.typ === 'flach');
-    this.obsidian = !!obsidian;              // ab 26.11: tief unten Obsidian (erz2) — ältere Welten bleiben Block für Block gleich
+    this.obsidian = !!obsidian;              // ab 26.11: Lava (Höhlen unten, kleine Seen) und Obsidian — ältere Welten bleiben Block für Block gleich
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
     this.nCont = new Noise(s);
@@ -319,7 +321,7 @@ class World{
     c.mods = m || null;
     if(c.dorfTruhen || c.dorfFelder) dorfNachbereiten(this, c);
     c.lights = [];
-    if(m) for(const [i,id] of m){ const bd = blocks[id]; if(bd && bd.light > 0) c.lights.push(i); }
+    for(let i = 0; i < bl.length; i++){ const id = bl[i]; if(id && LEUCHTET[id]) c.lights.push(i); }
     // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —
     // etwa nach dem Laden, oder wenn man zurückkommt
     const ox = c.cx*CS, oz = c.cz*CS;
@@ -1038,7 +1040,7 @@ class World{
     const licht = (dx, dy, dz) => this.getLightLocal(x + 1 + dx, y + dy, z + 1 + dz);
     const own = this.getLightLocal(x + 1, y, z + 1), sky = own & 15, blk = own >> 4;
     if(kopf){
-      const oben = TEX[kopfKlebrig(id) ? 'kolben_oben_klebrig' : 'kolben_oben'];
+      const oben = TEX[kopfKlebrigBei(this._pbHol || (this._pbHol = (a, b, c) => this.pb(a, b, c)), x + 1, y, z + 1, id) ? 'kolben_oben_klebrig' : 'kolben_oben'];
       this.emitKasten(buf, x, y, z, [0, 12, 0, 16, 16, 16], T, f => f === 2 ? oben : f === 3 ? TEX.kolben_oben : TEX.kolben_seite, sky, blk, null, false, licht);
       this.emitKasten(buf, x, y, z, [6, -4, 6, 10, 12, 10], T, TEX.planks, sky, blk, f => f !== 2, false);
     } else if(kolbenAus(id)){
@@ -1092,7 +1094,7 @@ class World{
     for(let i=0; i<512 && t <= maxD; i++){
       const id = this.getBlock(x,y,z);
       const bd = blocks[id];
-      if(id !== B.AIR && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER)))){
+      if(id !== B.AIR && id !== B.LAVA && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER)))){
         // Stufen und Treppen: nur, wo sie wirklich sind — durch die leere Hälfte sieht man hindurch
         if(!isStufe(id) && !isTreppe(id)) return { hit:true, x, y, z, nx:fx, ny:fy, nz:fz, id, t };
         const h = this.formTreffer(ox, oy, oz, dx, dy, dz, x, y, z, id, maxD);

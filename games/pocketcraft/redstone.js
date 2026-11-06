@@ -206,7 +206,7 @@ class Schaltung{
     } else if(isKopf(id)){
       // ein Kopf ohne seinen Kolben verschwindet
       const [dx, dy, dz] = RICHTUNG6[kopfRichtung(id)], b = w.getBlock(x - dx, y - dy, z - dz);
-      if(b !== kolbenId(kopfKlebrig(id), true, kopfRichtung(id))) this.setzen(x, y, z, B.AIR);
+      if(!(isKolben(b) && kolbenAus(b) && kolbenRichtung(b) === kopfRichtung(id))) this.setzen(x, y, z, B.AIR);
     }
   }
   /** liegt oder hängt das Bauteil noch an etwas? */

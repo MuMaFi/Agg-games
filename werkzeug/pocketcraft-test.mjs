@@ -608,5 +608,20 @@ pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(10, 9, 1
   return l.has(TEX.braustand) && l.has(TEX.obsidian) && l.has(TEX.stone); })()`), 'Braustand und Obsidian werden gezeichnet');
 pruef(T(`(() => { const zaehl = w => { let n = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3]]){ const c = w.ensureChunk(cx, cz); for(const b of c.blocks) if(b === B.OBSIDIAN) n++; } return n; };
   return zaehl(new World('obs', 2, 'normal', false, true)) > 0 && zaehl(new World('obs', 2, 'normal', false, false)) === 0; })()`), 'Obsidian tief unten nur in neuen Welten');
+// 26.11.06: Lava — Nummer 189 (Kolbenköpfe haben kein Klebrig-Bit mehr), nur in neuen Welten
+pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && !blocks[190]
+  && isKopf(B.KOLBENKOPF + 5) && !isKopf(B.LAVA) && altNummer(191) === 185 && altNummer(B.LAVA - 6) === B.LAVA - 6 && TEX.lava !== undefined && texNames.length <= 256`),
+  'Lava: eigene Nummer, leuchtet, nicht fest; alte klebrige Köpfe werden gewöhnliche');
+pruef(T(`(() => { const zaehl = w => { let n = 0, licht = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3],[12,9],[-9,-11]]){ const c = w.ensureChunk(cx, cz);
+    for(let i = 0; i < c.blocks.length; i++) if(c.blocks[i] === B.LAVA){ n++; if((i >> 8) > LAVA_SPIEGEL && !c.hmap) return -1; }
+    licht += c.lights.length; } return [n, licht]; };
+  const neu = zaehl(new World('lava', 2, 'normal', false, true)), alt = zaehl(new World('lava', 2, 'normal', false, false));
+  return neu[0] > 0 && neu[1] >= neu[0] && alt[0] === 0; })()`), 'Lava in Höhlen unten nur in neuen Welten, und sie leuchtet');
+pruef(T(`(() => { let gefunden = 0; for(let cx = -30; cx <= 30 && !gefunden; cx++) for(let cz = -30; cz <= 30; cz++){
+    if(ghash(cx, 7, cz, hashStr('seen') ^ 0x1a7a) > 0.035) continue;
+    const w = new World('seen', 2, 'normal', false, true), c = w.ensureChunk(cx, cz);
+    for(let i = 0; i < c.blocks.length; i++) if(c.blocks[i] === B.LAVA && (i >> 8) > LAVA_SPIEGEL){ gefunden++; break; }
+    if(gefunden) break; }
+  return gefunden > 0; })()`), 'hier und da ein Lavasee an der Oberfläche');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

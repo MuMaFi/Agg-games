@@ -60,7 +60,7 @@ const MC_TEX = {
 for(const [key, mc] of [['rot', 'red_bed'], ...BETTEN.map(b => [b.key, b.mc])])
   for(const t of BETT_TEILE) MC_TEX['bettmc_' + key + '_' + t] = 'block/' + mc + '_' + t;
 MC_TEX.bettmc_unten = 'block/bed_down'; MC_TEX.bettmc_kopf_nord = 'block/bed_head_north';
-MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < 8; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };

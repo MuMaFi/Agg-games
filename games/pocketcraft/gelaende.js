@@ -130,6 +130,36 @@ function gitterWert(arr, x, y, z){
 function gang(g, x, y, z){ const a = gitterWert(g.a, x, y, z), b = gitterWert(g.b, x, y, z); return a*a + b*b < 0.0042; }
 function halle(g, x, y, z){ return gitterWert(g.k, x, y, z) > 0.3 + Math.max(0, (y - 24)/30)*0.25; }
 
+/* Lava wie beim Vorbild: was eine Höhle unterhalb von LAVA_SPIEGEL frei
+   macht, füllt Lava. Nur in neuen Welten (w.obsidian, ab 26.11) — ältere
+   bleiben Block für Block, wie sie waren. */
+const LAVA_SPIEGEL = 10;
+const LAVA_UNTEN = (w, y) => w.obsidian && y <= LAVA_SPIEGEL ? B.LAVA : B.AIR;
+/** Selten ein kleiner Lavasee an der Oberfläche, mit Steinrand — nur auf
+    ebenem Land und ganz im Chunk, damit er nicht an der Chunkgrenze zerfällt */
+function lavaSee(w, c){
+  if(!w.obsidian || ghash(c.cx, 7, c.cz, w.seed ^ 0x1a7a) > 0.035) return;
+  const bl = c.blocks, mx = 5 + Math.floor(ghash(c.cx, 8, c.cz, w.seed)*6), mz = 5 + Math.floor(ghash(c.cx, 9, c.cz, w.seed)*6);
+  const ra = 2 + ghash(c.cx, 10, c.cz, w.seed)*1.6, rb = 2 + ghash(c.cx, 11, c.cz, w.seed)*1.6;
+  const h0 = c.hmap[mz*CS + mx];
+  if(h0 <= SEA + 1 || h0 >= WH - 8) return;
+  const zellen = [];
+  for(let dz = -5; dz <= 5; dz++) for(let dx = -5; dx <= 5; dx++){
+    const x = mx + dx, z = mz + dz, d = (dx/ra)**2 + (dz/rb)**2;
+    if(d > 1.7) continue;
+    if(x < 1 || z < 1 || x > CS - 2 || z > CS - 2) return;
+    const h = c.hmap[z*CS + x], oben = bl[IDX(x, h, z)];
+    if(Math.abs(h - h0) > 1 || !(oben === B.GRASS || oben === B.DIRT || oben === B.SAND || oben === B.STONE)) return;
+    zellen.push([x, z, d]);
+  }
+  for(const [x, z, d] of zellen){
+    for(let y = h0 + 1; y <= h0 + 3; y++) bl[IDX(x, y, z)] = B.AIR;
+    if(d <= 1){ bl[IDX(x, h0, z)] = B.LAVA; bl[IDX(x, h0 - 1, z)] = d < 0.45 ? B.LAVA : B.STONE; bl[IDX(x, h0 - 2, z)] = B.STONE; }
+    else { bl[IDX(x, h0, z)] = B.STONE; bl[IDX(x, h0 - 1, z)] = B.STONE; }
+    c.hmap[z*CS + x] = h0;
+  }
+}
+
 function erz2(w, x, y, z){
   if(w.nOre.n3(x*0.34, y*0.34, z*0.34) < 0.5) return 0;
   const r = ghash(x, y, z, w.seed ^ 0x5bd1);
@@ -217,8 +247,8 @@ function erzeugen2(w, c){
       else if(y > h - dicke) id = (bio === BIO.DESERT && y > h - 3) ? B.SAND : unter;
       else id = B.STONE;
       if(y >= 3 && id !== B.WATER && id !== B.BEDROCK){
-        if(y <= oberkante && gang(g, x, y, z)) id = B.AIR;
-        else if(y >= 5 && y <= h - 8 && halle(g, x, y, z)) id = B.AIR;
+        if(y <= oberkante && gang(g, x, y, z)) id = LAVA_UNTEN(w, y);
+        else if(y >= 5 && y <= h - 8 && halle(g, x, y, z)) id = LAVA_UNTEN(w, y);
         else if(id === B.STONE){
           const e = erz2(w, wx, y, wz);
           if(e) id = e;
@@ -232,6 +262,7 @@ function erzeugen2(w, c){
     while(hy > 0 && !isOpaqueCube(bl[IDX(x, hy, z)])) hy--;
     c.hmap[z*CS + x] = hy;
   }
+  lavaSee(w, c);
   schmuecken2(w, c, S, steilAn);
   doerferBauen(w, c);
   // dünner Schnee in kalten Gegenden und über der Schneegrenze, auch auf Laub
@@ -240,7 +271,7 @@ function erzeugen2(w, c){
     let y = WH - 2;
     while(y > 0 && bl[IDX(x, y, z)] === B.AIR) y--;
     const id = bl[IDX(x, y, z)];
-    if(isOpaqueCube(id) || id === B.LEAVES || id === B.FICHTENNADELN) bl[IDX(x, y + 1, z)] = B.SCHNEEDECKE;
+    if((isOpaqueCube(id) && id !== B.LAVA) || id === B.LEAVES || id === B.FICHTENNADELN) bl[IDX(x, y + 1, z)] = B.SCHNEEDECKE;
   }
 }
 

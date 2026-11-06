@@ -17,7 +17,7 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
   STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
-  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …194: Richtung + 6·klebrig */,
+  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …188: Richtung (ob er klebt, sagt der Kolben dahinter) */, LAVA:189 /* 190…194 frei */,
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
   KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
@@ -76,10 +76,17 @@ const isKolben = id => id >= B.KOLBEN && id < B.KOLBEN + 24;
 const kolbenKlebrig = id => id >= B.KLEBKOLBEN;
 const kolbenAus = id => (id - B.KOLBEN) % 12 >= 6;
 const kolbenRichtung = id => (id - B.KOLBEN) % 6;
-const kopfId = (klebrig, r) => B.KOLBENKOPF + (klebrig ? 6 : 0) + r;
-const isKopf = id => id >= B.KOLBENKOPF && id < B.KOLBENKOPF + 12;
-const kopfRichtung = id => (id - B.KOLBENKOPF) % 6;
-const kopfKlebrig = id => id >= B.KOLBENKOPF + 6;
+const kopfId = (klebrig, r) => B.KOLBENKOPF + r;
+const isKopf = id => id >= B.KOLBENKOPF && id < B.KOLBENKOPF + 6;
+const kopfRichtung = id => id - B.KOLBENKOPF;
+/** klebt der Kopf? Das weiß der Kolben, an dem er hängt; get(x, y, z) liest Blöcke */
+function kopfKlebrigBei(get, x, y, z, id){
+  const [dx, dy, dz] = RICHTUNG6[kopfRichtung(id)], b = get(x - dx, y - dy, z - dz);
+  return isKolben(b) && kolbenKlebrig(b);
+}
+/* Bis 26.11 hatten klebrige Köpfe eigene Nummern (189 … 194, heute Lava und
+   frei): in alten Spielständen werden sie beim Laden zu den gewöhnlichen. */
+const altNummer = id => id >= 189 && id <= 194 ? id - 6 : id;
 /** Punkt eines nach oben zeigenden Modells (Sechzehntel) in Richtung r drehen — nur echte Drehungen */
 function drehe6(x, y, z, r){
   switch(r){
@@ -284,7 +291,7 @@ function initBlocks(){
       drop:kolbenId(kl, false, 0), item:r === 0, rs:true});
     defBlock(kolbenId(kl, true, r),{name, tex:['kolben_innen','kolben_unten','kolben_seite'], model:'kolben', opaque:false,
       box:drehBox([0,0,0,16,12,16], r), hardness:1.5, tool:'pickaxe', drop:kolbenId(kl, false, 0), item:false, rs:true});
-    defBlock(kopfId(kl, r),{name:'Kolbenkopf', tex:[oben,'kolben_oben','kolben_seite'], model:'kolben', opaque:false,
+    if(!kl) defBlock(kopfId(kl, r),{name:'Kolbenkopf', tex:[oben,'kolben_oben','kolben_seite'], model:'kolben', opaque:false,
       box:drehBox([0,12,0,16,16,16], r), hardness:1.5, tool:'pickaxe', drop:B.AIR, item:false, rs:true});
   }
   defBlock(B.BEDROCK,{name:'Grundgestein', tex:'bedrock', hardness:-1, item:false});
@@ -324,6 +331,8 @@ function initBlocks(){
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
       hardness:2, tool:'axe', drop:B.DOOR, item:!oben && !offen && s === 0, icon:'i_door'});
   }
+  // Lava: leuchtet, heiß, zäh; nicht abzubauen, man kann Blöcke hineinsetzen. Mit Wasser wird sie zu Obsidian (wasser.js)
+  defBlock(B.LAVA,{name:'Lava', tex:'lava', solid:false, light:15, hardness:-1, item:false, replaceable:true, drop:B.AIR, mc:'lava'});
   // Obsidian: nur mit der Diamantspitzhacke, und das dauert (beim Vorbild 9,4 Sekunden)
   defBlock(B.OBSIDIAN,{name:'Obsidian', tex:'obsidian', hardness:80, tool:'pickaxe', tier:4, mc:'obsidian'});
   // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester

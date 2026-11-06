@@ -104,6 +104,15 @@ function inBlockOfType(world, e, pred){
   return false;
 }
 
+/** Steckt e in Lava? (irgendein Block, den sein Kasten berührt) */
+function imLava(world, e){
+  const hw = e.w/2;
+  for(let y = Math.floor(e.y); y <= Math.floor(e.y + e.h - 0.01); y++)
+    for(let z = Math.floor(e.z - hw); z <= Math.floor(e.z + hw); z++)
+      for(let x = Math.floor(e.x - hw); x <= Math.floor(e.x + hw); x++)
+        if(world.getBlock(x, y, z) === B.LAVA) return true;
+  return false;
+}
 /** Steckt e im Wasser? Quellen und fallendes Wasser füllen den ganzen
     Block, fließendes nur so hoch, wie es steht. */
 function imWasser(world, e){

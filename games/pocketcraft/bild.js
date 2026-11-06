@@ -65,7 +65,7 @@ void main(){
 const FS_CHUNK = `#version 300 es
 precision highp float; precision highp sampler2DArray;
 in vec3 vUV; in float vShade; in float vFog; in float vSharp;
-uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint;
+uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint; uniform float uLava, uZeit;
 /* negativ: eine feinere Mip-Stufe als nötig — Pixel bleiben auch in der Ferne scharf */
 uniform float uSchaerfe;
 out vec4 outColor;
@@ -74,6 +74,8 @@ void main(){
   // eine Kreuzfläche, die man genau von der Kante sieht, holte sich die
   // kleinste Stufe und zöge einen dunklen Strich — für sie immer Stufe 0.
   vec4 c = vSharp > 0.5 ? textureLod(uTex, vUV, 0.0) : texture(uTex, vUV, uSchaerfe);
+  // Lava fließt langsam durch ihr Bild (eine Lage, verschoben statt vieler Bilder)
+  if(abs(vUV.z - uLava) < 0.5) c = textureLod(uTex, vec3(fract(vUV.xy + vec2(uZeit*0.011, uZeit*0.019)), vUV.z), 0.0);
   float a = c.a;
   if(a < uAlpha) discard;
   vec3 col = c.rgb * vShade * uWaterTint;
@@ -458,6 +460,8 @@ function drawChunks(waterPass, fogCol, near, far){
   const uw = Game.player.headInWater;
   gl.uniform3f(P.u.uWaterTint, uw ? 0.55 : 1, uw ? 0.72 : 1, uw ? 0.95 : 1);
   gl.uniform1f(P.u.uWater0, TEX['water0']);
+  gl.uniform1f(P.u.uLava, TEX.lava !== undefined ? TEX.lava : -9);
+  gl.uniform1f(P.u.uZeit, (performance.now()/1000) % 1000);
   gl.uniform1f(P.u.uSchaerfe, -1.0);
   gl.uniform1f(P.u.uWaterFrame, Math.floor(performance.now()/1000*7) % WATER_FRAMES);
   gl.activeTexture(gl.TEXTURE0);
@@ -968,6 +972,7 @@ function render(dt){
   let fog = SkyCol.fog;
   near *= 1 - 0.35*Wetter.staerke;                 // im Regen wird es früher diesig
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
+  if(p.headInLava){ fog = [0.78, 0.26, 0.03]; near = 0; far = 1.2; }
 
   let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0) - (Game.bogen.aktiv ? Math.min(1, Game.bogen.t)*0.14 : 0);
   const bobY = p.onGround ? Math.sin(p.bob*2)*0.022 : 0;

@@ -120,7 +120,7 @@ const Game = {
       for(let i=0;i<36;i++) Inv.slots[i] = saved.inv[i] ? { id:saved.inv[i][0], n:saved.inv[i][1], dur:saved.inv[i][2]|0 } : null;
       for(const [k, arr] of saved.mods){
         const m = new Map();
-        for(let i=0;i<arr.length;i+=2) m.set(arr[i], arr[i+1]);
+        for(let i=0;i<arr.length;i+=2) m.set(arr[i], (saved.lava ? arr[i+1] : altNummer(arr[i+1])));
         this.world.mods.set(k, m);
       }
       for(const [k, f] of (saved.furn || [])) this.world.furnaces.set(k, f);
@@ -171,7 +171,7 @@ const Game = {
     const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1, typ: w.typ, doerfer: !!w.doerfer, obsidian: !!w.obsidian };
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
-      mods: w.mods || [], furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
+      mods: w.mods || [], lava: 1, furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
       time: w.time, zeit: w.zeit, tiere: [], wetter: w.wetter, regeln: w.regeln
     });
     const p = this.player;
@@ -327,7 +327,7 @@ const Game = {
     try{
       const p = this.player;
       const data = Object.assign({
-        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, doerfer: this.world.doerfer, obsidian: this.world.obsidian, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
+        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, doerfer: this.world.doerfer, obsidian: this.world.obsidian, lava: 1, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
         regeln: this.regeln, ops: [...this.ops],
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
@@ -1739,8 +1739,10 @@ const Game = {
         }
       }
 
-      // Physik
-      const inW = imWasser(w, m);
+      // Physik — in Lava treiben sie wie im Wasser und verbrennen
+      const inL = imLava(w, m);
+      if(inL && !m.def.golem){ m.health -= dt*8; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
+      const inW = imWasser(w, m) || inL;
       if(inW){ const zug = this.stroemungBei(m); m.vx += zug[0]*5*dt; m.vz += zug[2]*5*dt; }
       m.vy -= GRAV*dt*(inW ? 0.35 : 1);
       if(inW){ m.vy = Math.max(m.vy, -3); if(m.vy < 1.2) m.vy += 9*dt; }
@@ -1767,6 +1769,7 @@ const Game = {
       const d = this.drops[i];
       d.age += dt; d.pickDelay -= dt;
       if(d.age > 300){ this.drops.splice(i,1); continue; }
+      if(imLava(w, d)){ this.drops.splice(i,1); Sfx.play('kaputt', d.x, d.y, d.z); continue; }     // in Lava verbrannt
       d.vy -= GRAV*dt;
       const inW = imWasser(w, d);
       if(inW){ d.vy = Math.max(d.vy, -1.6); if(d.vy < 1) d.vy += 7*dt;
@@ -1807,8 +1810,11 @@ const Game = {
 
     const feetId = w.getBlock(Math.floor(p.x), Math.floor(p.y+0.1), Math.floor(p.z));
     const warImWasser = p.inWater;
-    p.inWater = imWasser(w, p);
+    p.inLava = imLava(w, p);
+    p.inWater = imWasser(w, p) || p.inLava;                     // Lava ist zäh: man schwimmt darin wie im Wasser, nur langsamer
     if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
+    if(p.inLava && !p.creative && p.hurt(4, 'Du bist in Lava gefallen')){ this.hurtFlash = 1; Sfx.play('hurt'); }
+    p.headInLava = w.getBlock(Math.floor(p.x), Math.floor(p.eyeY()), Math.floor(p.z)) === B.LAVA;
     {
       const ey = p.eyeY(), ky = Math.floor(ey), kopf = w.getBlock(Math.floor(p.x), ky, Math.floor(p.z));
       p.headInWater = isWasser(kopf) && (kopf === B.WATER || kopf === B.FALL || ey - ky < wasserMenge(kopf)/9 ||
@@ -1828,6 +1834,7 @@ const Game = {
     p.sneaking = input.sneak && p.onGround;
 
     let speed = p.sneaking ? 1.45 : (input.sprint ? 5.7 : 4.35);
+    if(p.inLava) speed *= 0.45;
     if(p.inWater) speed *= 0.62;
     if(p.food <= 0) speed *= 0.7;
     p.stepUp = this.settings.autojump && !p.sneaking;

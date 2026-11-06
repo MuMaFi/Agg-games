@@ -1770,6 +1770,15 @@ function buildTextures(){
     if(k > .93) return [124, 96, 168];                                  // Splitter
     return n > .62 ? [62, 44, 98] : n > .5 ? [38, 26, 60] : n > .38 ? [22, 16, 34] : [14, 10, 22];
   }));
+  /* — Lava: glühendes Orange mit gelben Adern und dunkleren, erstarrenden
+     Flecken; kachelbar, denn der Shader schiebt sie langsam durch — */
+  addTex('lava', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 8, 8, 911, 2), k = h2(x, y, 913);
+    if(n > .7) return [255, 214, 96];
+    if(n > .58) return [246, 150, 36];
+    if(n > .4) return k > .85 ? [196, 66, 10] : [222, 104, 20];
+    return k > .7 ? [150, 40, 8] : [186, 62, 12];
+  }));
   /* — Braustand: in der Mitte der Stab (oben golden, unten glühend), oben die
      Arme mit den Haken für die Flaschen, unten der Sockel. Die Arme nimmt das
      Modell aus der rechten Hälfte, den Stab aus den Spalten 7 und 8 (wie beim
@@ -1798,6 +1807,8 @@ function buildTextures(){
     const a = texData[TEX[n]], b = texData[TEX[z]];
     return a && b && a.length === b.length && a.every((v, i) => v === b[i]);
   });
+  // dazu Bilder, die ähnlich genug sind: die Splitter eines zerbrochenen Eis zeigen die Eierschale
+  gleich.push(['p_schale', 'm_ei']);
   for(const [n] of gleich){ const i = texNames.indexOf(n); texNames.splice(i, 1); texData.splice(i, 1); }
   for(const k of Object.keys(TEX)) delete TEX[k];
   texNames.forEach((n, i) => { TEX[n] = i; });

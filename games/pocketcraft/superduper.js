@@ -100,11 +100,14 @@ in float vFog; in float vSharp; in float vWasser; in vec4 vLicht;
 uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint;
 uniform float uSchaerfe, uZeit;
 uniform vec3 uCam, uLichtDir, uLichtFarbe, uUmgebung, uZenith, uHorizon;
+uniform float uLava, uZeit;
 out vec4 outColor;
 ${SD_SCHATTEN}
 ${SD_TON}
 void main(){
   vec4 c = vSharp > 0.5 ? textureLod(uTex, vUV, 0.0) : texture(uTex, vUV, uSchaerfe);
+  // Lava fließt langsam durch ihr Bild (eine Lage, verschoben statt vieler Bilder)
+  if(abs(vUV.z - uLava) < 0.5) c = textureLod(uTex, vec3(fract(vUV.xy + vec2(uZeit*0.011, uZeit*0.019)), vUV.z), 0.0);
   if(c.a < uAlpha) discard;
   float himmel = 0.055 + 0.945 * pow(vSky, 1.35);
   float glut = pow(vBlk, 1.7);
