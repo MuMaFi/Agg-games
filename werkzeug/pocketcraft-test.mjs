@@ -609,7 +609,7 @@ pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(10, 9, 1
 pruef(T(`(() => { const zaehl = w => { let n = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3]]){ const c = w.ensureChunk(cx, cz); for(const b of c.blocks) if(b === B.OBSIDIAN) n++; } return n; };
   return zaehl(new World('obs', 2, 'normal', false, true)) > 0 && zaehl(new World('obs', 2, 'normal', false, false)) === 0; })()`), 'Obsidian tief unten nur in neuen Welten');
 // 26.11.06: Lava — Nummer 189 (Kolbenköpfe haben kein Klebrig-Bit mehr), nur in neuen Welten
-pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && !blocks[190]
+pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && B.FACKEL_WAND === 190 && !blocks[194]
   && isKopf(B.KOLBENKOPF + 5) && !isKopf(B.LAVA) && altNummer(191) === 185 && altNummer(B.LAVA - 6) === B.LAVA - 6 && TEX.lava !== undefined && texNames.length <= 256`),
   'Lava: eigene Nummer, leuchtet, nicht fest; alte klebrige Köpfe werden gewöhnliche');
 pruef(T(`(() => { const zaehl = w => { let n = 0, licht = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3],[12,9],[-9,-11]]){ const c = w.ensureChunk(cx, cz);
@@ -623,5 +623,12 @@ pruef(T(`(() => { let gefunden = 0; for(let cx = -30; cx <= 30 && !gefunden; cx+
     for(let i = 0; i < c.blocks.length; i++) if(c.blocks[i] === B.LAVA && (i >> 8) > LAVA_SPIEGEL){ gefunden++; break; }
     if(gefunden) break; }
   return gefunden > 0; })()`), 'hier und da ein Lavasee an der Oberfläche');
+// 26.11.06: Fackeln an der Wand
+pruef(T(`[0, 1, 2, 3].every(s => { const b = blocks[fackelWand(s)]; return b.light === 14 && b.drop === B.TORCH && b.item === false && b.wand === s && isFlat(fackelWand(s)) && flutbar(fackelWand(s)); })
+  && fackelWand(3) === 193 && !blocks[194]`), 'Wandfackeln: leuchten, lassen eine Fackel fallen, Wasser spült sie weg');
+pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(12, 9, 12, B.STONE); TW.setBlock(13, 9, 12, fackelWand(1));
+  TW.buildMesh(TW.getChunk(0, 0), M[0], M[1]); const b = M[0]; let n = 0;
+  for(let i = 0; i < b.n; i++){ const x = (b.u16[i*6] - .5)/4; if(b.u8[i*12 + 7] === TEX.torch && x > 13*16 - 0.01 && x < 14*16 + 0.01) n++; }
+  return n >= 16; })()`), 'Wandfackel wird schräg an der Wand gezeichnet');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

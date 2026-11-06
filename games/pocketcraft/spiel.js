@@ -546,7 +546,7 @@ const Game = {
     for(let sIdx = 0; sIdx < 4; sIdx++){
       const lx = x - SEITE[sIdx][0], lz = z - SEITE[sIdx][1], n = w.getBlock(lx, y, lz);
       // Leitern und Redstone-Teile, die an diesem Block hingen
-      if(n === ladderId(sIdx) || (rsHaengt(n) && rsAnbau(n) === sIdx + 1)) this.entfernen(lx, y, lz, true);
+      if(n === ladderId(sIdx) || n === fackelWand(sIdx) || (rsHaengt(n) && rsAnbau(n) === sIdx + 1)) this.entfernen(lx, y, lz, true);
     }
   },
   /** steht jemand dort, wo der Block seinen Kollisionskasten hätte? */
@@ -725,6 +725,9 @@ const Game = {
       else if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint(nameOf(s.id) + ' gehört auf festen Boden oder an eine Wand'); return; }
       setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a);
     }
+    // Fackel: an die Wand, wenn man auf die Seite eines Blocks zielt — sonst auf den Boden
+    if(s.id === B.TORCH && t.ny === 0 && isOpaqueCube(id) && bx === t.x + t.nx && bz === t.z + t.nz && by === t.y)
+      setzId = fackelWand(SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz));
     if(s.id === B.DRUCKPLATTE && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
     // Treppen steigen vom Spieler weg an; an einer Decke oder der oberen Hälfte
     // einer Wand gesetzt, hängen sie umgedreht — wie beim Vorbild
@@ -786,7 +789,7 @@ const Game = {
       return;
     }
     // Pflanzen, Fackeln und Betten brauchen Boden
-    if((bd.model === 'cross' || s.id === B.TORCH || isBett(s.id) || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
+    if((bd.model === 'cross' || setzId === B.TORCH || isBett(s.id) || s.id === B.SCHNEEDECKE) && !blocksMovement(w.getBlock(bx,by-1,bz))) return;
     if(bd.solid && this.belegt(bx,by,bz,setzId)) return;
     if(w.setBlock(bx,by,bz,setzId)){
       if(!p.creative) Inv.consumeHeld();

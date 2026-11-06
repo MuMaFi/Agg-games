@@ -17,7 +17,7 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
   STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
-  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …188: Richtung (ob er klebt, sagt der Kolben dahinter) */, LAVA:189 /* 190…194 frei */,
+  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …188: Richtung (ob er klebt, sagt der Kolben dahinter) */, LAVA:189, FACKEL_WAND:190 /* …193: Fackel an der Wand, Richtung zur Wand SEITE[s] */ /* 194 frei */,
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
   KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
@@ -86,6 +86,9 @@ function kopfKlebrigBei(get, x, y, z, id){
 }
 /* Bis 26.11 hatten klebrige Köpfe eigene Nummern (189 … 194, heute Lava und
    frei): in alten Spielständen werden sie beim Laden zu den gewöhnlichen. */
+/** Fackel an der Wand: s = Seite, an der die Wand ist (wie SEITE) */
+const fackelWand = s => B.FACKEL_WAND + s;
+const isWandfackel = id => id >= B.FACKEL_WAND && id < B.FACKEL_WAND + 4;
 const altNummer = id => id >= 189 && id <= 194 ? id - 6 : id;
 /** Punkt eines nach oben zeigenden Modells (Sechzehntel) in Richtung r drehen — nur echte Drehungen */
 function drehe6(x, y, z, r){
@@ -303,6 +306,9 @@ function initBlocks(){
   defBlock(B.FURNACE,{name:'Ofen', tex:['furn_top','furn_top','furn_side'], hardness:3.5, tool:'pickaxe', tier:1, dirFront:'furn_front'});
   defBlock(B.FURNACE_LIT,{name:'Ofen', tex:['furn_top','furn_top','furn_side'], hardness:3.5, tool:'pickaxe', tier:1, light:13, drop:B.FURNACE, dirFront:'furn_lit', item:false});
   defBlock(B.TORCH,{name:'Fackel', tex:'torch', model:'torch', solid:false, opaque:false, light:14, hardness:.05});
+  // an der Wand: schräg wie beim Vorbild (und wie die Redstonefackel), fällt ab, wenn die Wand fehlt
+  for(let s = 0; s < 4; s++) defBlock(fackelWand(s),{name:'Fackel', tex:'torch', model:'wandfackel', solid:false, opaque:false, light:14,
+    hardness:.05, drop:B.TORCH, item:false, icon:'torch', wand:s});
   defBlock(B.TALLGRASS,{name:'Hohes Gras', tex:'tallgrass', model:'cross', solid:false, opaque:false, hardness:.05, drop:B.AIR, replaceable:true, item:false});
   defBlock(B.ROSE,{name:'Mohn', tex:'rose', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});
   defBlock(B.DANDELION,{name:'Löwenzahn', tex:'dandelion', model:'cross', solid:false, opaque:false, hardness:.05, replaceable:true});

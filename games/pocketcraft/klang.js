@@ -43,7 +43,7 @@ const KLANG_MAT = {
 function materialVon(id){
   if(isWasser(id)) return 'wasser';
   if(isWool(id)) return 'wolle';
-  if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.KORNBLUME || id === B.TORCH) return 'pflanze';
+  if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.KORNBLUME || id === B.TORCH || isWandfackel(id)) return 'pflanze';
   if(id === B.LEAVES || id === B.FICHTENNADELN) return 'blatt';
   if(id === B.SCHNEEDECKE) return 'schnee';
   if(id === B.GLASS) return 'glas';

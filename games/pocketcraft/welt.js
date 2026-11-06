@@ -620,6 +620,7 @@ class World{
           if(!bd) continue;
           if(bd.model === 'cross'){ this.emitCross(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'torch'){ this.emitTorch(opaqueBuf, x, y, z, bd); continue; }
+          if(bd.model === 'wandfackel'){ this.emitWandfackel(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'box'){ this.emitBox(opaqueBuf, x, y, z, bd); continue; }
           if(bd.model === 'staub'){ this.emitStaub(opaqueBuf, x, y, z, id); continue; }
           if(bd.model === 'rsfackel'){ this.emitRSFackel(opaqueBuf, x, y, z, id, bd); continue; }
@@ -1002,6 +1003,18 @@ class World{
       return rsWand(lx*RS_COS - ry*RS_SIN, 3.5 + lx*RS_SIN + ry*RS_COS, lz, a);
     };
     this.emitKasten(buf, x, y, z, [0, 3.5, 7, 2, 13.5, 9], T, layer, sky, blk, RS_FACKEL_UV_WAND, true);
+  }
+
+  /* Fackel an der Wand: wie die Redstonefackel an der Wand — unten an der
+     Wand, schräg von ihr weg geneigt, wie beim Vorbild */
+  emitWandfackel(buf, x, y, z, bd){
+    const lv = this.getLightLocal(x + 1, y, z + 1), sky = lv & 15, blk = Math.max(lv >> 4, 14);
+    const a = bd.wand + 1;
+    const T = (lx, ly, lz) => {
+      const ry = ly - 3.5;
+      return rsWand(lx*RS_COS - ry*RS_SIN, 3.5 + lx*RS_SIN + ry*RS_COS, lz, a);
+    };
+    this.emitKasten(buf, x, y, z, [0, 3.5, 7, 2, 13.5, 9], T, TEX.torch, sky, blk, RS_FACKEL_UV_WAND, true);
   }
 
   /* Hebel: ein Fuß aus Bruchstein und ein Stab, um 45° gekippt — aus nach der

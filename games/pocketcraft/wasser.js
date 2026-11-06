@@ -28,7 +28,7 @@ function flutbar(id){
   if(id === B.AIR) return true;
   if(isWasser(id)) return false;
   const b = blocks[id];
-  return !!b && !b.solid && (b.replaceable || b.model === 'cross' || b.model === 'torch' || !!b.rs);
+  return !!b && !b.solid && (b.replaceable || b.model === 'cross' || b.model === 'torch' || b.model === 'wandfackel' || !!b.rs);
 }
 
 class Stroemung{
