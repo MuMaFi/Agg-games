@@ -39,10 +39,13 @@ const MC_NAMEN = {
   redstone_ore:'REDSTONE_ERZ', redstone_block:'REDSTONEBLOCK', redstone_lamp:'RS_LAMPE', redstone_torch:'RS_FACKEL', lever:'HEBEL',
   stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball', repeater:'VERSTAERKER', verstaerker:'VERSTAERKER',
   piston:'KOLBEN', sticky_piston:'KLEBKOLBEN', pumpkin:'KUERBIS', carved_pumpkin:'GESCHNITZT',
+  warped_nylium:'WIRR_NYZEL', warped_stem:'WIRR_STIEL', warped_wart_block:'WIRR_WARZE', warped_roots:'WIRR_WURZELN',
+  warped_fungus:'WIRR_PILZ', shroomlight:'PILZLICHT', blaze_rod:'lohenrute', blaze_powder:'lohenstaub', ender_pearl:'enderperle',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager',
-  eisengolem:'golem', golem:'golem', iron_golem:'golem', witherskelett:'wither', wither_skeleton:'wither', ghast:'ghast' };
+  eisengolem:'golem', golem:'golem', iron_golem:'golem', witherskelett:'wither', wither_skeleton:'wither', ghast:'ghast',
+  lohe:'blaze', blaze:'blaze', enderman:'enderman' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };
@@ -65,7 +68,7 @@ function dingeIndex(){
   const neu = (k, id, zeigen) => {
     if(!k || _dinge.has(k)) return;
     _dinge.set(k, id);
-    if(zeigen){ _dingNamen.push(k); if(id < ITEM0) _blockNamen.push(k); }
+    if(zeigen){ _dingNamen.push(k); if(isBlockId(id)) _blockNamen.push(k); }
   };
   for(const id of katalog()) neu(bNorm(nameOf(id)), id, true);
   neu('luft', B.AIR, false); neu('wasser', B.WATER, false);
@@ -331,7 +334,7 @@ befehl('setblock', { alias:['block'], syntax:'<x y z> <block>', text:'setzt eine
   lauf(a, wer){
     const p = Befehle.koord(a, 0, wer, true), id = dingNummer(a[3]);
     if(!p) return Befehle.fehler(wer, 'So geht es: /setblock <x y z> <block>');
-    if(id === null || id >= ITEM0) return Befehle.fehler(wer, a[3] ? 'Das ist kein Block: ' + a[3] : 'Welcher Block?');
+    if(id === null || !isBlockId(id)) return Befehle.fehler(wer, a[3] ? 'Das ist kein Block: ' + a[3] : 'Welcher Block?');
     if(!Befehle.setzbar(id)) return Befehle.fehler(wer, nameOf(id) + ' geht mit /setblock nicht');
     if(p[1] < 1 || p[1] >= WH) return Befehle.fehler(wer, 'Zu hoch oder zu tief: y geht von 1 bis ' + (WH - 1));
     Befehle.setzen(p[0], p[1], p[2], id);
@@ -343,7 +346,7 @@ befehl('fill', { alias:['füllen'], syntax:'<x1 y1 z1> <x2 y2 z2> <block> [hollo
   lauf(a, wer){
     const p1 = Befehle.koord(a, 0, wer, true), p2 = Befehle.koord(a, 3, wer, true), id = dingNummer(a[6]);
     if(!p1 || !p2) return Befehle.fehler(wer, 'So geht es: /fill <x1 y1 z1> <x2 y2 z2> <block>');
-    if(id === null || id >= ITEM0) return Befehle.fehler(wer, a[6] ? 'Das ist kein Block: ' + a[6] : 'Welcher Block?');
+    if(id === null || !isBlockId(id)) return Befehle.fehler(wer, a[6] ? 'Das ist kein Block: ' + a[6] : 'Welcher Block?');
     if(!Befehle.setzbar(id)) return Befehle.fehler(wer, nameOf(id) + ' geht mit /fill nicht');
     const modus = bNorm(a[7] || 'replace');
     if(!['replace', 'hollow', 'outline', 'keep', 'destroy'].includes(modus)) return Befehle.fehler(wer, 'Unbekannte Art: ' + a[7]);

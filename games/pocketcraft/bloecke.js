@@ -4,6 +4,9 @@
 'use strict';
 
 /* ── Block-Register ────────────────────────────────────────────────── */
+/* Block-Nummern: 1…255 wie seit jeher; die Gegenstände belegen 256…;
+   was danach an Blöcken kam, liegt ab BLOCK2 (die Chunks speichern 16 Bit) */
+const BLOCK2 = 512, BMAX = 576;
 const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:7, LOG:8,
   LEAVES:9, GLASS:10, WATER:11, BEDROCK:12, COAL_ORE:13, IRON_ORE:14, GOLD_ORE:15, DIAMOND_ORE:16,
   TABLE:17, FURNACE:18, FURNACE_LIT:19, TORCH:20, TALLGRASS:21, ROSE:22, DANDELION:23,
@@ -22,7 +25,10 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
   KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
   BETTKOPF:253 /* Kopfteil eines Betts, jede Farbe: die Farbe trägt das Fußteil daneben */,
-  OBSIDIAN:254, BRAUSTAND:255 };
+  OBSIDIAN:254, BRAUSTAND:255,
+  // ab hier 16 Bit — der Wirrwald im Nether
+  WIRR_NYZEL:512 /* Wirr-Nezel: Netherrack mit blaugrünem Bewuchs */, WIRR_STIEL:513, WIRR_WARZE:514,
+  WIRR_WURZELN:515, WIRR_PILZ:516, PILZLICHT:517 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -343,6 +349,16 @@ function initBlocks(){
   defBlock(B.NETHERRACK,{name:'Netherrack', tex:'netherrack', hardness:.4, tool:'pickaxe', tier:1, mc:'netherrack'});
   // Obsidian: nur mit der Diamantspitzhacke, und das dauert (beim Vorbild 9,4 Sekunden)
   defBlock(B.OBSIDIAN,{name:'Obsidian', tex:'obsidian', hardness:80, tool:'pickaxe', tier:4, mc:'obsidian'});
+  // Wirrwald (Nether): Nezel ist Netherrack mit Bewuchs und gibt abgebaut Netherrack;
+  // Stiele wie Stämme, Warzenblöcke als Krone, darin Pilzlicht, das leuchtet
+  defBlock(B.WIRR_NYZEL,{name:'Wirr-Nezel', tex:['wirr_nyzel','netherrack','wirr_nyzel_seite'], hardness:.4, tool:'pickaxe', tier:1,
+    drop:B.NETHERRACK, mc:'warped_nylium'});
+  defBlock(B.WIRR_STIEL,{name:'Wirrstiel', tex:['wirr_stiel_oben','wirr_stiel_oben','wirr_stiel'], hardness:2, tool:'axe', mc:'warped_stem'});
+  defBlock(B.WIRR_WARZE,{name:'Wirrwarzenblock', tex:'wirr_warze', hardness:1, tool:'hoe', mc:'warped_wart_block'});
+  defBlock(B.WIRR_WURZELN,{name:'Wirrwurzeln', tex:'wirr_wurzeln', model:'cross', solid:false, opaque:false, hardness:.05,
+    replaceable:true, mc:'warped_roots'});
+  defBlock(B.WIRR_PILZ,{name:'Wirrpilz', tex:'wirr_pilz', model:'cross', solid:false, opaque:false, hardness:.05, mc:'warped_fungus'});
+  defBlock(B.PILZLICHT,{name:'Pilzlicht', tex:'pilzlicht', hardness:1, tool:'hoe', light:15, mc:'shroomlight'});
   // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester
   defBlock(B.BRAUSTAND,{name:'Braustand', tex:'braustand', icon:'braustand', model:'braustand', box:[1,0,1,15,2,15], opaque:false,
     hardness:.5, tool:'pickaxe', tier:1, mc:'brewing_stand'});
@@ -463,10 +479,15 @@ function initItems(){
   defItem('emerald',{name:'Smaragd', tex:'i_smaragd'});
   // zündet ein Netherportal in einem Obsidianrahmen (welt: portale)
   defItem('feuerzeug',{name:'Feuerzeug', tex:'i_feuerzeug', stack:1, dur:64});
+  // von der Lohe: Rute (brennt lange, für den Braustand) und Staub daraus
+  defItem('lohenrute',{name:'Lohenrute', tex:'i_lohenrute', fuel:2400});
+  defItem('lohenstaub',{name:'Lohenstaub', tex:'i_lohenstaub'});
+  // vom Enderman: geworfen bringt sie einen dorthin, wo sie aufschlägt
+  defItem('enderperle',{name:'Enderperle', tex:'i_enderperle', stack:16});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */
-const isBlockId = id => id > 0 && id < ITEM0;
+const isBlockId = id => id > 0 && (id < ITEM0 || (id >= BLOCK2 && id < BMAX));
 function defOf(id){ return isBlockId(id) ? blocks[id] : items[id]; }
 function nameOf(id){ const d = defOf(id); return d ? d.name : '?'; }
 function stackOf(id){ return isBlockId(id) ? 64 : (items[id] ? items[id].stack : 64); }

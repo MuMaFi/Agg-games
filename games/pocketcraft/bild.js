@@ -164,7 +164,8 @@ const R = {
   },
 
   buildTexArray(){
-    const n = texData.length;
+    // mehr Lagen, als die Grafikkarte kann, fallen hinten weg (nur Bilder von Wesen und Gegenständen)
+    const n = Math.min(texData.length, gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) || 256);
     const t = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
     const all = new Uint8Array(TS*TS*4*n);
@@ -524,7 +525,7 @@ function drawMobs(fogCol, near, far){
   for(const m of Game.mobs){
     const rr = Math.max(1, m.w);
     if(!R.boxVisible(m.x-rr, m.y-0.5, m.z-rr, m.x+rr, m.y+m.h+0.5, m.z+rr)) continue;
-    const light = blockLightAt(m.x, m.y+m.h*0.6, m.z);
+    const light = m.def.leuchtet ? 1 : blockLightAt(m.x, m.y+m.h*0.6, m.z);     // die Lohe glüht von selbst
     const hurt = m.hurtTimer > 0;
     gl.uniform1f(P.u.uLight, light);
     const sw = Math.sin(m.walkPhase) * (m.moving || m.def.hostile ? 0.62 : 0.06);
@@ -540,7 +541,7 @@ function drawMobs(fogCol, near, far){
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       // Erhobene Arme zeigen nach vorn (−Z). Das Vorzeichen war lange falsch:
       // Zombies und Skelette streckten die Arme nach hinten.
-      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0)
+      else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile && !m.def.neutral ? 1.45 : 0)
         + (m.schlagT > 0 ? Math.sin(m.schlagT/0.5*Math.PI)*1.9 : 0);          // der Golem schlägt zu
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
       else if(part.anim === 'tentakel') ang = 0.2*Math.sin(m.age*2 + part.ph) + 0.4;     // Ghast: wie beim Vorbild
@@ -595,7 +596,7 @@ function drawSpieler(fogCol, near, far){
   gl.bindVertexArray(R.cubeVAO);
   const d = SPIELER_MODELL, figur = { x:0, y:0, z:0, yaw:0, kind:0, def:d };
   for(const s of Netz.andere.values()){
-    if(s.tot) continue;
+    if(s.tot || !Netz.hier(s)) continue;
     if(!R.boxVisible(s.x-1, s.y-0.2, s.z-1, s.x+1, s.y+2.1, s.z+1.5)) continue;
     const liegt = (s.flags & 16) !== 0;
     gl.uniform1f(P.u.uLight, blockLightAt(s.x, s.y + (liegt ? 0.5 : 1.4), s.z));
@@ -696,7 +697,7 @@ function drawPfeile(fogCol, near, far){
   let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
-    const t = a.feuer ? 'lava' : a.ei ? 'm_ei' : 'm_pfeil';
+    const t = a.feuer ? 'lava' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
     gl.uniform1f(P.u.uLight, a.feuer ? 1 : blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
@@ -705,7 +706,11 @@ function drawPfeile(fogCol, near, far){
     M4.rotY(_m, _m, Math.atan2(-a.rx, -a.rz));
     if(a.feuer){
       M4.rotX(_m, _m, a.alter*5); M4.rotY(_m, _m, a.alter*3);
-      M4.scale(_m, _m, 0.7, 0.7, 0.7);
+      const g = a.klein ? 0.3 : 0.7;
+      M4.scale(_m, _m, g, g, g);
+    } else if(a.perle){
+      M4.rotY(_m, _m, a.alter*6);
+      M4.scale(_m, _m, 0.25, 0.25, 0.25);
     } else if(a.ei){
       M4.rotX(_m, _m, a.alter*14);
       M4.scale(_m, _m, 0.15, 0.19, 0.15);
@@ -777,10 +782,18 @@ function drawPortale(fogCol, near, far){
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
 }
 
+/** Lohe: jeder Ring ihrer Ruten dreht sich um sie, der mittlere andersherum, und hebt und senkt sich */
+const LOHE_DREH = [-3.1, 1.9, -2.4];
+function loheRing(out, mob, part){
+  const a = mob.age || 0;
+  M4.translate(out, out, 0, Math.sin(a*2.5 + part.ph*2)*0.05, 0);
+  M4.rotY(out, out, a*LOHE_DREH[part.ph]);
+}
 /** bisGelenk: nur bis zum Drehpunkt, ohne den Kasten selbst — daran hängt
     drawSpieler, was eine Figur in der Hand hält */
 function partMatrix(out, mob, part, ang, bisGelenk){
   wesenGrund(out, mob, part.kopf, mob.def && mob.def.kopfPunkt);
+  if(part.anim === 'lohe') loheRing(out, mob, part);
   const [ox, oy, oz, w, h, d] = part.box;
   if(ang || part.gier){
     // Drehpunkt: Kopf in der Mitte, Glieder oben — oder wo pivot ihn hinlegt
@@ -1012,7 +1025,13 @@ function render(dt){
   let fog = SkyCol.fog;
   near *= 1 - 0.35*Wetter.staerke;                 // im Regen wird es früher diesig
   const nether = Game.dim === 'nether';
-  if(nether){ fog = [0.2, 0.035, 0.03]; near = far*0.12; far *= 0.8; }   // kein Himmel, dichter roter Dunst
+  if(nether){
+    // kein Himmel, dichter Dunst: rot im Ödland, im Wirrwald dunkel-lila wie beim Vorbild; dazwischen gleitend
+    const p = Game.player, ziel = Game.world.biomeAt(Math.floor(p.x), Math.floor(p.z)) === BIO.WIRRWALD ? 1 : 0;
+    R._wirr = (R._wirr === undefined ? ziel : R._wirr) + (ziel - (R._wirr || 0))*0.03;
+    const t = R._wirr;
+    fog = [0.2 - 0.1*t, 0.035 - 0.015*t, 0.03 + 0.08*t]; near = far*0.12; far *= 0.8;
+  }
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
   if(p.headInLava){ fog = [0.78, 0.26, 0.03]; near = 0; far = 1.2; }
 

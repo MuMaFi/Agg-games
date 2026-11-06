@@ -23,7 +23,8 @@ const KLANG_DATEIEN = {
 };
 
 /** Geräusche ohne eigene Datei: mit dem Minecraft-Paket dessen, sonst diese */
-const KLANG_ERSATZ = { wither_laut:'skelett', wither_au:'skelett_au', wither_tot:'skelett_tot' };
+const KLANG_ERSATZ = { wither_laut:'skelett', wither_au:'skelett_au', wither_tot:'skelett_tot',
+  lohe_au:'skelett_au', lohe_tot:'skelett_tot', ender_au:'zombie_au', ender_tot:'zombie_tot' };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
    Minetest Game: Stein klingt beim Abbauen »knackig«, Holz »hackend«,
@@ -75,6 +76,8 @@ const WESEN_KLANG = {
   slime:    { au:['schleim_au', .55], tot:['schleim_tot', .6], sprung:['schleim_sprung', .4], landen:['schleim_landen', .45] },
   wither:   { laut:['wither_laut', .8, .8], au:['wither_au', .7, .8], tot:['wither_tot', .75, .8] },
   ghast:    { laut:['ghast_laut', .9], au:['ghast_au', .9], tot:['ghast_tot', 1], feuer:['ghast_feuer', .9] },
+  blaze:    { laut:['lohe_laut', .55], au:['lohe_au', .7, 1.2], tot:['lohe_tot', .8, 1.2], feuer:['lohe_feuer', .5, 1.3] },
+  enderman: { laut:['ender_laut', .6], au:['ender_au', .7, .7], tot:['ender_tot', .8, .7], schrei:['ender_schrei', .8], tele:['ender_tele', .6] },
   villager: { laut:['dorf_hmm', .5], au:['dorf_au', .6], tot:['dorf_au', .6, .8] },
   golem:    { laut:['golem', .5], au:['hacken_metall', .8, .6], tot:['weg_metall', .9, .55], schlag:['setzen_metall', .9, .5] },
 };
@@ -142,7 +145,7 @@ const Sfx = {
   },
   /** name: Grundname aus KLANG_DATEIEN; o: gain, rate, x/y/z (dann aus dieser Richtung), weit */
   probe(name, o){
-    if(!this.on) return true;                      // stumm geschaltet: nichts nachholen
+    if(!this.on || this.stumm) return true;              // stumm: auch, während der Host die andere Welt rechnet                      // stumm geschaltet: nichts nachholen
     this.init(); if(!this.ctx) return false;
     o = o || {};
     const weit = o.weit || 24;
@@ -270,6 +273,7 @@ const Sfx = {
     src.connect(f); f.connect(g); g.connect(this.haupt); src.start();
   },
   synth(what){
+    if(this.stumm) return;
     switch(what){
       case 'dig':   this.noise(0.07, 0.10, 1500); break;
       case 'break': this.noise(0.16, 0.20, 1100); break;

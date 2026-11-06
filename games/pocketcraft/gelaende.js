@@ -29,9 +29,11 @@ const FLACH_SPALTE = Object.freeze({ h: FLACH_H, biome: BIO.PLAINS, kalt: false,
    Lavameer. Kein Himmel: Licht gibt es von der Lava und ein dämmriges
    Grundlicht (NETHER_GRUNDLICHT, im Shader). */
 const NETHER_LAVA = 24, NETHER_GRUNDLICHT = 0.38;
-const NETHER_SPALTE = { h: NETHER_LAVA, biome: BIO.PLAINS };
+const NETHER_SPALTE = { h: NETHER_LAVA, biome: BIO.NETHER }, WIRR_SPALTE = { h: NETHER_LAVA, biome: BIO.WIRRWALD };
+/** Wirrwald: große blaugrüne Flecken im Nether, etwa ein Drittel der Fläche */
+const istWirrwald = (w, wx, wz) => w.nTemp.fbm2(wx*0.0065 + 17.31, wz*0.0065 - 9.73, 3, 2, .5) > 0.06;
 function erzeugenNether(w, c){
-  const bl = c.blocks = new Uint8Array(CS*WH*CS), ox = c.cx*CS, oz = c.cz*CS;
+  const bl = c.blocks = new Uint16Array(CS*WH*CS), ox = c.cx*CS, oz = c.cz*CS;
   for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++){
     const wx = ox + x, wz = oz + z;
     for(let y = 0; y < WH; y++){
@@ -47,11 +49,58 @@ function erzeugenNether(w, c){
       bl[IDX(x, y, z)] = id;
     }
   }
-  c.hmap.fill(NETHER_LAVA); c.biome.fill(BIO.PLAINS); c.kalt.fill(0);
+  c.hmap.fill(NETHER_LAVA); c.biome.fill(BIO.NETHER); c.kalt.fill(0);
+  wirrwaldBewachsen(w, c);
+}
+
+/* Wirrwald: jeder freiliegende Netherrack-Boden wird Nezel, darauf Wurzeln
+   und Pilze; dazu Riesenpilze — ein Stiel, darüber ein Hut aus
+   Warzenblöcken mit Pilzlicht darin (nur, wo sie ganz in den Chunk passen) */
+function wirrwaldBewachsen(w, c){
+  const bl = c.blocks, ox = c.cx*CS, oz = c.cz*CS;
+  const wirr = new Uint8Array(CS*CS);
+  for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++) if(istWirrwald(w, ox + x, oz + z)){ wirr[z*CS + x] = 1; c.biome[z*CS + x] = BIO.WIRRWALD; }
+  const B_ = (x, y, z) => bl[IDX(x, y, z)];
+  const setze = (x, y, z, id) => { if(x >= 0 && z >= 0 && x < CS && z < CS && y > 0 && y < WH - 1) bl[IDX(x, y, z)] = id; };
+  const pilze = [];
+  for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++){
+    if(!wirr[z*CS + x]) continue;
+    const wx = ox + x, wz = oz + z;
+    for(let y = NETHER_LAVA; y < WH - 6; y++){
+      if(B_(x, y, z) !== B.NETHERRACK || B_(x, y + 1, z) !== B.AIR) continue;
+      bl[IDX(x, y, z)] = B.WIRR_NYZEL;
+      const r = ghash(wx, y, wz, w.seed ^ 0x51f7);
+      if(r < 0.035 && x >= 3 && x <= 12 && z >= 3 && z <= 12) pilze.push([x, y + 1, z, r]);
+      else if(r < 0.2) bl[IDX(x, y + 1, z)] = B.WIRR_WURZELN;
+      else if(r < 0.24) bl[IDX(x, y + 1, z)] = B.WIRR_PILZ;
+    }
+  }
+  for(const [x, y0, z, r] of pilze){
+    const h = 4 + Math.floor(ghash(x, y0, z, w.seed ^ 0x2c1) * 5);
+    // Platz bis über den Hut?
+    let frei = true;
+    for(let y = y0; y <= y0 + h + 1 && frei; y++) if(y >= WH - 2 || (B_(x, y, z) !== B.AIR && B_(x, y, z) !== B.WIRR_WURZELN && B_(x, y, z) !== B.WIRR_PILZ)) frei = false;
+    if(!frei) continue;
+    const rad = h > 6 ? 3 : 2, top = y0 + h;
+    for(let dy = -2; dy <= 1; dy++){
+      const rr = dy === 1 ? rad - 1 : rad;
+      for(let dz = -rr; dz <= rr; dz++) for(let dx = -rr; dx <= rr; dx++){
+        const rand = Math.abs(dx) === rr || Math.abs(dz) === rr;
+        if(dy < 0 && !rand) continue;                                // darunter nur der Rand, der herabhängt
+        if(dy === -2 && ghash(x + dx, top + dy, z + dz, w.seed ^ 0x77) < 0.5) continue;
+        if(Math.abs(dx) === rr && Math.abs(dz) === rr && dy >= 0) continue;   // runde Ecken
+        if(B_(x + dx, top + dy, z + dz) !== B.AIR) continue;
+        const k = ghash(x + dx, top + dy, z + dz, w.seed ^ 0x1d3);
+        setze(x + dx, top + dy, z + dz, k < 0.07 ? B.PILZLICHT : B.WIRR_WARZE);
+      }
+    }
+    for(let y = y0; y < top; y++) setze(x, y, z, B.WIRR_STIEL);
+    setze(x, top, z, B.WIRR_WARZE);
+  }
 }
 
 function erzeugenFlach(c){
-  const bl = c.blocks = new Uint8Array(CS*WH*CS);
+  const bl = c.blocks = new Uint16Array(CS*WH*CS);
   for(let y = 0; y < FLACH_SCHICHTEN.length; y++) bl.fill(FLACH_SCHICHTEN[y], y*CS*CS, (y + 1)*CS*CS);
   c.hmap.fill(FLACH_H); c.biome.fill(BIO.PLAINS); c.kalt.fill(0);
 }
@@ -228,7 +277,7 @@ function schleimChunk(w, cx, cz){ return ghash(cx, 987, cz, w.seed ^ 0x5eed5) < 
 
 /** einen Chunk erzeugen: Boden, Höhlen, Erze, dann Bäume und Schnee */
 function erzeugen2(w, c){
-  const bl = c.blocks = new Uint8Array(CS*WH*CS);
+  const bl = c.blocks = new Uint16Array(CS*WH*CS);
   const ox = c.cx*CS, oz = c.cz*CS, R = 4, GW = CS + 2*R;
   // Spalten mit Rand: für Hänge und für Bäume, die herüberragen
   const sp = new Array(GW*GW);

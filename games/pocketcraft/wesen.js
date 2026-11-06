@@ -373,6 +373,35 @@ MOBS.ghast = {
         pivot:[x*0.3125, -0.1, z*0.3125] };
     })),
 };
+/** Kasten aus Minecrafts Modellmaßen (Sechzehntel, y nach unten, 24 = Boden) in Pocketcraft-Maßen */
+const mcKasten = (x, y, z, w, h, d) => [-(x + w)/16, (24 - (y + h))/16, z/16, w/16, h/16, d/16];
+/* Lohe (Blaze): schwebt, glüht, schießt Salven aus drei kleinen Feuerkugeln.
+   Um den Kopf kreisen zwölf Ruten in drei Ringen, jeder in seine Richtung. */
+const LOHE_RUTEN = [[9,-1,0],[0,-1.12,9],[-9,-1.46,0],[0,-1.93,-9],[4.95,1.58,4.95],[-4.95,1.2,4.95],[-4.95,1.01,-4.95],[4.95,1.06,-4.95],
+  [4.46,11.96,2.27],[-2.27,11.89,4.46],[-4.46,11.35,-2.27],[2.27,10.61,-4.46]];
+MOBS.blaze = {
+  name:'Lohe', w:0.6, h:1.8, health:20, speed:1.6, hostile:true, dmg:6, laut:'lohe', feuerfest:true, schwebt:true, lohe:true, leuchtet:true,
+  treffer:'Eine Lohe hat dich verbrannt',
+  beute: () => [[ITEM.lohenrute, zufallN(0, 1)]],
+  parts: [{ n:'head', box:mcKasten(-4, -4, -4, 8, 8, 8), tex:'m_lohe', face:'m_lohe_face', anim:'head' }]
+    .concat(LOHE_RUTEN.map(([x, y, z], i) => ({ n:'rute' + i, box:mcKasten(x, y, z, 2, 8, 2), tex:'m_lohe_rute', anim:'lohe', ph:i >> 2 }))),
+};
+/* Enderman: drei Blöcke groß, lange Arme und Beine. Friedlich, bis man ihm in
+   die Augen schaut oder ihn schlägt; dann schreit er und jagt einen.
+   Wasser verträgt er nicht, Pfeilen weicht er aus: er springt einfach weg. */
+MOBS.enderman = {
+  name:'Enderman', w:0.6, h:2.9, health:40, speed:3.2, hostile:true, neutral:true, dmg:7, laut:'ender', feuerfest:true, armSchwung:0.5,
+  treffer:'Ein Enderman hat dich erwischt',
+  beute: () => [[ITEM.enderperle, zufallN(0, 1)]],
+  parts: [
+    { n:'head', box:mcKasten(-4, -21, -4, 8, 8, 8), tex:'m_ender', face:'m_ender_face', anim:'head' },
+    { n:'body', box:mcKasten(-4, -14, -2, 8, 12, 4), tex:'m_ender' },
+    { n:'arm0', box:mcKasten(4, -14, -1, 2, 30, 2), tex:'m_ender', anim:'arm', ph:0 },
+    { n:'arm1', box:mcKasten(-6, -14, -1, 2, 30, 2), tex:'m_ender', anim:'arm', ph:1 },
+    { n:'leg0', box:mcKasten(1, -5, -1, 2, 30, 2), tex:'m_ender', anim:'leg', ph:0 },
+    { n:'leg1', box:mcKasten(-3, -5, -1, 2, 30, 2), tex:'m_ender', anim:'leg', ph:1 },
+  ],
+};
 const _kutte = [0, 0, 0];
 function kuttenFarbe(m, f){
   const c = (typeof BERUFE !== 'undefined' && BERUFE[m.beruf | 0] || { farbe:[0.8, 0.8, 0.8] }).farbe;
@@ -474,11 +503,14 @@ const RUEST_FARBE = [[0.74,0.5,0.32], [0.97,0.97,1.0], [1.18,0.92,0.32], [0.5,1.
    Fliegen mit Schwerkraft, prüfen unterwegs Blöcke und Wesen. Pfeile des
    Spielers, die im Boden stecken, kann man wieder aufheben. Ein Ei (ei)
    zerbricht, wo es auftrifft. */
+/** wird geworfen statt benutzt: Ei und Enderperle */
+const istWurf = id => id === ITEM.egg || id === ITEM.enderperle;
 class Pfeil{
   constructor(x, y, z, vx, vy, vz, dmg, vomSpieler, ei, feuer){
     this.x = x; this.y = y; this.z = z; this.vx = vx; this.vy = vy; this.vz = vz;
     this.rx = vx; this.ry = vy; this.rz = vz;
-    this.dmg = dmg; this.vomSpieler = vomSpieler; this.ei = !!ei; this.feuer = !!feuer;   // feuer: Feuerkugel eines Ghasts
+    this.dmg = dmg; this.vomSpieler = vomSpieler; this.ei = !!ei; this.feuer = !!feuer;   // feuer: Feuerkugel eines Ghasts (klein: einer Lohe)
+    this.klein = false; this.perle = false;                                                // perle: eine geworfene Enderperle
     this.alter = 0; this.steckt = false; this.weg = false;
   }
 }

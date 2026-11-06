@@ -27,8 +27,8 @@ const wZufall = ([a, b]) => a + Math.random()*(b - a);
    initBlocks(), darum beim ersten Gebrauch. */
 let REGEN_HALT = null, REGEN_OBEN = null;
 function regenTabellen(){
-  REGEN_HALT = new Uint8Array(256); REGEN_OBEN = new Float32Array(256);
-  for(let id = 1; id < 256; id++){
+  REGEN_HALT = new Uint8Array(BMAX); REGEN_OBEN = new Float32Array(BMAX);
+  for(let id = 1; id < BMAX; id++){
     const b = blocks[id];
     if(!b) continue;
     if(b.solid){ REGEN_HALT[id] = 1; REGEN_OBEN[id] = b.box ? b.box[4]/16 : 1; }

@@ -153,11 +153,11 @@ function formlos(gruppe, out, n, zutaten){
 }
 function initRecipes(){
   const P = B.PLANKS, S = ITEM.stick;
-  formlos('stoffe', B.PLANKS, 4, [[B.LOG, B.FICHTENSTAMM]]);
+  formlos('stoffe', B.PLANKS, 4, [[B.LOG, B.FICHTENSTAMM, B.WIRR_STIEL]]);
   geformt('stoffe', S, 4, ['#','#'], {'#':P});
   geformt('bauen', B.TABLE, 1, ['##','##'], {'#':P});
   // Braustand: beim Vorbild aus einer Lohenrute und drei Bruchstein — hier tut es ein Stock
-  geformt('bauen', B.BRAUSTAND, 1, [' S ','CCC'], {S:ITEM.stick, C:B.COBBLE});
+  geformt('bauen', B.BRAUSTAND, 1, [' S ','CCC'], {S:ITEM.lohenrute, C:B.COBBLE});
   geformt('bauen', B.TORCH, 4, ['k','|'], {k:ITEM.coal, '|':S});
   geformt('bauen', B.CHEST, 1, ['###','# #','###'], {'#':P});
   geformt('bauen', B.FURNACE, 1, ['###','# #','###'], {'#':B.COBBLE});
@@ -208,6 +208,7 @@ function initRecipes(){
   geformt('stoffe', B.WOOL, 1, ['ff','ff'], {f:ITEM.string});
   formlos('stoffe', ITEM.string, 4, [WOLL]);
   formlos('werkzeug', ITEM.feuerzeug, 1, [ITEM.iron, ITEM.flint]);
+  formlos('stoffe', ITEM.lohenstaub, 2, [ITEM.lohenrute]);
   formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
   {
     const k = { M:ITEM.leather };
@@ -964,7 +965,7 @@ let _katalog = null;
 function katalog(){
   if(_katalog) return _katalog;
   _katalog = [];
-  for(let i=1; i<ITEM0; i++) if(blocks[i] && blocks[i].item) _katalog.push(i);
+  for(let i=1; i<BMAX; i++) if(isBlockId(i) && blocks[i] && blocks[i].item) _katalog.push(i);
   for(const id of Object.keys(items)) _katalog.push(+id);
   return _katalog;
 }

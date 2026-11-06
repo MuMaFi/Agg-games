@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 18;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse · 16: Betten zweiteilig, Skins, Kampf wie Java · 17: Lava, Obsidian, Braustand, Wandfackeln · 18: Nether (Netherrack, Witherskelett, Ghast)
+const NETZ_VERSION = 20;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse · 16: Betten zweiteilig, Skins, Kampf wie Java · 17: Lava, Obsidian, Braustand, Wandfackeln · 18: Nether (Netherrack, Witherskelett, Ghast) · 19: Blöcke über 255 (Wirrwald), Lohe, Enderman, Enderperle · 20: Nether im Mehrspieler (jede Nachricht sagt, in welcher Welt)
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -156,6 +156,33 @@ const Netz = {
     try{ return JSON.parse(t.s.join('')); }catch(e){ return null; }
   },
   bereiteGaeste(){ const l = []; for(const g of this.gaeste.values()) if(g.bereit) l.push(g); return l; },
+  /* Welten: 0 Oberwelt, 1 Nether. Jeder Spieler ist in einer; Figuren,
+     Wesen, Liegendes und Geschosse sieht man nur in der eigenen. */
+  dimNr(d){ return d === 'nether' ? 1 : 0; },
+  dimVon(n){ return n === 1 ? 'nether' : 'oben'; },
+  /** steht diese Figur in derselben Welt wie man selbst? */
+  hier(s){ return (s.dim || 'oben') === Game.dim; },
+  /** an alle Gäste in Welt d */
+  anDim(obj, d, ausser){
+    for(const g of this.gaeste.values()) if(g.bereit && g !== ausser && (g.dim || 'oben') === d) this.senden(g.conn, obj);
+  },
+  /** man ist durchs Portal gegangen (oder oben aufgewacht): gleich Bescheid sagen */
+  dimGewechselt(){
+    if(this.istGast){ this._t.pos = 1; this.andereLeeren(); }
+  },
+  /** ein neues Portal: alle anderen bekommen es in dieselbe Welt */
+  portalNeu(q, d){
+    if(!this.rolle || this.rolle === 'verbinde' || this.eingehend) return;
+    const m = { t:'portal', d: this.dimNr(d), q: { a: q.a, x: q.x, y: q.y, z: q.z, w: q.w, h: q.h } };
+    if(this.istGast) this.senden(this.hostConn, m); else this.anAlle(m);
+  },
+  portalEmpfangen(m, von){
+    const q = m.q;
+    if(!q || !['x', 'z'].includes(q.a) || ![q.x, q.y, q.z, q.w, q.h].every(Number.isInteger) || q.w < 2 || q.w > 21 || q.h < 3 || q.h > 21) return;
+    const w = Game.welt(this.dimVon(m.d | 0)), p = { a: q.a, x: q.x, y: q.y, z: q.z, w: q.w, h: q.h };
+    w.portale.set(p.x + ',' + p.y + ',' + p.z, Object.assign({ neu: performance.now() }, p));
+    if(this.istHost) this.anAlle({ t:'portal', d: m.d | 0, q: p }, von);
+  },
   hatGaeste(){ for(const g of this.gaeste.values()) if(g.bereit) return true; return false; },
   /** an alle Gäste, auf Wunsch ohne einen */
   anAlle(obj, ausser){
@@ -251,7 +278,8 @@ const Netz = {
       case 'ich':
         g.x = +m.x || 0; g.y = +m.y || 0; g.z = +m.z || 0; g.yaw = +m.a || 0; g.pitch = +m.p || 0;
         g.flags = m.f | 0; g.held = m.h | 0; g.tot = !!(g.flags & 4); g.creative = !!m.c; g.ruest = (m.r | 0) & 0xfff;
-        this.figurZiel(this.andere.get(g.id), g.x, g.y, g.z, g.yaw, g.pitch, g.flags, g.held, g.ruest);
+        g.dim = this.dimVon(m.d | 0);
+        { const s = this.andere.get(g.id); if(s) s.dim = g.dim; this.figurZiel(s, g.x, g.y, g.z, g.yaw, g.pitch, g.flags, g.held, g.ruest); }
         break;
       case 'stand': this.standMerken(g, m); break;
       case 'b': this.bloeckeEmpfangen(m.l); break;
@@ -259,6 +287,7 @@ const Netz = {
       case 'truhe': this.truheEmpfangen(m, g); break;
       case 'ofen': this.ofenEmpfangen(m); break;
       case 'pfeil': this.pfeilEmpfangen(m, g); break;
+      case 'portal': this.portalEmpfangen(m, g); break;
       case 'kueken': this.kuekenHost(g, m); break;
       case 'drop': this.dropHost(g, m); break;
       case 'pvp': this.pvpHost(g, m); break;
@@ -288,11 +317,15 @@ const Netz = {
     const p = Game.player, du = Game.gaeste[id] || null;
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
+    g.dim = du && du.p && du.dim === 'nether' ? 'nether' : 'oben';
+    const o = Game.oben;
     this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du, op: Game.ops.has(id),
-      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, typ: Game.world.typ, doerfer: Game.world.doerfer, obsidian: Game.world.obsidian, modus: p.creative ? 'kreativ' : 'ueberleben',
+      welt: Object.assign({ name: Game.meta.name, seed: o.seedStr, gen: o.gen, typ: o.typ, doerfer: o.doerfer, obsidian: o.obsidian, modus: p.creative ? 'kreativ' : 'ueberleben',
                             time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), regeln: Game.regeln,
-                            spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
-    this.andere.set(id, this.figur(id, g.name, g.farbe, ort));
+                            spawn: [p.spawnX, p.spawnY, p.spawnZ], dim: g.dim,
+                            nether: Game.nether || g.dim === 'nether' ? Game.weltTeil(Game.netherWelt()) : undefined }, Game.weltTeil(o)) });
+    const fig = this.figur(id, g.name, g.farbe, ort); fig.dim = g.dim;
+    this.andere.set(id, fig);
     // Öfen und Wesen gleich hinterher, nicht erst beim nächsten Takt
     this._ofenSig = {};
     this._t.pos = this._t.wesen = 1;
@@ -309,6 +342,7 @@ const Netz = {
     const d = Game.gaeste[g.id] || (Game.gaeste[g.id] = {});
     d.name = g.name;
     d.p = Object.assign(d.p || {}, { x: g.x, y: g.y, z: g.z, yaw: g.yaw, pitch: g.pitch });
+    d.dim = g.dim || 'oben';
     this.andere.delete(g.id); this.schildWeg(g.id);
     if(this.istHost){
       Chat.system(g.name + ' hat die Welt verlassen');
@@ -318,9 +352,10 @@ const Netz = {
   /** Inventar und Ort eines Gastes: der Host hebt sie mit der Welt auf */
   standMerken(g, m){
     if(!m.p) return;
-    Game.gaeste[g.id] = { name: g.name, p: m.p, inv: m.inv || [], ruest: m.ruest || [], bekannt: m.bekannt || [], rest: m.rest || [], zeit: Date.now() };
+    Game.gaeste[g.id] = { name: g.name, p: m.p, dim: m.d === 1 ? 'nether' : 'oben', inv: m.inv || [], ruest: m.ruest || [], bekannt: m.bekannt || [], rest: m.rest || [], zeit: Date.now() };
   },
-  wesenAnfrageHost(g, m){
+  wesenAnfrageHost(g, m){ Game.inDim(g.dim || 'oben', () => this._wesenAnfrage(g, m)); },
+  _wesenAnfrage(g, m){
     const mob = Game.mobs.find(q => q.nid === m.n && !q.dead);
     if(!mob) return;
     // ein Ei trifft mit 0 Schaden — das bleibt 0
@@ -334,7 +369,7 @@ const Netz = {
   kuekenHost(g, m){
     const x = +m.x, y = +m.y, z = +m.z;
     if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < 1 || y >= WH) return;
-    Game.kuekenSchluepfen(x, y, z, m.n === 4 ? 4 : 1);
+    Game.inDim(g.dim || 'oben', () => Game.kuekenSchluepfen(x, y, z, m.n === 4 ? 4 : 1));
   },
   /* ── Liegende Gegenstände ────────────────────────────────────────
      Sie liegen beim Host, in seiner Welt, mit seiner Physik. Die Gäste
@@ -347,14 +382,14 @@ const Netz = {
     if(![x, y, z].every(Number.isFinite) || Math.hypot(x - g.x, z - g.z) > 48 || y < -8 || y > WH + 8) return;
     const w = Array.isArray(m.w) && m.w.length === 4 && m.w.every(Number.isFinite)
       ? [clamp(m.w[0], -8, 8), clamp(m.w[1], -8, 12), clamp(m.w[2], -8, 8), clamp(m.w[3], 0, 5)] : null;
-    Game.dropItem(id, n, x, y, z, dur | 0, w);
+    Game.inDim(g.dim || 'oben', () => Game.dropItem(id, n, x, y, z, dur | 0, w));
   },
   aufhebenHost(g, m){
-    const i = Game.drops.findIndex(d => d.nid === m.n);
+    const L = Game.listen(g.dim || 'oben').drops, i = L.findIndex(d => d.nid === m.n);
     if(i < 0 || g.tot) return;
-    const d = Game.drops[i];
+    const d = L[i];
     if(d.pickDelay > 0 || Math.hypot(d.x - g.x, d.y + 0.14 - (g.y + 0.9), d.z - g.z) > 3.2) return;
-    Game.drops.splice(i, 1);
+    L.splice(i, 1);
     this.senden(g.conn, { t:'bekommen', n: d.nid, l: [d.id, d.count, d.dur | 0] });
     this.dropsSenden();                      // gleich allen Bescheid: weg ist weg
   },
@@ -389,27 +424,27 @@ const Netz = {
     const grund = g.name + ' hat dich besiegt';
     if(m.z === this.ich.id){
       const p = Game.player;
-      if(Math.hypot(p.x - g.x, p.z - g.z) > 64) return;             // so weit fliegt kein Pfeil
+      if(Math.hypot(p.x - g.x, p.z - g.z) > 64 || (g.dim || 'oben') !== Game.dim) return;             // so weit fliegt kein Pfeil
       if(p.hurt(n, grund, kx, kz)){ Game.hurtFlash = 1; Sfx.play('hurt'); }
       return;
     }
     const z = this.gastMitId(m.z);
-    if(z && z !== g && Math.hypot(z.x - g.x, z.z - g.z) <= 64) this.autsch(z, n, grund, kx, kz);
+    if(z && z !== g && (z.dim || 'oben') === (g.dim || 'oben') && Math.hypot(z.x - g.x, z.z - g.z) <= 64) this.autsch(z, n, grund, kx, kz);
   },
 
   /** was um jeden Gast herum liegt — nur, wenn sich etwas geändert hat */
   dropsSenden(){
     for(const g of this.gaeste.values()){
       if(!g.bereit) continue;
-      const l = [];
-      for(const d of Game.drops){
+      const l = [], dn = this.dimNr(g.dim);
+      for(const d of Game.listen(g.dim || 'oben').drops){
         if(Math.abs(d.x - g.x) > 64 || Math.abs(d.z - g.z) > 64) continue;
         l.push(d.nid, d.id, r2(d.x), r2(d.y), r2(d.z), d.pickDelay > 0 ? 0 : 1);
       }
-      const sig = l.join(',');
+      const sig = dn + ':' + l.join(',');
       if(sig === g._dropSig) continue;
       g._dropSig = sig;
-      this.senden(g.conn, { t:'d', l });
+      this.senden(g.conn, { t:'d', d: dn, l });
     }
   },
 
@@ -435,30 +470,31 @@ const Netz = {
     for(const g of this.gaeste.values()){
       if(!g.bereit) continue;
       const l = [];
-      for(const m of Game.mobs){
+      for(const m of Game.listen(g.dim || 'oben').mobs){
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
         const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
           | (m.onGround ? 0 : 64) | (m.schlagT > 0 ? 128 : 0);
         l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle || m.beruf | 0);
       }
-      this.senden(g.conn, { t:'w', l });
+      this.senden(g.conn, { t:'w', d: this.dimNr(g.dim), l });
     }
   },
   spielerSenden(){
     const p = Game.player, h = Inv.held();
-    const l = [[this.ich.id, this.ich.name, this.ich.farbe, r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), this.meineFlags(), h ? h.id : 0, Ruestung.code()]];
+    const l = [[this.ich.id, this.ich.name, this.ich.farbe, r2(p.x), r2(p.y), r2(p.z), r2(p.yaw), r2(p.pitch), this.meineFlags(), h ? h.id : 0, Ruestung.code(), this.dimNr(Game.dim)]];
     for(const g of this.gaeste.values())
-      if(g.bereit) l.push([g.id, g.name, g.farbe, r2(g.x), r2(g.y), r2(g.z), r2(g.yaw), r2(g.pitch), g.flags, g.held, g.ruest]);
+      if(g.bereit) l.push([g.id, g.name, g.farbe, r2(g.x), r2(g.y), r2(g.z), r2(g.yaw), r2(g.pitch), g.flags, g.held, g.ruest, this.dimNr(g.dim)]);
     this.anAlle({ t:'s', l });
   },
   /** Öfen: Inhalt, Glut und Fortschritt, sobald sich etwas ändert */
   oefenSenden(alle){
     const l = [];
-    for(const [k, f] of Game.world.furnaces){
-      const e = [k, stapelKurz(f.in), stapelKurz(f.fuel), stapelKurz(f.out), Math.round(f.burn), Math.round(f.burnMax), Math.round(f.cook)];
+    for(const w of [Game.oben, Game.nether]) if(w) for(const [k, f] of w.furnaces){
+      const d = w.typ === 'nether' ? 1 : 0;
+      const e = [k, stapelKurz(f.in), stapelKurz(f.fuel), stapelKurz(f.out), Math.round(f.burn), Math.round(f.burnMax), Math.round(f.cook), d];
       const sig = JSON.stringify(e);
-      if(!alle && this._ofenSig[k] === sig) continue;
-      this._ofenSig[k] = sig; l.push(e);
+      if(!alle && this._ofenSig[d + k] === sig) continue;
+      this._ofenSig[d + k] = sig; l.push(e);
     }
     if(l.length) this.anAlle({ t:'oefen', l });
   },
@@ -466,9 +502,10 @@ const Netz = {
       durch den Boden und Monster können nicht erscheinen. Nur erzeugt und
       beleuchtet, nicht gezeichnet. */
   gastUmgebung(){
-    const w = Game.world; let budget = 2;
+    let budget = 2;
     for(const g of this.gaeste.values()){
       if(!g.bereit) continue;
+      const w = Game.welt(g.dim || 'oben');
       const cx0 = Math.floor(g.x) >> 4, cz0 = Math.floor(g.z) >> 4;
       for(let r = 0; r <= 2 && budget > 0; r++)
         for(let dz = -r; dz <= r && budget > 0; dz++) for(let dx = -r; dx <= r && budget > 0; dx++){
@@ -479,10 +516,10 @@ const Netz = {
         }
     }
   },
-  chunkGebraucht(cx, cz){
+  chunkGebraucht(cx, cz, d = Game.dim){
     if(!this.istHost) return false;
     for(const g of this.gaeste.values()){
-      if(!g.bereit) continue;
+      if(!g.bereit || (g.dim || 'oben') !== d) continue;
       if(Math.abs((Math.floor(g.x) >> 4) - cx) <= 3 && Math.abs((Math.floor(g.z) >> 4) - cz) <= 3) return true;
     }
     return false;
@@ -495,6 +532,9 @@ const Netz = {
       if(this.chunkGebraucht(c.cx, c.cz)) continue;
       w.chunks.delete(k);
     }
+    // die andere Welt: dort steht der Host nicht, gebraucht wird nur, was um Gäste liegt
+    const d = Game.dim === 'nether' ? 'oben' : 'nether', a = d === 'nether' ? Game.nether : Game.oben;
+    if(a) for(const [k, c] of a.chunks) if(!this.chunkGebraucht(c.cx, c.cz, d)) a.chunks.delete(k);
   },
 
   /* ═══ GAST ═══════════════════════════════════════════════════════ */
@@ -588,19 +628,20 @@ const Netz = {
     switch(m.t){
       case 's': this.spielerEmpfangen(m.l); break;
       case 'skins': this.skins = new Map((Array.isArray(m.l) ? m.l : []).filter(e => Array.isArray(e)).map(([id, s]) => [String(id), Skin.pruefen(s)])); break;
-      case 'w': this.wesenEmpfangen(m.l); break;
+      case 'w': if((m.d | 0) === this.dimNr(Game.dim)) this.wesenEmpfangen(m.l); break;
       case 'b': this.bloeckeEmpfangen(m.l); break;
       case 'zeit': if(isFinite(m.a)) Game.time = +m.a; if(isFinite(m.z)) Game.gesamtZeit = +m.z; if(m.w !== undefined) Wetter.vomHost(m.w); break;
       case 'wetter': Wetter.vomHost(m.r); break;
       case 'truhe': this.truheEmpfangen(m, null); break;
       case 'oefen': this.oefenEmpfangen(m.l); break;
       case 'pfeil': this.pfeilEmpfangen(m, null); break;
+      case 'portal': this.portalEmpfangen(m, null); break;
       case 'autsch': {
         const p = Game.player;
         if(p.hurt(+m.n || 1, m.grund || '', +m.kx || 0, +m.kz || 0)){ Game.hurtFlash = 1; Sfx.play('hurt'); }
         break;
       }
-      case 'd': this.dropsEmpfangen(m.l); break;
+      case 'd': if((m.d | 0) === this.dimNr(Game.dim)) this.dropsEmpfangen(m.l); break;
       case 'bekommen': this.bekommen(m); break;
       case 'hinweis': hint(String(m.text || ''), 2400); break;
       case 'schlaf': if(Game.bett && !Game.schlafT) Game.schlafT = 0.001; break;     // alle liegen: die Nacht vergeht
@@ -654,14 +695,14 @@ const Netz = {
     const p = Game.player;
     this.senden(this.hostConn, { t:'stand',
       p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food, saturation:p.saturation, air:p.air,
-           spawnX:p.spawnX, spawnY:p.spawnY, spawnZ:p.spawnZ },
+           spawnX:p.spawnX, spawnY:p.spawnY, spawnZ:p.spawnZ }, d: this.dimNr(Game.dim),
       inv: Inv.slots.map(stapelKurz), ruest: Inv.ruestung.map(stapelKurz), bekannt: [...Inv.bekannt],
       rest: Screens.raster.concat([Inv.cursor]).filter(Boolean).map(stapelKurz) });
   },
   ichSenden(){
     const p = Game.player, h = Inv.held();
     this.senden(this.hostConn, { t:'ich', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.yaw), p: r2(p.pitch),
-      f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0, r: Ruestung.code() });
+      f: this.meineFlags(), h: h ? h.id : 0, c: p.creative ? 1 : 0, r: Ruestung.code(), d: this.dimNr(Game.dim) });
   },
   dropAnfrage(id, n, x, y, z, dur, wurf){
     if(this.hostConn) this.senden(this.hostConn, { t:'drop', l: [id, n, dur | 0], x: r2(x), y: r2(y), z: r2(z), w: wurf ? wurf.map(r2) : 0 });
@@ -715,12 +756,12 @@ const Netz = {
   spielerEmpfangen(l){
     const da = new Set();
     for(const e of (l || [])){
-      const [id, name, farbe, x, y, z, yaw, pitch, f, held, ruest] = e;
-      if(id === this.ich.id) continue;
+      const [id, name, farbe, x, y, z, yaw, pitch, f, held, ruest, d] = e;
+      if(id === this.ich.id || (d | 0) !== this.dimNr(Game.dim)) continue;     // wer in der anderen Welt ist, ist hier nicht zu sehen
       da.add(id);
       let s = this.andere.get(id);
       if(!s){ s = this.figur(id, name, farbe, { x, y, z, yaw, pitch }); this.andere.set(id, s); }
-      s.name = name; s.farbe = farbe | 0;
+      s.name = name; s.farbe = farbe | 0; s.dim = Game.dim;
       this.figurZiel(s, x, y, z, yaw, pitch, f, held, ruest);
     }
     for(const id of [...this.andere.keys()]) if(!da.has(id)){ this.andere.delete(id); this.schildWeg(id); }
@@ -778,23 +819,24 @@ const Netz = {
     return (p.sneaking ? 1 : 0) | (p.swinging ? 2 : 0) | (p.dead ? 4 : 0) | (bewegt ? 8 : 0) | (Game.bett ? 16 : 0) | (p.hurtTimer > 0 ? 32 : 0);
   },
   /** jede Blockänderung aus dem eigenen Spiel */
-  blockGeaendert(x, y, z, id){ this.ausgang.push(x, y, z, id); },
+  /** je Änderung fünf Zahlen: x, y, z, Block, Welt (0 oben, 1 Nether) */
+  blockGeaendert(x, y, z, id, d){ this.ausgang.push(x, y, z, id, d | 0); },
   bloeckeEmpfangen(l){
     if(!Array.isArray(l)) return;
     this._toene = 4;
-    for(let i = 0; i + 3 < l.length; i += 4){
-      const x = l[i] | 0, y = l[i+1] | 0, z = l[i+2] | 0, id = l[i+3] | 0;
+    for(let i = 0; i + 4 < l.length; i += 5){
+      const x = l[i] | 0, y = l[i+1] | 0, z = l[i+2] | 0, id = l[i+3] | 0, d = l[i+4] === 1 ? 1 : 0;
       if(!blocks[id] && id !== B.AIR) continue;
-      this.blockSetzen(x, y, z, id);
+      this.blockSetzen(x, y, z, id, Game.welt(this.dimVon(d)));
       // der Host gibt alles an alle weiter, auch zurück an den Absender:
       // So landen alle beim selben Stand, selbst wenn zwei gleichzeitig bauen
-      if(this.istHost) this.ausgang.push(x, y, z, id);
+      if(this.istHost) this.ausgang.push(x, y, z, id, d);
     }
   },
-  /** Block aus dem Netz einsetzen, samt Truhe, Ofen oder Feld dahinter */
-  blockSetzen(x, y, z, id){
+  /** Block aus dem Netz einsetzen, samt Truhe, Ofen oder Feld dahinter — in Welt w */
+  blockSetzen(x, y, z, id, w = Game.world){
     if(y < 1 || y >= WH) return;
-    const w = Game.world, ck = ckey(x >> 4, z >> 4), c = w.chunks.get(ck), k = x + ',' + y + ',' + z;
+    const ck = ckey(x >> 4, z >> 4), c = w.chunks.get(ck), k = x + ',' + y + ',' + z;
     this.eingehend = true;
     try{
       let alt;
@@ -807,7 +849,7 @@ const Netz = {
         m.set(i, id);
       }
       if(alt === id) return;
-      if(alt >= 0 && this._toene > 0) this.bauKlang(alt, id, x, y, z);
+      if(alt >= 0 && this._toene > 0 && w === Game.world) this.bauKlang(alt, id, x, y, z);
       if(alt === B.CHEST && id !== B.CHEST) w.chests.delete(k);
       if((alt === B.FURNACE || alt === B.FURNACE_LIT) && id !== B.FURNACE && id !== B.FURNACE_LIT) w.furnaces.delete(k);
       if(id === B.CHEST && !w.chests.has(k)) w.chests.set(k, new Array(27).fill(null));
@@ -843,58 +885,67 @@ const Netz = {
       const s = t.map(stapelKurz), sig = JSON.stringify(s);
       if(this._behSig[k] === sig) return;
       this._behSig[k] = sig;
-      if(this.istGast) this.senden(this.hostConn, { t:'truhe', k, s });
-      else this.anAlle({ t:'truhe', k, s });
+      const d = this.dimNr(Game.dim);
+      if(this.istGast) this.senden(this.hostConn, { t:'truhe', k, s, d });
+      else this.anAlle({ t:'truhe', k, s, d });
     } else if(Screens.modus === 'ofen' && this.istGast){
       // der Host schickt seine Öfen ohnehin laufend
       const k = Screens.ofenKey, f = w.furnaces.get(k); if(!f) return;
       const s = [f.in, f.fuel, f.out].map(stapelKurz), sig = JSON.stringify(s);
       if(this._behSig['o' + k] === sig) return;
       this._behSig['o' + k] = sig;
-      this.senden(this.hostConn, { t:'ofen', k, s });
+      this.senden(this.hostConn, { t:'ofen', k, s, d: this.dimNr(Game.dim) });
     }
   },
   truheEmpfangen(m, von){
-    const w = Game.world, k = String(m.k);
+    const d = m.d === 1 ? 1 : 0, w = Game.welt(this.dimVon(d)), k = String(m.k);
     let t = w.chests.get(k);
     if(!t){ t = new Array(27).fill(null); w.chests.set(k, t); }
     // an Ort und Stelle ändern: Ist die Truhe gerade offen, hängt die Anzeige an genau diesem Feld
     const s = Array.isArray(m.s) ? m.s : [];
     for(let i = 0; i < 27; i++) t[i] = stapelLang(s[i]);
+    if(w !== Game.world) { if(this.istHost) this.anAlle({ t:'truhe', k, s: t.map(stapelKurz), d }, von); return; }
     this._behSig[k] = JSON.stringify(t.map(stapelKurz));
-    if(this.istHost) this.anAlle({ t:'truhe', k, s: t.map(stapelKurz) }, von);
+    if(this.istHost) this.anAlle({ t:'truhe', k, s: t.map(stapelKurz), d }, von);
     if(Screens.open === 'beh' && Screens.modus === 'truhe' && Screens.truheKey === k) Screens.render();
   },
   ofenEmpfangen(m){
-    const w = Game.world, k = String(m.k), f = w.furnaces.get(k);
+    const w = Game.welt(this.dimVon(m.d === 1 ? 1 : 0)), k = String(m.k), f = w.furnaces.get(k);
     if(!f || !Array.isArray(m.s)) return;
     f.in = stapelLang(m.s[0]); f.fuel = stapelLang(m.s[1]); f.out = stapelLang(m.s[2]);
-    if(Screens.open === 'beh' && Screens.modus === 'ofen' && Screens.ofenKey === k){ this.behaelterGeoeffnet(); Screens.render(); }
+    if(w === Game.world && Screens.open === 'beh' && Screens.modus === 'ofen' && Screens.ofenKey === k){ this.behaelterGeoeffnet(); Screens.render(); }
   },
   oefenEmpfangen(l){
-    const w = Game.world;
-    for(const [k, a, b, c, burn, burnMax, cook] of (l || [])){
+    for(const [k, a, b, c, burn, burnMax, cook, d] of (l || [])){
+      const w = Game.welt(this.dimVon(d === 1 ? 1 : 0));
       let f = w.furnaces.get(k);
       if(!f){ const [x, y, z] = String(k).split(',').map(Number); f = { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x, y, z }; w.furnaces.set(k, f); }
       f.in = stapelLang(a); f.fuel = stapelLang(b); f.out = stapelLang(c); f.burn = burn; f.burnMax = burnMax; f.cook = cook;
-      if(Screens.open === 'beh' && Screens.modus === 'ofen' && Screens.ofenKey === k){ this.behaelterGeoeffnet(); Screens.render(); }
+      if(w === Game.world && Screens.open === 'beh' && Screens.modus === 'ofen' && Screens.ofenKey === k){ this.behaelterGeoeffnet(); Screens.render(); }
     }
   },
 
   /* — Pfeile: Monsterpfeile treffen, die der Spieler sind nur zu sehen — */
+  /** feuer: 1 Feuerkugel eines Ghasts, 2 kleine einer Lohe; d: in welcher Welt */
   pfeilSenden(a, nurBild){
     if(!this.rolle || this.rolle === 'verbinde') return;
-    const m = { t:'pfeil', a: [r2(a.x), r2(a.y), r2(a.z), r2(a.vx), r2(a.vy), r2(a.vz), a.dmg | 0], bild: nurBild ? 1 : 0, ei: a.ei ? 1 : 0 };
-    if(this.istGast) this.senden(this.hostConn, m); else this.anAlle(m);
+    const d = this.dimNr(Game.dim);
+    const m = { t:'pfeil', a: [r2(a.x), r2(a.y), r2(a.z), r2(a.vx), r2(a.vy), r2(a.vz), a.dmg | 0], bild: nurBild ? 1 : 0, ei: a.ei ? 1 : 0,
+                feuer: a.feuer ? (a.klein ? 2 : 1) : 0, d };
+    if(this.istGast) this.senden(this.hostConn, m); else this.anDim(m, Game.dim);
   },
   pfeilEmpfangen(m, von){
-    const a = m.a; if(!Array.isArray(a) || a.length < 7) return;
-    const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], a[6] | 0, false, !!m.ei);
+    const a = m.a; if(!Array.isArray(a) || a.length < 7 || !a.slice(0, 6).every(v => Number.isFinite(+v))) return;
+    const d = this.dimVon(m.d === 1 ? 1 : 0);
+    if(von){ if(d !== (von.dim || 'oben')) return; }
+    else if(d !== Game.dim) return;                       // aus der anderen Welt: hier nicht zu sehen
+    const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], clamp(a[6] | 0, 0, 20), false, !!m.ei, !!m.feuer);
+    pf.klein = m.feuer === 2;
     // ein Gast schießt: für alle anderen nur zu sehen, getroffen wird beim Schützen
     if(von || m.bild) pf.nurBild = true;
-    Game.pfeile.push(pf);
-    if(pf.ei) Sfx.play('werfen', pf.x, pf.y, pf.z);
-    if(this.istHost && von) this.anAlle({ t:'pfeil', a, bild: 1, ei: m.ei ? 1 : 0 }, von);
+    Game.listen(d).pfeile.push(pf);
+    if(pf.ei && d === Game.dim) Sfx.play('werfen', pf.x, pf.y, pf.z);
+    if(this.istHost && von) this.anDim({ t:'pfeil', a, bild: 1, ei: m.ei ? 1 : 0, feuer: m.feuer | 0, d: m.d | 0 }, d, von);
   },
 
   /* — Figuren der anderen — */
@@ -939,7 +990,7 @@ const Netz = {
       const x = s.x, y = s.y + (liegt ? 0.75 : (s.flags & 1) ? 1.95 : 2.1), z = s.z - (liegt ? 0.3 : 0);
       const cw = vp[3]*x + vp[7]*y + vp[11]*z + vp[15];
       const weit = Math.hypot(x - p.x, z - p.z);
-      if(cw < 0.1 || s.tot || weit > 64){ e.style.display = 'none'; continue; }
+      if(cw < 0.1 || s.tot || weit > 64 || !this.hier(s)){ e.style.display = 'none'; continue; }
       const cx = (vp[0]*x + vp[4]*y + vp[8]*z + vp[12])/cw, cy = (vp[1]*x + vp[5]*y + vp[9]*z + vp[13])/cw;
       if(Math.abs(cx) > 1.3 || Math.abs(cy) > 1.3){ e.style.display = 'none'; continue; }
       e.style.display = '';

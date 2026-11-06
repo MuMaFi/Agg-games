@@ -71,7 +71,9 @@ T('buildTextures()');
 const fehlend = T(`(() => { const f = []; for(const b of blocks) if(b){ for(const t of b.faces) if(TEX[t] === undefined) f.push(b.name + ':' + t); if(b.icon && TEX[b.icon] === undefined) f.push(b.name + ':' + b.icon); if(b.dirFront && TEX[b.dirFront] === undefined) f.push(b.dirFront); }
   for(const it of Object.values(items)) if(TEX[it.tex] === undefined) f.push(it.name + ':' + it.tex); return f; })()`);
 pruef(fehlend.length === 0, 'fehlende Texturen: ' + fehlend.join(', '));
-pruef(T('texNames.length') <= 256, 'höchstens 256 Texturschichten (Nummer 0…255 als Byte im Gitter, WebGL garantiert 256)');
+T(`globalThis.lagenOk = () => texNames.every((n, i) => i < 256 || /^(i_|m_|p_)/.test(n)) && texNames.length <= 384
+  && blocks.every(b => !b || b.faces.every(t => TEX[t] < 256))`);
+pruef(T('lagenOk()'), 'Blockbilder in den ersten 256 Lagen (Nummer 0…255 als Byte im Gitter), Wesen und Gegenstände dahinter');
 // Ausbluten: keine durchsichtigen schwarzen Texel mehr
 const schwarz = T(`(() => { let n = 0; texData.forEach((d, k) => { if(texNames[k].startsWith('crack')) return; for(let i=0;i<d.length;i+=4) if(d[i+3]===0 && d[i]+d[i+1]+d[i+2]===0) n++; }); return n; })()`);
 pruef(schwarz === 0, 'durchsichtige schwarze Texel: ' + schwarz);
@@ -465,7 +467,7 @@ pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.s
   return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
 // 26.10.04: Stufen, farbige Betten, Kornblume — Nummern hinten angehängt, alle unter 256, genug Bildlagen
 pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && B.BETTKOPF === 253 && B.OBSIDIAN === 254 && B.BRAUSTAND === 255
-  && texNames.length <= 256`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
+  && lagenOk()`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
 pruef(T(`STUFEN.every((t, a) => blocks[stufeId(a, false)].item && !blocks[stufeId(a, true)].item && blocks[stufeId(a, true)].drop === stufeId(a, false)
   && blocks[stufeId(a, false)].box[4] === 8 && blocks[stufeId(a, true)].box[1] === 8 && LOPQ[stufeId(a, false)] === LICHT_STAU && SOL[stufeId(a, true)] === 1)`),
   'Stufen: unten und oben, nur die untere ist ein Gegenstand, beide fallen als sie ab, halten Licht auf');
@@ -502,7 +504,7 @@ pruef(T(`(() => { const mittel = n => { const d = klassikMalen(n); let r = 0, g 
   'Gras und Laub sind grün eingefärbt, Stein grau, volle Größe');
 pruef(T(`(() => { const a = klassikMalen('cobble'), b = klassikMalen('cobble'); return a.every((v, i) => v === b[i]); })()`), 'immer dasselbe Bild (fester Zufall)');
 pruef(T(`(() => { const L = TEX.stone, vorher = texData[L]; globalThis.texturenNeuLaden = () => {}; Klassik.setzen(true); const an = texData[L] !== vorher;
-  Klassik.setzen(false); return an && texData[L] === vorher && texNames.length <= 256; })()`), 'umschalten und zurück: die gewohnten Bilder kommen wieder');
+  Klassik.setzen(false); return an && texData[L] === vorher && lagenOk(); })()`), 'umschalten und zurück: die gewohnten Bilder kommen wieder');
 // 26.10.06: Werkbank mit eigener Vorderseite, Ofen neu gepixelt — deckend, kalt dunkel, brennend glühend
 pruef(T(`(() => { const f = blocks[B.TABLE].faces; return f[2] === 'craft_top' && f[3] === 'planks' && f[4] === 'craft_front' && f[5] === 'craft_front' && f[0] === 'craft_side' && f[1] === 'craft_side'
   && TEX.craft_front !== undefined && texData[TEX.craft_front].every((v, i) => v === texData[TEX.craft_side][i]); })()`), 'Werkbank: vorn und hinten die Vorderseite, links und rechts die Seite (modern gleich)');
@@ -552,8 +554,8 @@ pruef(T(`(() => { const d = DL.find(d => d.stil === 'wiese'); return dorfPlatz(D
 pruef(T(`BERUFE.length === 4 && BERUFE.every(b => b.handel().length >= 4 && b.handel().every(a => a.gib.length && a.gib.every(([id, n]) => defOf(id) && n > 0 && n <= stackOf(id))
   && defOf(a.bekommt[0]) && a.bekommt[1] > 0 && a.bekommt[1] <= stackOf(a.bekommt[0])))`), 'Berufe und Tauschangebote: alles gibt es');
 pruef(T(`ITEM.emerald > 0 && items[ITEM.emerald].name === 'Smaragd' && TEX.i_smaragd !== undefined && MOBS.villager.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
-  && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && texNames.length <= 256`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
-pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-4).join() === 'villager,golem,wither,ghast'; })()`),
+  && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && lagenOk()`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
+pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-6).join() === 'villager,golem,wither,ghast,blaze,enderman'; })()`),
   'die Kutte trägt die Farbe des Berufs; Dorfbewohner und Golems stehen hinten in der Liste der Wesen');
 // 26.10.08: Kürbis, geschnitzter Kürbis (Gesicht in vier Richtungen), Eisengolem
 pruef(T(`blocks[B.KUERBIS].name === 'Kürbis' && [0, 1, 2, 3].every(r => { const f = blocks[B.GESCHNITZT + r].faces, i = [0, 1, 4, 5][r];
@@ -567,10 +569,10 @@ pruef(T(`BERUFE[0].handel().some(a => a.bekommt[0] === B.KUERBIS)`), 'der Bauer 
 pruef(T(`(() => { const P = MOBS.villager.parts, zeigt = b => P.filter(p => !p.wenn || p.wenn({ beruf: b })).map(p => p.n);
   return ['kutte','guertel','arme','haende','nase'].every(n => zeigt(0).includes(n)) && zeigt(0).includes('hutkrempe') && !zeigt(1).includes('hutkrempe')
     && zeigt(1).includes('filzkopf') && zeigt(2).includes('schuerze') && zeigt(3).includes('stola0') && !zeigt(0).includes('schuerze')
-    && P.every(p => TEX[p.tex] !== undefined) && texNames.length <= 256; })()`), 'Dorfbewohner: Kutte, Gürtel und Kleidung je Beruf');
+    && P.every(p => TEX[p.tex] !== undefined) && lagenOk(); })()`), 'Dorfbewohner: Kutte, Gürtel und Kleidung je Beruf');
 // 26.11.05: Betten zweiteilig wie beim Vorbild, Kaktus mit eingerückten Seiten
 pruef(T(`isBett(B.BETTKOPF) && blocks[B.BETTKOPF].item === false && blocks[B.BETTKOPF].drop === B.AIR && bettSchluessel(B.BED) === 'rot'
-  && bettSchluessel(bettId('blau')) === 'blau' && texNames.length <= 256`), 'Kopfteil: ein Block für alle Farben, kein eigener Gegenstand');
+  && bettSchluessel(bettId('blau')) === 'blau' && lagenOk()`), 'Kopfteil: ein Block für alle Farben, kein eigener Gegenstand');
 pruef(T(`(() => { TW.setBlock(4, 9, 4, bettId('gruen')); TW.setBlock(4, 9, 3, B.BETTKOPF);
   const get = (a, b, c) => TW.getBlock(a, b, c);
   return SEITE[bettPartner(get, 4, 9, 4, bettId('gruen'))][1] === -1 && SEITE[bettPartner(get, 4, 9, 3, B.BETTKOPF)][1] === 1
@@ -597,8 +599,8 @@ pruef(T(`(() => { const p = new Player(); p.health = 20; p.hurt(4, 'a'); const a
 // 26.11.06: Obsidian, Braustand (in der Kirche), gleiche Bilder teilen sich eine Lage
 pruef(T(`blocks[B.OBSIDIAN].tier === 4 && blocks[B.OBSIDIAN].tool === 'pickaxe' && blocks[B.OBSIDIAN].hardness >= 50 && TEX.obsidian !== undefined
   && blocks[B.BRAUSTAND].model === 'braustand' && isFlat(B.BRAUSTAND) && flatTexOf(B.BRAUSTAND) === 'braustand' && TEX.braustand < 256
-  && TEX.i_hebel === TEX.hebel && TEX.m_bogen === TEX.i_bow && texNames.length <= 256`), 'Obsidian und Braustand: Bilder in den 256 Lagen, doppelte Bilder geteilt');
-pruef(T(`rasterRezept([null,{id:ITEM.stick,n:1},null, {id:B.COBBLE,n:1},{id:B.COBBLE,n:1},{id:B.COBBLE,n:1}, null,null,null], 3).out === B.BRAUSTAND
+  && TEX.i_hebel === TEX.hebel && TEX.m_bogen === TEX.i_bow && lagenOk()`), 'Obsidian und Braustand: Bilder in den 256 Lagen, doppelte Bilder geteilt');
+pruef(T(`rasterRezept([null,{id:ITEM.lohenrute,n:1},null, {id:B.COBBLE,n:1},{id:B.COBBLE,n:1},{id:B.COBBLE,n:1}, null,null,null], 3).out === B.BRAUSTAND
   && dingNummer('brewing_stand') === B.BRAUSTAND && dingNummer('obsidian') === B.OBSIDIAN`), 'Braustand: Rezept und Name für Befehle');
 pruef(T(`(() => { const s = {}; turm((x, y, z, id) => { s[x + ',' + y + ',' + z] = id; }, { d:{ hoehe: () => 9, wege: [], st:{ sockel:B.COBBLE, pfosten:B.LOG, weg:B.GRAVEL, platte:0 } }, s0:1, ox:0, oz:0, U:[1, 0], V:[0, 1], W:5, D:7, f:10, st:{ sockel:B.COBBLE, pfosten:B.LOG, weg:B.GRAVEL, platte:0 } });
   return Object.values(s).filter(id => id === B.BRAUSTAND).length === 1; })()`), 'in der Kirche steht ein Braustand');
@@ -610,7 +612,7 @@ pruef(T(`(() => { const zaehl = w => { let n = 0; for(const [cx, cz] of [[0,0],[
   return zaehl(new World('obs', 2, 'normal', false, true)) > 0 && zaehl(new World('obs', 2, 'normal', false, false)) === 0; })()`), 'Obsidian tief unten nur in neuen Welten');
 // 26.11.06: Lava — Nummer 189 (Kolbenköpfe haben kein Klebrig-Bit mehr), nur in neuen Welten
 pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && B.FACKEL_WAND === 190 && B.NETHERRACK === 194
-  && isKopf(B.KOLBENKOPF + 5) && !isKopf(B.LAVA) && altNummer(191) === 185 && altNummer(B.LAVA - 6) === B.LAVA - 6 && TEX.lava !== undefined && texNames.length <= 256`),
+  && isKopf(B.KOLBENKOPF + 5) && !isKopf(B.LAVA) && altNummer(191) === 185 && altNummer(B.LAVA - 6) === B.LAVA - 6 && TEX.lava !== undefined && lagenOk()`),
   'Lava: eigene Nummer, leuchtet, nicht fest; alte klebrige Köpfe werden gewöhnliche');
 pruef(T(`(() => { const zaehl = w => { let n = 0, licht = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3],[12,9],[-9,-11]]){ const c = w.ensureChunk(cx, cz);
     for(let i = 0; i < c.blocks.length; i++) if(c.blocks[i] === B.LAVA){ n++; if((i >> 8) > LAVA_SPIEGEL && !c.hmap) return -1; }
@@ -639,8 +641,32 @@ pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); const z = {};
   return z[B.NETHERRACK] > 10000 && z[B.LAVA] > 100 && z[B.AIR] > 1000 && unten === 768 && oben === 768 && !z[B.GRASS] && !z[B.WATER] && w.typ === 'nether'; })()`),
   'Nether: Netherrack, Lavameer unten, Grundgestein oben und unten, kein Gras, kein Wasser');
 pruef(T(`B.NETHERRACK === 194 && blocks[B.NETHERRACK].tool === 'pickaxe' && TEX.netherrack !== undefined && TEX.portal !== undefined && items[ITEM.feuerzeug].dur > 0
-  && rasterRezept([{id:ITEM.iron,n:1},{id:ITEM.flint,n:1},null,null], 2).out === ITEM.feuerzeug && texNames.length <= 256`), 'Netherrack, Portalbild, Feuerzeug (Eisen und Feuerstein)');
+  && rasterRezept([{id:ITEM.iron,n:1},{id:ITEM.flint,n:1},null,null], 2).out === ITEM.feuerzeug && lagenOk()`), 'Netherrack, Portalbild, Feuerzeug (Eisen und Feuerstein)');
 pruef(T(`MOBS.wither.hostile && MOBS.wither.skala === 1.2 && MOBS.ghast.schwebt && MOBS.ghast.skala === 4.5 && MOBS.ghast.parts.length === 10
   && MOBS.wither.parts.every(p => TEX[p.tex] !== undefined) && MOBS.ghast.parts.every(p => TEX[p.tex] !== undefined) && WESEN_NAMEN.ghast === 'ghast'`), 'Witherskelett und Ghast: Bilder, Größe, schweben');
+// 26.11.06: Blöcke über 255 (16 Bit), Wirrwald, Lohe, Enderman, Enderperle
+pruef(T(`B.WIRR_NYZEL >= BLOCK2 && B.PILZLICHT < BMAX && isBlockId(B.WIRR_STIEL) && !isBlockId(ITEM.lohenrute) && !isBlockId(BLOCK2 - 1)
+  && defOf(B.WIRR_WARZE).name === 'Wirrwarzenblock' && blocks[B.WIRR_NYZEL].drop === B.NETHERRACK && LEUCHTET[B.PILZLICHT] === 1
+  && OPQ[B.WIRR_STIEL] === 1 && !OPQ[B.WIRR_WURZELN] && dingNummer('warped_stem') === B.WIRR_STIEL && dingNummer('shroomlight') === B.PILZLICHT
+  && dingNummer('blaze_rod') === ITEM.lohenrute && dingNummer('ender_pearl') === ITEM.enderperle`), 'Wirrwald-Blöcke ab 512: Tabellen, Namen, Beute');
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let c0 = null;
+  for(let cx = -20; cx < 20 && !c0; cx++) for(let cz = -20; cz < 20; cz++) if(istWirrwald(w, cx*16 + 8, cz*16 + 8)){ c0 = [cx, cz]; break; }
+  const z = {}; for(let d = 0; d < 4; d++){ const c = w.ensureChunk(c0[0] + (d & 1), c0[1] + (d >> 1)); for(const id of c.blocks) z[id] = (z[id] || 0) + 1; }
+  const c = w.ensureChunk(c0[0], c0[1]);
+  return c.blocks instanceof Uint16Array && z[B.WIRR_NYZEL] > 200 && z[B.WIRR_WURZELN] > 20 && w.biomeAt(c0[0]*16 + 8, c0[1]*16 + 8) === BIO.WIRRWALD; })()`),
+  'Wirrwald: Nezel, Wurzeln, Biom im Nether');
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let n = 0, k = 0;
+  for(let x = -1600; x < 1600; x += 32) for(let z = -1600; z < 1600; z += 32){ n++; if(istWirrwald(w, x, z)) k++; } return k/n > 0.2 && k/n < 0.5; })()`), 'Wirrwald: etwa ein Drittel des Nethers');
+pruef(T(`rasterRezept([{id:ITEM.lohenrute,n:1},null,null,null], 2).out === ITEM.lohenstaub
+  && rasterRezept([null,{id:ITEM.lohenrute,n:1},null, {id:B.COBBLE,n:1},{id:B.COBBLE,n:1},{id:B.COBBLE,n:1}, null,null,null], 3).out === B.BRAUSTAND
+  && rasterRezept([{id:B.WIRR_STIEL,n:1},null,null,null], 2).out === B.PLANKS && fuelValue(ITEM.lohenrute) === 2400
+  && items[ITEM.enderperle].stack === 16 && istWurf(ITEM.enderperle) && istWurf(ITEM.egg) && !istWurf(ITEM.arrow)`), 'Lohenstaub, Braustand aus Lohenrute, Wirrstiel zu Brettern, Enderperle');
+pruef(T(`MOBS.blaze.hostile && MOBS.blaze.lohe && MOBS.blaze.schwebt && MOBS.blaze.parts.length === 13 && MOBS.enderman.neutral
+  && MOBS.enderman.health === 40 && Math.abs(MOBS.enderman.parts[0].box[1] + MOBS.enderman.parts[0].box[4] - 2.8125) < 1e-6
+  && [...MOBS.blaze.parts, ...MOBS.enderman.parts].every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
+  && WESEN_NAMEN.blaze === 'blaze' && WESEN_NAMEN.enderman === 'enderman' && TEX.i_lohenrute !== undefined && TEX.i_enderperle !== undefined`),
+  'Lohe und Enderman: Teile, Bilder, Namen');
+pruef(T(`lagenOk() && texNames.length > 256 && texNames.slice(0, 256).every((n, i) => i < texNames.findIndex(m => /^(i_|m_|p_)/.test(m)) || /^(i_|m_|p_)/.test(n))`),
+  'Bildlagen: erst die Blöcke, dahinter Wesen und Gegenstände (mehr als 256 Lagen, wenn die Grafikkarte kann)');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

@@ -1468,6 +1468,21 @@ function buildTextures(){
     for(let i = 0; i < 4; i++){ const x = p.r()*TS | 0, y = p.r()*TS | 0; p.weg(x, y, 4 + (p.r()*5 | 0), p.r() < .5 ? 1 : -1, 1, hell(GOLEM[0], .78), 255, .5); }
     for(let i = 0; i < 6; i++){ const x = p.r()*TS | 0, y = p.r()*TS | 0; p.put(x, y, [150, 98, 62]); p.put(x + 1, y, [126, 80, 50]); }
   };
+  /* — Lohe: glühend gelb-orange, dunkle Augen; ihre Ruten; Enderman: schwarz, lila Augen — */
+  const LOHE = pal('#b85a00','#d87800','#ee9a10','#f8bc30','#ffe070');
+  addTex('m_lohe', p => haut(LOHE, 1311, [6,18,34,28,14])(p));
+  addTex('m_lohe_face', p => {
+    haut(LOHE, 1312, [6,18,34,28,14])(p);
+    for(const x0 of [6, 20]){ p.rect(x0, 13, 6, 3, [120, 40, 0]); p.rect(x0 + 1, 14, 4, 1, [60, 16, 0]); }
+    p.rect(9, 21, 14, 2, [150, 60, 0]);
+  });
+  addTex('m_lohe_rute', p => haut(pal('#a85400','#d88400','#f0aa20','#ffd040','#fff090'), 1313, [4,14,34,32,16])(p));
+  const ENDER = pal('#060608','#0c0b10','#121018','#18141f','#1e1828');
+  addTex('m_ender', p => haut(ENDER, 1321)(p));
+  addTex('m_ender_face', p => {
+    haut(ENDER, 1322)(p);
+    for(const x0 of [4, 18]){ p.rect(x0, 18, 10, 2, [206, 60, 250]); p.rect(x0 + 3, 18, 4, 2, [232, 160, 255]); }
+  });
   addTex('m_golem', p => {
     golemEisen(p, 394);
     let x = 6 + (p.r()*20 | 0);
@@ -1798,6 +1813,75 @@ function buildTextures(){
     const stein = S.lage(pal('#1a1a1c', '#2e2e34', '#46464e', '#5e5e68', '#7a7a86'));
     S.rechteck(stein, 16, 18, 10, 9);
   });
+  /* — Wirrwald: blaugrün statt rot. Nezel oben, an der Seite hängt der
+     Bewuchs über das Netherrack; Stiele dunkel mit leuchtenden Adern;
+     Warzenblöcke fleischig türkis; Pilzlicht orange und warm — */
+  const WIRR = [[14, 84, 90], [20, 112, 116], [26, 140, 140], [44, 170, 160], [96, 214, 196]];
+  const wirrTon = (n, k) => WIRR[Math.max(0, Math.min(4, Math.floor(n*5.2 - .6 + (k > .9 ? 1 : 0))))];
+  addTex('wirr_nyzel', p => fein(p, (x, y) => wirrTon(fbm(x*TS/16, y*TS/16, 8, 8, 1201, 2), h2(x, y, 1203))));
+  addTex('wirr_nyzel_seite', p => fein(p, (x, y) => {
+    const tief = 3 + Math.floor(h2(x, 0, 1205)*3) + (h2(x, 1, 1206) > .75 ? 2 : 0);
+    if(y < tief) return wirrTon(fbm(x*TS/16, y*TS/16, 8, 8, 1201, 2), h2(x, y, 1203));
+    const n = fbm(x*TS/16, y*TS/16, 8, 8, 931, 2), k = h2(x, y, 933);
+    if(k > .9) return [74, 22, 22];
+    return n > .62 ? [140, 58, 54] : n > .48 ? [114, 42, 40] : n > .34 ? [98, 34, 34] : [82, 26, 28];
+  }));
+  addTex('wirr_stiel', p => fein(p, (x, y) => {
+    const ader = Math.sin(x*1.7 + h2(x, 0, 1211)*2 + Math.sin(y*0.5 + x)*0.6);
+    const k = h2(x, y, 1213);
+    if(ader > .82) return k > .5 ? [36, 186, 172] : [24, 150, 146];
+    return ader > .3 ? [60, 52, 84] : k > .8 ? [32, 26, 48] : [46, 40, 66];
+  }));
+  addTex('wirr_stiel_oben', p => fein(p, (x, y) => {
+    const dx = x - 7.5, dy = y - 7.5, r = Math.max(Math.abs(dx), Math.abs(dy));
+    if(r > 6.5) return h2(x, y, 1221) > .5 ? [24, 150, 146] : [46, 40, 66];
+    const ring = (Math.floor(r) & 1) === 0;
+    return ring ? [104, 48, 98] : [78, 34, 76];
+  }));
+  addTex('wirr_warze', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 4, 4, 1231, 3), k = h2(x, y, 1233);
+    if(k > .92) return [120, 236, 214];
+    return n > .62 ? [44, 196, 176] : n > .48 ? [24, 160, 150] : n > .34 ? [18, 132, 128] : [14, 104, 104];
+  }));
+  addTex('pilzlicht', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 4, 4, 1241, 3), k = h2(x, y, 1243);
+    if(k > .9) return [255, 236, 176];
+    return n > .6 ? [255, 206, 120] : n > .45 ? [246, 168, 76] : n > .32 ? [226, 132, 52] : [190, 96, 36];
+  }));
+  addTex('wirr_wurzeln', p => fein(p, (x, y) => {
+    // fünf dünne Halme von unten, oben leicht gebogen
+    for(const [x0, h, s] of [[3, 9, 1], [6, 12, -1], [8, 14, 1], [10, 11, 1], [13, 8, -1]]){
+      if(y < 16 - h) continue;
+      const t = (15 - y)/h, xx = Math.round(x0 + s*t*t*2);
+      if(x === xx) return t > .7 ? [70, 206, 190] : t > .35 ? [28, 160, 150] : [18, 112, 112];
+    }
+    return null;
+  }));
+  addTex('wirr_pilz', p => fein(p, (x, y) => {
+    // Hut oben (türkis, orange Punkte), dünner Stiel darunter
+    const hut = y >= 3 && y <= 7 && Math.abs(x - 7.5) <= 6 - (y === 3 ? 3 : y === 4 ? 1 : 0);
+    if(hut) return h2(x, y, 1251) > .8 ? [246, 128, 40] : y === 7 ? [16, 112, 110] : [28, 160, 150];
+    if(y > 7 && y <= 14 && (x === 7 || x === 8)) return x === 7 ? [196, 168, 186] : [156, 126, 150];
+    return null;
+  }));
+  /* — Lohenrute, Lohenstaub, Enderperle — */
+  sprite('i_lohenrute', S => {
+    const L = S.lage(pal('#7a3a00','#c06a00','#f0a400','#ffd23a','#fff4a0'));
+    S.strich(L, [[7,26],[25,8]], 1.8);
+    L.glanz = [[10,22],[14,18],[18,14],[22,10]];
+  });
+  sprite('i_lohenstaub', S => {
+    const L = S.lage(pal('#8a3800','#c86400','#f09a10','#ffc83a','#fff09a'), { kante:true });
+    S.poly(L, [[5,25],[10,17],[16,13],[22,16],[27,25],[16,28]]);
+    S.oval(L, 9, 11, 2, 2); S.oval(L, 24, 10, 1.6, 1.6); S.oval(L, 17, 7, 1.4, 1.4);
+    L.muster = (x, y) => (h2(x, y, 1261) < .3 ? -1 : h2(x, y, 1262) > .75 ? 1 : 0);
+  });
+  sprite('i_enderperle', S => {
+    const L = S.lage(pal('#062a26','#0c4a42','#167a6a','#2fa890','#a0f0dc'), { kante:true });
+    S.oval(L, 16, 16, 10, 10);
+    L.muster = (x, y) => (Math.hypot(x - 16, y - 16) < 4 ? -2 : 0);
+    L.glanz = [[11,10],[12,10],[11,11],[10,12],[13,9]];
+  });
   /* — Braustand: in der Mitte der Stab (oben golden, unten glühend), oben die
      Arme mit den Haken für die Flaschen, unten der Sockel. Die Arme nimmt das
      Modell aus der rechten Hälfte, den Stab aus den Spalten 7 und 8 (wie beim
@@ -1829,6 +1913,14 @@ function buildTextures(){
   // dazu Bilder, die ähnlich genug sind: die Splitter eines zerbrochenen Eis zeigen die Eierschale
   gleich.push(['p_schale', 'm_ei']);
   for(const [n] of gleich){ const i = texNames.indexOf(n); texNames.splice(i, 1); texData.splice(i, 1); }
+  /* Die Chunks zählen ihre Bildlagen in einem Byte: alles, was in der Welt
+     als Block liegt, gehört nach vorn (unter 256). Wesen, Gegenstände und
+     Teilchen (i_, m_, p_) zeichnen mit eigenen Nummern und dürfen dahinter
+     liegen, soweit die Grafikkarte so viele Lagen kann. */
+  const nurWesen = n => /^(i_|m_|p_)/.test(n);
+  const ordnung = texNames.map((n, i) => i).sort((a, b) => (nurWesen(texNames[a]) - nurWesen(texNames[b])) || a - b);
+  const namen = ordnung.map(i => texNames[i]), daten = ordnung.map(i => texData[i]);
+  texNames.length = 0; texData.length = 0; texNames.push(...namen); texData.push(...daten);
   for(const k of Object.keys(TEX)) delete TEX[k];
   texNames.forEach((n, i) => { TEX[n] = i; });
   for(const [n, z] of gleich) TEX[n] = TEX[z];

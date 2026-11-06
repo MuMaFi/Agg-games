@@ -8,24 +8,24 @@ const CS = 16, WH = 96, SEA = 38;
 const IDX = (x,y,z) => (y*CS + z)*CS + x;
 const ckey = (cx,cz) => cx + ',' + cz;
 
-const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5, TAIGA:6, SCHNEE:7, FLUSS:8 };
-const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald','Schneeebene','Fluss'];
+const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5, TAIGA:6, SCHNEE:7, FLUSS:8, NETHER:9, WIRRWALD:10 };
+const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald','Schneeebene','Fluss','Nether-Ödland','Wirrwald'];
 
 /* Sichtbarkeits-/Lichtregeln — als flache Tabellen, weil sie im
    Mesh- und Licht-Kern millionenfach abgefragt werden */
-const OPQ  = new Uint8Array(256);   // blockt Sicht vollständig
-const SOL  = new Uint8Array(256);   // blockt Bewegung
-const LOPQ = new Uint8Array(256);   // Licht-Dämpfung 0…15 — oder LICHT_STAU
+const OPQ  = new Uint8Array(BMAX);   // blockt Sicht vollständig
+const SOL  = new Uint8Array(BMAX);   // blockt Bewegung
+const LOPQ = new Uint8Array(BMAX);   // Licht-Dämpfung 0…15 — oder LICHT_STAU
 /* Treppen und Stufen: Licht fällt hinein, geht aber nicht hindurch. So ist
    die Treppe selbst hell (und was auf ihr steht), unter einem Dach aus
    Treppen oder Stufen aber dunkel. */
 const LICHT_STAU = 16;
 const _formK = new Float32Array(30);      // Kästen einer Stufe oder Treppe für den Blick-Strahl
-const COLL = new Float32Array(256*6); // Kollisionskasten je Block, in Blockeinheiten
-const VOLL = new Uint8Array(256);     // Kollision füllt den ganzen Block
-const LEUCHTET = new Uint8Array(256); // gibt Licht ab (Fackeln, Lava, …)
+const COLL = new Float32Array(BMAX*6); // Kollisionskasten je Block, in Blockeinheiten
+const VOLL = new Uint8Array(BMAX);     // Kollision füllt den ganzen Block
+const LEUCHTET = new Uint8Array(BMAX); // gibt Licht ab (Fackeln, Lava, …)
 function buildBlockTables(){
-  for(let i=0;i<256;i++){
+  for(let i=0;i<BMAX;i++){
     LEUCHTET[i] = blocks[i] && blocks[i].light > 0 ? 1 : 0;
     const b = blocks[i];
     if(!b){ OPQ[i] = 0; SOL[i] = 0; LOPQ[i] = 0; continue; }
@@ -152,7 +152,7 @@ const _lq  = new Int32Array(LW*WH*LW*3);
 const LIDX = (x,y,z) => (y*LW + z)*LW + x;
 
 const PW = CS+2;                                // Mesh-Nachbarschafts-Cache
-const _pb  = new Uint8Array(PW*WH*PW);          // Block-IDs
+const _pb  = new Uint16Array(PW*WH*PW);          // Block-IDs
 const _plt = new Uint8Array(PW*WH*PW);          // Licht, gepackt: Sonne | Block<<4
 const PIDX = (x,y,z) => (y*PW + z)*PW + x;
 const PYS = PW*PW;                              // Schrittweite je Y-Ebene
@@ -260,7 +260,7 @@ class World{
   /* — Spalteninfo: Höhe + Biom — */
   column(wx,wz){
     if(this.typ === 'flach') return FLACH_SPALTE;
-    if(this.typ === 'nether') return NETHER_SPALTE;
+    if(this.typ === 'nether') return istWirrwald(this, wx, wz) ? WIRR_SPALTE : NETHER_SPALTE;
     if(this.gen === 2) return spalte2(this, wx, wz);
     const cont = this.nCont.fbm2(wx*0.0032, wz*0.0032, 4, 2, .5);
     const hill = this.nHill.fbm2(wx*0.014, wz*0.014, 4, 2, .5);
@@ -337,7 +337,7 @@ class World{
   }
   /** Gelände der ersten Fassung — bleibt für alte Welten, wie es war */
   erzeugen1(c){
-    const bl = c.blocks = new Uint8Array(CS*WH*CS);
+    const bl = c.blocks = new Uint16Array(CS*WH*CS);
     const ox = c.cx*CS, oz = c.cz*CS;
     const cols = [];
     for(let z=0; z<CS; z++) for(let x=0; x<CS; x++){
