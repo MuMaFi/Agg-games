@@ -289,7 +289,7 @@ const Netz = {
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
     this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du, op: Game.ops.has(id),
-      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, typ: Game.world.typ, doerfer: Game.world.doerfer, modus: p.creative ? 'kreativ' : 'ueberleben',
+      welt: Object.assign({ name: Game.meta.name, seed: Game.world.seedStr, gen: Game.world.gen, typ: Game.world.typ, doerfer: Game.world.doerfer, obsidian: Game.world.obsidian, modus: p.creative ? 'kreativ' : 'ueberleben',
                             time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), regeln: Game.regeln,
                             spawn: [p.spawnX, p.spawnY, p.spawnZ] }, Game.weltTeil()) });
     this.andere.set(id, this.figur(id, g.name, g.farbe, ort));

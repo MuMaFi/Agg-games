@@ -464,7 +464,7 @@ pruef(T(`(() => { for(let x = -3; x <= 3; x++) for(let z = -3; z <= 3; z++) TW.s
   const drauf = TW.getLight(0, 9, -4) & 15, drunter = TW.getLight(0, 8, -4) & 15, frei = TW.getLight(0, 8, -10) & 15;
   return drauf === 15 && drunter === 11 && frei === 15; })()`), 'unter einem Treppendach ist es dunkler, die Treppe selbst ist hell');
 // 26.10.04: Stufen, farbige Betten, Kornblume — Nummern hinten angehängt, alle unter 256, genug Bildlagen
-pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && B.BETTKOPF === 253 && !blocks[254]
+pruef(T(`B.STUFE === 227 && stufeId(4, true) === 236 && B.BETT === 237 && B.BETT + BETTEN.length - 1 === 246 && B.KORNBLUME === 247 && B.KUERBIS === 248 && B.GESCHNITZT === 249 && B.BETTKOPF === 253 && B.OBSIDIAN === 254 && B.BRAUSTAND === 255
   && texNames.length <= 256`), 'Stufen, Betten, Kornblume: Nummern und Bildlagen (' + T('texNames.length') + ')');
 pruef(T(`STUFEN.every((t, a) => blocks[stufeId(a, false)].item && !blocks[stufeId(a, true)].item && blocks[stufeId(a, true)].drop === stufeId(a, false)
   && blocks[stufeId(a, false)].box[4] === 8 && blocks[stufeId(a, true)].box[1] === 8 && LOPQ[stufeId(a, false)] === LICHT_STAU && SOL[stufeId(a, true)] === 1)`),
@@ -594,5 +594,19 @@ pruef(T(`(() => { const alt = Inv.ruestung.slice();
   Inv.ruestung = alt; return Math.abs(r - 3) < 0.01 && ab === 2 && ohne === 10; })()`), 'Rüstung: volle Diamantrüstung fängt 70 % von 10 ab und nutzt sich um 2 ab');
 pruef(T(`(() => { const p = new Player(); p.health = 20; p.hurt(4, 'a'); const a = p.health; p.hurt(3, 'b'); const b = p.health; p.hurt(6, 'c'); const c = p.health;
   p.trefferT = 0; p.hurt(2, 'd'); return a === 16 && b === 16 && c === 14 && p.health === 12; })()`), 'nach einem Treffer: unverwundbar, nur ein stärkerer zählt mit dem Unterschied');
+// 26.11.06: Obsidian, Braustand (in der Kirche), gleiche Bilder teilen sich eine Lage
+pruef(T(`blocks[B.OBSIDIAN].tier === 4 && blocks[B.OBSIDIAN].tool === 'pickaxe' && blocks[B.OBSIDIAN].hardness >= 50 && TEX.obsidian !== undefined
+  && blocks[B.BRAUSTAND].model === 'braustand' && isFlat(B.BRAUSTAND) && flatTexOf(B.BRAUSTAND) === 'braustand' && TEX.braustand < 256
+  && TEX.i_hebel === TEX.hebel && TEX.m_bogen === TEX.i_bow && texNames.length <= 256`), 'Obsidian und Braustand: Bilder in den 256 Lagen, doppelte Bilder geteilt');
+pruef(T(`rasterRezept([null,{id:ITEM.stick,n:1},null, {id:B.COBBLE,n:1},{id:B.COBBLE,n:1},{id:B.COBBLE,n:1}, null,null,null], 3).out === B.BRAUSTAND
+  && dingNummer('brewing_stand') === B.BRAUSTAND && dingNummer('obsidian') === B.OBSIDIAN`), 'Braustand: Rezept und Name für Befehle');
+pruef(T(`(() => { const s = {}; turm((x, y, z, id) => { s[x + ',' + y + ',' + z] = id; }, { d:{ hoehe: () => 9, wege: [], st:{ sockel:B.COBBLE, pfosten:B.LOG, weg:B.GRAVEL, platte:0 } }, s0:1, ox:0, oz:0, U:[1, 0], V:[0, 1], W:5, D:7, f:10, st:{ sockel:B.COBBLE, pfosten:B.LOG, weg:B.GRAVEL, platte:0 } });
+  return Object.values(s).filter(id => id === B.BRAUSTAND).length === 1; })()`), 'in der Kirche steht ein Braustand');
+pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(10, 9, 10, B.BRAUSTAND); TW.setBlock(11, 9, 10, B.OBSIDIAN);
+  TW.buildMesh(TW.getChunk(0, 0), M[0], M[1]); const b = M[0], l = new Set();
+  for(let i = 0; i < b.n; i++) l.add(b.u8[i*12 + 7]);
+  return l.has(TEX.braustand) && l.has(TEX.obsidian) && l.has(TEX.stone); })()`), 'Braustand und Obsidian werden gezeichnet');
+pruef(T(`(() => { const zaehl = w => { let n = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3]]){ const c = w.ensureChunk(cx, cz); for(const b of c.blocks) if(b === B.OBSIDIAN) n++; } return n; };
+  return zaehl(new World('obs', 2, 'normal', false, true)) > 0 && zaehl(new World('obs', 2, 'normal', false, false)) === 0; })()`), 'Obsidian tief unten nur in neuen Welten');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

@@ -156,6 +156,8 @@ function initRecipes(){
   formlos('stoffe', B.PLANKS, 4, [[B.LOG, B.FICHTENSTAMM]]);
   geformt('stoffe', S, 4, ['#','#'], {'#':P});
   geformt('bauen', B.TABLE, 1, ['##','##'], {'#':P});
+  // Braustand: beim Vorbild aus einer Lohenrute und drei Bruchstein — hier tut es ein Stock
+  geformt('bauen', B.BRAUSTAND, 1, [' S ','CCC'], {S:ITEM.stick, C:B.COBBLE});
   geformt('bauen', B.TORCH, 4, ['k','|'], {k:ITEM.coal, '|':S});
   geformt('bauen', B.CHEST, 1, ['###','# #','###'], {'#':P});
   geformt('bauen', B.FURNACE, 1, ['###','# #','###'], {'#':B.COBBLE});

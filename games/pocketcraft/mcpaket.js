@@ -60,6 +60,9 @@ const MC_TEX = {
 for(const [key, mc] of [['rot', 'red_bed'], ...BETTEN.map(b => [b.key, b.mc])])
   for(const t of BETT_TEILE) MC_TEX['bettmc_' + key + '_' + t] = 'block/' + mc + '_' + t;
 MC_TEX.bettmc_unten = 'block/bed_down'; MC_TEX.bettmc_kopf_nord = 'block/bed_head_north';
+MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+/** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
+const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < 8; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
 for(let s = 0; s < 8; s++) MC_TEX['crack' + s] = { p:'block/destroy_stage_' + Math.round(s*9/7), riss:true };
 for(const [w, mw] of [['wheat0', 0], ['wheat1', 2], ['wheat2', 5], ['wheat3', 7]]) MC_TEX[w] = 'block/wheat_stage' + mw;
@@ -248,7 +251,7 @@ const McPaket = {
     if(Object.keys(this._fertig).length) return this._fertig;
     const hol = p => this._px(p);
     for(const [name, v] of Object.entries(MC_TEX)){
-      if(TEX[name] === undefined && !name.startsWith('bettmc_')) continue;
+      if(TEX[name] === undefined && !mcZusatz(name)) continue;
       const o = typeof v === 'string' ? { p:v } : v, grund = await hol(o.p);
       if(!grund) continue;
       const d = mcBildAus(grund, o.bild);
@@ -288,7 +291,7 @@ const McPaket = {
       if(typeof Klassik !== 'undefined' && Klassik.an){ Klassik.setzen(false); Game.settings.klassik = false; }
       let neu;
       try{ neu = await this._umrechnen(); }catch(e){ return false; }
-      const alle = Object.keys(neu), betten = alle.filter(n => n.startsWith('bettmc_')), namen = alle.filter(n => !n.startsWith('bettmc_'));
+      const alle = Object.keys(neu), betten = alle.filter(mcZusatz), namen = alle.filter(n => !mcZusatz(n));
       if(!namen.length) return false;
       for(const n of namen){
         const L = TEX[n];

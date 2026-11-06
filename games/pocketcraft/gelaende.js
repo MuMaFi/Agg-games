@@ -133,6 +133,8 @@ function halle(g, x, y, z){ return gitterWert(g.k, x, y, z) > 0.3 + Math.max(0, 
 function erz2(w, x, y, z){
   if(w.nOre.n3(x*0.34, y*0.34, z*0.34) < 0.5) return 0;
   const r = ghash(x, y, z, w.seed ^ 0x5bd1);
+  // ganz unten, wo beim Vorbild Lavaseen zu Obsidian erstarren: hier und da Obsidian
+  if(w.obsidian && y < 10 && r > 0.93) return B.OBSIDIAN;
   if(y < 16){ if(r < 0.12) return B.DIAMOND_ORE; if(r < 0.28) return B.GOLD_ORE; if(r < 0.6) return B.IRON_ORE; return B.COAL_ORE; }
   if(y < 32){ if(r < 0.07) return B.GOLD_ORE; if(r < 0.45) return B.IRON_ORE; return B.COAL_ORE; }
   if(y < 56) return r < 0.3 ? B.IRON_ORE : B.COAL_ORE;

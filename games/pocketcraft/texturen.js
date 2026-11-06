@@ -1761,6 +1761,47 @@ function buildTextures(){
      und die Decken der farbigen Betten — */
   addTex('kornblume', p => umfaerben(p, texData[TEX.rose], istRot, [74, 112, 238]));
   for(const b of BETTEN) addTex('bett_' + b.key, p => umfaerben(p, texData[TEX.bed_top], istRot, b.farbe));
+
+  /* — Obsidian: fast schwarz, darin violette Schlieren und helle Splitter;
+     in 16 × 16 gemalt, scharf vergrößert — */
+  const fein = (p, fn) => { const f = TS/16; for(let y = 0; y < 16; y++) for(let x = 0; x < 16; x++){ const c = fn(x, y); if(c) for(let j = 0; j < f; j++) for(let i = 0; i < f; i++) p.put(x*f + i, y*f + j, c, c[3] === undefined ? 255 : c[3]); } };
+  addTex('obsidian', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 4, 4, 701, 3), k = h2(x, y, 703);
+    if(k > .93) return [124, 96, 168];                                  // Splitter
+    return n > .62 ? [62, 44, 98] : n > .5 ? [38, 26, 60] : n > .38 ? [22, 16, 34] : [14, 10, 22];
+  }));
+  /* — Braustand: in der Mitte der Stab (oben golden, unten glühend), oben die
+     Arme mit den Haken für die Flaschen, unten der Sockel. Die Arme nimmt das
+     Modell aus der rechten Hälfte, den Stab aus den Spalten 7 und 8 (wie beim
+     Vorbild); das ganze Bild ist zugleich das Symbol im Inventar. */
+  addTex('braustand', p => {
+    const E = [52, 52, 56], G = [118, 118, 122], H = [158, 158, 164];
+    const bild = {};
+    const set = (x, y, c) => { bild[y*16 + x] = c; };
+    for(let x = 1; x <= 14; x++){ set(x, 3, x === 1 || x === 14 ? E : H); set(x, 4, E); }
+    for(const x of [2, 3, 12, 13]){ set(x, 2, G); set(x, 5, G); set(x, 6, E); }
+    for(let x = 5; x <= 10; x++) set(x, 11, x === 5 || x === 10 ? E : H);
+    for(let x = 4; x <= 11; x++) set(x, 12, x === 4 || x === 11 ? E : G);
+    for(let x = 2; x <= 13; x++) set(x, 13, x === 2 || x === 13 ? E : G);
+    for(let x = 1; x <= 14; x++) set(x, 14, E);
+    for(let y = 2; y <= 13; y++){
+      const t = (y - 2)/11, c = [Math.round(246 - 18*t), Math.round(222 - 112*t), Math.round(96 - 60*t)];
+      set(7, y, c); set(8, y, hell(c, .8));
+    }
+    fein(p, (x, y) => bild[y*16 + x]);
+  });
+
+  /* — Gleiche Bilder teilen sich eine Lage: Lagen sind knapp (höchstens 256,
+     und das Gitter der Chunks zählt sie in Bytes). Nur, wenn sie wirklich
+     gleich sind. — */
+  const gleich = [['i_hebel', 'hebel'], ['m_bogen', 'i_bow']].filter(([n, z]) => {
+    const a = texData[TEX[n]], b = texData[TEX[z]];
+    return a && b && a.length === b.length && a.every((v, i) => v === b[i]);
+  });
+  for(const [n] of gleich){ const i = texNames.indexOf(n); texNames.splice(i, 1); texData.splice(i, 1); }
+  for(const k of Object.keys(TEX)) delete TEX[k];
+  texNames.forEach((n, i) => { TEX[n] = i; });
+  for(const [n, z] of gleich) TEX[n] = TEX[z];
 }
 
 /* ── Symbole für die Oberfläche ────────────────────────────────────── */

@@ -167,6 +167,7 @@ const R = {
     for(let i=0;i<n;i++) all.set(texData[i], i*TS*TS*4);
     gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, TS, TS, n, 0, gl.RGBA, gl.UNSIGNED_BYTE, all);
     gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+    dingModelleLeeren();
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -179,6 +180,7 @@ const R = {
   /** einzelne Bildlagen haben sich geändert (klassische Texturen): neu hochladen */
   lagenNeu(namen){
     if(!this.texArr) return;
+    dingModelleLeeren();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texArr);
     for(const n of namen){
@@ -656,9 +658,9 @@ function drawSpieler(fogCol, near, far){
         // Nur der Griff (im Bild bei etwa 22 %, 78 %) steckt in der Faust,
         // vorn an ihrer Unterseite: der Knauf schaut unten heraus, die
         // Klinge oder der Kopf ganz vor dem Arm, schräg nach vorn oben
-        M4.rotY(_m, _m, Math.PI);
-        M4.translate(_m, _m, -0.0175, -0.172, -0.072);
-        M4.scale(_m, _m, 0.035, 0.6, 0.6);
+        M4.translate(_m, _m, 0.3, -0.172, -0.072);
+        M4.rotY(_m, _m, -Math.PI/2);
+        M4.scale(_m, _m, 0.6, 0.6, 0.6);
         setLayers(P, TEX[flatTexOf(h)]);
       } else {
         M4.translate(_m, _m, -0.14, -0.2, -0.26);
@@ -669,7 +671,7 @@ function drawSpieler(fogCol, near, far){
         gl.uniform1fv(P.u.uLayers, _layers);
       }
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
-      blockDingZeichnen(isFlat(h) ? 0 : h);
+      if(isFlat(h)) dingZeichnen(TEX[flatTexOf(h)]); else blockDingZeichnen(h);
     }
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
@@ -777,6 +779,61 @@ function wesenGrund(out, mob, kopf, kopfPunkt){
   return out;
 }
 
+/* Flache Gegenstände wie beim Vorbild: vorn und hinten das Bild, dazwischen
+   ein Sechzehntel Dicke (z 7,5 … 8,5 im Einheitswürfel). Statt einer
+   gestreckten Seitenfläche bekommt jeder Pixel, der an Durchsichtiges grenzt,
+   dort eine kleine Seitenfläche in seiner eigenen Farbe. Je Bildlage einmal
+   gebaut, neu, wenn sich Bilder ändern. */
+const _dingModelle = new Map();
+function dingModelleLeeren(){
+  for(const m of _dingModelle.values()){ gl.deleteVertexArray(m.vao); gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); }
+  _dingModelle.clear();
+}
+function dingModell(L){
+  let m = _dingModelle.get(L);
+  if(m) return m;
+  const d = texData[L], N = TS, z0 = 7.5/16, z1 = 8.5/16, verts = [], idx = [];
+  const da = (x, y) => x >= 0 && y >= 0 && x < N && y < N && d[(y*N + x)*4 + 3] >= 128;
+  // Ecken in der Reihenfolge der Würfelflächen (FACES), damit alle gleich herum zeigen
+  const flaeche = (ecken, uv, f, hell) => {
+    const b = verts.length/7;
+    for(let i = 0; i < 4; i++) verts.push(ecken[i][0], ecken[i][1], ecken[i][2], uv[i][0], uv[i][1], f, hell);
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  };
+  flaeche([[0, 0, z1], [1, 0, z1], [1, 1, z1], [0, 1, z1]], [[0, 1], [1, 1], [1, 0], [0, 0]], 4, 0.87);
+  flaeche([[0, 0, z0], [0, 1, z0], [1, 1, z0], [1, 0, z0]], [[0, 1], [0, 0], [1, 0], [1, 1]], 5, 0.87);
+  for(let y = 0; y < N; y++) for(let x = 0; x < N; x++){
+    if(!da(x, y)) continue;
+    const a = x/N, b = (x + 1)/N, o = 1 - y/N, u = 1 - (y + 1)/N, p = [(x + .5)/N, (y + .5)/N], uv = [p, p, p, p];
+    if(!da(x - 1, y)) flaeche([[a, u, z0], [a, u, z1], [a, o, z1], [a, o, z0]], uv, 1, 0.74);
+    if(!da(x + 1, y)) flaeche([[b, u, z0], [b, o, z0], [b, o, z1], [b, u, z1]], uv, 0, 0.74);
+    if(!da(x, y - 1)) flaeche([[a, o, z0], [a, o, z1], [b, o, z1], [b, o, z0]], uv, 2, 1.0);
+    if(!da(x, y + 1)) flaeche([[a, u, z0], [b, u, z0], [b, u, z1], [a, u, z1]], uv, 3, 0.48);
+  }
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+  const A = R.progEnt.a;
+  gl.enableVertexAttribArray(A.aPos);   gl.vertexAttribPointer(A.aPos, 3, gl.FLOAT, false, 28, 0);
+  gl.enableVertexAttribArray(A.aUV);    gl.vertexAttribPointer(A.aUV, 2, gl.FLOAT, false, 28, 12);
+  gl.enableVertexAttribArray(A.aLayer); gl.vertexAttribPointer(A.aLayer, 1, gl.FLOAT, false, 28, 20);
+  gl.enableVertexAttribArray(A.aShade); gl.vertexAttribPointer(A.aShade, 1, gl.FLOAT, false, 28, 24);
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  m = { vao, vb, ib, n: idx.length };
+  _dingModelle.set(L, m);
+  return m;
+}
+/** einen flachen Gegenstand zeichnen (Bildlage L; Matrix und Lagen sind gesetzt) — danach ist wieder der Würfel gebunden */
+function dingZeichnen(L){
+  if(L === undefined || !texData[L]) return;
+  const m = dingModell(L);
+  gl.bindVertexArray(m.vao);
+  gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
+  gl.bindVertexArray(R.cubeVAO);
+}
+
 /** ein Block als Gegenstand: ein Würfel, eine Treppe, Stufe oder ein Bett in
     ihrer Form — danach ist wieder der Würfel gebunden. 0 zeichnet den Würfel. */
 function blockDingZeichnen(id){
@@ -799,8 +856,8 @@ function drawDrops(fogCol, near, far){
     M4.translate(_m, _m, d.x, d.y + 0.14 + Math.sin(d.age*2.2)*0.06, d.z);
     M4.rotY(_m, _m, d.age*1.6);
     const flach = isFlat(d.id);
-    const sc = flach ? 0.34 : 0.3;
-    M4.scale(_m, _m, sc, sc, flach ? 0.05 : sc);
+    const sc = flach ? 0.4 : 0.3;
+    M4.scale(_m, _m, sc, sc, sc);
     M4.translate(_m, _m, -0.5, -0.5, -0.5);
     gl.uniformMatrix4fv(P.u.uModel, false, _m);
     if(!flach){
@@ -808,8 +865,8 @@ function drawDrops(fogCol, near, far){
       for(let i=0;i<6;i++) _layers[i] = TEX[b.faces[i]];
       if(b.dirFront) _layers[5] = TEX[b.dirFront];
       gl.uniform1fv(P.u.uLayers, _layers);
-    } else setLayers(P, TEX[flatTexOf(d.id)]);
-    blockDingZeichnen(flach ? 0 : d.id);
+      blockDingZeichnen(d.id);
+    } else { const L = TEX[flatTexOf(d.id)]; setLayers(P, L); dingZeichnen(L); }
   }
 }
 
@@ -891,12 +948,10 @@ function drawHeld(fogCol){
     blockDingZeichnen(s.id);
   } else {
     mcDingLage(_hand, sw, false);
-    // ein Pixel dick, mitten im Würfel (wie Minecrafts flache Gegenstände)
-    M4.translate(_hand, _hand, 0, 0, 7.5/16);
-    M4.scale(_hand, _hand, 1, 1, 1/16);
     gl.uniformMatrix4fv(P.u.uModel, false, _hand);
-    setLayers(P, TEX[flatTexOf(s.id)]);
-    blockDingZeichnen(0);
+    const L = TEX[flatTexOf(s.id)];
+    setLayers(P, L);
+    dingZeichnen(L);
   }
   gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
 }

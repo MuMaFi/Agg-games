@@ -21,7 +21,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
   KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
-  BETTKOPF:253 /* Kopfteil eines Betts, jede Farbe: die Farbe trägt das Fußteil daneben */ };
+  BETTKOPF:253 /* Kopfteil eines Betts, jede Farbe: die Farbe trägt das Fußteil daneben */,
+  OBSIDIAN:254, BRAUSTAND:255 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -323,6 +324,11 @@ function initBlocks(){
     defBlock(doorId(oben, offen, s),{name:'Holztür', tex:t, model:'box', box:blattBox(s, 3), opaque:false,
       hardness:2, tool:'axe', drop:B.DOOR, item:!oben && !offen && s === 0, icon:'i_door'});
   }
+  // Obsidian: nur mit der Diamantspitzhacke, und das dauert (beim Vorbild 9,4 Sekunden)
+  defBlock(B.OBSIDIAN,{name:'Obsidian', tex:'obsidian', hardness:80, tool:'pickaxe', tier:4, mc:'obsidian'});
+  // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester
+  defBlock(B.BRAUSTAND,{name:'Braustand', tex:'braustand', icon:'braustand', model:'braustand', box:[1,0,1,15,2,15], opaque:false,
+    hardness:.5, tool:'pickaxe', tier:1, mc:'brewing_stand'});
   defBlock(B.BETTKOPF,{name:'Bett', tex:['bed_top','planks','bed_side'], model:'bett', box:[0,0,0,16,9,16], opaque:false,
     hardness:.3, item:false, drop:B.AIR});
   BETTEN.forEach((b, i) => defBlock(B.BETT + i,{name:b.name, tex:['bett_' + b.key,'planks','bed_side'], model:'bett', box:[0,0,0,16,9,16],

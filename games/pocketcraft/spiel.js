@@ -52,7 +52,8 @@ const Game = {
     this.panoramaAktiv = false;
     document.body.classList.remove('imMenue');
     const seed = meta.seed;
-    this.world = new World(seed, meta.gen || (saved && saved.gen) || 1, meta.typ || (saved && saved.typ), meta.doerfer || (saved && saved.doerfer));
+    this.world = new World(seed, meta.gen || (saved && saved.gen) || 1, meta.typ || (saved && saved.typ), meta.doerfer || (saved && saved.doerfer),
+      meta.obsidian || (saved && saved.obsidian));
     Wetter.laden(saved && saved.wetter);
     this.regelnSetzen(saved && saved.regeln);
     this.ops = new Set((saved && Array.isArray(saved.ops) && saved.ops) || []);
@@ -167,7 +168,7 @@ const Game = {
       und seinen Platz zurück; Neue stehen am Startpunkt des Hosts. */
   startGast(m){
     const w = m.welt, du = m.du || {};
-    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1, typ: w.typ, doerfer: !!w.doerfer };
+    const meta = { id: 'gast', gast: true, name: w.name, seed: w.seed, modus: w.modus, gen: w.gen || 1, typ: w.typ, doerfer: !!w.doerfer, obsidian: !!w.obsidian };
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
       mods: w.mods || [], furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
@@ -326,7 +327,7 @@ const Game = {
     try{
       const p = this.player;
       const data = Object.assign({
-        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, doerfer: this.world.doerfer, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
+        seed: this.world.seedStr, gen: this.world.gen, typ: this.world.typ, doerfer: this.world.doerfer, obsidian: this.world.obsidian, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
         regeln: this.regeln, ops: [...this.ops],
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,

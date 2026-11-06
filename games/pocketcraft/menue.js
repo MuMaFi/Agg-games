@@ -404,6 +404,7 @@ const Menue = {
     const meta = { id: neueWeltId(), name, seed, modus: this.neuModus, gen: WELT_FASSUNG, erstellt: Date.now(), gespielt: Date.now(), tag: 1, groesse: 0, bild: null };
     if(this.neuTyp === 'flach') meta.typ = 'flach';
     if(this.neuDoerfer !== false) meta.doerfer = true;
+    meta.obsidian = true;                  // neue Welten haben tief unten Obsidian (ältere bleiben, wie sie waren)
     Sfx.init();
     this.alleZu();
     Game.start(meta, null);

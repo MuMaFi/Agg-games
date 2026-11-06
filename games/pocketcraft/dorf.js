@@ -424,6 +424,7 @@ function turm(s, B0){
   const lw = P.seite(0, 1);
   for(let y = f + 1; y <= f + H + 1; y++) P.put(2, y, D - 2, ladderId(lw));
   P.put(1, f + 1, 1, B.TORCH); P.put(3, f + 1, 3, B.TORCH);
+  P.put(1, f + 1, D - 3, B.BRAUSTAND);                 // der Arbeitsplatz des Priesters, wie beim Vorbild
   const y0 = f + H + 1;
   for(let u = 0; u < W; u++) for(let v = 0; v < D; v++){
     if(u === 2 && v === D - 2) continue;

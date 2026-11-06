@@ -82,6 +82,21 @@ const BETT_FUSS_EL = [
     south:{ uv:[13, 13, 16, 16], t:'south', cull:1 }, west:{ uv:[10, 13, 13, 16], t:'south' }, east:{ uv:[0, 13, 3, 16], t:'east', cull:1 } } },
 ];
 
+/* Braustand des Vorbilds (block/brewing_stand und brewing_stand_empty0 … 2) */
+const BRAUSTAND_EL = [
+  { from:[7, 0, 7], to:[9, 14, 9], faces:{ down:{ uv:[7, 7, 9, 9], t:'stand' }, up:{ uv:[7, 7, 9, 9], t:'stand' },
+    north:{ uv:[7, 2, 9, 16], t:'stand' }, south:{ uv:[7, 2, 9, 16], t:'stand' }, west:{ uv:[7, 2, 9, 16], t:'stand' }, east:{ uv:[7, 2, 9, 16], t:'stand' } } },
+  { from:[9, 0, 5], to:[15, 2, 11], faces:{ down:{ uv:[9, 5, 15, 11], t:'base', cull:1 }, up:{ uv:[9, 5, 15, 11], t:'base' },
+    north:{ uv:[9, 14, 15, 16], t:'base' }, south:{ uv:[9, 14, 15, 16], t:'base' }, west:{ uv:[5, 14, 11, 16], t:'base' }, east:{ uv:[5, 14, 11, 16], t:'base' } } },
+  { from:[1, 0, 1], to:[7, 2, 7], faces:{ down:{ uv:[1, 1, 7, 7], t:'base', cull:1 }, up:{ uv:[1, 1, 7, 7], t:'base' },
+    north:{ uv:[1, 14, 7, 16], t:'base' }, south:{ uv:[1, 14, 7, 16], t:'base' }, west:{ uv:[1, 14, 7, 16], t:'base' }, east:{ uv:[1, 14, 7, 16], t:'base' } } },
+  { from:[1, 0, 9], to:[7, 2, 15], faces:{ down:{ uv:[1, 9, 7, 15], t:'base', cull:1 }, up:{ uv:[1, 9, 7, 15], t:'base' },
+    north:{ uv:[1, 14, 7, 16], t:'base' }, south:{ uv:[1, 14, 7, 16], t:'base' }, west:{ uv:[9, 14, 15, 16], t:'base' }, east:{ uv:[9, 14, 15, 16], t:'base' } } },
+  { from:[8, 0, 8], to:[16, 16, 8], faces:{ north:{ uv:[16, 0, 8, 16], t:'stand' }, south:{ uv:[8, 0, 16, 16], t:'stand' } } },
+  { from:[-0.41, 0, 8], to:[7.59, 16, 8], rot:{ o:[8, 8, 8], winkel:-45 }, faces:{ north:{ uv:[8, 0, 16, 16], t:'stand' }, south:{ uv:[16, 0, 8, 16], t:'stand' } } },
+  { from:[-0.41, 0, 8], to:[7.59, 16, 8], rot:{ o:[8, 8, 8], winkel:45 }, faces:{ north:{ uv:[8, 0, 16, 16], t:'stand' }, south:{ uv:[16, 0, 8, 16], t:'stand' } } },
+];
+
 /* ── Mesh-Puffer ───────────────────────────────────────────────────── */
 class MeshBuf{
   constructor(){ this.cap = 2048; this.buf = new ArrayBuffer(this.cap*12);
@@ -207,11 +222,12 @@ class World{
   /** gen: Fassung des Geländes — 1 für Welten von früher, 2 für neue (gelaende.js);
       typ: 'flach' für Flachland, sonst das normale Gelände;
       doerfer: ob Dörfer entstehen (dorf.js) — nur neue Welten, die alten bleiben, wie sie waren */
-  constructor(seedStr, gen, typ, doerfer){
+  constructor(seedStr, gen, typ, doerfer, obsidian){
     this.seedStr = seedStr;
     this.gen = gen === 2 ? 2 : 1;
     this.typ = typ === 'flach' ? 'flach' : 'normal';
     this.doerfer = !!doerfer && (this.gen === 2 || this.typ === 'flach');
+    this.obsidian = !!obsidian;              // ab 26.11: tief unten Obsidian (erz2) — ältere Welten bleiben Block für Block gleich
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
     this.nCont = new Noise(s);
@@ -611,6 +627,7 @@ class World{
           if(bd.model === 'treppe'){ this.emitTreppe(opaqueBuf, x, y, z, id, bd); continue; }
           if(bd.model === 'bett'){ this.emitBett(opaqueBuf, x, y, z, bd, id); continue; }
           if(bd.kaktus){ this.emitKaktus(opaqueBuf, x, y, z, id, bd); continue; }
+          if(bd.model === 'braustand'){ this.emitBraustand(opaqueBuf, x, y, z); continue; }
           const buf = isWasser(id) ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
@@ -822,6 +839,15 @@ class World{
     this.emitBox(buf, x, y, z, bd, [0, 0, 0, 16, 6, 16], 1 << 2);
   }
 
+  /* Braustand wie beim Vorbild: Stab und Fußplatten, dazu die drei leeren Arme
+     (flache Bilder, zwei davon um 45° gedreht). Die Platten: mit dem
+     Minecraft-Paket dessen Bild, sonst Pocketcraft-Stein. */
+  emitBraustand(buf, x, y, z){
+    const fuss = typeof McPaket !== 'undefined' && McPaket.bettenAn && TEX.braustand_fuss !== undefined ? 'braustand_fuss' : 'stone';
+    const bild = (rolle, uv) => [rolle === 'base' ? fuss : 'braustand', uv];
+    for(const el of BRAUSTAND_EL) this.emitElement(buf, x, y, z, el, 0, bild);
+  }
+
   /** ein Kasten aus einem Blockmodell des Vorbilds (from/to in Sechzehnteln,
       je Fläche uv [u1, v1, u2, v2], Bildrolle, cullface), um dreh × 90° um die
       Blockmitte gedreht wie »y« im Blockzustand; bild(rolle, uv) → [Bildlage, uv] */
@@ -829,9 +855,12 @@ class World{
     const [x0, y0, z0] = el.from, [x1, y1, z1] = el.to;
     const px = x + 1, pz = z + 1, own = this.getLightLocal(px, y, pz);
     const drehe = p => { let [a, b, c] = p; for(let k = 0; k < dreh; k++) [a, c] = [16 - c, a]; return [a, b, c]; };
+    // um die y-Achse gedrehtes Element (rotation im Modell des Vorbilds), Winkel in Grad, um den Ursprung o
+    const r = el.rot, rs = r ? Math.sin(r.winkel*Math.PI/180) : 0, rc = r ? Math.cos(r.winkel*Math.PI/180) : 1;
+    const schraeg = p => r ? [r.o[0] + (p[0] - r.o[0])*rc + (p[2] - r.o[2])*rs, p[1], r.o[2] - (p[0] - r.o[0])*rs + (p[2] - r.o[2])*rc] : p;
     for(const [dir, f] of Object.entries(el.faces)){
       // Ecken von außen gesehen: oben links, oben rechts, unten rechts, unten links
-      const E = ELEMENT_ECKEN[dir](x0, y0, z0, x1, y1, z1).map(drehe);
+      const E = ELEMENT_ECKEN[dir](x0, y0, z0, x1, y1, z1).map(schraeg).map(drehe);
       const n = ELEMENT_NORMALE[dir], nr = drehe([n[0]*8 + 8, n[1], n[2]*8 + 8]);
       const nx = Math.round((nr[0] - 8)/8), ny = n[1], nz = Math.round((nr[2] - 8)/8);
       let lv = own;
