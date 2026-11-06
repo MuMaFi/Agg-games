@@ -173,6 +173,11 @@ function festungenBauen(w, c){
   };
   for(const f of l) for(const t of f.teile)
     if(t.box[0] <= ox + CS - 1 && t.box[2] >= ox && t.box[1] <= oz + CS - 1 && t.box[3] >= oz) t.bauen(setze, get);
+  // wo die Gänge den Boden weggeschnitten haben, schwebt keine Pflanze in der Luft
+  for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++) for(let y = 2; y < WH - 1; y++){
+    const i = IDX(x, y, z), id = bl[i];
+    if((id === B.WIRR_WURZELN || id === B.WIRR_PILZ) && !blocksMovement(bl[IDX(x, y - 1, z)])) bl[i] = B.AIR;
+  }
 }
 /** Beute einer Festungstruhe: fest nach Ort und Startwert */
 function festungBeute(w, x, y, z){

@@ -677,5 +677,10 @@ pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let f = null,
 pruef(T(`B.NETHERZIEGEL >= BLOCK2 && SMELT[B.NETHERRACK] === ITEM.netherziegel && blocks[B.SPAWNER].drop === B.AIR
   && rasterRezept([{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1}], 2).out === B.NETHERZIEGEL
   && festungBeute(new World('neth:nether', 2, 'nether'), 5, 45, 7).some(Boolean) && dingNummer('nether_bricks') === B.NETHERZIEGEL`), 'Netherziegel: gebrannt, gebaut; Spawner gibt nichts; Truhen haben Beute');
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let n = 0, frei = 0;
+  for(let rx = -2; rx < 2; rx++) for(let rz = -2; rz < 2; rz++){ const f = festungImFeld(w, rx, rz); if(!f) continue;
+    for(let cx = f.box[0] >> 4; cx <= f.box[2] >> 4; cx++) for(let cz = f.box[1] >> 4; cz <= f.box[3] >> 4; cz++){ const c = w.ensureChunk(cx, cz);
+      for(let i = CS*CS; i < c.blocks.length; i++){ const id = c.blocks[i]; if(id !== B.WIRR_WURZELN && id !== B.WIRR_PILZ) continue; n++; if(!blocksMovement(c.blocks[i - CS*CS])) frei++; } } }
+  return n > 0 && frei === 0; })()`), 'keine schwebenden Pflanzen, wo Festungen durchs Gelände gehen');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);
