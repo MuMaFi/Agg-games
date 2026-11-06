@@ -64,7 +64,7 @@ MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.netherrack = 'block/nethe
 MC_TEX.i_feuerzeug = 'item/flint_and_steel';
 Object.assign(MC_TEX, { wirr_nyzel:'block/warped_nylium', wirr_nyzel_seite:'block/warped_nylium_side', wirr_stiel:{ p:'block/warped_stem', bild:0 },
   wirr_stiel_oben:'block/warped_stem_top', wirr_warze:'block/warped_wart_block', wirr_wurzeln:'block/warped_roots', wirr_pilz:'block/warped_fungus',
-  pilzlicht:'block/shroomlight', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+  pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < WATER_FRAMES; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };

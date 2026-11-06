@@ -51,6 +51,143 @@ function erzeugenNether(w, c){
   }
   c.hmap.fill(NETHER_LAVA); c.biome.fill(BIO.NETHER); c.kalt.fill(0);
   wirrwaldBewachsen(w, c);
+  festungenBauen(w, c);
+}
+
+/* ── Netherfestungen ─────────────────────────────────────────────────
+   Wie die Dörfer: je Feld höchstens eine, Lage und Gestalt allein aus dem
+   Startwert, jeder Chunk baut seinen Teil. In der Mitte eine Halle mit dem
+   Lohen-Spawner auf einem Sockel, von dort Brücken auf Pfeilern in zwei bis
+   vier Richtungen, am Ende jeder Brücke ein Turm mit einer Truhe. Durch das
+   Netherrack schneiden sie ihre Gänge. */
+const FESTUNG_FELD = 224, FESTUNG_WEIT = 72, FESTUNG_CHANCE = 0.75;
+function festungImFeld(w, rx, rz){
+  if(!w._festungen) w._festungen = new Map();
+  const k = rx + ',' + rz;
+  let f = w._festungen.get(k);
+  if(f === undefined){ f = festungPlanen(w, rx, rz); w._festungen.set(k, f); }
+  return f;
+}
+/** alle Festungen, die das Rechteck x0…x1, z0…z1 berühren */
+function festungenBei(w, x0, z0, x1, z1){
+  const l = [];
+  if(w.typ !== 'nether') return l;
+  for(let rz = Math.floor((z0 - FESTUNG_WEIT)/FESTUNG_FELD); rz <= Math.floor((z1 + FESTUNG_WEIT)/FESTUNG_FELD); rz++)
+    for(let rx = Math.floor((x0 - FESTUNG_WEIT)/FESTUNG_FELD); rx <= Math.floor((x1 + FESTUNG_WEIT)/FESTUNG_FELD); rx++){
+      const f = festungImFeld(w, rx, rz);
+      if(f && x0 <= f.box[2] && x1 >= f.box[0] && z0 <= f.box[3] && z1 >= f.box[1]) l.push(f);
+    }
+  return l;
+}
+/** die Festung, auf deren Grund x, z liegt, oder null */
+function festungBei(w, x, z){
+  for(const f of festungenBei(w, x, z, x, z))
+    for(const t of f.teile) if(x >= t.box[0] && x <= t.box[2] && z >= t.box[1] && z <= t.box[3]) return f;
+  return null;
+}
+function festungPlanen(w, rx, rz){
+  const r = mulberry32(Math.imul(rx, 0x2545f491) ^ Math.imul(rz, 0x6c8e9cf5) ^ w.seed ^ 0xf0e57);
+  if(r() > FESTUNG_CHANCE) return null;
+  const rand = FESTUNG_WEIT + 4, span = FESTUNG_FELD - 2*rand;
+  const cx = rx*FESTUNG_FELD + rand + Math.floor(r()*span), cz = rz*FESTUNG_FELD + rand + Math.floor(r()*span);
+  const y0 = 40 + Math.floor(r()*9), H = 6, N = B.NETHERZIEGEL;
+  const f = { cx, cz, y0, teile: [], spawner: [[cx, y0 + 2, cz]], box: [cx - H, cz - H, cx + H, cz + H] };
+  const teil = (box, bauen) => {
+    f.teile.push({ box, bauen });
+    f.box = [Math.min(f.box[0], box[0]), Math.min(f.box[1], box[1]), Math.max(f.box[2], box[2]), Math.max(f.box[3], box[3])];
+  };
+  // Pfeiler: von oben hinab, bis fester Grund kommt (durch Luft und Lava)
+  const pfeiler = (setze, get, x, z, y) => {
+    for(let k = 0; k < 50 && y > 1; k++, y--){
+      const b = get(x, y, z);
+      if(b < 0) return;
+      if(b !== B.AIR && b !== B.LAVA && !(blocks[b] && blocks[b].replaceable)) return;
+      setze(x, y, z, N);
+    }
+  };
+  let richt = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(() => r() < 0.75);
+  if(richt.length < 2) richt = r() < 0.5 ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
+  const tueren = richt.map(([dx, dz]) => dx + ',' + dz);
+  // die Halle
+  teil([cx - H, cz - H, cx + H, cz + H], (setze, get) => {
+    for(let v = -H; v <= H; v++) for(let u = -H; u <= H; u++){
+      const x = cx + u, z = cz + v, rand = Math.abs(u) === H || Math.abs(v) === H;
+      setze(x, y0 - 1, z, N); setze(x, y0, z, N); setze(x, y0 + 6, z, N);
+      for(let y = y0 + 1; y <= y0 + 5; y++){
+        let id = rand ? N : B.AIR;
+        if(rand){
+          // Türen zu den Brücken, Fenster rundum
+          const seite = Math.abs(u) === H && Math.abs(v) < H ? Math.sign(u) + ',0' : Math.abs(v) === H && Math.abs(u) < H ? '0,' + Math.sign(v) : null;
+          const quer = seite && seite.startsWith('0') ? u : v;
+          if(seite && tueren.includes(seite) && Math.abs(quer) <= 1 && y <= y0 + 3) id = B.AIR;
+          else if(seite && y === y0 + 3 && Math.abs(quer) % 3 === 2) id = B.AIR;
+        }
+        setze(x, y, z, id);
+      }
+      if(Math.abs(u) <= 1 && Math.abs(v) <= 1) setze(x, y0 + 1, z, N);           // der Sockel
+      if(rand && (u % 4 === 0 || v % 4 === 0 || (Math.abs(u) === H && Math.abs(v) === H))) pfeiler(setze, get, x, z, y0 - 2);
+    }
+    setze(cx, y0 + 2, cz, B.SPAWNER);
+  });
+  // Brücken, am Ende ein Turm
+  for(const [dx, dz] of richt){
+    const L = 18 + Math.floor(r()*26), a = H + 1, b = H + L, ex = Math.abs(dz), ez = Math.abs(dx);
+    const p0 = [cx + dx*a, cz + dz*a], p1 = [cx + dx*b, cz + dz*b];
+    teil([Math.min(p0[0], p1[0]) - 2*ex, Math.min(p0[1], p1[1]) - 2*ez, Math.max(p0[0], p1[0]) + 2*ex, Math.max(p0[1], p1[1]) + 2*ez], (setze, get) => {
+      for(let t = a; t <= b; t++) for(let s = -2; s <= 2; s++){
+        const x = cx + dx*t + ex*s, z = cz + dz*t + ez*s, kante = Math.abs(s) === 2;
+        setze(x, y0, z, N);
+        if(!kante) setze(x, y0 - 1, z, N);
+        setze(x, y0 + 1, z, kante ? N : B.AIR);
+        for(let y = y0 + 2; y <= y0 + 4; y++) setze(x, y, z, B.AIR);
+        if(kante && (t - a) % 7 === 3) pfeiler(setze, get, x, z, y0 - 1);
+      }
+    });
+    const T = 4, tx = cx + dx*(b + T + 1), tz = cz + dz*(b + T + 1), spawner = r() < 0.3, truhe = [tx + (ex ? -2 : 0) + dx*2, tz + (ez ? -2 : 0) + dz*2];
+    if(spawner) f.spawner.push([tx, y0 + 1, tz]);
+    teil([tx - T, tz - T, tx + T, tz + T], (setze, get) => {
+      for(let v = -T; v <= T; v++) for(let u = -T; u <= T; u++){
+        const x = tx + u, z = tz + v, rand = Math.abs(u) === T || Math.abs(v) === T;
+        setze(x, y0 - 1, z, N); setze(x, y0, z, N); setze(x, y0 + 5, z, N);
+        // die Tür zeigt zurück zur Brücke
+        const tuer = rand && (x - tx)*dx + (z - tz)*dz === -T && Math.abs((x - tx)*ex + (z - tz)*ez) <= 1;
+        for(let y = y0 + 1; y <= y0 + 4; y++) setze(x, y, z, rand && !(tuer && y <= y0 + 3) ? N : B.AIR);
+        if(rand && (Math.abs(u) === T && Math.abs(v) === T || u === 0 || v === 0)) pfeiler(setze, get, x, z, y0 - 2);
+      }
+      if(spawner) setze(tx, y0 + 1, tz, B.SPAWNER);
+      setze(truhe[0], y0 + 1, truhe[1], B.CHEST);
+    });
+  }
+  return f;
+}
+function festungenBauen(w, c){
+  const ox = c.cx*CS, oz = c.cz*CS, bl = c.blocks;
+  const l = festungenBei(w, ox, oz, ox + CS - 1, oz + CS - 1);
+  if(!l.length) return;
+  const drin = (x, y, z) => x >= ox && z >= oz && x < ox + CS && z < oz + CS && y >= 1 && y < WH - 1;
+  const get = (x, y, z) => drin(x, y, z) ? bl[IDX(x - ox, y, z - oz)] : -1;
+  const setze = (x, y, z, id) => {
+    if(!drin(x, y, z)) return;
+    bl[IDX(x - ox, y, z - oz)] = id;
+    if(id === B.CHEST) (c.dorfTruhen || (c.dorfTruhen = [])).push([x, y, z, 'festung']);
+  };
+  for(const f of l) for(const t of f.teile)
+    if(t.box[0] <= ox + CS - 1 && t.box[2] >= ox && t.box[1] <= oz + CS - 1 && t.box[3] >= oz) t.bauen(setze, get);
+}
+/** Beute einer Festungstruhe: fest nach Ort und Startwert */
+function festungBeute(w, x, y, z){
+  const r = mulberry32(Math.imul(x, 0x2f6b4c3) ^ Math.imul(y, 0x1d3a7f) ^ Math.imul(z, 0x51c9e3) ^ w.seed ^ 0xf0e5);
+  const t = new Array(27).fill(null);
+  const rein = (id, a, b, p = 1) => {
+    if(id === undefined || r() > p) return;
+    let i = Math.floor(r()*27), n = 0;
+    while(t[i] && n++ < 27) i = (i + 1) % 27;
+    if(t[i]) return;
+    t[i] = { id, n: a + Math.floor(r()*(b - a + 1)), dur: items[id] ? items[id].dur : 0 };
+  };
+  rein(ITEM.gold, 1, 3, 0.7); rein(ITEM.iron, 1, 5, 0.6); rein(ITEM.diamond, 1, 3, 0.25); rein(ITEM.feuerzeug, 1, 1, 0.3);
+  rein(B.OBSIDIAN, 2, 4, 0.25); rein(ITEM.gold_sword, 1, 1, 0.2); rein(ITEM.gold_chestplate, 1, 1, 0.15); rein(ITEM.netherziegel, 2, 8, 0.4);
+  return t;
 }
 
 /* Wirrwald: jeder freiliegende Netherrack-Boden wird Nezel, darauf Wurzeln

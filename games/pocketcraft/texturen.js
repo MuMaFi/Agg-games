@@ -1864,6 +1864,25 @@ function buildTextures(){
     if(y > 7 && y <= 14 && (x === 7 || x === 8)) return x === 7 ? [196, 168, 186] : [156, 126, 150];
     return null;
   }));
+  /* — Netherziegel: kleine, dunkelrote Ziegel mit fast schwarzen Fugen — */
+  addTex('netherziegel', p => fein(p, (x, y) => {
+    const reihe = y >> 2, v = (x + (reihe & 1)*4) & 7;
+    if((y & 3) === 3 || v === 7) return [26, 12, 15];
+    const k = h2(x, y, 1271), stein = h2((x + (reihe & 1)*4) >> 3, reihe, 1272);
+    const c = stein > .6 ? [72, 34, 40] : stein > .3 ? [60, 28, 34] : [50, 24, 29];
+    return (y & 3) === 0 ? hell(c, 1.18) : k > .85 ? hell(c, .82) : c;
+  }));
+  /* — Monsterspawner: ein Käfig aus dunklem Eisen, innen leer — */
+  addTex('spawner', p => fein(p, (x, y) => {
+    const rand = x === 0 || y === 0 || x === 15 || y === 15, stab = (x % 5 === 0) || (y % 5 === 0);
+    if(rand) return (x + y) & 1 ? [44, 54, 66] : [32, 40, 50];
+    if(stab) return h2(x, y, 1281) > .7 ? [70, 84, 100] : [36, 44, 56];
+    return null;
+  }));
+  sprite('i_netherziegel', S => {
+    const L = S.lage(pal('#1e0c10','#36161c','#4e2228','#682e36','#86424a'), { kante:true });
+    S.poly(L, [[4,14],[22,9],[28,15],[10,22]]); S.poly(L, [[4,14],[10,22],[10,26],[4,18]]); S.poly(L, [[10,22],[28,15],[28,19],[10,26]]);
+  });
   /* — Lohenrute, Lohenstaub, Enderperle — */
   sprite('i_lohenrute', S => {
     const L = S.lage(pal('#7a3a00','#c06a00','#f0a400','#ffd23a','#fff4a0'));

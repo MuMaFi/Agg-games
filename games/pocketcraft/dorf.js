@@ -280,7 +280,7 @@ function dorfNachbereiten(w, c){
   const ox = c.cx*CS, oz = c.cz*CS, bl = c.blocks;
   for(const [x, y, z, art] of c.dorfTruhen || []){
     const k = x + ',' + y + ',' + z;
-    if(bl[IDX(x - ox, y, z - oz)] === B.CHEST && !w.chests.has(k)) w.chests.set(k, dorfBeute(w, x, y, z, art === 'schmiede'));
+    if(bl[IDX(x - ox, y, z - oz)] === B.CHEST && !w.chests.has(k)) w.chests.set(k, art === 'festung' ? festungBeute(w, x, y, z) : dorfBeute(w, x, y, z, art === 'schmiede'));
   }
   for(const [x, y, z] of c.dorfFelder || []){
     const k = x + ',' + y + ',' + z;

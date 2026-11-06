@@ -1896,8 +1896,8 @@ const Game = {
     }
     return -1;
   },
-  /** Nether: Ghasts schweben in weiten Höhlen, Witherskelette und Lohen sind
-      im Ödland unterwegs; im Wirrwald gibt es nur Endermen, dafür viele */
+  /** Nether: Ghasts schweben in weiten Höhlen, Witherskelette sind im Ödland
+      unterwegs, Lohen nur in den Festungen; im Wirrwald gibt es nur Endermen, dafür viele */
   netherSpawnen(dt){
     this.mobTimer -= dt;
     if(this.mobTimer > 0) return;
@@ -1908,6 +1908,21 @@ const Game = {
     const zahl = {};
     for(const m of this.mobs) if(Math.hypot(m.x - p.x, m.z - p.z) < 64) zahl[m.type] = (zahl[m.type] || 0) + 1;
     const neu = (art, x, y, z) => { this.mobs.push(new Mob(art, x + 0.5, y, z + 0.5)); return true; };
+    // Lohen gibt es nur in den Festungen: aus dem Spawner, wenn jemand in der Nähe ist
+    this._spawnerT = this._spawnerT || new Map();
+    for(const q of leute) for(const f of festungenBei(w, q.x - 20, q.z - 20, q.x + 20, q.z + 20)) for(const [sx, sy, sz] of f.spawner){
+      if(Math.hypot(sx - q.x, sy - q.y, sz - q.z) > 18 || w.getBlock(sx, sy, sz) !== B.SPAWNER) continue;
+      const k = sx + ',' + sy + ',' + sz, t = (this._spawnerT.get(k) || 0) - 2;
+      this._spawnerT.set(k, t);
+      if(t > 0) continue;
+      this._spawnerT.set(k, 8 + Math.random()*12);
+      if(this.mobs.filter(m => m.type === 'blaze' && Math.hypot(m.x - sx, m.z - sz) < 12).length >= 4) continue;
+      for(let n = 1 + ((Math.random()*2) | 0), v = 0; n > 0 && v < 12; v++){
+        const x = sx + ((Math.random()*7) | 0) - 3, y = sy + ((Math.random()*2) | 0) - 1, z = sz + ((Math.random()*7) | 0) - 3;
+        if(blocksMovement(w.getBlock(x, y, z)) || blocksMovement(w.getBlock(x, y + 1, z)) || w.getBlock(x, y, z) === B.SPAWNER) continue;
+        neu('blaze', x, y, z); this.portalFunken(x + 0.5, y + 1, z + 0.5, 8); n--;
+      }
+    }
     for(let a = 0; a < 10; a++){
       const ang = Math.random()*TAU, r = 18 + Math.random()*26;
       const x = Math.floor(p.x + Math.cos(ang)*r), z = Math.floor(p.z + Math.sin(ang)*r), y0 = Math.floor(p.y) + ((Math.random()*24) | 0) - 12;
@@ -1919,6 +1934,14 @@ const Game = {
         if(y > 0 && neu('enderman', x, y, z)) break;
         continue;
       }
+      // auf dem Grund einer Festung: Lohen und Witherskelette, wie beim Vorbild
+      if(festungBei(w, x, z)){
+        const y = this.netherBoden(x, y0, z, 3);
+        if(y < 0) continue;
+        if(Math.random() < 0.35 && (zahl.blaze || 0) < 6 && neu('blaze', x, y + 0.5, z)) break;
+        if((zahl.wither || 0) < 5 && neu('wither', x, y, z)) break;
+        continue;
+      }
       const wurf = Math.random();
       if(wurf < 0.3 && (zahl.ghast || 0) < 2){
         // ein Ghast braucht Platz: fünf mal fünf mal fünf frei
@@ -1927,9 +1950,6 @@ const Game = {
         // und darunter Platz für die Tentakel
         for(let dy = 1; dy <= 5 && frei; dy++) if(w.getBlock(x, y0 - dy, z) !== B.AIR) frei = false;
         if(frei && neu('ghast', x, y0, z)) break;
-      } else if(wurf < 0.6 && (zahl.blaze || 0) < 3){
-        const y = this.netherBoden(x, y0, z, 3);
-        if(y > 0 && neu('blaze', x, y + 0.5, z)) break;
       } else if((zahl.wither || 0) < 3){
         const y = this.netherBoden(x, y0, z, 3);
         if(y > 0 && neu('wither', x, y, z)) break;

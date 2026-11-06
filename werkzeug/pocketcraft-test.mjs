@@ -668,5 +668,14 @@ pruef(T(`MOBS.blaze.hostile && MOBS.blaze.lohe && MOBS.blaze.schwebt && MOBS.bla
   'Lohe und Enderman: Teile, Bilder, Namen');
 pruef(T(`lagenOk() && texNames.length > 256 && texNames.slice(0, 256).every((n, i) => i < texNames.findIndex(m => /^(i_|m_|p_)/.test(m)) || /^(i_|m_|p_)/.test(n))`),
   'Bildlagen: erst die Blöcke, dahinter Wesen und Gegenstände (mehr als 256 Lagen, wenn die Grafikkarte kann)');
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let f = null, n = 0;
+  for(let rx = -4; rx < 4; rx++) for(let rz = -4; rz < 4; rz++){ const g = festungImFeld(w, rx, rz); if(g){ n++; f = f || g; } }
+  const c = w.ensureChunk(f.cx >> 4, f.cz >> 4);
+  return n > 20 && n < 64 && w.getBlock(f.cx, f.y0 + 2, f.cz) === B.SPAWNER && w.getBlock(f.cx, f.y0, f.cz + 3) === B.NETHERZIEGEL
+    && festungBei(w, f.cx, f.cz) === f && festungBei(w, f.cx + 500, f.cz + 500) !== f && festungenBei(new World('a', 2), 0, 0, 999, 999).length === 0; })()`),
+  'Netherfestungen: etwa drei von vier Feldern, Halle mit Spawner, nur im Nether');
+pruef(T(`B.NETHERZIEGEL >= BLOCK2 && SMELT[B.NETHERRACK] === ITEM.netherziegel && blocks[B.SPAWNER].drop === B.AIR
+  && rasterRezept([{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1},{id:ITEM.netherziegel,n:1}], 2).out === B.NETHERZIEGEL
+  && festungBeute(new World('neth:nether', 2, 'nether'), 5, 45, 7).some(Boolean) && dingNummer('nether_bricks') === B.NETHERZIEGEL`), 'Netherziegel: gebrannt, gebaut; Spawner gibt nichts; Truhen haben Beute');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

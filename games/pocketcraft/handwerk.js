@@ -209,6 +209,7 @@ function initRecipes(){
   formlos('stoffe', ITEM.string, 4, [WOLL]);
   formlos('werkzeug', ITEM.feuerzeug, 1, [ITEM.iron, ITEM.flint]);
   formlos('stoffe', ITEM.lohenstaub, 2, [ITEM.lohenrute]);
+  geformt('bauen', B.NETHERZIEGEL, 1, ['NN','NN'], {N:ITEM.netherziegel});
   formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
   {
     const k = { M:ITEM.leather };
@@ -307,6 +308,7 @@ const SMELT = {};
 function initSmelt(){
   SMELT[B.COBBLE] = B.STONE;
   SMELT[B.SAND] = B.GLASS;
+  SMELT[B.NETHERRACK] = ITEM.netherziegel;
   SMELT[B.IRON_ORE] = ITEM.iron;
   SMELT[B.GOLD_ORE] = ITEM.gold;
   SMELT[ITEM.pork_raw] = ITEM.pork_cook;
