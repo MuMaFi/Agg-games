@@ -227,8 +227,9 @@ class World{
   constructor(seedStr, gen, typ, doerfer, obsidian){
     this.seedStr = seedStr;
     this.gen = gen === 2 ? 2 : 1;
-    this.typ = typ === 'flach' ? 'flach' : 'normal';
+    this.typ = typ === 'flach' ? 'flach' : typ === 'nether' ? 'nether' : 'normal';
     this.doerfer = !!doerfer && (this.gen === 2 || this.typ === 'flach');
+    this.portale = new Map();                // Netherportale: "x,y,z" → { a: 'x' | 'z', x, y, z, w, h } (Innenmaß, ab der unteren Ecke)
     this.obsidian = !!obsidian;              // ab 26.11: Lava (Höhlen unten, kleine Seen) und Obsidian — ältere Welten bleiben Block für Block gleich
     const s = hashStr(seedStr || 'taschenwelt');
     this.seed = s;
@@ -259,6 +260,7 @@ class World{
   /* — Spalteninfo: Höhe + Biom — */
   column(wx,wz){
     if(this.typ === 'flach') return FLACH_SPALTE;
+    if(this.typ === 'nether') return NETHER_SPALTE;
     if(this.gen === 2) return spalte2(this, wx, wz);
     const cont = this.nCont.fbm2(wx*0.0032, wz*0.0032, 4, 2, .5);
     const hill = this.nHill.fbm2(wx*0.014, wz*0.014, 4, 2, .5);
@@ -313,7 +315,8 @@ class World{
 
   /* — Terrain erzeugen — */
   generate(c){
-    if(this.typ === 'flach'){ erzeugenFlach(c); doerferBauen(this, c); }
+    if(this.typ === 'nether') erzeugenNether(this, c);
+    else if(this.typ === 'flach'){ erzeugenFlach(c); doerferBauen(this, c); }
     else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); }
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));

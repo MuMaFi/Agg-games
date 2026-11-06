@@ -553,7 +553,7 @@ pruef(T(`BERUFE.length === 4 && BERUFE.every(b => b.handel().length >= 4 && b.ha
   && defOf(a.bekommt[0]) && a.bekommt[1] > 0 && a.bekommt[1] <= stackOf(a.bekommt[0])))`), 'Berufe und Tauschangebote: alles gibt es');
 pruef(T(`ITEM.emerald > 0 && items[ITEM.emerald].name === 'Smaragd' && TEX.i_smaragd !== undefined && MOBS.villager.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
   && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && texNames.length <= 256`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
-pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-2).join() === 'villager,golem'; })()`),
+pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-4).join() === 'villager,golem,wither,ghast'; })()`),
   'die Kutte trägt die Farbe des Berufs; Dorfbewohner und Golems stehen hinten in der Liste der Wesen');
 // 26.10.08: Kürbis, geschnitzter Kürbis (Gesicht in vier Richtungen), Eisengolem
 pruef(T(`blocks[B.KUERBIS].name === 'Kürbis' && [0, 1, 2, 3].every(r => { const f = blocks[B.GESCHNITZT + r].faces, i = [0, 1, 4, 5][r];
@@ -609,7 +609,7 @@ pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(10, 9, 1
 pruef(T(`(() => { const zaehl = w => { let n = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3]]){ const c = w.ensureChunk(cx, cz); for(const b of c.blocks) if(b === B.OBSIDIAN) n++; } return n; };
   return zaehl(new World('obs', 2, 'normal', false, true)) > 0 && zaehl(new World('obs', 2, 'normal', false, false)) === 0; })()`), 'Obsidian tief unten nur in neuen Welten');
 // 26.11.06: Lava — Nummer 189 (Kolbenköpfe haben kein Klebrig-Bit mehr), nur in neuen Welten
-pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && B.FACKEL_WAND === 190 && !blocks[194]
+pruef(T(`B.LAVA === 189 && blocks[B.LAVA].light === 15 && !blocks[B.LAVA].solid && blocks[B.LAVA].hardness < 0 && B.FACKEL_WAND === 190 && B.NETHERRACK === 194
   && isKopf(B.KOLBENKOPF + 5) && !isKopf(B.LAVA) && altNummer(191) === 185 && altNummer(B.LAVA - 6) === B.LAVA - 6 && TEX.lava !== undefined && texNames.length <= 256`),
   'Lava: eigene Nummer, leuchtet, nicht fest; alte klebrige Köpfe werden gewöhnliche');
 pruef(T(`(() => { const zaehl = w => { let n = 0, licht = 0; for(const [cx, cz] of [[0,0],[3,6],[-4,2],[7,-3],[12,9],[-9,-11]]){ const c = w.ensureChunk(cx, cz);
@@ -625,10 +625,22 @@ pruef(T(`(() => { let gefunden = 0; for(let cx = -30; cx <= 30 && !gefunden; cx+
   return gefunden > 0; })()`), 'hier und da ein Lavasee an der Oberfläche');
 // 26.11.06: Fackeln an der Wand
 pruef(T(`[0, 1, 2, 3].every(s => { const b = blocks[fackelWand(s)]; return b.light === 14 && b.drop === B.TORCH && b.item === false && b.wand === s && isFlat(fackelWand(s)) && flutbar(fackelWand(s)); })
-  && fackelWand(3) === 193 && !blocks[194]`), 'Wandfackeln: leuchten, lassen eine Fackel fallen, Wasser spült sie weg');
+  && fackelWand(3) === 193 && B.NETHERRACK === 194`), 'Wandfackeln: leuchten, lassen eine Fackel fallen, Wasser spült sie weg');
 pruef(T(`(() => { const M = [new MeshBuf(), new MeshBuf()]; TW.setBlock(12, 9, 12, B.STONE); TW.setBlock(13, 9, 12, fackelWand(1));
   TW.buildMesh(TW.getChunk(0, 0), M[0], M[1]); const b = M[0]; let n = 0;
   for(let i = 0; i < b.n; i++){ const x = (b.u16[i*6] - .5)/4; if(b.u8[i*12 + 7] === TEX.torch && x > 13*16 - 0.01 && x < 14*16 + 0.01) n++; }
   return n >= 16; })()`), 'Wandfackel wird schräg an der Wand gezeichnet');
+// 26.11.06: Nether — Netherrack, Lavameer, Grundgestein oben und unten; Feuerzeug; Wesen
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); const z = {}; let unten = 0, oben = 0;
+  for(const [cx, cz] of [[0,0],[2,-1],[-3,4]]){ const c = w.ensureChunk(cx, cz);
+    for(let i = 0; i < c.blocks.length; i++){ const id = c.blocks[i], y = i >> 8; z[id] = (z[id] || 0) + 1;
+      if(y === 0 && id === B.BEDROCK) unten++; if(y === WH - 1 && id === B.BEDROCK) oben++;
+      if(id === B.LAVA && y > NETHER_LAVA) return 'Lava oben'; } }
+  return z[B.NETHERRACK] > 10000 && z[B.LAVA] > 100 && z[B.AIR] > 1000 && unten === 768 && oben === 768 && !z[B.GRASS] && !z[B.WATER] && w.typ === 'nether'; })()`),
+  'Nether: Netherrack, Lavameer unten, Grundgestein oben und unten, kein Gras, kein Wasser');
+pruef(T(`B.NETHERRACK === 194 && blocks[B.NETHERRACK].tool === 'pickaxe' && TEX.netherrack !== undefined && TEX.portal !== undefined && items[ITEM.feuerzeug].dur > 0
+  && rasterRezept([{id:ITEM.iron,n:1},{id:ITEM.flint,n:1},null,null], 2).out === ITEM.feuerzeug && texNames.length <= 256`), 'Netherrack, Portalbild, Feuerzeug (Eisen und Feuerstein)');
+pruef(T(`MOBS.wither.hostile && MOBS.wither.skala === 1.2 && MOBS.ghast.schwebt && MOBS.ghast.skala === 4.5 && MOBS.ghast.parts.length === 10
+  && MOBS.wither.parts.every(p => TEX[p.tex] !== undefined) && MOBS.ghast.parts.every(p => TEX[p.tex] !== undefined) && WESEN_NAMEN.ghast === 'ghast'`), 'Witherskelett und Ghast: Bilder, Größe, schweben');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

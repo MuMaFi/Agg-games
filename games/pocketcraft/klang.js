@@ -22,6 +22,9 @@ const KLANG_DATEIEN = {
   regen:0, schleim_sprung:0, schleim_landen:0, schleim_au:0, schleim_tot:0, schalter:0, kolben_raus:0, kolben_rein:0,
 };
 
+/** Geräusche ohne eigene Datei: mit dem Minecraft-Paket dessen, sonst diese */
+const KLANG_ERSATZ = { wither_laut:'skelett', wither_au:'skelett_au', wither_tot:'skelett_tot' };
+
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
    Minetest Game: Stein klingt beim Abbauen »knackig«, Holz »hackend«,
    abgebaut wird mit dem kräftigeren Schritt-Geräusch. */
@@ -70,6 +73,8 @@ const WESEN_KLANG = {
   skeleton: { laut:['skelett', .8],  au:['skelett_au', .7],   tot:['skelett_tot', .75] },
   chicken:  { laut:['huhn', .5],     au:['huhn_au', .6],      tot:['huhn_au', .6, .85], kind:['kueken', .45] },
   slime:    { au:['schleim_au', .55], tot:['schleim_tot', .6], sprung:['schleim_sprung', .4], landen:['schleim_landen', .45] },
+  wither:   { laut:['wither_laut', .8, .8], au:['wither_au', .7, .8], tot:['wither_tot', .75, .8] },
+  ghast:    { laut:['ghast_laut', .9], au:['ghast_au', .9], tot:['ghast_tot', 1], feuer:['ghast_feuer', .9] },
   villager: { laut:['dorf_hmm', .5], au:['dorf_au', .6], tot:['dorf_au', .6, .8] },
   golem:    { laut:['golem', .5], au:['hacken_metall', .8, .6], tot:['weg_metall', .9, .55], schlag:['setzen_metall', .9, .5] },
 };
@@ -147,6 +152,7 @@ const Sfx = {
     }
     // Minecraft-Geräusche, wenn eingeschaltet (mcpaket.js); sonst die eigenen
     if(typeof McPaket !== 'undefined' && McPaket.klingt(name, o, weit)) return true;
+    if(KLANG_DATEIEN[name] === undefined && KLANG_ERSATZ[name]) name = KLANG_ERSATZ[name];
     const n = KLANG_DATEIEN[name];
     if(n === undefined) return false;
     // zufällige Variante, aber nicht zweimal hintereinander dieselbe

@@ -26,7 +26,7 @@ const MC_NAMEN = {
   air:'AIR', cobblestone:'COBBLE', oak_planks:'PLANKS', oak_log:'LOG', oak_leaves:'LEAVES', spruce_log:'FICHTENSTAMM',
   spruce_leaves:'FICHTENNADELN', grass_block:'GRASS', crafting_table:'TABLE', stone_bricks:'STONEBRICK', snow_block:'SNOW',
   snow:'SCHNEEDECKE', oak_door:'DOOR', white_wool:'WOOL', wool:'WOOL', poppy:'ROSE', dandelion:'DANDELION', water:'WATER',
-  obsidian:'OBSIDIAN', brewing_stand:'BRAUSTAND', lava:'LAVA',
+  obsidian:'OBSIDIAN', brewing_stand:'BRAUSTAND', lava:'LAVA', netherrack:'NETHERRACK', flint_and_steel:'feuerzeug',
   iron_block:'IRON_BLOCK', gold_block:'GOLD_BLOCK', diamond_block:'DIAMOND_BLOCK', coal_ore:'COAL_ORE', iron_ore:'IRON_ORE',
   gold_ore:'GOLD_ORE', diamond_ore:'DIAMOND_ORE', jukebox:'JUKEBOX', ladder:'LADDER', chest:'CHEST', furnace:'FURNACE',
   iron_ingot:'iron', gold_ingot:'gold', porkchop:'pork_raw', cooked_porkchop:'pork_cook', beef:'beef_raw', cooked_beef:'beef_cooked',
@@ -42,7 +42,7 @@ const MC_NAMEN = {
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager',
-  eisengolem:'golem', golem:'golem', iron_golem:'golem' };
+  eisengolem:'golem', golem:'golem', iron_golem:'golem', witherskelett:'wither', wither_skeleton:'wither', ghast:'ghast' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };

@@ -207,6 +207,7 @@ function initRecipes(){
   STUFEN.forEach((t, art) => geformt('bauen', stufeId(art, false), 6, ['###'], {'#':t.stoff}));
   geformt('stoffe', B.WOOL, 1, ['ff','ff'], {f:ITEM.string});
   formlos('stoffe', ITEM.string, 4, [WOLL]);
+  formlos('werkzeug', ITEM.feuerzeug, 1, [ITEM.iron, ITEM.flint]);
   formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
   {
     const k = { M:ITEM.leather };

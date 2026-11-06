@@ -60,10 +60,11 @@ const MC_TEX = {
 for(const [key, mc] of [['rot', 'red_bed'], ...BETTEN.map(b => [b.key, b.mc])])
   for(const t of BETT_TEILE) MC_TEX['bettmc_' + key + '_' + t] = 'block/' + mc + '_' + t;
 MC_TEX.bettmc_unten = 'block/bed_down'; MC_TEX.bettmc_kopf_nord = 'block/bed_head_north';
-MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.netherrack = 'block/netherrack'; MC_TEX.portal = { p:'block/nether_portal', bild:0 };
+MC_TEX.i_feuerzeug = 'item/flint_and_steel'; MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
-for(let f = 0; f < 8; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
+for(let f = 0; f < WATER_FRAMES; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
 for(let s = 0; s < 8; s++) MC_TEX['crack' + s] = { p:'block/destroy_stage_' + Math.round(s*9/7), riss:true };
 for(const [w, mw] of [['wheat0', 0], ['wheat1', 2], ['wheat2', 5], ['wheat3', 7]]) MC_TEX[w] = 'block/wheat_stage' + mw;
 for(const [pc, mc] of [['wood', 'wooden'], ['stone', 'stone'], ['iron', 'iron'], ['gold', 'golden'], ['diamond', 'diamond']])
@@ -103,6 +104,8 @@ const MC_KLANG = {
   angriff_stark:mcV('entity/player/attack/strong', 6), angriff_schwach:mcV('entity/player/attack/weak', 4),
   angriff_krit:mcV('entity/player/attack/crit', 3), angriff_schwung:mcV('entity/player/attack/sweep', 7),
   angriff_rueck:mcV('entity/player/attack/knockback', 4),
+  ghast_laut:mcV('mob/ghast/moan', 7), ghast_au:mcV('mob/ghast/scream', 5), ghast_tot:['mob/ghast/death'], ghast_feuer:['mob/ghast/fireball4'],
+  wither_laut:mcV('mob/wither_skeleton/idle', 3), wither_au:mcV('mob/wither_skeleton/hurt', 4), wither_tot:mcV('mob/wither_skeleton/death', 2),
 };
 /* Blöcke: Minecraft klingt beim Laufen und Hacken mit »step«, beim Abbauen
    und Setzen mit »dig« — Hacken eine Oktave tiefer, Abbauen und Setzen

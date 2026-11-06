@@ -250,6 +250,8 @@ body.mcOffen .screen{visibility:hidden}
 /* Aufladen des Schlags (wie beim Vorbild unter dem Fadenkreuz) */
 #abklingen{position:absolute; left:50%; top:calc(50% + 18px); width:32px; height:8px; margin-left:-16px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.4); display:none; image-rendering:pixelated}
 #abklingen.on{display:block}
+/* im Netherportal: das Bild verschwimmt violett, bis man hinüber ist */
+#portalSchleier{position:absolute; inset:0; pointer-events:none; opacity:0; background:radial-gradient(ellipse at center, rgba(120,40,200,.35), rgba(70,10,140,.85))}
 #abklingen i{display:block; height:100%; width:0; background:#fff}
 body.mcGui #abklingen{border:0; background:var(--mc-angriffGrund) 0 0/100% 100% no-repeat}
 body.mcGui #abklingen i{background:var(--mc-angriffVoll) 0 0/32px 8px no-repeat}
@@ -517,6 +519,7 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
   <div id="crosshair"><i></i><i></i></div>
   <div id="spannung"><i></i></div>
   <div id="abklingen"><i></i></div>
+  <div id="portalSchleier"></div>
   <div id="vitals">
     <div class="bar" id="hp"></div>
     <div class="bar" id="food"></div>

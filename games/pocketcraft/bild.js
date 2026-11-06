@@ -37,7 +37,7 @@ const VS_CHUNK = `#version 300 es
 precision highp float;
 in vec3 aPos; in float aPack; in float aLayer; in float aSky; in float aBlk; in vec2 aUV;
 uniform mat4 uVP; uniform vec3 uChunk; uniform vec3 uCam;
-uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame;
+uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame, uGrund;
 out vec3 vUV; out float vShade; out float vFog; out float vSharp;
 ${SH_COMMON}
 void main(){
@@ -56,7 +56,7 @@ void main(){
   else if(nrm < 2.5) fs = 1.0;      // +Y
   else if(nrm < 3.5) fs = 0.48;     // -Y
   else if(nrm < 5.5) fs = 0.87;     // ±Z
-  float lig = max(aSky / 15.0 * uDay, aBlk / 15.0 * 0.97);
+  float lig = max(max(aSky / 15.0 * uDay, aBlk / 15.0 * 0.97), uGrund);   // uGrund: Grundlicht im Nether
   vShade = fs * (0.55 + ao * 0.15) * lightCurve(lig);
   float d = distance(wp, uCam);
   vFog = clamp((d - uFogNear) / max(1.0, uFogFar - uFogNear), 0.0, 1.0);
@@ -65,7 +65,7 @@ void main(){
 const FS_CHUNK = `#version 300 es
 precision highp float; precision highp sampler2DArray;
 in vec3 vUV; in float vShade; in float vFog; in float vSharp;
-uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint; uniform float uLava, uZeit;
+uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint; uniform float uLava, uZeit, uWater0;
 /* negativ: eine feinere Mip-Stufe als nötig — Pixel bleiben auch in der Ferne scharf */
 uniform float uSchaerfe;
 out vec4 outColor;
@@ -76,6 +76,8 @@ void main(){
   vec4 c = vSharp > 0.5 ? textureLod(uTex, vUV, 0.0) : texture(uTex, vUV, uSchaerfe);
   // Lava fließt langsam durch ihr Bild (eine Lage, verschoben statt vieler Bilder)
   if(abs(vUV.z - uLava) < 0.5) c = textureLod(uTex, vec3(fract(vUV.xy + vec2(uZeit*0.011, uZeit*0.019)), vUV.z), 0.0);
+  // Wasser ebenso, etwas schneller und quer dazu
+  else if(abs(vUV.z - uWater0) < 0.5) c = textureLod(uTex, vec3(fract(vUV.xy + vec2(uZeit*0.035, uZeit*-0.022)), vUV.z), 0.0);
   float a = c.a;
   if(a < uAlpha) discard;
   vec3 col = c.rgb * vShade * uWaterTint;
@@ -462,6 +464,7 @@ function drawChunks(waterPass, fogCol, near, far){
   gl.uniform1f(P.u.uWater0, TEX['water0']);
   gl.uniform1f(P.u.uLava, TEX.lava !== undefined ? TEX.lava : -9);
   gl.uniform1f(P.u.uZeit, (performance.now()/1000) % 1000);
+  gl.uniform1f(P.u.uGrund, Game.dim === 'nether' ? NETHER_GRUNDLICHT : 0);
   gl.uniform1f(P.u.uSchaerfe, -1.0);
   gl.uniform1f(P.u.uWaterFrame, Math.floor(performance.now()/1000*7) % WATER_FRAMES);
   gl.activeTexture(gl.TEXTURE0);
@@ -507,7 +510,7 @@ function setLayers(P, all, faceTex){
 }
 function blockLightAt(x,y,z){
   const lv = Game.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  const l = Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97);
+  const l = Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : 0);
   return 0.09 + 0.91 * Math.pow(clamp(l, 0, 1), 1.35);
 }
 
@@ -540,6 +543,7 @@ function drawMobs(fogCol, near, far){
       else if(part.anim === 'arm') ang = (part.ph ? -sw : sw) * (m.def.armSchwung !== undefined ? m.def.armSchwung : 0.7) + (m.def.hostile ? 1.45 : 0)
         + (m.schlagT > 0 ? Math.sin(m.schlagT/0.5*Math.PI)*1.9 : 0);          // der Golem schlägt zu
       else if(part.anim === 'head') ang = Math.sin(m.age*0.9) * 0.08;
+      else if(part.anim === 'tentakel') ang = 0.2*Math.sin(m.age*2 + part.ph) + 0.4;     // Ghast: wie beim Vorbild
       // Flügel: in der Luft schlagen sie, am Boden liegen sie an
       else if(part.anim === 'fluegel') ang = m.onGround ? 0 : (0.25 + Math.abs(Math.sin(m.age*19))*1.05) * (part.ph ? 1 : -1);
       if(part.mc){ mcTeilMatrix(_m, m, part, ang); gl.uniform1fv(P.u.uLayers, part.lagen); }
@@ -692,14 +696,17 @@ function drawPfeile(fogCol, near, far){
   let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
-    const t = a.ei ? 'm_ei' : 'm_pfeil';
+    const t = a.feuer ? 'lava' : a.ei ? 'm_ei' : 'm_pfeil';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
-    gl.uniform1f(P.u.uLight, blockLightAt(a.x, a.y, a.z));
+    gl.uniform1f(P.u.uLight, a.feuer ? 1 : blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
     M4.ident(_m);
     M4.translate(_m, _m, a.x, a.y, a.z);
     M4.rotY(_m, _m, Math.atan2(-a.rx, -a.rz));
-    if(a.ei){
+    if(a.feuer){
+      M4.rotX(_m, _m, a.alter*5); M4.rotY(_m, _m, a.alter*3);
+      M4.scale(_m, _m, 0.7, 0.7, 0.7);
+    } else if(a.ei){
       M4.rotX(_m, _m, a.alter*14);
       M4.scale(_m, _m, 0.15, 0.19, 0.15);
     } else {
@@ -738,6 +745,38 @@ function drawPartikel(){
     gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
   }
 }
+/* Netherportale: in jeder Zelle eine dünne, halb durchsichtige Scheibe, die
+   leise pulsiert; leuchtet selbst (kein Block — die Zellen sind Luft) */
+function drawPortale(fogCol, near, far){
+  const W = Game.world;
+  if(!W || !W.portale.size) return;
+  const P = entProg();
+  entUniforms(P, fogCol, near, far);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.uniform1f(P.u.uLight, 1);
+  gl.uniform1f(P.u.uAlpha, 0.02);
+  const t = performance.now()/1000;
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 0.72 + 0.12*Math.sin(t*2.2));
+  setLayers(P, TEX.portal);
+  gl.bindVertexArray(R.cubeVAO);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+  for(const q of W.portale.values()){
+    if(!R.boxVisible(q.x - 1, q.y, q.z - 1, q.x + q.w + 1, q.y + q.h, q.z + q.w + 1)) continue;
+    const dx = q.a === 'x' ? 1 : 0;
+    for(let i = 0; i < q.w; i++) for(let j = 0; j < q.h; j++){
+      M4.ident(_m);
+      if(dx) M4.translate(_m, _m, q.x + i, q.y + j, q.z + 0.375);
+      else M4.translate(_m, _m, q.x + 0.375, q.y + j, q.z + i);
+      M4.scale(_m, _m, dx ? 1 : 0.25, 1, dx ? 0.25 : 1);
+      gl.uniformMatrix4fv(P.u.uModel, false, _m);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    }
+  }
+  gl.disable(gl.BLEND); gl.depthMask(true);
+  gl.uniform1f(P.u.uAlpha, 0.35);
+  gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+}
+
 /** bisGelenk: nur bis zum Drehpunkt, ohne den Kasten selbst — daran hängt
     drawSpieler, was eine Figur in der Hand hält */
 function partMatrix(out, mob, part, ang, bisGelenk){
@@ -767,6 +806,7 @@ function wesenGrund(out, mob, kopf, kopfPunkt){
     M4.rotX(out, out, -Math.PI/2);
   }
   M4.rotY(out, out, mob.yaw);
+  if(mob.def && mob.def.skala){ const s = mob.def.skala; M4.scale(out, out, s, s, s); }   // Witherskelett, Ghast
   // Schleime: nach ihrer Größe, beim Springen gestreckt, beim Landen platt (wie beim Vorbild)
   if(mob.groesse){
     const g = mob.groesse, q = (mob.quetsch || 0)/(g*0.5 + 1), f = 1/(q + 1);
@@ -971,6 +1011,8 @@ function render(dt){
   let far = rd*CS*0.98, near = far*0.55;
   let fog = SkyCol.fog;
   near *= 1 - 0.35*Wetter.staerke;                 // im Regen wird es früher diesig
+  const nether = Game.dim === 'nether';
+  if(nether){ fog = [0.2, 0.035, 0.03]; near = far*0.12; far *= 0.8; }   // kein Himmel, dichter roter Dunst
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
   if(p.headInLava){ fog = [0.78, 0.26, 0.03]; near = 0; far = 1.2; }
 
@@ -982,7 +1024,7 @@ function render(dt){
 
   gl.clearColor(fog[0], fog[1], fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  drawSky();
+  if(!nether) drawSky();
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
   drawSpieler(fog, near, far);
@@ -990,9 +1032,10 @@ function render(dt){
   drawPartikel();
   drawDrops(fog, near, far);
   drawHuellen(fog, near, far);
+  drawPortale(fog, near, far);
   const ohne = Game.panoramaAktiv || Game._ohneHand || !!Game.bett;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);
-  if(!Game.panoramaAktiv) Wetter.zeichnen();
+  if(!Game.panoramaAktiv && !nether) Wetter.zeichnen();
   if(!ohne) drawHeld(fog);
 }

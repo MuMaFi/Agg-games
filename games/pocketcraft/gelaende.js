@@ -22,6 +22,34 @@ const GIPFEL = SEA + 44;                      // darüber Schneeblöcke
 const FLACH_SCHICHTEN = [B.BEDROCK, B.DIRT, B.DIRT, B.GRASS];
 const FLACH_H = FLACH_SCHICHTEN.length - 1;       // oberster Block, man steht darüber
 const FLACH_SPALTE = Object.freeze({ h: FLACH_H, biome: BIO.PLAINS, kalt: false, berg: 0 });
+/* ── Nether ──────────────────────────────────────────────────────────
+   Schlicht, wie gewünscht: Grundgestein unten und oben, dazwischen
+   Netherrack aus dreidimensionalem Rauschen — am Boden und unter der Decke
+   dichter, in der Mitte weite Höhlen —, und was unten frei bleibt, ist ein
+   Lavameer. Kein Himmel: Licht gibt es von der Lava und ein dämmriges
+   Grundlicht (NETHER_GRUNDLICHT, im Shader). */
+const NETHER_LAVA = 24, NETHER_GRUNDLICHT = 0.38;
+const NETHER_SPALTE = { h: NETHER_LAVA, biome: BIO.PLAINS };
+function erzeugenNether(w, c){
+  const bl = c.blocks = new Uint8Array(CS*WH*CS), ox = c.cx*CS, oz = c.cz*CS;
+  for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++){
+    const wx = ox + x, wz = oz + z;
+    for(let y = 0; y < WH; y++){
+      let id;
+      if(y === 0 || y === WH - 1) id = B.BEDROCK;
+      else if(y <= 3 && ghash(wx, y, wz, w.seed) < (4 - y)*0.25) id = B.BEDROCK;
+      else if(y >= WH - 4 && ghash(wx, y, wz, w.seed) < (y - (WH - 5))*0.25) id = B.BEDROCK;
+      else {
+        const n = w.nCont.fbm3(wx*0.024, y*0.05, wz*0.024, 3, 2, .5);
+        const rand = Math.max(0, (16 - y)/16) + Math.max(0, (y - (WH - 24))/18);
+        id = n + rand*0.9 > 0.06 ? B.NETHERRACK : (y <= NETHER_LAVA ? B.LAVA : B.AIR);
+      }
+      bl[IDX(x, y, z)] = id;
+    }
+  }
+  c.hmap.fill(NETHER_LAVA); c.biome.fill(BIO.PLAINS); c.kalt.fill(0);
+}
+
 function erzeugenFlach(c){
   const bl = c.blocks = new Uint8Array(CS*WH*CS);
   for(let y = 0; y < FLACH_SCHICHTEN.length; y++) bl.fill(FLACH_SCHICHTEN[y], y*CS*CS, (y + 1)*CS*CS);

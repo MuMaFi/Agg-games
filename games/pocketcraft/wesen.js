@@ -348,6 +348,31 @@ MOBS.golem = {
     { n:'leg1', box:[ 0.0625,0.0,-0.15625, 0.375,1.0,0.3125], tex:'m_golem', anim:'leg', ph:1 },
   ]
 };
+
+/* ── Nether ─────────────────────────────────────────────────────────── */
+/* Witherskelett: wie das Skelett, aber größer (× 1,2), fast schwarz und mit
+   einem Steinschwert statt des Bogens — es kämpft Mann gegen Mann. */
+const WITHER_FARBE = [0.24, 0.24, 0.26];
+MOBS.wither = {
+  name:'Witherskelett', w:0.7, h:2.4, health:20, speed:2.6, hostile:true, dmg:5, laut:'skelett', feuerfest:true, skala:1.2, armSchwung:0.12,
+  treffer:'Ein Witherskelett hat dich erwischt',
+  beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.coal, zufallN(0, 1)]],
+  parts: MOBS.skeleton.parts.filter(p => p.n !== 'bogen').map(p => Object.assign({}, p, { farbe: () => WITHER_FARBE }))
+    .concat([{ n:'schwert', box:[0.12, 0.95, -0.95, 0.02, 0.6, 0.6], tex:'i_stone_sword' }]),
+};
+/* Ghast: ein großer, heller Würfel mit neun Tentakeln, schwebt durch die
+   weiten Höhlen und schießt Feuerkugeln — die man zurückschlagen kann.
+   Gebaut in Blockgröße, gezeichnet viereinhalbmal so groß wie beim Vorbild. */
+MOBS.ghast = {
+  name:'Ghast', w:4, h:4, health:10, speed:1.4, hostile:true, dmg:0, laut:'ghast', feuerfest:true, schwebt:true, skala:4.5,
+  beute: () => [[ITEM.string, zufallN(0, 2)]],
+  parts: [{ n:'body', box:[-0.5, -0.1, -0.5, 1, 1, 1], tex:'m_skelett', face:'m_skelett_face' }]
+    .concat([0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => {
+      const x = ((i % 3) - ((i/3 | 0) % 2)*0.5 + 0.25)/2*2 - 1, z = (i/3 | 0)/2*2 - 1, l = [8, 13, 9, 11, 11, 10, 12, 9, 12][i]/16;
+      return { n:'tentakel' + i, box:[x*0.3125 - 0.0625, -0.1 - l, z*0.3125 - 0.0625, 0.125, l, 0.125], tex:'m_skelett_glied', anim:'tentakel', ph:i,
+        pivot:[x*0.3125, -0.1, z*0.3125] };
+    })),
+};
 const _kutte = [0, 0, 0];
 function kuttenFarbe(m, f){
   const c = (typeof BERUFE !== 'undefined' && BERUFE[m.beruf | 0] || { farbe:[0.8, 0.8, 0.8] }).farbe;
@@ -450,10 +475,10 @@ const RUEST_FARBE = [[0.74,0.5,0.32], [0.97,0.97,1.0], [1.18,0.92,0.32], [0.5,1.
    Spielers, die im Boden stecken, kann man wieder aufheben. Ein Ei (ei)
    zerbricht, wo es auftrifft. */
 class Pfeil{
-  constructor(x, y, z, vx, vy, vz, dmg, vomSpieler, ei){
+  constructor(x, y, z, vx, vy, vz, dmg, vomSpieler, ei, feuer){
     this.x = x; this.y = y; this.z = z; this.vx = vx; this.vy = vy; this.vz = vz;
     this.rx = vx; this.ry = vy; this.rz = vz;
-    this.dmg = dmg; this.vomSpieler = vomSpieler; this.ei = !!ei;
+    this.dmg = dmg; this.vomSpieler = vomSpieler; this.ei = !!ei; this.feuer = !!feuer;   // feuer: Feuerkugel eines Ghasts
     this.alter = 0; this.steckt = false; this.weg = false;
   }
 }

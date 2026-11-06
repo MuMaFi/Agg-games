@@ -13,7 +13,7 @@ const TS = 32;                       // Texel je Kante
 const texNames = [];                 // Layer-Index → Name
 const texData  = [];                 // Layer-Index → Uint8Array(RGBA)
 const TEX = {};                      // Name → Layer-Index
-const WATER_FRAMES = 8;
+const WATER_FRAMES = 1;                // ein Bild; der Shader lässt es fließen (vorher acht Einzelbilder)
 
 function hex2rgb(h){ h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
 const pal = (...hx) => hx.map(hex2rgb);
@@ -1779,6 +1779,25 @@ function buildTextures(){
     if(n > .4) return k > .85 ? [196, 66, 10] : [222, 104, 20];
     return k > .7 ? [150, 40, 8] : [186, 62, 12];
   }));
+  /* — Netherrack: rotbraun, grob, mit dunklen Rissen — */
+  addTex('netherrack', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 8, 8, 931, 2), k = h2(x, y, 933);
+    if(k > .9) return [74, 22, 22];
+    return n > .62 ? [140, 58, 54] : n > .48 ? [114, 42, 40] : n > .34 ? [98, 34, 34] : [82, 26, 28];
+  }));
+  /* — Netherportal: violett, wirbelnd; halb durchsichtig gezeichnet — */
+  addTex('portal', p => fein(p, (x, y) => {
+    const n = fbm(x*TS/16, y*TS/16, 4, 4, 951, 3), w = Math.sin((x + y*0.7)*0.9 + n*6);
+    const v = .5 + .5*w;
+    return [Math.round(88 + 90*v), Math.round(24 + 40*v), Math.round(170 + 80*v), 200];
+  }));
+  /* — Feuerzeug: ein Stahlbügel und ein Stück Feuerstein — */
+  sprite('i_feuerzeug', S => {
+    const stahl = S.lage(pal('#2c2c30', '#55565e', '#8a8c96', '#b7b9c2', '#dcdee6'));
+    S.rechteck(stahl, 6, 8, 12, 4); S.rechteck(stahl, 6, 8, 4, 14); S.rechteck(stahl, 14, 8, 4, 10);
+    const stein = S.lage(pal('#1a1a1c', '#2e2e34', '#46464e', '#5e5e68', '#7a7a86'));
+    S.rechteck(stein, 16, 18, 10, 9);
+  });
   /* — Braustand: in der Mitte der Stab (oben golden, unten glühend), oben die
      Arme mit den Haken für die Flaschen, unten der Sockel. Die Arme nimmt das
      Modell aus der rechten Hälfte, den Stab aus den Spalten 7 und 8 (wie beim

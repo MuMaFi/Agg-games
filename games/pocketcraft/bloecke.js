@@ -17,7 +17,7 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   RS_FACKEL:81 /* …85 an, 86…90 aus */, HEBEL:91 /* …95 aus, 96…100 an */, KNOPF:101 /* …105, 106…110 gedrückt */,
   STAUB:111 /* …126: Redstone-Leitung mit Ladung 0…15 */,
   VERSTAERKER:127 /* …158: Richtung + 4·(Verzögerung − 1) + 16·an */,
-  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …188: Richtung (ob er klebt, sagt der Kolben dahinter) */, LAVA:189, FACKEL_WAND:190 /* …193: Fackel an der Wand, Richtung zur Wand SEITE[s] */ /* 194 frei */,
+  KOLBEN:159 /* …170: Richtung + 6·ausgefahren */, KLEBKOLBEN:171 /* …182 */, KOLBENKOPF:183 /* …188: Richtung (ob er klebt, sagt der Kolben dahinter) */, LAVA:189, FACKEL_WAND:190 /* …193: Fackel an der Wand, Richtung zur Wand SEITE[s] */, NETHERRACK:194,
   TREPPE:195 /* …226: 8·Art + Richtung + 4·umgedreht */, STUFE:227 /* …236: 2·Art + oben */,
   BETT:237 /* …246: je Farbe, das rote ist B.BED */, KORNBLUME:247,
   KUERBIS:248, GESCHNITZT:249 /* …252: das Gesicht schaut zur Seite SEITE[r] */,
@@ -339,6 +339,8 @@ function initBlocks(){
   }
   // Lava: leuchtet, heiß, zäh; nicht abzubauen, man kann Blöcke hineinsetzen. Mit Wasser wird sie zu Obsidian (wasser.js)
   defBlock(B.LAVA,{name:'Lava', tex:'lava', solid:false, light:15, hardness:-1, item:false, replaceable:true, drop:B.AIR, mc:'lava'});
+  // Netherrack: der Stein des Nethers, weich, mit jeder Spitzhacke
+  defBlock(B.NETHERRACK,{name:'Netherrack', tex:'netherrack', hardness:.4, tool:'pickaxe', tier:1, mc:'netherrack'});
   // Obsidian: nur mit der Diamantspitzhacke, und das dauert (beim Vorbild 9,4 Sekunden)
   defBlock(B.OBSIDIAN,{name:'Obsidian', tex:'obsidian', hardness:80, tool:'pickaxe', tier:4, mc:'obsidian'});
   // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester
@@ -459,6 +461,8 @@ function initItems(){
   defItem('slimeball',{name:'Schleimball', tex:'i_schleimball'});
   // Dorfbewohner tauschen dafür
   defItem('emerald',{name:'Smaragd', tex:'i_smaragd'});
+  // zündet ein Netherportal in einem Obsidianrahmen (welt: portale)
+  defItem('feuerzeug',{name:'Feuerzeug', tex:'i_feuerzeug', stack:1, dur:64});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

@@ -62,6 +62,19 @@ def part(cubes=None, pose=None): return Obj('Part', cubes=cubes or [], pose=pose
 def tojson(p):
     return { 'pose': p.pose, 'cubes': p.cubes, 'children': { k: tojson(v) for k, v in p.children.items() } }
 
+class JavaRandom:
+    """Minecrafts RandomSource (wie java.util.Random): für Modelle mit Zufall, etwa die Tentakel des Ghasts"""
+    def __init__(self, seed): self.s = (seed ^ 0x5DEECE66D) & ((1 << 48) - 1)
+    def next(self, bits):
+        self.s = (self.s * 0x5DEECE66D + 0xB) & ((1 << 48) - 1)
+        r = self.s >> (48 - bits)
+        return r - (1 << bits) if r >= 1 << (bits - 1) else r
+    def nextInt(self, n):
+        if n & -n == n: return (n * (self.next(31) & 0x7fffffff)) >> 31
+        while True:
+            b = self.next(31) & 0x7fffffff; v = b % n
+            if b - v + (n - 1) < (1 << 31): return v
+
 def call(owner, name, desc, args):
     """Aufruf einer Methode: bekannte API nachbilden, sonst Bytecode ausführen"""
     simple = owner.split('/')[-1]
@@ -112,6 +125,12 @@ def call(owner, name, desc, args):
         if name == 'getChild': return p.children.get(a[1]) or part()
         if name == 'clearChild': p.children[a[1]] = part(); return p
         if name == 'clearRecursively': p.cubes = []; return p
+    if simple == 'RandomSource':
+        if name.startswith('create'): return JavaRandom(int(a[0]) if a else 0)
+        if name == 'nextInt': return a[0].nextInt(a[1])
+    if simple == 'PartNames' and name == 'tentacle': return 'tentacle' + str(a[0])
+    if simple == 'LayerDefinition' and name == 'apply': return a[0]       # Skalieren (Ghast × 4,5) macht Pocketcraft selbst
+    if simple == 'MeshTransformer': return None
     if simple == 'LayerDefinition' and name == 'create':
         return Obj('Layer', mesh=a[0], w=a[1], h=a[2])
     if owner.startswith('net/minecraft/client/model/'):
@@ -168,6 +187,12 @@ def run(owner, sig, args):
             del st[len(st)-n:]
             r = call(ow, nm, ds, a)
             if ret != 'V': st.append(r)
+        elif op in ('irem',): b = st.pop(); a = st.pop(); st.append(int(math.fmod(a, b)))
+        elif op in ('idiv',): b = st.pop(); a = st.pop(); st.append(int(a / b))
+        elif op == 'iinc': k, d = [int(v) for v in arg.split(',')]; loc[k] += d
+        elif op.startswith('if_icmp'):
+            b = st.pop(); a = st.pop(); t = int(arg)
+            if { 'eq': a == b, 'ne': a != b, 'lt': a < b, 'ge': a >= b, 'gt': a > b, 'le': a <= b }[op[7:]]: i = idx[t]
         elif op in ('ifeq', 'ifne'):
             v = st.pop(); t = int(arg)
             if (not v) == (op == 'ifeq'): i = idx[t]
@@ -203,6 +228,7 @@ MODELLE = {
     'golem': (M+'animal/golem/IronGolemModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'player': (M+'player/PlayerModel', 'createMesh(%sCubeDeformation;Z)%sMeshDefinition;' % (L, L), [NONE(), 0], [64, 64]),
     'player_slim': (M+'player/PlayerModel', 'createMesh(%sCubeDeformation;Z)%sMeshDefinition;' % (L, L), [NONE(), 1], [64, 64]),
+    'ghast': (M+'monster/ghast/GhastModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'chest': (M+'object/chest/ChestModel', 'createSingleBodyLayer()%sLayerDefinition;' % L, [], None),
 }
 

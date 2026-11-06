@@ -140,10 +140,10 @@ def bilder():
     sp = lade('mcl_core_leaves_spruce')
     B['fichtennadeln'] = faerben(sp, FICHTE) if max(max(p[:3]) - min(p[:3]) for p in sp.getdata() if p[3]) < 40 else sp
 
-    # Wasser: 16 Bilder übereinander, das Spiel zeigt 8
+    # Wasser: 16 Bilder übereinander — das Spiel nimmt seit 26.11 nur das erste
+    # und lässt es im Shader fließen (die Bildlagen sind knapp)
     w = lade('mcl_core_water_source_animation')
-    for f in range(8):
-        B['water%d' % f] = faerben(ausschnitt(w, 0, f * 2 * 16, 16, 16), WASSER)
+    B['water0'] = faerben(ausschnitt(w, 0, 0, 16, 16), WASSER)
 
     # Risse: 10 Stufen übereinander, das Spiel hat 8
     k = lade('crack_anylength')
