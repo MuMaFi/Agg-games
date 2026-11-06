@@ -105,6 +105,15 @@ function inBlockOfType(world, e, pred){
 }
 
 /** Steckt e in Lava? (irgendein Block, den sein Kasten berührt) */
+/** steht e im Feuer? */
+function imFeuer(world, e){
+  const hw = e.w/2;
+  for(let y = Math.floor(e.y); y <= Math.floor(e.y + Math.min(e.h, 1) - 0.01); y++)
+    for(let z = Math.floor(e.z - hw); z <= Math.floor(e.z + hw); z++)
+      for(let x = Math.floor(e.x - hw); x <= Math.floor(e.x + hw); x++)
+        if(world.getBlock(x, y, z) === B.FEUER) return true;
+  return false;
+}
 function imLava(world, e){
   const hw = e.w/2;
   for(let y = Math.floor(e.y); y <= Math.floor(e.y + e.h - 0.01); y++)

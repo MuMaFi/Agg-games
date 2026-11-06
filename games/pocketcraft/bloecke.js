@@ -29,7 +29,7 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   // ab hier 16 Bit — der Wirrwald im Nether
   WIRR_NYZEL:512 /* Wirr-Nezel: Netherrack mit blaugrünem Bewuchs */, WIRR_STIEL:513, WIRR_WARZE:514,
   WIRR_WURZELN:515, WIRR_PILZ:516, PILZLICHT:517,
-  NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */ };
+  NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */, FEUER:520 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -362,6 +362,9 @@ function initBlocks(){
   defBlock(B.PILZLICHT,{name:'Pilzlicht', tex:'pilzlicht', hardness:1, tool:'hoe', light:15, mc:'shroomlight'});
   // Netherfestungen: aus Netherziegeln, in der Halle ein Spawner, aus dem Lohen kommen
   defBlock(B.NETHERZIEGEL,{name:'Netherziegel', tex:'netherziegel', hardness:2, tool:'pickaxe', tier:1, mc:'nether_bricks'});
+  // Feuer: mit dem Feuerzeug auf einen Block gesetzt; brennt aus — auf Netherrack für immer
+  defBlock(B.FEUER,{name:'Feuer', tex:'feuer', model:'cross', solid:false, opaque:false, light:15, hardness:0, drop:B.AIR, item:false,
+    replaceable:true, mc:'fire'});
   defBlock(B.SPAWNER,{name:'Monsterspawner', tex:'spawner', hardness:5, tool:'pickaxe', tier:1, opaque:false, model:'cutout', drop:B.AIR, mc:'spawner'});
   // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester
   defBlock(B.BRAUSTAND,{name:'Braustand', tex:'braustand', icon:'braustand', model:'braustand', box:[1,0,1,15,2,15], opaque:false,
@@ -490,6 +493,8 @@ function initItems(){
   defItem('enderperle',{name:'Enderperle', tex:'i_enderperle', stack:16});
   // Netherrack im Ofen gebrannt; vier ergeben einen Block Netherziegel
   defItem('netherziegel',{name:'Netherziegelstein', tex:'i_netherziegel'});
+  // Lohenstaub und Enderperle: zeigt einmal den Weg zum Ende
+  defItem('enderauge',{name:'Enderauge', tex:'i_enderauge'});
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */

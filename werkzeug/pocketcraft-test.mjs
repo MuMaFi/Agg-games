@@ -682,5 +682,11 @@ pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let n = 0, fr
     for(let cx = f.box[0] >> 4; cx <= f.box[2] >> 4; cx++) for(let cz = f.box[1] >> 4; cz <= f.box[3] >> 4; cz++){ const c = w.ensureChunk(cx, cz);
       for(let i = CS*CS; i < c.blocks.length; i++){ const id = c.blocks[i]; if(id !== B.WIRR_WURZELN && id !== B.WIRR_PILZ) continue; n++; if(!blocksMovement(c.blocks[i - CS*CS])) frei++; } } }
   return n > 0 && frei === 0; })()`), 'keine schwebenden Pflanzen, wo Festungen durchs Gelände gehen');
+pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let wenig = 99;
+  for(let i = 0; i < 40; i++) wenig = Math.min(wenig, festungBeute(w, i*7, 45, i*13).filter(Boolean).length);
+  return wenig >= 2; })()`), 'Festungstruhen: immer mindestens zwei Stapel');
+pruef(T(`B.FEUER >= BLOCK2 && blocks[B.FEUER].light === 15 && !blocks[B.FEUER].solid && blocks[B.FEUER].replaceable && LEUCHTET[B.FEUER] === 1
+  && rasterRezept([{id:ITEM.lohenstaub,n:1},{id:ITEM.enderperle,n:1},null,null], 2).out === ITEM.enderauge && TEX.feuer < 256 && TEX.i_enderauge !== undefined`),
+  'Feuer-Block, Enderauge aus Lohenstaub und Enderperle');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

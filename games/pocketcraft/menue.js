@@ -211,6 +211,7 @@ const Menue = {
       Game.saveOpts(); this.optionenZeigen();
     });
     knopf('#oSprung', () => { Game.settings.autojump = !Game.settings.autojump; Game.saveOpts(); this.optionenZeigen(); });
+    knopf('#oSteuer', () => { Game.settings.steuerung = Game.settings.steuerung === 'kreuz' ? 'stick' : 'kreuz'; Game.saveOpts(); Input.steuerungZeigen(); this.optionenZeigen(); });
     $('#oGer').addEventListener('input', e => { Game.settings.geraeusche = +e.target.value; Sfx.lautSetzen(Game.settings.geraeusche/100); Game.saveOpts(); this.optionenZeigen(); });
     $('#oGer').addEventListener('change', () => Sfx.play('pickup'));      // hören, wie laut es jetzt ist
     $('#oMusik').addEventListener('input', e => { Game.settings.musik = +e.target.value; Musik.lautSetzen(Game.settings.musik/100); Game.saveOpts(); this.optionenZeigen(); });
@@ -284,18 +285,20 @@ const Menue = {
   },
 
   zeige(name){
-    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende','minecraft','skins'])
+    for(const id of ['titel','welten','neu','bearbeiten','loeschen','optionen','mitspieler','serverForm','verbinden','oeffnen','mitwirkende','minecraft','skins','mcNeu'])
       $('#' + id).classList.toggle('on', id === name);
     this.aktiv = name;
     document.body.classList.toggle('imMenue', !!name && !Game.running);
     document.body.classList.toggle('mcOffen', !!name);
-    if(name === 'titel'){ this.logo(); this.ichZeigen(); }
+    if(name === 'titel'){ this.logo(); this.ichZeigen();
+      // neue Minecraft-Texturen? Gefragt wird im Titelbild, sobald es da ist
+      if(typeof McPaket !== 'undefined' && McPaket._neuSpaeter){ McPaket._neuSpaeter = false; setTimeout(() => McPaket.neuFragen(), 0); } }
     if(name === 'optionen') this.optionenZeigen();
   },
   alleZu(){ this.zeige(null); this.aktiv = null; document.body.classList.remove('imMenue', 'mcOffen'); },
   /** Escape und Zurück-Taste */
   zurueck(){
-    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen', minecraft:'optionen', skins:'titel' };
+    const z = { welten:'titel', neu:'welten', bearbeiten:'welten', loeschen:'welten', optionen: null, serverForm:'mitspieler', mitwirkende:'optionen', minecraft:'optionen', skins:'titel', mcNeu:'titel' };
     if(this.aktiv === 'optionen' || this.aktiv === 'oeffnen'){ this.optionenZu(); return; }
     if(this.aktiv === 'verbinden'){ this.vbZurueck(); return; }
     if(this.aktiv === 'mitspieler'){ this.nameSichern(); this.zeige('titel'); return; }
@@ -750,6 +753,7 @@ const Menue = {
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
     $('#oKlassik').textContent = 'Texturen: ' + (s.mcTexturen ? 'Minecraft' : s.klassik ? 'Klassisch (wie früher)' : 'Modern');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
+    $('#oSteuer').textContent = 'Steuerung: ' + (s.steuerung === 'kreuz' ? 'Steuerkreuz' : 'Joystick');
     $('#oMonster').textContent = 'Monster: ' + (MONSTER_MENGE[s.monster] || MONSTER_MENGE.normal).name;
     const pz = v => v > 0 ? v + ' %' : 'Aus';
     $('#oGer').value = s.geraeusche; $('#oGerText').textContent = 'Geräusche: ' + pz(s.geraeusche);

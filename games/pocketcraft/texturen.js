@@ -1864,6 +1864,14 @@ function buildTextures(){
     if(y > 7 && y <= 14 && (x === 7 || x === 8)) return x === 7 ? [196, 168, 186] : [156, 126, 150];
     return null;
   }));
+  /* — Feuer: Flammenzungen, unten weißgelb, oben dunkelrot, dazwischen durchsichtig — */
+  addTex('feuer', p => fein(p, (x, y) => {
+    const zunge = 5 + 9*h2(x >> 1, 0, 1291) + 2*Math.sin(x*1.3);
+    const hoehe = 15 - y;
+    if(hoehe > zunge || (hoehe > zunge - 3 && h2(x, y, 1292) > .6)) return null;
+    const t = hoehe/zunge;
+    return t < .25 ? [255, 236, 150] : t < .5 ? [252, 184, 48] : t < .75 ? [234, 110, 20] : [180, 46, 10];
+  }));
   /* — Netherziegel: kleine, dunkelrote Ziegel mit fast schwarzen Fugen — */
   addTex('netherziegel', p => fein(p, (x, y) => {
     const reihe = y >> 2, v = (x + (reihe & 1)*4) & 7;
@@ -1879,6 +1887,13 @@ function buildTextures(){
     if(stab) return h2(x, y, 1281) > .7 ? [70, 84, 100] : [36, 44, 56];
     return null;
   }));
+  sprite('i_enderauge', S => {
+    const L = S.lage(pal('#0c2a1c','#1c5a34','#2f8a4a','#5cbc6a','#b8f0a8'), { kante:true });
+    S.oval(L, 16, 16, 10, 10);
+    const A = S.lage(pal('#101418','#1c2a22','#2e4a34','#3e6a44','#58905a'));
+    S.oval(A, 16, 16, 3.2, 6);
+    L.glanz = [[11,10],[12,10],[11,11],[10,12]];
+  });
   sprite('i_netherziegel', S => {
     const L = S.lage(pal('#1e0c10','#36161c','#4e2228','#682e36','#86424a'), { kante:true });
     S.poly(L, [[4,14],[22,9],[28,15],[10,22]]); S.poly(L, [[4,14],[10,22],[10,26],[4,18]]); S.poly(L, [[10,22],[28,15],[28,19],[10,26]]);

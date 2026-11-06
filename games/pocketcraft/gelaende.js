@@ -190,8 +190,16 @@ function festungBeute(w, x, y, z){
     if(t[i]) return;
     t[i] = { id, n: a + Math.floor(r()*(b - a + 1)), dur: items[id] ? items[id].dur : 0 };
   };
-  rein(ITEM.gold, 1, 3, 0.7); rein(ITEM.iron, 1, 5, 0.6); rein(ITEM.diamond, 1, 3, 0.25); rein(ITEM.feuerzeug, 1, 1, 0.3);
-  rein(B.OBSIDIAN, 2, 4, 0.25); rein(ITEM.gold_sword, 1, 1, 0.2); rein(ITEM.gold_chestplate, 1, 1, 0.15); rein(ITEM.netherziegel, 2, 8, 0.4);
+  // wie beim Vorbild: ein paar Züge aus einer gewichteten Liste — Gold am häufigsten, Diamanten selten
+  const TAFEL = [[ITEM.gold, 1, 3, 15], [ITEM.iron, 1, 5, 10], [ITEM.diamond, 1, 3, 5], [ITEM.gold_sword, 1, 1, 5], [ITEM.gold_chestplate, 1, 1, 5],
+    [ITEM.feuerzeug, 1, 1, 5], [B.OBSIDIAN, 2, 4, 3], [ITEM.netherziegel, 3, 8, 6], [ITEM.gold_helmet, 1, 1, 3], [ITEM.gold_boots, 1, 1, 3],
+    [ITEM.lohenrute, 1, 2, 3], [ITEM.coal, 2, 6, 6]].filter(e => e[0] !== undefined);
+  const summe = TAFEL.reduce((a, e) => a + e[3], 0);
+  for(let n = 3 + Math.floor(r()*4); n > 0; n--){
+    let w = r()*summe, e = TAFEL[0];
+    for(const f of TAFEL){ w -= f[3]; if(w < 0){ e = f; break; } }
+    rein(e[0], e[1], e[2]);
+  }
   return t;
 }
 

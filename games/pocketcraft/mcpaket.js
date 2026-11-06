@@ -64,7 +64,7 @@ MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.netherrack = 'block/nethe
 MC_TEX.i_feuerzeug = 'item/flint_and_steel';
 Object.assign(MC_TEX, { wirr_nyzel:'block/warped_nylium', wirr_nyzel_seite:'block/warped_nylium_side', wirr_stiel:{ p:'block/warped_stem', bild:0 },
   wirr_stiel_oben:'block/warped_stem_top', wirr_warze:'block/warped_wart_block', wirr_wurzeln:'block/warped_roots', wirr_pilz:'block/warped_fungus',
-  pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+  pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', feuer:{ p:'block/fire_0', bild:0 }, i_enderauge:'item/ender_eye', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < WATER_FRAMES; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
@@ -236,6 +236,7 @@ const McPaket = {
     }catch(e){}
     this._geladen = true;
     const s = Game.settings;
+    if(s.mcTexturen && this.texturen && !s.klassik) this.neuFragen();      // gleich fragen, nicht erst nach dem Umrechnen
     if(s.mcTexturen && this.texturen && !s.klassik){
       await this.texturenSetzen(true);
       if(!this.hatWesen()) setTimeout(() => hint('Minecraft-Paket: einmal neu laden, dann sehen auch Tiere, Hand und Inventar aus wie in Minecraft', 5200), 1500);
@@ -243,6 +244,31 @@ const McPaket = {
     else if(s.mcTexturen){ s.mcTexturen = false; Game.saveOpts(); }
     this.klaengeSetzen(!!s.mcKlaenge && !!this.klaenge);
     if(typeof Menue !== 'undefined' && Menue.aktiv === 'minecraft') this.zeigen();
+  },
+  /** Bilder, die Pocketcraft inzwischen aus der client.jar braucht, die beim
+      Laden des Pakets aber noch niemand gesucht hat (neue Blöcke, Wesen …) */
+  fehlende(){
+    const t = this.texturen;
+    if(!t) return [];
+    const g = new Set(t.gesucht || Object.keys(t.bilder).map(k => k.slice(0, -4)));
+    return mcBildPfade().filter(p => !g.has(p));
+  },
+  /** gleich nach dem Start, im Titelbild: neue Texturen laden? (einmal je Pocketcraft-Fassung) */
+  neuFragen(){
+    const s = Game.settings, f = this.fehlende();
+    if(!f.length || !s.mcTexturen || typeof Menue === 'undefined' || Game.running) return;
+    const sig = mcBildPfade().length + ':' + f.length;
+    if(s.mcNeuNein === sig) return;
+    this._neuSig = sig;
+    if(Menue.aktiv === 'titel') Menue.zeige('mcNeu');
+    else this._neuSpaeter = true;
+  },
+  neuLaden(){
+    Menue._mcZurueck = 'titel';
+    Menue.zeige('minecraft'); this.zeigen();
+    // von Mojang geht es von selbst; die eigene client.jar muss man noch einmal wählen
+    if(this.texturen && this.texturen.quelle === 'datei'){ this._status('Bitte deine client.jar noch einmal wählen — dann kommen die neuen Bilder dazu.'); $('#mcJarDatei').click(); }
+    else this.vonMojang();
   },
 
   /* — Texturen — */
@@ -478,7 +504,7 @@ const McPaket = {
       if(b) bilder[p + '.png'] = b;
       this._status('Texturen werden entpackt …', ++i/pfade.length);
     }
-    this.texturen = { version, quelle, zeit: Date.now(), bilder };
+    this.texturen = { version, quelle, zeit: Date.now(), bilder, gesucht: pfade };
     this._fertig = {}; this._pxCache = {}; this._wesenFertig = false;
     await McDB.set('texturen', this.texturen);
     return Object.keys(bilder).length;
@@ -597,6 +623,8 @@ const McPaket = {
       this.klaengeSetzen(Game.settings.mcKlaenge); Game.saveOpts(); this.zeigen();
     });
     knopf('#mcWeg', () => this.entfernen());
+    knopf('#mcNeuJa', () => this.neuLaden());
+    knopf('#mcNeuNein', () => { Game.settings.mcNeuNein = this._neuSig; Game.saveOpts(); Menue.zeige('titel'); });
     knopf('#mcFertig', () => {
       const z = Menue._mcZurueck || 'optionen'; Menue._mcZurueck = null;
       Menue.zeige(z); if(z === 'skins') Menue.skinsZeigen();

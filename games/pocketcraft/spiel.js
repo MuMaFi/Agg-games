@@ -29,7 +29,7 @@ const GOLEM_HAND = Object.freeze({ creative: false, golem: true });
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false, steuerung:'kreuz' },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), angriffT:10, lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -51,6 +51,7 @@ const Game = {
     // aus dem Netz kommt (Netz.eingehend), natürlich nicht zurück
     const setzen = w.setBlock.bind(w);
     // Wasser: jede Änderung meldet das Wasser daneben an (gerechnet wird nur beim Host)
+    w.feuer = new Map();
     w.stroemung = new Stroemung(w);
     w.stroemung.wegspuelen = (x, y, z, id) => {
       if(isWheat(id)) w.crops.delete(x + ',' + y + ',' + z);
@@ -83,6 +84,10 @@ const Game = {
       const ok = setzen(x, y, z, id, noSave);
       if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id, w.typ === 'nether' ? 1 : 0);
       if(ok && !Netz.istGast){ w.stroemung.melden(x, y, z); w.schaltung.melden(x, y, z, vorher, id); }
+      if(ok && (id === B.FEUER || vorher === B.FEUER)){
+        const k = x + ',' + y + ',' + z;
+        if(id === B.FEUER) w.feuer.set(k, 6 + Math.random()*10); else w.feuer.delete(k);
+      }
       // was nur dort geschieht, wo man selbst ist (der Host rechnet auch die andere Welt mit)
       const hier = w === this.world && !this._fremd;
       if(ok && hier && !Netz.istGast && isGeschnitzt(id) && !isGeschnitzt(vorher)) setTimeout(() => this.golemBauen(x, y, z), 0);
@@ -347,6 +352,23 @@ const Game = {
       [this.world, this.dim, this.mobs, this.drops, this.pfeile, this.wasser, this.schaltung, this.partikel, this._fremd, Sfx.stumm] = alt;
     }
   },
+  /** Feuer brennt ein paar Sekunden und geht aus — auf Netherrack brennt es
+      immer, ohne festen Block darunter sofort nicht mehr. Gemerkt wird es in
+      w.feuer ("x,y,z" → Sekunden); was nach dem Laden noch brennt, findet
+      sich beim ersten Blick in die Chunks (feuerSuchen). */
+  feuerBrennt(dt){
+    const w = this.world;
+    if(!w.feuer) return;
+    for(const [k, t] of w.feuer){
+      const [x, y, z] = k.split(',').map(Number);
+      if(w.getBlock(x, y, z) !== B.FEUER){ w.feuer.delete(k); continue; }
+      const unten = w.getBlock(x, y - 1, z);
+      if(!blocksMovement(unten)){ w.setBlock(x, y, z, B.AIR); continue; }
+      if(unten === B.NETHERRACK) continue;
+      const rest = t - dt;
+      if(rest <= 0) w.setBlock(x, y, z, B.AIR); else w.feuer.set(k, rest);
+    }
+  },
   /** Host: die andere Welt weiterrechnen, solange ein Gast dort ist */
   andereWeltRechnen(dt){
     if(!Netz.istHost) return;
@@ -354,7 +376,7 @@ const Game = {
     if(!Netz.bereiteGaeste().some(g => (g.dim || 'oben') === d)) return;
     this.inDim(d, () => {
       this.updateMobs(dt); this.updateDrops(dt); this.updatePfeile(dt);
-      this.tickFurnaces(dt); this.tickFelder(dt); this.spawnMobs(dt); if(d === 'oben') this.dorfLeben(dt);
+      this.tickFurnaces(dt); this.tickFelder(dt); this.spawnMobs(dt); this.feuerBrennt(dt); if(d === 'oben') this.dorfLeben(dt);
       this.wasser.tick(dt); this.schaltung.tick(dt);
       this._pruefAndere = (this._pruefAndere || 0) - dt;
       if(this._pruefAndere <= 0){ this._pruefAndere = 1; this.portalePruefen(); }
@@ -413,8 +435,17 @@ const Game = {
   /** mit dem Feuerzeug in einen Obsidianrahmen: ein Portal */
   zuenden(t){
     if(!t) return;
-    const w = this.world, q = this.portalRahmen(w, t.x + t.nx, t.y + t.ny, t.z + t.nz);
-    if(!q){ hint('Ein Netherportal braucht einen Rahmen aus Obsidian — innen mindestens 2 breit und 3 hoch', 3200); return; }
+    const w = this.world, fx = t.x + t.nx, fy = t.y + t.ny, fz = t.z + t.nz, q = this.portalRahmen(w, fx, fy, fz);
+    if(!q){
+      // kein Rahmen: Feuer, wo darunter etwas Festes ist und die Zelle frei
+      const da = w.getBlock(fx, fy, fz);
+      if(fy < 1 || fy >= WH - 1 || !(da === B.AIR || (blocks[da] && blocks[da].replaceable && !isWasser(da) && da !== B.LAVA))) return;
+      if(!blocksMovement(w.getBlock(fx, fy - 1, fz))) return;
+      w.setBlock(fx, fy, fz, B.FEUER);
+      Inv.damageHeld(1); this.player.swinging = true; this.player.swing = 0; HUD.refreshHotbar();
+      Sfx.play('kolben_raus', fx + .5, fy + .5, fz + .5);
+      return;
+    }
     w.portale.set(q.x + ',' + q.y + ',' + q.z, q);
     Netz.portalNeu(q, this.dim);
     Inv.damageHeld(1); this.player.swinging = true; this.player.swing = 0;
@@ -2212,6 +2243,7 @@ const Game = {
 
       // Physik — in Lava treiben sie wie im Wasser und verbrennen
       const inL = imLava(w, m);
+      if(!inL && !m.def.feuerfest && !m.def.golem && imFeuer(w, m)){ m.health -= dt*2; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
       if(inL && !m.def.golem && !m.def.feuerfest){ m.health -= dt*8; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
       const inW = imWasser(w, m) || inL;
       if(inW){ const zug = this.stroemungBei(m); m.vx += zug[0]*5*dt; m.vz += zug[2]*5*dt; }
@@ -2297,6 +2329,7 @@ const Game = {
     p.inWater = imWasser(w, p) || p.inLava;                     // Lava ist zäh: man schwimmt darin wie im Wasser, nur langsamer
     if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
     if(p.inLava && !p.creative && p.hurt(4, 'Du bist in Lava gefallen')){ this.hurtFlash = 1; Sfx.play('hurt'); }
+    if(!p.inLava && !p.creative && imFeuer(w, p) && p.hurt(1, 'Du bist verbrannt')){ this.hurtFlash = 1; Sfx.play('hurt'); }
     p.headInLava = w.getBlock(Math.floor(p.x), Math.floor(p.eyeY()), Math.floor(p.z)) === B.LAVA;
     {
       const ey = p.eyeY(), ky = Math.floor(ey), kopf = w.getBlock(Math.floor(p.x), ky, Math.floor(p.z));
@@ -2519,19 +2552,77 @@ const Input = {
     $('#btnPause').addEventListener('pointerdown', e => { e.preventDefault(); togglePause(); });
     $('#bettAuf').addEventListener('click', () => Game.aufstehen());
 
-    // Hotbar
+    // Hotbar: tippen wählt, lange drücken wirft weg (wie in Minecraft Pocket Edition), „…“ öffnet das Inventar
+    let wegT = null, wegId = null;
+    const wegAus = e => { if(e && e.pointerId !== wegId) return; clearTimeout(wegT); wegT = null; wegId = null; };
     $('#hotbar').addEventListener('pointerdown', e => {
       const s = e.target.closest('.slot'); if(!s) return;
-      e.preventDefault(); Inv.sel = +s.dataset.i; HUD.refreshHotbar(); showItemName();
+      e.preventDefault();
+      if(s.classList.contains('mehr')){ if(Screens.open) Screens.hide(); else Screens.oeffne('inv'); return; }
+      Inv.sel = +s.dataset.i; HUD.refreshHotbar(); showItemName();
+      if(e.pointerType === 'mouse') return;
+      wegAus(); wegId = e.pointerId;
+      const weiter = () => { if(!Inv.held()){ wegT = null; return; } dropHeld(); wegT = setTimeout(weiter, 160); };
+      wegT = setTimeout(weiter, 480);
     });
+    window.addEventListener('pointerup', wegAus); window.addEventListener('pointercancel', wegAus);
+
+    // Steuerkreuz: ein Finger, der von Pfeil zu Pfeil gleiten darf; Mitte schaltet Ducken um;
+    // zweimal kurz hintereinander vorwärts: sprinten
+    const dp = $('#dpad');
+    let dpId = null, vorEnde = 0, warVor = false;
+    const dpSetzen = e => {
+      const r = dp.getBoundingClientRect(), k = r.width/3;
+      const dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height/2);
+      let x = Math.abs(dx) > k/2 ? Math.sign(dx) : 0, z = Math.abs(dy) > k/2 ? Math.sign(dy) : 0;
+      if(z > 0) x = 0;                                     // rückwärts nur gerade, wie beim Vorbild
+      const vor = z < 0, jetzt = performance.now();
+      if(vor && !warVor && jetzt - vorEnde < 320) this.sprint = true;
+      if(!vor && warVor){ vorEnde = jetzt; this.sprint = false; }
+      warVor = vor;
+      const l = Math.hypot(x, z) || 1;
+      this.mx = x/l; this.mz = z/l;
+      dp.classList.toggle('vor', vor);
+      for(const d of dp.children){
+        const rr = d.dataset.r;
+        d.classList.toggle('on', (rr === 'vor' && vor && !x) || (rr === 'zurueck' && z > 0) || (rr === 'links' && x < 0 && !z) || (rr === 'rechts' && x > 0 && !z)
+          || (rr === 'vl' && vor && x < 0) || (rr === 'vr' && vor && x > 0) || (rr === 'mitte' && this.sneak));
+      }
+    };
+    dp.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if(dpId !== null) return;
+      const r = dp.getBoundingClientRect(), k = r.width/3;
+      const dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height/2);
+      if(Math.abs(dx) < k/2 && Math.abs(dy) < k/2){
+        this.sneak = !this.sneak;
+        dp.querySelector('[data-r=mitte]').classList.toggle('on', this.sneak);
+        return;
+      }
+      dpId = e.pointerId;
+      try{ dp.setPointerCapture(e.pointerId); }catch(_){}
+      dpSetzen(e);
+    });
+    dp.addEventListener('pointermove', e => { if(e.pointerId === dpId) dpSetzen(e); });
+    const dpAus = e => {
+      if(e.pointerId !== dpId) return;
+      dpId = null; this.mx = this.mz = 0;
+      if(warVor) vorEnde = performance.now();
+      warVor = false; this.sprint = false; dp.classList.remove('vor');
+      for(const d of dp.children) if(d.dataset.r !== 'mitte') d.classList.remove('on');
+    };
+    dp.addEventListener('pointerup', dpAus); dp.addEventListener('pointercancel', dpAus);
+    this.steuerungZeigen();
 
   },
 
-  zone(e){ return e.clientX < window.innerWidth*0.42 ? 'move' : 'look'; },
+  /** mit dem Steuerkreuz ist der ganze freie Bildschirm zum Umsehen da */
+  zone(e){ return Game.settings.steuerung !== 'kreuz' && e.clientX < window.innerWidth*0.42 ? 'move' : 'look'; },
+  steuerungZeigen(){ document.body.classList.toggle('kreuz', Game.settings.steuerung === 'kreuz'); },
   /** Berührungen auf echten Bedienelementen gehören diesen, nicht der Welt */
   onWidget(e){
     const t = e.target;
-    return !!(t && t.closest && t.closest('.tbtn, #hotbar, .screen, .mc-schirm, button, input'));
+    return !!(t && t.closest && t.closest('.tbtn, #dpad, #hotbar, .screen, .mc-schirm, button, input'));
   },
 
   down(e){
@@ -2711,6 +2802,7 @@ function frame(now){
     if(!Netz.istGast){
       Game.tickFurnaces(dt);
       Game.tickFelder(dt);
+      Game.feuerBrennt(dt);
       Game.spawnMobs(dt);
       Game.dorfLeben(dt);
       Game.wasser.tick(dt);

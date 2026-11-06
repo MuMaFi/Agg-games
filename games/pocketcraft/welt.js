@@ -324,7 +324,9 @@ class World{
     c.mods = m || null;
     if(c.dorfTruhen || c.dorfFelder) dorfNachbereiten(this, c);
     c.lights = [];
-    for(let i = 0; i < bl.length; i++){ const id = bl[i]; if(id && LEUCHTET[id]) c.lights.push(i); }
+    for(let i = 0; i < bl.length; i++){ const id = bl[i]; if(id && LEUCHTET[id]){ c.lights.push(i);
+      // Feuer aus einem Spielstand brennt weiter (und aus)
+      if(id === B.FEUER && this.feuer) this.feuer.set((c.cx*CS + (i & 15)) + ',' + (i >> 8) + ',' + (c.cz*CS + ((i >> 4) & 15)), 4 + Math.random()*6); } }
     // Wasser, das jemand gegossen hat oder das gerade floss, rechnet weiter —
     // etwa nach dem Laden, oder wenn man zurückkommt
     const ox = c.cx*CS, oz = c.cz*CS;

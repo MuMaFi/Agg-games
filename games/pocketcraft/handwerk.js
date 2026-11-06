@@ -209,6 +209,7 @@ function initRecipes(){
   formlos('stoffe', ITEM.string, 4, [WOLL]);
   formlos('werkzeug', ITEM.feuerzeug, 1, [ITEM.iron, ITEM.flint]);
   formlos('stoffe', ITEM.lohenstaub, 2, [ITEM.lohenrute]);
+  formlos('stoffe', ITEM.enderauge, 1, [ITEM.lohenstaub, ITEM.enderperle]);
   geformt('bauen', B.NETHERZIEGEL, 1, ['NN','NN'], {N:ITEM.netherziegel});
   formlos('stoffe', ITEM.bone_meal, 3, [ITEM.bone]);
   {
@@ -378,6 +379,7 @@ const HUD = {
   build(){
     const hb = $('#hotbar'); hb.innerHTML = '';
     for(let i=0;i<9;i++){ const s = el('div', 'slot'); s.dataset.i = i; hb.appendChild(s); }
+    { const m = el('div', 'slot mehr'); m.textContent = '…'; m.setAttribute('aria-label', 'Inventar'); hb.appendChild(m); }
     for(const [id, cls, n] of [['#hp','',10], ['#food','food',10], ['#airbar','air',10], ['#armor','arm',10]]){
       const c = $(id); c.innerHTML = '';
       for(let i=0;i<n;i++){ const p = el('i', 'pip' + (cls ? ' ' + cls : '')); c.appendChild(p); }
@@ -395,6 +397,9 @@ const HUD = {
       zeigeSlot(cell, Inv.slots[i]);
     }
     for(let i=0;i<9;i++) if(Inv.slots[i]) Inv.bekannt.add(Inv.slots[i].id);
+    // ESSEN gibt es nur, wenn man etwas Essbares hält
+    const h = Inv.held(), bm = document.getElementById('btnMode');
+    if(bm) bm.classList.toggle('zeigen', !!(h && items[h.id] && items[h.id].food));
   },
   refreshVitals(p){
     const set = (sel, val, maxPips, per) => {
