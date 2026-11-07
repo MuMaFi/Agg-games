@@ -386,7 +386,11 @@ function tuer(P, B0, u){
   P.put(u, B0.f + 2, 0, doorId(true, false, s));
 }
 const BETTFARBEN = [B.BED, bettId('gelb'), bettId('blau'), bettId('gruen'), bettId('weiss'), bettId('braun')];
-function bett(P, B0, u, v, k = 0){ P.put(u, B0.f + 1, v, BETTFARBEN[(B0.s0 + k) % BETTFARBEN.length]); }
+/** Bett wie beim Vorbild aus zwei Blöcken: das Kopfteil bei (u, v) an der Rückwand, davor das Fußteil mit der Farbe */
+function bett(P, B0, u, v, k = 0){
+  P.put(u, B0.f + 1, v, B.BETTKOPF);
+  P.put(u, B0.f + 1, v - 1, BETTFARBEN[(B0.s0 + k) % BETTFARBEN.length]);
+}
 
 function kleinesHaus(s, B0){
   const H = 3, P = rohbau(s, B0, H), { f } = B0;

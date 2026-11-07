@@ -704,5 +704,12 @@ pruef(T(`(() => { const e = new World('abc:ende', 2, 'ende'), c = e.ensureChunk(
 pruef(T(`DIMS.join() === 'oben,nether,ende' && dimVonWelt(new World('a:ende', 2, 'ende')) === 'ende' && B.DRACHENEI < BMAX && MOBS.drache.health === 200
   && MOBS.drache.parts.every(p => TEX[p.tex] !== undefined) && MOBS.kristall.statisch && TEX.endportal < 256 && TEX.endrahmen_auge < 256
   && blocks[B.ENDPORTAL].solid === false && blocks[B.ENDRAHMEN].hardness < 0 && WESEN_NAMEN.enderdrache === 'drache'`), 'End-Blöcke, Drache und Kristall');
+pruef(T(`(() => { const w = new World('dorftest', 2, 'normal', true, true); let d = null;
+  for(let r = 0; r < 8 && !d; r++) for(let rx = -r; rx <= r && !d; rx++) for(let rz = -r; rz <= r && !d; rz++) d = dorfImFeld(w, rx, rz);
+  for(let cx = d.box[0] >> 4; cx <= d.box[2] >> 4; cx++) for(let cz = d.box[1] >> 4; cz <= d.box[3] >> 4; cz++) w.ensureChunk(cx, cz);
+  let n = 0, allein = 0;
+  for(let x = d.box[0]; x <= d.box[2]; x++) for(let z = d.box[1]; z <= d.box[3]; z++) for(let y = 20; y < 90; y++){ const id = w.getBlock(x, y, z);
+    if(!isBett(id)) continue; n++; if(bettPartner((a, b, c) => w.getBlock(a, b, c), x, y, z, id) < 0) allein++; }
+  return n >= 4 && allein === 0; })()`), 'Dörfer: Betten aus Kopf- und Fußteil, jedes mit Partner');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

@@ -2949,6 +2949,12 @@ const Input = {
     if(dn && k === 'e') Screens.oeffne('inv');
     if(dn && k === 'f3'){ Game.settings.debug = !Game.settings.debug; $('#dbg').classList.toggle('on', Game.settings.debug); Game.saveOpts(); e.preventDefault(); }
     if(dn && k === 'f' && Game.player && Game.player.creative) Game.player.flying = !Game.player.flying;
+    // zweimal kurz hintereinander Leertaste: im Kreativmodus fliegen (und wieder landen) wie beim Vorbild
+    if(dn && k === ' ' && !e.repeat && Game.player && Game.player.creative){
+      const jetzt = e.timeStamp || performance.now();             // wann gedrückt wurde, nicht wann es ankam
+      if(jetzt - (this._leerT || 0) < 320){ Game.player.flying = !Game.player.flying; this._leerT = 0; Game.player.vy = 0; }
+      else this._leerT = jetzt;
+    }
     if(dn && k === 'q') dropHeld();
     if(k === ' ') e.preventDefault();
     this.jump = !!(this.keys[' ']);
@@ -3176,8 +3182,8 @@ function wireSpiel(){
   window.addEventListener('resize', () => Screens.masse());
   // Doppel-Tipp auf Sprung = fliegen (Kreativ)
   let lastJump = 0;
-  $('#btnJump').addEventListener('pointerdown', () => {
-    const n = performance.now();
+  $('#btnJump').addEventListener('pointerdown', e => {
+    const n = e.timeStamp || performance.now();
     if(Game.player && Game.player.creative && n - lastJump < 320) Game.player.flying = !Game.player.flying;
     lastJump = n;
     if(Game.player) $('#btnUp').style.display = Game.player.flying ? 'grid' : 'none';
