@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Burnline hört über das Mikrofon mit, damit die Visuals auf Musik im Raum reagieren.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Burnline schneidet den Systemton mit, damit die Visuals auf Spotify, Apple Music und Co. reagieren.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Burnline nutzt keine Kamera.</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>

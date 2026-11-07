@@ -835,13 +835,15 @@ async function startStream(kind){
     stopAll(); stream=s; streamNode=actx.createMediaStreamSource(s); streamNode.connect(micBus);
     s.getTracks().forEach(t=>t.addEventListener('ended',()=>{ if(stream===s){ srcMode='none'; $('#start').hidden=false; } }));
     began(kind, kind==='mic'?'MIKROFON':'TAB-AUDIO');
-  }catch(e){ msg(kind==='mic'?'Kein Zugriff aufs Mikrofon. Hier ist es gesperrt oder wurde abgelehnt. Datei oder Demo gehen immer.':'Tab-Audio wurde nicht freigegeben.'); }
+  }catch(e){ msg(kind==='mic'?'Kein Zugriff aufs Mikrofon. Hier ist es gesperrt oder wurde abgelehnt. Datei oder Demo gehen immer.':(IS_APP?'System-Audio geht nicht. Prüfe Systemeinstellungen → Datenschutz → Bildschirm- und Systemaudioaufnahme.':'Tab-Audio wurde nicht freigegeben.')); }
 }
 $('#bDemo').onclick=startDemo;
 $('#file').onchange=e=>startFile(e.target.files[0]);
 $('#bMic').onclick=()=>startStream('mic');
 if(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ $('#bTab').hidden=false; $('#bTab').onclick=()=>startStream('tab'); }
 if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) $('#bMic').hidden=true;
+const IS_APP=/Electron/.test(navigator.userAgent);
+if(IS_APP){ $('#bTab').innerHTML='SYSTEM-AUDIO<small>Spotify, Apple Music &amp; Co. direkt vom Mac</small>'; }
 
 function togglePlay(){
   if(srcMode==='file'){ audioEl.paused?audioEl.play():audioEl.pause(); }
