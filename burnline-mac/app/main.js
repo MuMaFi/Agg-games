@@ -35,7 +35,7 @@ app.whenReady().then(async () => {
   // Video-Export: „Speichern unter“, startet im Filme-Ordner, zeigt die Datei danach im Finder
   ipcMain.handle('save-video', async (e, name, buffer) => {
     const win = BrowserWindow.fromWebContents(e.sender);
-    const r = await dialog.showSaveDialog(win, { title: 'Video speichern', defaultPath: path.join(app.getPath('videos'), name) });
+    const r = await dialog.showSaveDialog(win, { title: 'Save Video', defaultPath: path.join(app.getPath('videos'), name) });
     if (r.canceled || !r.filePath) return false;
     await fs.promises.writeFile(r.filePath, Buffer.from(buffer));
     shell.showItemInFolder(r.filePath);
@@ -45,14 +45,14 @@ app.whenReady().then(async () => {
 
   const template = [
     { label: 'Burnline', submenu: [
-      { role: 'about', label: 'Über Burnline' }, { type: 'separator' },
-      { role: 'hide', label: 'Burnline ausblenden' }, { role: 'hideOthers', label: 'Andere ausblenden' }, { type: 'separator' },
-      { role: 'quit', label: 'Burnline beenden' } ] },
-    { label: 'Ablage', submenu: [ { role: 'close', label: 'Fenster schließen' } ] },
-    { label: 'Darstellung', submenu: [
-      { role: 'togglefullscreen', label: 'Vollbild' }, { role: 'reload', label: 'Neu laden' },
-      { role: 'toggleDevTools', label: 'Entwicklerwerkzeuge' } ] },
-    { label: 'Fenster', submenu: [ { role: 'minimize', label: 'Im Dock ablegen' }, { role: 'zoom', label: 'Zoomen' } ] }
+      { role: 'about', label: 'About Burnline' }, { type: 'separator' },
+      { role: 'hide', label: 'Hide Burnline' }, { role: 'hideOthers', label: 'Hide Others' }, { type: 'separator' },
+      { role: 'quit', label: 'Quit Burnline' } ] },
+    { label: 'File', submenu: [ { role: 'close', label: 'Close Window' } ] },
+    { label: 'View', submenu: [
+      { role: 'togglefullscreen', label: 'Toggle Full Screen' }, { role: 'reload', label: 'Reload' },
+      { role: 'toggleDevTools', label: 'Developer Tools' } ] },
+    { label: 'Window', submenu: [ { role: 'minimize', label: 'Minimize' }, { role: 'zoom', label: 'Zoom' } ] }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   createWindow();

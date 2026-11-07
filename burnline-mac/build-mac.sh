@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 rm -rf out dist && mkdir -p dist
-for ARCH in arm64 x64; do
+for ARCH in ${ARCHS:-arm64}; do
   npx @electron/packager . Burnline --platform=darwin --arch=$ARCH --out=out --overwrite \
     --icon=icon/Burnline.icns --app-bundle-id=de.mumafi.burnline --app-version=1.0.0 \
     --app-category-type=public.app-category.music --ignore='^/(out|dist|icon|node_modules|build-mac\.sh|prepare\.js|README\.md|extend-info\.plist|\.gitignore|package-lock\.json)' \

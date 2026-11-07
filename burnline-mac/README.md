@@ -8,7 +8,7 @@ Knopf für **System-Audio** (Spotify, Apple Music & Co. direkt mitschneiden).
 
 1. Die passende ZIP entpacken:
    - `Burnline-mac-arm64.zip` für Macs mit Apple-Chip (M1, M2, M3, M4 …)
-   - `Burnline-mac-x64.zip` für ältere Macs mit Intel-Chip
+   - `Burnline-mac-x64.zip` für ältere Macs mit Intel-Chip (bauen mit `ARCHS="arm64 x64" npm run build:mac`)
 2. `Burnline.app` in den Ordner **Programme** ziehen.
 3. Einmal im Terminal ausführen (die App ist nicht bei Apple notariell beglaubigt):
 

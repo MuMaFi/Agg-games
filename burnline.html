@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Burnline</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Burnline – Analog-Trap Musik-Visualizer: 808, Tape, VHS und 8-Bit.">
+<meta name="description" content="Burnline – analog trap music visualizer: 808, tape, VHS and 8-bit.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
@@ -93,68 +93,98 @@
   #recBadge button{font-size:18px;padding:5px 10px;}
   @keyframes blink{50%{opacity:0;}}
   @media (prefers-reduced-motion: reduce){ #recBadge .dot{animation:none;} }
+  .plb,.plb2{display:none;}
+  body.haspl .plb, body.isfile .plb2{display:inline-block;}
+  #pl{position:fixed;top:0;right:0;bottom:0;z-index:6;width:min(380px,100%);display:flex;flex-direction:column;gap:10px;
+    background:var(--glass);border-left:1px solid var(--line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    padding-top:max(16px, env(safe-area-inset-top, 0px));padding-bottom:max(16px, env(safe-area-inset-bottom, 0px));
+    padding-left:16px;padding-right:max(16px, env(safe-area-inset-right, 0px));}
+  .plhead{display:flex;align-items:center;gap:8px;font-size:20px;color:var(--smoke);letter-spacing:.04em;}
+  .plhead span{flex:1;min-width:0;}
+  .small{font-size:18px !important;padding:5px 9px !important;}
+  #plList{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;display:grid;align-content:start;gap:2px;}
+  #plList li{display:flex;align-items:center;gap:6px;}
+  #plList .t{flex:1;min-width:0;display:flex;gap:10px;align-items:baseline;text-align:left;border-color:transparent;padding:7px 8px;font-size:20px;}
+  #plList .t .n{color:var(--smoke);font-variant-numeric:tabular-nums;width:2.2ch;flex:none;}
+  #plList .t .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #plList .t .d{color:var(--smoke);font-variant-numeric:tabular-nums;flex:none;}
+  #plList li.cur .t{border-color:var(--ember);color:#fff;background:rgba(255,255,255,.04);}
+  #plList li.cur .n{color:var(--ember-hot);}
+  #plList .ic{font-size:18px;padding:5px 8px;border-color:transparent;color:var(--smoke);}
+  #plList .ic:hover{color:var(--bone);}
   #drop{position:fixed;inset:0;z-index:6;display:grid;place-items:center;pointer-events:none;opacity:0;
     font-family:var(--f-game);font-size:clamp(14px,3vw,22px);background:rgba(160,20,15,.35);transition:opacity .2s;}
   #drop.on{opacity:1;}
   body.hidecursor{cursor:none;}
 </style>
 
-<canvas id="gl" aria-label="Musik-Visualizer"></canvas>
+<canvas id="gl" aria-label="Music visualizer"></canvas>
 
 <div id="start">
   <div class="deck" role="dialog" aria-labelledby="ttl">
     <h1 id="ttl">BURNLINE</h1>
-    <p class="tag">Analog-Trap Visualizer · 808 · Tape · 8-Bit</p>
+    <p class="tag">Analog trap visualizer · 808 · Tape · 8-bit</p>
     <div class="src">
-      <button class="main" id="bDemo">▶ DEMO-BEAT STARTEN<small>Eingebauter Analog-Trap-Beat, 140 BPM, f-Moll</small></button>
-      <label class="btn" for="file">DATEI LADEN<small>MP3, WAV, M4A … oder reinziehen</small><input type="file" id="file" accept="audio/*,video/*"></label>
-      <button id="bMic">MIKROFON<small>Live-Musik im Raum</small></button>
-      <button id="bTab" hidden>TAB-AUDIO<small>Spotify/YouTube-Tab mitschneiden</small></button>
+      <button class="main" id="bDemo">▶ PLAY DEMO BEAT<small>Built-in analog trap beat, 140 BPM, F minor</small></button>
+      <label class="btn" for="file">LOAD SONGS<small>One song or a whole album, or drag them in</small><input type="file" id="file" accept="audio/*,video/*" multiple></label>
+      <button id="bMic">MICROPHONE<small>Live music in the room</small></button>
+      <button id="bTab" hidden>TAB AUDIO<small>Capture a Spotify or YouTube tab</small></button>
     </div>
-    <div class="palrow"><span>FARBE</span><div class="pals" id="pals1"></div></div>
+    <div class="palrow"><span>COLOR</span><div class="pals" id="pals1"></div></div>
     <p id="msg" role="status"></p>
     <div class="foot">
-      <span><kbd>Leertaste</kbd> Pause · <kbd>1</kbd>–<kbd>5</kbd> Szene · <kbd>A</kbd> Auto · <kbd>C</kbd> Farbe · <kbd>M</kbd> Farbwechsel bei Drops · <kbd>H</kbd> HUD · <kbd>R</kbd> Video · <kbd>F</kbd> Vollbild · <kbd>S</kbd> weniger Blitze</span>
-      <span>Enthält schnelle Lichtblitze. Mit <kbd>S</kbd> abschwächen.</span>
+      <span><kbd>Space</kbd> Pause · <kbd>1</kbd>–<kbd>5</kbd> Scene · <kbd>A</kbd> Auto · <kbd>C</kbd> Color · <kbd>M</kbd> Color change on drops · <kbd>H</kbd> HUD · <kbd>R</kbd> Video · <kbd>L</kbd> Playlist · <kbd>N</kbd>/<kbd>P</kbd> Next/previous song · <kbd>F</kbd> Fullscreen · <kbd>S</kbd> Fewer flashes</span>
+      <span>Contains fast flashing lights. Press <kbd>S</kbd> to tone them down.</span>
     </div>
   </div>
 </div>
 
 <div id="bar" class="off">
-  <button id="bPlay" aria-label="Abspielen oder pausieren">❚❚</button>
+  <button id="bPrev" class="plb" aria-label="Previous song">⏮</button>
+  <button id="bPlay" aria-label="Play or pause">❚❚</button>
+  <button id="bNext" class="plb" aria-label="Next song">⏭</button>
   <div id="seekWrap"><span id="tcur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position"><span id="tdur">0:00</span></div>
   <span id="tname"></span>
   <div class="chs" id="chs"></div>
   <div class="pals" id="pals2"></div>
-  <button id="bMix" aria-pressed="false" title="Farbe bei jedem Drop wechseln">MIX</button>
+  <button id="bMix" aria-pressed="false" title="Change color on every drop">MIX</button>
   <button id="bAuto" aria-pressed="true">AUTO</button>
   <button id="bHud" aria-pressed="true">HUD</button>
-  <button id="bRec" title="Video exportieren (R)">● REC</button>
-  <button id="bSrc">QUELLE</button>
-  <button id="bFs" aria-label="Vollbild">⛶</button>
+  <button id="bList" class="plb2" aria-pressed="false" title="Playlist (L)">LIST</button>
+  <button id="bRec" title="Export video (R)">● REC</button>
+  <button id="bSrc">SOURCE</button>
+  <button id="bFs" aria-label="Fullscreen">⛶</button>
 </div>
-<div id="drop">DATEI LOSLASSEN</div>
+<div id="drop">DROP FILES</div>
+<aside id="pl" hidden aria-label="Playlist">
+  <div class="plhead"><span id="plSum">PLAYLIST</span>
+    <label class="btn small" for="fileAdd">+ SONGS<input type="file" id="fileAdd" accept="audio/*,video/*" multiple></label>
+    <button id="plX" class="small" aria-label="Close playlist">✕</button></div>
+  <ol id="plList"></ol>
+  <p class="note">Click a song to play it. Playback stops after the last song.</p>
+</aside>
 <div id="exp" hidden>
   <div class="deck" role="dialog" aria-labelledby="expT">
-    <h2 id="expT">VIDEO EXPORTIEREN</h2>
+    <h2 id="expT">EXPORT VIDEO</h2>
     <div class="opt"><span>FORMAT</span>
       <div class="seg" id="expFmt">
         <button data-v="16:9" aria-pressed="true">16:9<small>1920×1080 · YouTube</small></button>
         <button data-v="9:16" aria-pressed="false">9:16<small>1080×1920 · TikTok, Reels</small></button>
         <button data-v="1:1" aria-pressed="false">1:1<small>1080×1080 · Instagram</small></button>
       </div></div>
-    <div class="opt"><span>LÄNGE</span>
+    <div class="opt"><span>LENGTH</span>
       <div class="seg" id="expLen">
-        <button data-v="song" aria-pressed="true">GANZER SONG<small>von vorne bis zum Ende</small></button>
-        <button data-v="manual" aria-pressed="false">BIS ICH STOPPE<small>mit STOP oder Taste R</small></button>
+        <button data-v="song" aria-pressed="true">CURRENT SONG<small>from start to finish</small></button>
+        <button data-v="album" aria-pressed="false">WHOLE PLAYLIST<small>all songs in one go</small></button>
+        <button data-v="manual" aria-pressed="false">UNTIL I STOP<small>with STOP or the R key</small></button>
       </div></div>
-    <div class="opt"><span>HUD IM VIDEO</span>
+    <div class="opt"><span>HUD IN VIDEO</span>
       <div class="seg" id="expHud">
-        <button data-v="on" aria-pressed="true">AN<small>Zeitcode, BPM, Score</small></button>
-        <button data-v="off" aria-pressed="false">AUS<small>nur die Visuals</small></button>
+        <button data-v="on" aria-pressed="true">ON<small>Timecode, BPM, score</small></button>
+        <button data-v="off" aria-pressed="false">OFF<small>Visuals only</small></button>
       </div></div>
     <p class="note" id="expNote"></p>
-    <div class="row"><button class="main" id="expGo">● AUFNAHME STARTEN</button><button id="expX">ABBRECHEN</button></div>
+    <div class="row"><button class="main" id="expGo">● START RECORDING</button><button id="expX">CANCEL</button></div>
   </div>
 </div>
 <div id="recBadge" hidden><span class="dot">●</span> REC <span id="recT">0:00</span><button id="recStop">STOP</button></div>
@@ -173,7 +203,7 @@ const $ = s => document.querySelector(s);
 const canvas = $('#gl');
 const gl = canvas.getContext('webgl2', {antialias:false, alpha:false, depth:false, stencil:false, powerPreference:'high-performance'});
 const msg = t => { $('#msg').textContent = t || ''; };
-if (!gl) { msg('Dein Browser kann kein WebGL2. Probier Chrome, Edge, Firefox oder Safari 15+.'); throw new Error('no webgl2'); }
+if (!gl) { msg('Your browser does not support WebGL2. Try Chrome, Edge, Firefox or Safari 15+.'); throw new Error('no webgl2'); }
 const halfOK = !!gl.getExtension('EXT_color_buffer_float');
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -181,16 +211,16 @@ let strobeSafe = reduceMotion;
 
 /* ---------------- Szenen ---------------- */
 const SCENES = [
-  {name:'GRAT',     decay:.50, zoom:.0,   rot:.0,  lift:0, soft:.05},
-  {name:'STADT',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.04},
-  {name:'TUNNEL',   decay:.62, zoom:.006, rot:.0,  lift:0, soft:.03},
-  {name:'KERN',     decay:.55, zoom:.002, rot:1.,  lift:0, soft:.04},
+  {name:'RIDGE',     decay:.50, zoom:.0,   rot:.0,  lift:0, soft:.05},
+  {name:'CITY',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.04},
+  {name:'PULSE',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.03},
+  {name:'CORE',     decay:.32, zoom:.0,   rot:.0,  lift:0, soft:.04},
   {name:'PHOSPHOR', decay:.93, zoom:.011, rot:1.,  lift:0, soft:.04},
 ];
 const PALS = [
-  {name:'GLUT',   c:[[.20,.008,.015],[.78,.05,.035],[1,.40,.11],[1,.93,.84]]},
-  {name:'EIS',    c:[[.0,.035,.11],[.04,.33,.85],[.35,.85,1],[.92,.98,1]]},
-  {name:'GIFT',   c:[[.0,.09,.03],[.12,.6,.1],[.62,1,.22],[.95,1,.85]]},
+  {name:'EMBER',   c:[[.20,.008,.015],[.78,.05,.035],[1,.40,.11],[1,.93,.84]]},
+  {name:'ICE',    c:[[.0,.035,.11],[.04,.33,.85],[.35,.85,1],[.92,.98,1]]},
+  {name:'TOXIC',   c:[[.0,.09,.03],[.12,.6,.1],[.62,1,.22],[.95,1,.85]]},
   {name:'ULTRA',  c:[[.09,.0,.17],[.55,.05,.75],[1,.25,.65],[1,.88,.95]]},
   {name:'GOLD',   c:[[.11,.045,.0],[.62,.3,.02],[1,.74,.2],[1,.97,.85]]},
   {name:'NEON',   c:[[.05,.0,.14],[.85,.08,.55],[.1,.9,1],[1,1,1]]},
@@ -336,40 +366,58 @@ vec3 sceneStadt(vec2 p){
   }
   return col; }
 
-/* ---- 3: TUNNEL — Flug durch Blockwände ---- */
-float tunExt(vec3 c){
-  float age=clamp((c.z-uTravel)/48.,0.,1.);
-  float a=atan(c.y+.5,c.x+.5);
-  float v=hist(abs(a)/PI*.75+.02, age);
-  return floor(v*v*4.6);
+/* ---- 3: PULSE — Schockwellen-Feld: Winkel = Frequenz, Abstand = Alter ---- */
+float pulseH(vec2 c){
+  vec2 q=c+.5; float r=length(q);
+  if(r>44.) return 0.;
+  if(r<2.3) return floor((1.5+uSub*5.+uKick*2.)*2.)/2.;
+  float f=abs(atan(q.y,q.x))/PI;
+  float v=histK(f*.72+.02, floor(r*1.4));
+  return floor(pow(v,1.6)*8.5*(1.-r/52.)*2.)/2.;
 }
-vec3 sceneTunnel(vec2 p){
-  float t=uTime, cm=mod(uCam,3.);
-  vec3 ro=vec3(sin(t*.5)*1.1, cos(t*.37)*1.1, uTravel);
-  vec3 look=cm<.5 ? vec3(sin(t*.3)*.3,cos(t*.25)*.3,1.) : cm<1.5 ? vec3(.45,.1,1.) : vec3(-.2,-.35,1.);
-  float roll=uSpin*.5+(cm>1.5?t*.25:sin(t*.2)*.25);
-  vec3 rd=safeDir(normalize(camM(ro,ro+look,roll)*vec3(p,1.1)));
-  vec3 cell=floor(ro), stp=sign(rd), tD=abs(1./rd), tM=((cell+max(stp,0.))-ro)/rd;
-  vec3 n=vec3(0.); float th=-1., tE=0.;
-  for(int i=0;i<96;i++){
-    if(max(abs(cell.x+.5),abs(cell.y+.5))>6.5-tunExt(cell)){ th=tE; break; }
-    if(tM.x<tM.y && tM.x<tM.z){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
-    else if(tM.y<tM.z){ tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,-stp.y,0.); }
-    else { tE=tM.z; tM.z+=tD.z; cell.z+=stp.z; n=vec3(0.,0.,-stp.z); }
+vec3 scenePulse(vec2 p){
+  float t=uTime, cm=mod(uCam,3.), a=t*.07+uSpin*.3;
+  vec3 ro, ta; float lens=1.3, roll=0.;
+  if(cm<.5){ ro=vec3(sin(a)*31.,10.+sin(t*.2)*2.,cos(a)*31.); ta=vec3(0.,1.,0.); }
+  else if(cm<1.5){ ro=vec3(sin(a)*7.,44.,cos(a)*7.); ta=vec3(0.); lens=1.1; roll=t*.05; }
+  else { ro=vec3(sin(a*.6)*24.,8.5+uBass*.6,cos(a*.6)*24.); ta=vec3(0.,1.5,0.); lens=1.05; roll=sin(t*.3)*.06; }
+  ro.y+=uKick*.35;
+  vec3 rd=safeDir(normalize(camM(ro,ta,roll)*vec3(p,lens)));
+  vec3 col=mix(uPal[0]*.3, vec3(0.), clamp(rd.y*2.,0.,1.));
+  col+=ember(.55)*exp(-abs(rd.y)*14.)*(.15+uBass*.5);
+  col+=stars(rd)*step(.04,rd.y);
+  vec2 cell=floor(ro.xz), d2=rd.xz, stp=sign(d2), tD=abs(1./d2), tM=((cell+max(stp,0.))-ro.xz)/d2;
+  float tE=0., th=-1., hh=0.; vec3 n=vec3(0.,1.,0.); vec2 hc=cell;
+  for(int i=0;i<150;i++){
+    float h=pulseH(cell);
+    float tX=min(tM.x,tM.y);
+    if(ro.y+rd.y*tE<h){ th=tE; hh=h; hc=cell; break; }
+    if(rd.y<0. && ro.y+rd.y*tX<h){ th=(h-ro.y)/rd.y; n=vec3(0.,1.,0.); hh=h; hc=cell; break; }
+    if(tM.x<tM.y){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
+    else { tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,0.,-stp.y); }
+    if(tE>120.) break;
   }
-  vec3 col=uPal[0]*.04;
   if(th>0.){
     vec3 pos=ro+rd*th;
-    float ext=tunExt(cell);
-    float e=faceEdge(pos,n);
-    float ring=step(mod(cell.z,8.),.5);
-    float diff=.35+.65*abs(dot(n,normalize(vec3(.3,.6,-.7))));
-    vec3 c=ember(.2+ext*.15)*diff*(.55+.45*e)+ember(.86)*e*(ext/4.)*.85;
-    c+=ember(.72)*ring*(.25+uKick*1.6)*(.4+e);
-    if(abs(n.z)>.5 && ext>0.) c+=ember(.55+ext*.1)*.35;
-    col=mix(col,c,exp(-th*.055));
+    float r=length(hc+.5);
+    float lvl=clamp(hh/6.,0.,1.);
+    vec3 c;
+    if(hh<.01){
+      vec2 g=abs(fract(pos.xz)-.5);
+      float line=smoothstep(.44,.5,max(g.x,g.y));
+      float ring=smoothstep(.6,0.,abs(fract(r/8.-t*.15)-.5)*8.);
+      c=uPal[0]*.1+ember(.55)*line*(.08+uKick*.5)*step(r,44.)+ember(.6)*ring*.08;
+    } else if(n.y>.5){
+      float e=faceEdge(pos,n);
+      c=ember(.28+lvl*.62)*(.5+.5*e)+ember(.95)*e*lvl*.6;
+      if(r<2.3) c=ember(.85+uKick*.15)*(.8+e*.4);
+    } else {
+      float e=faceEdge(pos,n);
+      float band=smoothstep(.1,0.,hh-pos.y);
+      c=ember(.14+lvl*.32)*(.35+.25*abs(n.x))*(.6+.4*e)+ember(.9)*band*(.5+uKick*.7);
+    }
+    col=mix(col,c,exp(-th*.022));
   }
-  col+=ember(.9)*exp(-length(p)*7.)*(.1+uSub*.6);
   return col; }
 
 /* ---- 4: KERN — Voxel-Planet mit Spektrogramm-Haut ---- */
@@ -389,12 +437,23 @@ bool kernFill(vec3 c){
   return r<kernR(q);
 }
 vec3 sceneKern(vec2 p){
-  float t=uTime, cm=mod(uCam,3.);
-  float a=t*.12+uSpin;
-  float dist=cm<.5?40.:cm<1.5?38.:50.;
-  float el=cm<.5?9.:cm<1.5?-10.:22.;
-  vec3 ro=vec3(sin(a)*dist, el+uKick*.4, cos(a)*dist);
-  vec3 rd=safeDir(normalize(camM(ro,vec3(0.),.15*sin(t*.2))*vec3(p,1.5)));
+  float t=uTime, cm=mod(uCam,4.);
+  float a=t*.1+uSpin;
+  vec3 ro, ta=vec3(0.); float lens=1.5, roll=.12*sin(t*.2);
+  if(cm<.5){ // langsame Umkreisung, leicht von oben
+    ro=vec3(sin(a)*36.,8.+sin(t*.15)*4.,cos(a)*36.); }
+  else if(cm<1.5){ // Tiefflug knapp über der Oberfläche, Ring als Bogen am Himmel
+    float b=t*.16+uSpin;
+    vec3 rad=vec3(sin(b),0.,cos(b)), tan=vec3(cos(b),0.,-sin(b));
+    ro=rad*21.+vec3(0.,4.+sin(t*.4)*1.5,0.);
+    ta=ro-rad*10.+tan*4.2+vec3(0.,-2.6,0.); lens=1.; roll=-.2; }
+  else if(cm<2.5){ // Draufsicht über dem Pol, Ring als ganzer Kreis
+    ro=vec3(sin(a)*6.,46.,cos(a)*6.); lens=1.25; roll=t*.08; }
+  else { // Kamerafahrt rein und raus
+    float d=40.+sin(t*.35)*16.;
+    ro=vec3(sin(a*1.4)*d,-6.+sin(t*.25)*10.,cos(a*1.4)*d); lens=1.35; }
+  ro.y+=uKick*.4;
+  vec3 rd=safeDir(normalize(camM(ro,ta,roll)*vec3(p,lens)));
   vec3 col=uPal[0]*.25*exp(-length(p)*2.)+stars(rd);
   float b=dot(ro,rd), cc=dot(ro,ro)-18.5*18.5, disc=b*b-cc;
   if(disc>0.){
@@ -483,7 +542,7 @@ void main(){
   vec3 cur;
   if(uScene==0) cur=sceneGrat(uv);
   else if(uScene==1) cur=sceneStadt(p);
-  else if(uScene==2) cur=sceneTunnel(p);
+  else if(uScene==2) cur=scenePulse(p);
   else if(uScene==3) cur=sceneKern(p);
   else cur=sceneScope(p);
   cur+=embers(uv);
@@ -543,13 +602,13 @@ void main(){
 
 function compile(type, src){
   const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ const e=gl.getShaderInfoLog(s); console.error(e); msg('Shader-Fehler: '+e.slice(0,160)); throw new Error(e); }
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ const e=gl.getShaderInfoLog(s); console.error(e); msg('Shader error: '+e.slice(0,160)); throw new Error(e); }
   return s; }
 function program(fs){
   const p=gl.createProgram();
   gl.attachShader(p,compile(gl.VERTEX_SHADER,VS)); gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs));
   gl.bindAttribLocation(p,0,'p'); gl.linkProgram(p);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ const e=gl.getProgramInfoLog(p); msg('Link-Fehler: '+e); throw new Error(e); }
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ const e=gl.getProgramInfoLog(p); msg('Link error: '+e); throw new Error(e); }
   const u={}; const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);
   for(let i=0;i<n;i++){ const inf=gl.getActiveUniform(p,i); u[inf.name.replace(/\[0\]$/,'')]=gl.getUniformLocation(p,inf.name); }
   return {p,u}; }
@@ -654,7 +713,7 @@ const ease=(cur,tgt,up,down,dt)=>cur+(tgt-cur)*(1-Math.exp(-dt*(tgt>cur?up:down)
 const kickTimes=[], hatTimes=[], onTimes=[];
 function pushOn(t,w){ onTimes.push([t,w]); while(onTimes.length && t-onTimes[0][0]>6) onTimes.shift(); }
 const specCur=new Float32Array(NB), specPk=new Float32Array(NB), specVel=new Float32Array(NB), specSlow=new Float32Array(NB);
-const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','H'];
+const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
 function bandE(r){ let s=0; for(let i=r[0];i<r[1];i++) s+=mag[i]; return s/(r[1]-r[0]); }
 function bandF(r){ let s=0; for(let i=r[0];i<r[1];i++){ const d=mag[i]-prevMag[i]; if(d>0) s+=d; } return s/(r[1]-r[0]); }
@@ -769,7 +828,7 @@ function setMix(v){ palMix=v; $('#bMix').setAttribute('aria-pressed',v?'true':'f
 function updPal(dt){ const tg=PALS[palIdx].c, k=1-Math.exp(-dt*4);
   for(let i=0;i<4;i++) for(let j=0;j<3;j++){ palCur[i][j]+=(tg[i][j]-palCur[i][j])*k; palFlat[i*3+j]=palCur[i][j]; } }
 ['#pals1','#pals2'].forEach(sel=>{ const box=$(sel); PALS.forEach((pl,i)=>{ const b=document.createElement('button'); b.dataset.i=i;
-  b.title=pl.name; b.setAttribute('aria-label','Farbe '+pl.name);
+  b.title=pl.name; b.setAttribute('aria-label','Color '+pl.name);
   b.style.background=`linear-gradient(135deg, ${rgb(pl.c[0])} 0%, ${rgb(pl.c[1])} 35%, ${rgb(pl.c[2])} 70%, ${rgb(pl.c[3])} 100%)`;
   b.onclick=()=>{ setPal(i); banner={text:pl.name,t:performance.now()/1000}; }; box.appendChild(b); }); });
 setPal(palIdx); hudColors();
@@ -789,7 +848,7 @@ function triggerDrop(){
   S.cam++;
 }
 const chs=$('#chs');
-SCENES.forEach((s,i)=>{ const b=document.createElement('button'); b.textContent=i+1; b.title=s.name; b.setAttribute('aria-label','Szene '+s.name);
+SCENES.forEach((s,i)=>{ const b=document.createElement('button'); b.textContent=i+1; b.title=s.name; b.setAttribute('aria-label','Scene '+s.name);
   b.onclick=()=>{ setScene(i); setAuto(false); S.pixel=.6; }; chs.appendChild(b); });
 setScene(0);
 function setAuto(v){ auto=v; $('#bAuto').setAttribute('aria-pressed',v?'true':'false'); }
@@ -810,17 +869,17 @@ function drawHud(now){
   const blink=Math.floor(now*2)%2===0;
   // Status oben links
   hx.fillStyle='#f1e7dc';
-  if(srcMode==='none'){ if(blink) txt('KEIN SIGNAL',m,mt); }
+  if(srcMode==='none'){ if(blink) txt('NO SIGNAL',m,mt); }
   else if(playing){ hx.beginPath(); hx.moveTo(m,mt+3*U); hx.lineTo(m+16*U,mt+12*U); hx.lineTo(m,mt+21*U); hx.closePath(); hx.fill(); txt('PLAY',m+26*U,mt); }
   else { hx.fillRect(m,mt+3*U,6*U,18*U); hx.fillRect(m+10*U,mt+3*U,6*U,18*U); if(blink) txt('PAUSE',m+26*U,mt); }
   txt('SP  '+fmtTC(srcTime()),m,mt+30*U);
   if(srcMode==='mic'||srcMode==='tab'){ if(blink){ hx.fillStyle=HC.m2; hx.beginPath(); hx.arc(m+8*U,mt+75*U,7*U,0,PI2); hx.fill(); } txt(srcMode==='mic'?'LIVE MIC':'LIVE TAB',m+22*U,mt+62*U); }
   // Kanal oben rechts
   txt(`CH ${String(scene+1).padStart(2,'0')} ${SCENES[scene].name}`,W-m,mt,'right');
-  txt(auto?'AUTO':'MANUELL',W-m,mt+30*U,'right','#c9b9ad');
+  txt(auto?'AUTO':'MANUAL',W-m,mt+30*U,'right','#c9b9ad');
   // unten links: Titel, BPM, 808
   const yb=H-m-30*U;
-  if(trackName){ let tn=trackName.toUpperCase(); const maxW=W<H?W*.4:W*.55; if(hx.measureText(tn).width>maxW){ while(tn.length>4&&hx.measureText(tn+'…').width>maxW) tn=tn.slice(0,-1); tn+='…'; } txt(tn,m,yb-60*U); }
+  if(trackName){ let tn=(srcMode==='file'?plLabel():trackName).toUpperCase(); const maxW=W<H?W*.4:W*.55; if(hx.measureText(tn).width>maxW){ while(tn.length>4&&hx.measureText(tn+'…').width>maxW) tn=tn.slice(0,-1); tn+='…'; } txt(tn,m,yb-60*U); }
   txt(S.bpm?`${S.bpm} BPM`:'--- BPM',m,yb-30*U);
   txt(S.noteA>.05?`808 ▸ ${S.note}  ${Math.round(S.noteHz)} HZ`:'808 ▸ —',m,yb,'left', S.noteA>.05?HC.hot:'#8d7b73');
   // unten rechts: Score, Combo, Power
@@ -854,7 +913,7 @@ function isPlaying(){ if(srcMode==='file') return !audioEl.paused; if(srcMode===
 function srcTime(){ if(srcMode==='file') return audioEl.currentTime||0; if(srcMode==='none') return performance.now()/1000; return actx? actx.currentTime-tSrc : 0; }
 function began(mode,name){
   srcMode=mode; trackName=name; tSrc=actx?actx.currentTime:0;
-  $('#start').hidden=true; $('#tname').textContent=name; $('#seekWrap').style.visibility = mode==='file'?'visible':'hidden';
+  $('#start').hidden=true; $('#tname').textContent=name; setTimeout(renderPl,0); $('#seekWrap').style.visibility = mode==='file'?'visible':'hidden';
   S.score=0; S.combo=0; S.cam=0; S.drops=0; S.bpm=0; kickTimes.length=0; onTimes.length=0; S.kicksSince=0; S.quiet=0;
   Object.keys(agc).forEach(k=>delete agc[k]);
   banner={text: mode==='demo'?'PLAYER 1':'START', t:performance.now()/1000}; S.pixel=1; S.glitch=.8;
@@ -863,36 +922,89 @@ function began(mode,name){
 async function startDemo(){
   ensureCtx(); await actx.resume(); stopAll();
   demo=new DemoBeat(actx,playBus); demo.start();
-  began('demo','BURNLINE DEMO — 140 BPM F-MOLL');
+  began('demo','BURNLINE DEMO — 140 BPM F MINOR');
 }
-async function startFile(file){
-  if(!file) return;
-  ensureCtx(); await actx.resume(); stopAll();
+/* ---------------- Playlist ---------------- */
+let playlist=[], plIdx=0;
+const AUDIO_RE=/\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?|caf|mp4|m4v|mov|webm)$/i;
+function audioFiles(list){ return [...list].filter(f=>(f.type||'').startsWith('audio/')||(f.type||'').startsWith('video/')||AUDIO_RE.test(f.name))
+  .sort((a,b)=>a.name.localeCompare(b.name,'de',{numeric:true,sensitivity:'base'})); }
+function cleanName(n){ return n.replace(/\.[^.]+$/,'').replace(/_/g,' ').trim(); }
+function addFiles(files){
+  const items=audioFiles(files).map(f=>({file:f,name:cleanName(f.name),dur:0}));
+  items.forEach(it=>{ const a=new Audio(); a.preload='metadata'; const u=URL.createObjectURL(it.file); a.src=u;
+    a.onloadedmetadata=()=>{ it.dur=a.duration||0; URL.revokeObjectURL(u); renderPl(); }; a.onerror=()=>URL.revokeObjectURL(u); });
+  playlist.push(...items); renderPl(); return items.length;
+}
+async function startFiles(files){
+  const prev=playlist.length; playlist=[]; plIdx=0;
+  if(!addFiles(files)){ msg('No audio files found. MP3, WAV, M4A, FLAC and similar work.'); playlist=prev?playlist:[]; return; }
+  await playTrack(0,true);
+}
+async function startFile(file){ if(file) await startFiles([file]); }
+async function playTrack(i,fresh){
+  if(i<0||i>=playlist.length) return false;
+  ensureCtx(); await actx.resume();
+  if(fresh) stopAll(); else if(demo||stream){ stopAll(); fresh=true; }
   if(!mediaSrc){ mediaSrc=actx.createMediaElementSource(audioEl); mediaSrc.connect(playBus); }
+  plIdx=i; const it=playlist[i];
   if(objURL) URL.revokeObjectURL(objURL);
-  objURL=URL.createObjectURL(file); audioEl.src=objURL;
-  try{ await audioEl.play(); }catch(e){ msg('Die Datei lässt sich nicht abspielen. Probier MP3, WAV oder M4A.'); $('#start').hidden=false; return; }
-  began('file', file.name.replace(/\.[^.]+$/,''));
+  objURL=URL.createObjectURL(it.file); audioEl.src=objURL;
+  try{ await audioEl.play(); }catch(e){
+    if(playlist.length>1 && i+1<playlist.length){ return playTrack(i+1,false); }
+    msg('This file can\'t be played. Try MP3, WAV or M4A.'); $('#start').hidden=false; return false; }
+  if(fresh || srcMode!=='file') began('file', it.name);
+  else { trackName=it.name; $('#tname').textContent=it.name; }
+  if(playlist.length>1) banner={text:'TRACK '+String(i+1).padStart(2,'0'), t:performance.now()/1000};
+  renderPl(); return true;
 }
+function plLabel(){ return playlist.length>1 ? `${String(plIdx+1).padStart(2,'0')}/${String(playlist.length).padStart(2,'0')} · ${trackName}` : trackName; }
+function plTotal(){ return playlist.reduce((a,b)=>a+(b.dur||0),0); }
+function renderPl(){
+  document.body.classList.toggle('haspl', playlist.length>1);
+  document.body.classList.toggle('isfile', srcMode==='file' || playlist.length>0);
+  const ol=$('#plList'); ol.textContent='';
+  playlist.forEach((it,i)=>{
+    const li=document.createElement('li'); if(i===plIdx && srcMode==='file') li.className='cur';
+    const b=document.createElement('button'); b.className='t';
+    b.innerHTML='<span class="n"></span><span class="nm"></span><span class="d"></span>';
+    b.children[0].textContent=String(i+1).padStart(2,'0'); b.children[1].textContent=it.name; b.children[2].textContent=it.dur?fmt(it.dur):'';
+    b.title=it.name; b.onclick=()=>{ if(!rec) playTrack(i,false); };
+    const up=document.createElement('button'); up.className='ic'; up.textContent='↑'; up.setAttribute('aria-label','Move up: '+it.name); up.disabled=i===0||!!rec;
+    up.onclick=()=>{ const cur=playlist[plIdx]; [playlist[i-1],playlist[i]]=[playlist[i],playlist[i-1]]; plIdx=playlist.indexOf(cur); renderPl(); };
+    const x=document.createElement('button'); x.className='ic'; x.textContent='✕'; x.setAttribute('aria-label','Remove: '+it.name); x.disabled=(i===plIdx&&srcMode==='file')||!!rec;
+    x.onclick=()=>{ const cur=playlist[plIdx]; playlist.splice(i,1); plIdx=Math.max(0,playlist.indexOf(cur)); renderPl(); };
+    li.append(b,up,x); ol.appendChild(li);
+  });
+  const tot=plTotal();
+  $('#plSum').textContent=`${playlist.length} SONG${playlist.length===1?'':'S'}`+(tot?` · ${fmt(tot)}`:'');
+}
+function openPl(v){ const o = v===undefined ? $('#pl').hidden : v; $('#pl').hidden=!o; $('#bList').setAttribute('aria-pressed',o?'true':'false'); }
+$('#bList').onclick=()=>openPl();
+$('#plX').onclick=()=>openPl(false);
+$('#fileAdd').onchange=e=>{ const n=addFiles(e.target.files); e.target.value='';
+  if(n && srcMode!=='file') playTrack(playlist.length-n,true); };
+$('#bNext').onclick=()=>{ if(!rec || expOpt.len!=='song') playTrack(plIdx+1,false); };
+$('#bPrev').onclick=()=>{ if(audioEl.currentTime>3) audioEl.currentTime=0; else playTrack(plIdx-1,false); };
 async function startStream(kind){
   ensureCtx(); await actx.resume();
   try{
     let s;
     if(kind==='mic') s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
     else { s=await navigator.mediaDevices.getDisplayMedia({video:true,audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-      if(!s.getAudioTracks().length){ s.getTracks().forEach(t=>t.stop()); msg('Kein Ton geteilt. Beim Teilen „Tab-Audio teilen“ anhaken.'); return; } }
+      if(!s.getAudioTracks().length){ s.getTracks().forEach(t=>t.stop()); msg('No audio was shared. Tick “Share tab audio” when sharing.'); return; } }
     stopAll(); stream=s; streamNode=actx.createMediaStreamSource(s); streamNode.connect(micBus);
     s.getTracks().forEach(t=>t.addEventListener('ended',()=>{ if(stream===s){ srcMode='none'; $('#start').hidden=false; } }));
-    began(kind, kind==='mic'?'MIKROFON':'TAB-AUDIO');
-  }catch(e){ msg(kind==='mic'?'Kein Zugriff aufs Mikrofon. Hier ist es gesperrt oder wurde abgelehnt. Datei oder Demo gehen immer.':(IS_APP?'System-Audio geht nicht. Prüfe Systemeinstellungen → Datenschutz → Bildschirm- und Systemaudioaufnahme.':'Tab-Audio wurde nicht freigegeben.')); }
+    began(kind, kind==='mic'?'MICROPHONE':(IS_APP?'SYSTEM AUDIO':'TAB AUDIO'));
+  }catch(e){ msg(kind==='mic'?'No microphone access. It is blocked here or was denied. Files and the demo always work.':(IS_APP?'System audio is not available. Check System Settings → Privacy & Security → Screen & System Audio Recording.':'Tab audio was not shared.')); }
 }
 $('#bDemo').onclick=startDemo;
-$('#file').onchange=e=>startFile(e.target.files[0]);
+$('#file').onchange=e=>{ startFiles(e.target.files); e.target.value=''; };
 $('#bMic').onclick=()=>startStream('mic');
 if(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ $('#bTab').hidden=false; $('#bTab').onclick=()=>startStream('tab'); }
 if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) $('#bMic').hidden=true;
 const IS_APP=/Electron/.test(navigator.userAgent);
-if(IS_APP){ $('#bTab').innerHTML='SYSTEM-AUDIO<small>Spotify, Apple Music &amp; Co. direkt vom Mac</small>'; }
+if(IS_APP){ $('#bTab').innerHTML='SYSTEM AUDIO<small>Spotify, Apple Music and more, straight from your Mac</small>'; }
 
 function togglePlay(){
   if(srcMode==='file'){ audioEl.paused?audioEl.play():audioEl.pause(); }
@@ -909,7 +1021,12 @@ $('#bFs').onclick=toggleFs;
 function toggleFs(){ try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){} }
 const seek=$('#seek');
 seek.oninput=()=>{ if(audioEl.duration) audioEl.currentTime=seek.value/1000*audioEl.duration; };
-audioEl.addEventListener('ended',()=>{ updPlayBtn(); banner={text:'GAME OVER',t:performance.now()/1000}; if(rec && expOpt.len==='song') setTimeout(stopRec,1200); });
+audioEl.addEventListener('ended',()=>{
+  const last = plIdx>=playlist.length-1;
+  if(!last && !(rec && expOpt.len==='song')){ playTrack(plIdx+1,false); return; }
+  updPlayBtn(); banner={text:'GAME OVER',t:performance.now()/1000};
+  if(rec && (expOpt.len==='song'||expOpt.len==='album')) setTimeout(stopRec,1200);
+});
 
 /* ---------------- Video-Export ---------------- */
 const FORMATS={'16:9':{w:1920,h:1080},'9:16':{w:1080,h:1920},'1:1':{w:1080,h:1080}};
@@ -921,14 +1038,16 @@ seg('#expFmt','fmt'); seg('#expLen','len'); seg('#expHud','hud');
 function pickMime(){ if(!window.MediaRecorder) return '';
   return ['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1.640028,opus','video/mp4;codecs=avc1,opus','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>{ try{ return MediaRecorder.isTypeSupported(m); }catch(e){ return false; } })||''; }
 function updExpNote(){
-  const songOK = srcMode==='file';
-  const b=$('#expLen [data-v="song"]'); b.disabled=!songOK;
-  if(!songOK && expOpt.len==='song'){ expOpt.len='manual'; $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='manual'?'true':'false')); }
+  const songOK = srcMode==='file', albumOK = songOK && playlist.length>1;
+  $('#expLen [data-v="song"]').disabled=!songOK; $('#expLen [data-v="album"]').disabled=!albumOK;
+  if(expOpt.len==='album' && !albumOK && songOK){ expOpt.len='song'; $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='song'?'true':'false')); }
+  if(!songOK && expOpt.len!=='manual'){ expOpt.len='manual'; $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='manual'?'true':'false')); }
   const m=pickMime(); let t;
-  if(!m) t='Dieser Browser kann keine Videos aufnehmen. Nimm die Mac-App, Chrome oder Edge.';
-  else if(srcMode==='none') t='Starte zuerst den Demo-Beat oder lade einen Song. Dann hier die Aufnahme starten.';
-  else { const d=srcMode==='file'&&audioEl.duration?` Dein Song ist ${fmt(audioEl.duration)} lang, so lange dauert auch die Aufnahme.`:'';
-    t=`Die Aufnahme läuft in Echtzeit mit, mit Ton.${d} Gespeichert wird als ${m.startsWith('video/mp4')?'MP4':'WebM'}.`+(window.top!==window?' In der Vorschau auf claude.ai kann das Speichern blockiert sein; in der Mac-App klappt es.':''); }
+  if(!m) t='This browser can\'t record video. Use the Mac app, Chrome or Edge.';
+  else if(srcMode==='none') t='Start the demo beat or load a song first, then start recording here.';
+  else { const tot=plTotal(); const d = expOpt.len==='album' && tot ? ` The playlist is ${fmt(tot)} long (${playlist.length} songs), so recording takes that long too.`
+      : expOpt.len==='song' && srcMode==='file' && audioEl.duration ? ` Your song is ${fmt(audioEl.duration)} long, so recording takes that long too.` : '';
+    t=`Recording runs in real time, with sound.${d} Saved as ${m.startsWith('video/mp4')?'MP4':'WebM'}.`+(window.top!==window?' Saving may be blocked in the claude.ai preview; it works in the Mac app.':''); }
   $('#expNote').textContent=t; $('#expGo').disabled=!m||srcMode==='none';
 }
 function openExp(){ if(rec){ stopRec(); return; } updExpNote(); $('#exp').hidden=false; $('#expGo').focus(); }
@@ -941,6 +1060,7 @@ $('#expGo').onclick=async()=>{
   exportSize=FORMATS[expOpt.fmt]; resize();
   hudBefore=hudOn; hudOn=expOpt.hud==='on';
   if(expOpt.len==='song' && srcMode==='file'){ audioEl.pause(); audioEl.currentTime=0; }
+  if(expOpt.len==='album' && srcMode==='file'){ audioEl.pause(); }
   S.score=0; S.combo=0; S.drops=0; S.cam=0; S.kicksSince=0;
   const vs=canvas.captureStream(60);
   recDest=actx.createMediaStreamDestination(); playBus.connect(recDest); micBus.connect(recDest);
@@ -953,17 +1073,18 @@ $('#expGo').onclick=async()=>{
   $('#recBadge').hidden=false; $('#bRec').textContent='■ STOP';
   banner={text:'REC',t:performance.now()/1000};
   if(expOpt.len==='song' && srcMode==='file'){ try{ await audioEl.play(); }catch(e){} }
+  else if(expOpt.len==='album' && srcMode==='file'){ await playTrack(0,false); }
   else if(srcMode==='demo' && demo && !demo.running) demo.resume();
 };
-function stopRec(){ if(!rec || rec.state==='inactive') return; rec.stop(); $('#recT').textContent='speichert …'; }
+function stopRec(){ if(!rec || rec.state==='inactive') return; rec.stop(); $('#recT').textContent='saving …'; }
 function saveRec(){
   const ext=recMime.startsWith('video/mp4')?'mp4':'webm';
   const blob=new Blob(recChunks,{type:recMime.split(';')[0]});
-  const safe=(trackName||'Burnline').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
+  const safe=(expOpt.len==='album' && playlist.length>1 ? `Playlist ${playlist.length} Songs` : trackName||'Burnline').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
   const name=`Burnline - ${safe} - ${expOpt.fmt.replace(':','x')}.${ext}`;
   if(window.burnlineApp && window.burnlineApp.saveVideo){
     blob.arrayBuffer().then(buf=>window.burnlineApp.saveVideo(name,buf))
-      .then(ok=>{ banner={text:ok?'GESPEICHERT':'ABGEBROCHEN',t:performance.now()/1000}; });
+      .then(ok=>{ banner={text:ok?'SAVED':'CANCELED',t:performance.now()/1000}; });
   } else {
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
     document.body.appendChild(a); a.click(); a.remove();
@@ -972,7 +1093,7 @@ function saveRec(){
   try{ playBus.disconnect(recDest); micBus.disconnect(recDest); }catch(e){}
   rec=null; recDest=null; exportSize=null; hudOn=hudBefore; resize();
   $('#recBadge').hidden=true; $('#bRec').textContent='● REC';
-  banner={text:'GESPEICHERT',t:performance.now()/1000};
+  banner={text:'SAVED',t:performance.now()/1000};
   window.__lastExport={size:blob.size,type:blob.type,name};
 }
 const fmt=s=>isFinite(s)?`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`:'0:00';
@@ -988,10 +1109,14 @@ addEventListener('keydown',e=>{
   else if(k==='f') toggleFs();
   else if(k==='c'){ setPal(palIdx+1); banner={text:PALS[palIdx].name,t:performance.now()/1000}; }
   else if(k==='m') setMix(!palMix);
-  else if(k==='s'){ strobeSafe=!strobeSafe; banner={text:strobeSafe?'BLITZE AUS':'BLITZE AN',t:performance.now()/1000}; }
+  else if(k==='s'){ strobeSafe=!strobeSafe; banner={text:strobeSafe?'FLASHES OFF':'FLASHES ON',t:performance.now()/1000}; }
   else if(k==='d' && srcMode!=='none') triggerDrop();
+  else if(k==='n'){ if(srcMode==='file') $('#bNext').click(); }
+  else if(k==='p'){ if(srcMode==='file') $('#bPrev').click(); }
+  else if(k==='l'){ if(playlist.length) openPl(); }
   else if(k==='r'){ if(rec) stopRec(); else if(srcMode!=='none') openExp(); }
   else if(k==='escape' && !$('#exp').hidden) $('#exp').hidden=true;
+  else if(k==='escape' && !$('#pl').hidden) openPl(false);
   else if(k==='escape' && srcMode!=='none') $('#start').hidden=!$('#start').hidden;
   showBar();
 });
@@ -1003,7 +1128,7 @@ let dragN=0;
 addEventListener('dragenter',e=>{ e.preventDefault(); dragN++; $('#drop').classList.add('on'); });
 addEventListener('dragleave',()=>{ if(--dragN<=0){ dragN=0; $('#drop').classList.remove('on'); } });
 addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{ e.preventDefault(); dragN=0; $('#drop').classList.remove('on'); const f=e.dataTransfer.files[0]; if(f) startFile(f); });
+addEventListener('drop',e=>{ e.preventDefault(); dragN=0; $('#drop').classList.remove('on'); const fs=e.dataTransfer.files; if(!fs.length) return; if(srcMode==='file' && playlist.length){ const n=addFiles(fs); if(n){ openPl(true); banner={text:'+'+n+' SONG'+(n>1?'S':''),t:performance.now()/1000}; } } else startFiles(fs); });
 
 /* ---------------- Demo-Beat: Analog-Trap mit Tape, 808, Chip-Lead ---------------- */
 function satCurve(k){ const n=2048, c=new Float32Array(n); const d=Math.tanh(k); for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(k*x)/d; } return c; }
@@ -1162,7 +1287,7 @@ function frame(nowMs){
   const gm=strobeSafe?.35:1;
   f1(PS,'uTime',now%3600); f1(PS,'uSub',S.sub); f1(PS,'uBass',S.bass); f1(PS,'uMid',S.mid); f1(PS,'uHigh',S.high); f1(PS,'uLevel',S.level);
   f1(PS,'uKick',S.kick*gm+S.kick*(1-gm)*.4); f1(PS,'uSnare',S.snare*gm); f1(PS,'uHat',S.hat); f1(PS,'uDrop',S.drop); f1(PS,'uRoll',S.roll);
-  f1(PS,'uHue',S.hue); f1(PS,'uHistRow',histIdx); f1(PS,'uSpin',S.spin); f1(PS,'uTravel',S.travel); f1(PS,'uCam',S.cam%3); f1(PS,'uInt',Math.min(1.2,S.int));
+  f1(PS,'uHue',S.hue); f1(PS,'uHistRow',histIdx); f1(PS,'uSpin',S.spin); f1(PS,'uTravel',S.travel); f1(PS,'uCam',S.cam%12); f1(PS,'uInt',Math.min(1.2,S.int));
   f1(PS,'uDecay',sc.decay); f1(PS,'uZoom',sc.zoom); f1(PS,'uRot',sc.rot); f1(PS,'uLift',sc.lift); i1(PS,'uScene',scene);
   gl.drawArrays(gl.TRIANGLES,0,3);
   gl.bindTexture(gl.TEXTURE_2D,null);

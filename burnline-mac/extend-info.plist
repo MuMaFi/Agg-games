@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Burnline hört über das Mikrofon mit, damit die Visuals auf Musik im Raum reagieren.</string>
+  <string>Burnline listens through the microphone so the visuals react to music in the room.</string>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>Burnline schneidet den Systemton mit, damit die Visuals auf Spotify, Apple Music und Co. reagieren.</string>
+  <string>Burnline captures system audio so the visuals react to Spotify, Apple Music and more.</string>
   <key>NSCameraUsageDescription</key>
-  <string>Burnline nutzt keine Kamera.</string>
+  <string>Burnline does not use the camera.</string>
   <key>LSMinimumSystemVersion</key>
   <string>11.0</string>
   <key>NSHighResolutionCapable</key>
