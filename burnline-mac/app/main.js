@@ -32,14 +32,40 @@ app.whenReady().then(async () => {
       .then(src => cb(src.length ? { video: src[0], audio: 'loopback' } : {}))
       .catch(() => cb({}));
   }, { useSystemPicker: true });
-  // Video-Export: „Speichern unter“, startet im Filme-Ordner, zeigt die Datei danach im Finder
-  ipcMain.handle('save-video', async (e, name, buffer) => {
-    const win = BrowserWindow.fromWebContents(e.sender);
-    const r = await dialog.showSaveDialog(win, { title: 'Save Video', defaultPath: path.join(app.getPath('videos'), name) });
-    if (r.canceled || !r.filePath) return false;
-    await fs.promises.writeFile(r.filePath, Buffer.from(buffer));
-    shell.showItemInFolder(r.filePath);
+  // Video-Export: Aufnahme läuft stückweise in eine Temp-Datei, am Ende „Speichern unter“.
+  // Bricht man den Dialog ab, landet das Video trotzdem im Filme-Ordner — es geht nie verloren.
+  let recFile = null, recStream = null;
+  const uniquePath = (p) => { if (!fs.existsSync(p)) return p; const ext = path.extname(p), base = p.slice(0, -ext.length);
+    for (let i = 2; ; i++) { const q = `${base} (${i})${ext}`; if (!fs.existsSync(q)) return q; } };
+  const moveFile = async (from, to) => { try { await fs.promises.rename(from, to); }
+    catch (err) { if (err.code !== 'EXDEV') throw err; await fs.promises.copyFile(from, to); await fs.promises.unlink(from); } };
+  ipcMain.handle('rec-begin', async (e, ext) => {
+    if (recStream) recStream.destroy();
+    recFile = path.join(app.getPath('temp'), `burnline-rec-${Date.now()}.${ext === 'mp4' ? 'mp4' : 'webm'}`);
+    recStream = fs.createWriteStream(recFile);
     return true;
+  });
+  ipcMain.handle('rec-chunk', (e, buffer) => new Promise((resolve, reject) => {
+    if (!recStream) return resolve(false);
+    recStream.write(Buffer.from(buffer), (err) => err ? reject(err) : resolve(true));
+  }));
+  ipcMain.handle('rec-end', async (e, name) => {
+    if (!recStream) return { ok: false, error: 'no recording in progress' };
+    await new Promise((r) => recStream.end(r)); recStream = null;
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const def = path.join(app.getPath('videos'), name);
+    let dest, canceled = false;
+    try {
+      const r = await dialog.showSaveDialog(win, { title: 'Save Video', defaultPath: def });
+      canceled = r.canceled || !r.filePath;
+      dest = canceled ? uniquePath(def) : r.filePath;
+      await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+      await moveFile(recFile, dest);
+    } catch (err) {
+      return { ok: false, error: `${err.message} (the recording is still at ${recFile})` };
+    }
+    shell.showItemInFolder(dest);
+    return { ok: true, path: dest, canceled };
   });
   if (process.platform === 'darwin') { try { await systemPreferences.askForMediaAccess('microphone'); } catch (e) {} }
 

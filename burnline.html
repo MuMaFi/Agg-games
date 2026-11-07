@@ -1031,7 +1031,7 @@ audioEl.addEventListener('ended',()=>{
 /* ---------------- Video-Export ---------------- */
 const FORMATS={'16:9':{w:1920,h:1080},'9:16':{w:1080,h:1920},'1:1':{w:1080,h:1080}};
 const expOpt={fmt:'16:9',len:'song',hud:'on'};
-let rec=null, recChunks=[], recDest=null, recStart=0, recMime='', hudBefore=true;
+let rec=null, recChunks=[], recQ=Promise.resolve(), recDisk=false, recErr='', recDest=null, recStart=0, recMime='', hudBefore=true;
 function seg(id,key){ const box=$(id); box.querySelectorAll('button').forEach(b=>b.onclick=()=>{ if(b.disabled) return; expOpt[key]=b.dataset.v;
   box.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false')); updExpNote(); }); }
 seg('#expFmt','fmt'); seg('#expLen','len'); seg('#expHud','hud');
@@ -1067,7 +1067,12 @@ $('#expGo').onclick=async()=>{
   const st=new MediaStream([...vs.getVideoTracks(), ...recDest.stream.getAudioTracks()]);
   recChunks=[];
   rec=new MediaRecorder(st,{mimeType:recMime, videoBitsPerSecond:12e6, audioBitsPerSecond:256000});
-  rec.ondataavailable=e=>{ if(e.data && e.data.size) recChunks.push(e.data); };
+  // Mac-App: Video läuft während der Aufnahme direkt in eine Datei (egal wie lang).
+  recDisk=!!(window.burnlineApp && window.burnlineApp.recBegin); recErr=''; recQ=Promise.resolve();
+  if(recDisk){ try{ await window.burnlineApp.recBegin(recMime.startsWith('video/mp4')?'mp4':'webm'); }catch(e){ recDisk=false; } }
+  rec.ondataavailable=e=>{ if(!e.data || !e.data.size) return;
+    if(recDisk){ const d=e.data; recQ=recQ.then(()=>d.arrayBuffer()).then(b=>window.burnlineApp.recChunk(b)).catch(err=>{ recErr=String(err&&err.message||err); }); }
+    else recChunks.push(e.data); };
   rec.onstop=saveRec;
   rec.start(1000); recStart=performance.now();
   $('#recBadge').hidden=false; $('#bRec').textContent='■ STOP';
@@ -1077,24 +1082,29 @@ $('#expGo').onclick=async()=>{
   else if(srcMode==='demo' && demo && !demo.running) demo.resume();
 };
 function stopRec(){ if(!rec || rec.state==='inactive') return; rec.stop(); $('#recT').textContent='saving …'; }
-function saveRec(){
+async function saveRec(){
   const ext=recMime.startsWith('video/mp4')?'mp4':'webm';
-  const blob=new Blob(recChunks,{type:recMime.split(';')[0]});
   const safe=(expOpt.len==='album' && playlist.length>1 ? `Playlist ${playlist.length} Songs` : trackName||'Burnline').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
   const name=`Burnline - ${safe} - ${expOpt.fmt.replace(':','x')}.${ext}`;
-  if(window.burnlineApp && window.burnlineApp.saveVideo){
-    blob.arrayBuffer().then(buf=>window.burnlineApp.saveVideo(name,buf))
-      .then(ok=>{ banner={text:ok?'SAVED':'CANCELED',t:performance.now()/1000}; });
-  } else {
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),60000);
-  }
   try{ playBus.disconnect(recDest); micBus.disconnect(recDest); }catch(e){}
   rec=null; recDest=null; exportSize=null; hudOn=hudBefore; resize();
-  $('#recBadge').hidden=true; $('#bRec').textContent='● REC';
-  banner={text:'SAVED',t:performance.now()/1000};
-  window.__lastExport={size:blob.size,type:blob.type,name};
+  $('#bRec').textContent='● REC';
+  let ok=false, info='';
+  if(recDisk){
+    await recQ;
+    try{ const r=await window.burnlineApp.recEnd(name); ok=!!(r&&r.ok); info=r&&r.canceled?'SAVED TO MOVIES':''; if(!ok) recErr=(r&&r.error)||recErr; }
+    catch(e){ recErr=String(e&&e.message||e); }
+    window.__lastExport={name,disk:true,ok,err:recErr};
+  } else {
+    const blob=new Blob(recChunks,{type:recMime.split(';')[0]});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),120000);
+    ok=true; window.__lastExport={size:blob.size,type:blob.type,name};
+  }
+  $('#recBadge').hidden=true;
+  banner={text: ok ? (info||'SAVED') : 'SAVE FAILED', t:performance.now()/1000};
+  if(!ok){ $('#start').hidden=false; msg('The video could not be saved: '+(recErr||'unknown error')+'. Please send me this message.'); }
 }
 const fmt=s=>isFinite(s)?`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`:'0:00';
 let wl=null; async function wake(){ try{ wl=await navigator.wakeLock.request('screen'); }catch(e){} }
