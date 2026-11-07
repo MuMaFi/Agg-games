@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07j';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-07k';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -2534,18 +2534,27 @@ const Game = {
         tx = ux*vor + (-uz)*m.seite*0.6; tz = uz*vor + ux*m.seite*0.6;
         m.moving = true; speed *= vor < 0 ? 0.9 : 0.75;
         m.schussCd -= dt;
+        // wie bei Java (»Normal«): erst den Bogen spannen (eine Sekunde, nachdem es einen sieht),
+        // dann alle zwei bis drei Sekunden ein Pfeil — und die streuen (Ungenauigkeit 6)
+        const sieht = dist < 16 && this.freieSicht(m.x, m.y + 1.5, m.z, z.x, z.y + 1.3, z.z);
+        if(sieht && !m.sahZiel) m.schussCd = Math.max(m.schussCd, 1);
+        m.sahZiel = sieht;
         if(m.schussCd <= 0 && dist < 16){
           const ax = m.x, ay = m.y + 1.5, az = m.z, zx = z.x, zy = z.y + 1.3, zz = z.z;
-          if(this.freieSicht(ax, ay, az, zx, zy, zz)){
+          if(sieht){
             const v = 18, flug = Math.hypot(zx-ax, zz-az)/v;
-            const ungenau = () => (Math.random() - .5)*0.9;
             const vy = (zy - ay)/Math.max(flug, .1) + 0.5*20*flug;       // Fallen ausgleichen
             const hl = Math.hypot(zx-ax, zz-az) || 1;
-            const pf = new Pfeil(ax + ux*.5, ay, az + uz*.5, (zx-ax)/hl*v + ungenau(), vy + ungenau()*.5, (zz-az)/hl*v + ungenau(), 2 + ((Math.random()*3)|0), false);
+            // Richtung mit Streuung wie beim Vorbild: je Achse normalverteilt, 0,0075 · 6 der Flugrichtung
+            const gauss = () => { let u = 0; for(let k = 0; k < 6; k++) u += Math.random(); return (u - 3)*1.414; };   // Standardabweichung 1
+            let dxv = (zx-ax)/hl*v, dyv = vy, dzv = (zz-az)/hl*v;
+            const vl = Math.hypot(dxv, dyv, dzv), st = 0.045*vl;
+            dxv += gauss()*st; dyv += gauss()*st; dzv += gauss()*st;
+            const pf = new Pfeil(ax + ux*.5, ay, az + uz*.5, dxv, dyv, dzv, 2 + ((Math.random()*3)|0), false);
             this.pfeile.push(pf);
             Netz.pfeilSenden(pf, false);           // jeder Mitspieler prüft selbst, ob er getroffen wird
             Sfx.play('bogen', m.x, m.y + 1.5, m.z);
-            m.schussCd = 1.8 + Math.random()*1.2;
+            m.schussCd = 2 + Math.random();
           } else m.schussCd = 0.4;
         }
         if(Math.random() < 0.004) Sfx.wesen(m, 'laut');
