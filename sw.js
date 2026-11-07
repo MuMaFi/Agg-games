@@ -3,7 +3,7 @@
    immer zuerst die neueste Fassung aus dem Netz (und wird gespeichert);
    nur ohne Netz oder bei sehr langsamem Netz springt der Speicher ein.
    Beim Wechsel der Fassung unten wird der alte Speicher verworfen. */
-const FASSUNG = 'agg-2026-11-07g';
+const FASSUNG = 'agg-2026-11-07h';
 const KERN = [
   './',
   './index.html',

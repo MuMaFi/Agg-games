@@ -422,7 +422,7 @@ MOBS.kristall = {
 /* Enderdrache: kreist um die Säulen, stößt auf Spieler herab, speit Feuer,
    lässt sich von den Kristallen heilen. Gebaut in Blockgröße, Kopf nach −z. */
 MOBS.drache = {
-  name:'Enderdrache', w:6, h:3, health:200, speed:14, hostile:true, dmg:10, laut:'drache', feuerfest:true, schwebt:true, drache:true,
+  name:'Enderdrache', w:6, h:3, health:200, speed:14, hostile:true, dmg:10, laut:'drache', feuerfest:true, schwebt:true, drache:true, mcHoch:1.6,
   treffer:'Der Enderdrache hat dich erwischt',
   beute: () => [],
   parts: [

@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07g';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-07h';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -1971,7 +1971,13 @@ const Game = {
     if(m.zustand === 'kreisen'){
       m.winkel += dt*0.26;
       ziel = [Math.cos(m.winkel)*52, 76 + Math.sin(m.age*0.7)*5, Math.sin(m.winkel)*52];
-      if(m.zustandT <= 0 && opfer.length){ m.opfer = opfer[(Math.random()*opfer.length) | 0]; m.zustand = 'sturz'; m.zustandT = 7; Sfx.wesen(m, 'laut'); }
+      if(m.zustandT <= 0){
+        // landen oder herabstoßen: je weniger Kristalle, desto öfter setzt er sich auf das Portal (wie beim Vorbild)
+        const rest = this.mobs.filter(k => k.type === 'kristall' && !k.dead).length;
+        if(Math.random() < 0.3 + (10 - rest)*0.05 || !opfer.length){ m.zustand = 'anflug'; m.zustandT = 14; }
+        else { m.opfer = opfer[(Math.random()*opfer.length) | 0]; m.zustand = 'sturz'; m.zustandT = 7; }
+        Sfx.wesen(m, 'laut');
+      }
       m.feuerCd = (m.feuerCd === undefined ? 5 : m.feuerCd) - dt;
       if(m.feuerCd <= 0 && opfer.length){
         const q = opfer[(Math.random()*opfer.length) | 0], hx = m.x - Math.sin(m.yaw)*5, hy = m.y + 1.5, hz = m.z - Math.cos(m.yaw)*5;
@@ -1988,17 +1994,49 @@ const Game = {
       if(!q || q.dead || q.creative || m.zustandT <= 0){ m.zustand = 'steigen'; m.zustandT = 3; }
       else ziel = [q.x, q.y + 1, q.z];
     }
+    // Landen: erst über die Mitte, dann hinunter auf die Säule des Ausgangsportals
+    const sitzY = END_PORTAL_Y + 4 + 1.7;
+    if(m.zustand === 'anflug'){
+      const ueber = Math.hypot(m.x - 0.5, m.z - 0.5) < 6;
+      ziel = ueber ? [0.5, sitzY, 0.5] : [0.5, sitzY + 10, 0.5];
+      if(ueber && Math.abs(m.y - sitzY) < 1.2){ m.zustand = 'sitzen'; m.zustandT = 7 + Math.random()*3; m.vx = m.vy = m.vz = 0; Sfx.wesen(m, 'laut'); }
+      else if(m.zustandT <= 0){ m.zustand = 'steigen'; m.zustandT = 3; }
+    }
+    if(m.zustand === 'sitzen'){
+      m.x += (0.5 - m.x)*Math.min(1, dt*3); m.y += (sitzY - m.y)*Math.min(1, dt*3); m.z += (0.5 - m.z)*Math.min(1, dt*3);
+      m.vx = m.vy = m.vz = 0; m.moving = false;
+      // sich nach dem Nächsten umdrehen, nah beißen, weiter weg Feuer speien
+      let q = null, qd = 40;
+      for(const o of opfer){ const e = Math.hypot(o.x - m.x, o.z - m.z); if(e < qd){ qd = e; q = o; } }
+      if(q){
+        m.yaw = winkelNach(m.yaw, Math.atan2(-(q.x - m.x), -(q.z - m.z)), Math.min(1, dt*2));
+        m.feuerCd = (m.feuerCd === undefined ? 2 : m.feuerCd) - dt;
+        if(m.feuerCd <= 0 && qd > 6){
+          const hx = m.x - Math.sin(m.yaw)*4.5, hy = m.y + 1.2, hz = m.z - Math.cos(m.yaw)*4.5, l = Math.hypot(q.x - hx, q.y + 1 - hy, q.z - hz) || 1;
+          if(this.freieSicht(hx, hy, hz, q.x, q.y + 1.2, q.z)){
+            const v = 12, pf = new Pfeil(hx, hy, hz, (q.x - hx)/l*v, (q.y + 1 - hy)/l*v, (q.z - hz)/l*v, 6, false, false, true);
+            this.pfeile.push(pf); Netz.pfeilSenden(pf, false); Sfx.wesen(m, 'feuer'); m.feuerT = 0.6;
+          }
+          m.feuerCd = 2.2 + Math.random()*1.5;
+        }
+      }
+      if(m.feuerT > 0) m.feuerT -= dt;
+      if(m.zustandT <= 0){ m.zustand = 'steigen'; m.zustandT = 3; Sfx.wesen(m, 'fluegel'); }
+    }
     if(m.zustand === 'steigen'){
       ziel = [Math.cos(m.winkel)*52, 86, Math.sin(m.winkel)*52];
       if(m.zustandT <= 0){ m.zustand = 'kreisen'; m.zustandT = 12 + Math.random()*8; }
     }
     // steuern: sanft zum Ziel, ohne Rücksicht auf Blöcke (er fliegt durch, wie beim Vorbild)
-    const sp = m.zustand === 'sturz' ? 19 : 13;
+    if(m.zustand === 'sitzen'){ ziel = null; }
+    if(ziel){
+    const sp = m.zustand === 'sturz' ? 19 : m.zustand === 'anflug' ? 9 : 13;
     const ex = ziel[0] - m.x, ey = ziel[1] - m.y, ez = ziel[2] - m.z, el = Math.hypot(ex, ey, ez) || 1;
     const k = Math.min(1, dt*1.5);
     m.vx += (ex/el*sp - m.vx)*k; m.vy += (ey/el*sp - m.vy)*k; m.vz += (ez/el*sp - m.vz)*k;
     m.x += m.vx*dt; m.y = clamp(m.y + m.vy*dt, END_INSEL_Y - 20, WH - 6); m.z += m.vz*dt;
     m.yaw = Math.atan2(-m.vx, -m.vz); m.moving = true;
+    }
     // wer ihm zu nahe kommt, den trifft er mit Kopf oder Flügel und schleudert ihn fort
     for(const q of opfer){
       const e = Math.hypot(q.x - m.x, q.y + 1 - (m.y + 1.5), q.z - m.z);

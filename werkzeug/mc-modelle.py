@@ -130,6 +130,7 @@ def call(owner, name, desc, args):
         if name == 'nextInt': return a[0].nextInt(a[1])
     if simple == 'PartNames' and name == 'tentacle': return 'tentacle' + str(a[0])
     if simple == 'BlazeModel' and name == 'getPartName': return 'part' + str(a[0])   # "part" + i (invokedynamic)
+    if simple == 'EnderDragonModel' and name in ('neckName', 'tailName'): return name[:4] + str(a[0])   # "neck"/"tail" + i
     if simple == 'Mth' and name in ('sin', 'cos'): return float(getattr(math, name)(a[0]))
     if simple == 'LayerDefinition' and name == 'apply': return a[0]       # Skalieren (Ghast × 4,5) macht Pocketcraft selbst
     if simple == 'MeshTransformer': return None
@@ -233,6 +234,8 @@ MODELLE = {
     'ghast': (M+'monster/ghast/GhastModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'blaze': (M+'monster/blaze/BlazeModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'enderman': (M+'monster/enderman/EndermanModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
+    'drache': (M+'monster/dragon/EnderDragonModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
+    'kristall': (M+'object/crystal/EndCrystalModel', 'createBodyLayer()%sLayerDefinition;' % L, [], None),
     'chest': (M+'object/chest/ChestModel', 'createSingleBodyLayer()%sLayerDefinition;' % L, [], None),
 }
 
