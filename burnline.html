@@ -1,8 +1,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Brandspur</title>
+<title>Burnline</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Brandspur – Analog-Trap Musik-Visualizer: 808, Tape, VHS und 8-Bit.">
+<meta name="description" content="Burnline – Analog-Trap Musik-Visualizer: 808, Tape, VHS und 8-Bit.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
@@ -76,7 +76,7 @@
 
 <div id="start">
   <div class="deck" role="dialog" aria-labelledby="ttl">
-    <h1 id="ttl">BRANDSPUR</h1>
+    <h1 id="ttl">BURNLINE</h1>
     <p class="tag">Analog-Trap Visualizer · 808 · Tape · 8-Bit</p>
     <div class="src">
       <button class="main" id="bDemo">▶ DEMO-BEAT STARTEN<small>Eingebauter Analog-Trap-Beat, 140 BPM, f-Moll</small></button>
@@ -107,7 +107,7 @@
 <script>
 'use strict';
 /* =====================================================================
-   BRANDSPUR — Analog-Trap Visualizer
+   BURNLINE — Analog-Trap Visualizer
    WebGL2: Szenen-Pass mit Feedback-Puffer (Ping-Pong, Half-Float) →
    Post-Pass (VHS-Tracking, Chroma, Bloom über Mipmaps, Grain, CRT).
    Audio: eigene Analyse (log-Spektrum, Spectral Flux, Onsets für
@@ -715,7 +715,7 @@ function began(mode,name){
 async function startDemo(){
   ensureCtx(); await actx.resume(); stopAll();
   demo=new DemoBeat(actx,playBus); demo.start();
-  began('demo','BRANDSPUR DEMO — 140 BPM F-MOLL');
+  began('demo','BURNLINE DEMO — 140 BPM F-MOLL');
 }
 async function startFile(file){
   if(!file) return;
@@ -965,5 +965,5 @@ function frame(nowMs){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__brandspur={S,setScene,triggerDrop,startDemo};
+window.__burnline={S,setScene,triggerDrop,startDemo};
 </script>
