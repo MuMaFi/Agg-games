@@ -220,6 +220,7 @@ const Menue = {
     knopf('#oDebug', () => { Game.settings.debug = !Game.settings.debug; $('#dbg').classList.toggle('on', Game.settings.debug); Game.saveOpts(); this.optionenZeigen(); });
     $('#oRd').addEventListener('input', e => { Game.settings.rd = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     $('#oSens').addEventListener('input', e => { Game.settings.sens = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
+    $('#oHell').addEventListener('input', e => { Game.settings.helligkeit = +e.target.value; Game.saveOpts(); this.optionenZeigen(); });
     // Pause und Tod im selben Stil
     // Mitspieler
     knopf('#msBeitreten', () => this.serverBeitreten());
@@ -412,7 +413,7 @@ const Menue = {
     this.alleZu();
     Game.start(meta, null);
     this.gewaehlt = meta.id;
-    hint(this.neuModus === 'kreativ' ? 'Kreativmodus — flieg mit doppeltem Sprung-Tipp'
+    hint(this.neuModus === 'kreativ' ? 'Kreativmodus — fliegen: zweimal Springen (Leertaste oder Sprung-Knopf)'
        : this.neuTyp === 'flach' ? 'Flachland: Hier wächst kein Baum — im Kreativmodus baut es sich leichter'
        : 'Schlag Holz, bau eine Werkbank, überleb die Nacht', 4200);
     Game.save();                     // gleich in die Liste, auch wenn man sofort wieder geht
@@ -750,6 +751,8 @@ const Menue = {
     // ab 13 Chunks wird es für schwächere Handys eng: das sagen wir dazu
     $('#oRd').value = s.rd; $('#oRdText').textContent = 'Sichtweite: ' + s.rd + ' Chunks' + (s.rd > 12 ? ' · braucht ein schnelles Gerät' : '');
     $('#oSens').value = s.sens; $('#oSensText').textContent = 'Blick-Tempo: ' + Math.round(s.sens/12*100) + ' %';
+    const h = s.helligkeit | 0;
+    $('#oHell').value = h; $('#oHellText').textContent = 'Helligkeit: ' + (h === 0 ? 'Normal' : h === 100 ? 'Hell' : '+' + h + ' %');
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
     $('#oKlassik').textContent = 'Texturen: ' + (s.mcTexturen ? 'Minecraft' : s.klassik ? 'Klassisch (wie früher)' : 'Modern');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');

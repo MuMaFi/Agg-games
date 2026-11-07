@@ -469,6 +469,7 @@ const Screens = {
   },
   oeffne(modus, key){
     if(this.open) this.hide();
+    if(typeof Input !== 'undefined') Input.loslassen();     // wer läuft und eine Truhe öffnet, bleibt stehen
     this.mausFrei();
     this._offenSeit = performance.now();
     this.open = 'beh'; this.modus = modus;

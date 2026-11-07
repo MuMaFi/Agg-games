@@ -100,7 +100,7 @@ in float vFog; in float vSharp; in float vWasser; in vec4 vLicht;
 uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint;
 uniform float uSchaerfe, uZeit;
 uniform vec3 uCam, uLichtDir, uLichtFarbe, uUmgebung, uZenith, uHorizon;
-uniform float uLava, uWater0, uGrund;                 // uZeit steht schon oben
+uniform float uLava, uWater0, uGrund, uHellig;        // uZeit steht schon oben
 out vec4 outColor;
 ${SD_SCHATTEN}
 ${SD_TON}
@@ -118,6 +118,7 @@ void main(){
   vec3 N = normalize(vN);
   float ndl = vSharp > 0.5 ? 0.6 : max(dot(N, uLichtDir), 0.0);
   vec3 licht = uUmgebung * himmel + uLichtFarbe * ndl * sv * frei + vec3(1.0, 0.66, 0.38) * glut * 0.95;
+  licht = mix(licht, vec3(1.0) - pow(vec3(1.0) - min(licht, vec3(1.0)), vec3(4.0)), uHellig);   // Helligkeit aus den Optionen
   vec3 col = c.rgb * max(licht, vec3(0.03)) * vAO;
   float a = c.a;
   vec3 V = normalize(uCam - vWelt);

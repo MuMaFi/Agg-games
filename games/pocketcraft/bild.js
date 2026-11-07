@@ -37,7 +37,7 @@ const VS_CHUNK = `#version 300 es
 precision highp float;
 in vec3 aPos; in float aPack; in float aLayer; in float aSky; in float aBlk; in vec2 aUV;
 uniform mat4 uVP; uniform vec3 uChunk; uniform vec3 uCam;
-uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame, uGrund;
+uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame, uGrund, uHellig;
 out vec3 vUV; out float vShade; out float vFog; out float vSharp;
 ${SH_COMMON}
 void main(){
@@ -57,6 +57,7 @@ void main(){
   else if(nrm < 3.5) fs = 0.48;     // -Y
   else if(nrm < 5.5) fs = 0.87;     // ±Z
   float lig = max(max(aSky / 15.0 * uDay, aBlk / 15.0 * 0.97), uGrund);   // uGrund: Grundlicht im Nether
+  lig = mix(lig, 1.0 - pow(1.0 - lig, 4.0), uHellig);                     // Helligkeit aus den Optionen, wie beim Vorbild
   vShade = fs * (0.55 + ao * 0.15) * lightCurve(lig);
   float d = distance(wp, uCam);
   vFog = clamp((d - uFogNear) / max(1.0, uFogFar - uFogNear), 0.0, 1.0);
@@ -479,6 +480,7 @@ function drawChunks(waterPass, fogCol, near, far){
   gl.useProgram(P.p);
   chunkUniforms(P, fogCol, near, far);
   if(Super.an) Super.chunkUniforms(P);
+  if(P.u.uHellig) gl.uniform1f(P.u.uHellig, helligkeit());
   gl.uniform1f(P.u.uAlpha, waterPass ? 0.02 : 0.35);
   const uw = Game.player.headInWater;
   gl.uniform3f(P.u.uWaterTint, uw ? 0.55 : 1, uw ? 0.72 : 1, uw ? 0.95 : 1);
@@ -529,9 +531,12 @@ function setLayers(P, all, faceTex){
   if(faceTex !== undefined) _layers[5] = faceTex;
   gl.uniform1fv(P.u.uLayers, _layers);
 }
+/** Helligkeit aus den Optionen, 0 … 1: hebt das Dunkle an (1 − (1 − l)⁴ wie beim Vorbild), das Helle bleibt */
+function helligkeit(){ return clamp((Game.settings.helligkeit || 0)/100, 0, 1); }
+function hellKurve(l){ const h = helligkeit(); return h ? l + (1 - Math.pow(1 - l, 4) - l)*h : l; }
 function blockLightAt(x,y,z){
   const lv = Game.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  const l = Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : Game.dim === 'ende' ? END_GRUNDLICHT : 0);
+  const l = hellKurve(Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : Game.dim === 'ende' ? END_GRUNDLICHT : 0));
   return 0.09 + 0.91 * Math.pow(clamp(l, 0, 1), 1.35);
 }
 

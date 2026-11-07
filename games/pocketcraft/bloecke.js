@@ -370,7 +370,7 @@ function initBlocks(){
   // Das End: Rahmen im Portalraum der Festung (mit Enderauge voll), das Portal, Endstein, das Drachenei
   defBlock(B.ENDRAHMEN,{name:'Endportalrahmen', tex:['endrahmen_oben','endstein','endrahmen_seite'], model:'box', box:[0,0,0,16,13,16],
     opaque:false, hardness:-1, mc:'end_portal_frame'});
-  defBlock(B.ENDRAHMEN_AUGE,{name:'Endportalrahmen mit Auge', tex:['endrahmen_auge','endstein','endrahmen_seite'], model:'box', box:[0,0,0,16,16,16],
+  defBlock(B.ENDRAHMEN_AUGE,{name:'Endportalrahmen mit Auge', tex:['endrahmen_auge','endstein','endrahmen_seite'], model:'box', box:[0,0,0,16,13,16],
     opaque:false, hardness:-1, item:false, drop:B.AIR});
   defBlock(B.ENDPORTAL,{name:'Endportal', tex:'endportal', model:'box', box:[0,0,0,16,12,16], solid:false, opaque:false, light:15,
     hardness:-1, item:false, drop:B.AIR, mc:'end_portal'});

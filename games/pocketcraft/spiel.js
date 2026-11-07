@@ -29,7 +29,7 @@ const GOLEM_HAND = Object.freeze({ creative: false, golem: true });
 const Game = {
   world:null, player:null, mobs:[], drops:[],
   running:false, time: DAY_LEN*0.12, tick:0,
-  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false, steuerung:'kreuz' },
+  settings:{ rd:5, sens:12, autojump:true, debug:false, geraeusche:100, musik:70, superGrafik:false, monster:'normal', klassik:false, mcTexturen:false, mcKlaenge:false, steuerung:'kreuz', helligkeit:0 },
   bufA: new MeshBuf(), bufB: new MeshBuf(),
   meshes: new Map(), angriffT:10, lastSave:0, loading:true, loadTarget:1, loadDone:0,
   breakPos:null, breakProg:0, breakTotal:1, fps:60, _fpsAcc:0, _fpsN:0,
@@ -709,6 +709,8 @@ const Game = {
   },
   breakSpeed(id){
     const b = blocks[id];
+    // Kreativ baut man wie beim Vorbild auch Grundgestein und Endportalrahmen ab — nur nicht das Portal
+    if(b && this.player.creative && id !== B.AIR && id !== B.LAVA && id !== B.ENDPORTAL) return { time: 0.04, tierOk: true };
     if(!b || b.hardness < 0) return { time: 0, tierOk: false };   // unzerstörbar
     const s = Inv.held();
     const it = s ? items[s.id] : null;
@@ -1874,8 +1876,45 @@ const Game = {
       for(let y = ay; y <= ay + 2; y++) if(w.getBlock(ax + dx, y, az + dz) !== B.AIR) w.setBlock(ax + dx, y, az + dz, B.AIR);
     }
     p.x = ax + 0.5; p.y = ay; p.z = az + 0.5; p.yaw = Math.PI/2; p.pitch = 0;
+    p.ankunftT = 4;                                   // ein paar Sekunden hält die Plattform sicher fest (endAnkunft)
     if(!Netz.istGast) this.endKampf();
     hint('Das End', 2400);
+  },
+  /** steckt der Spieler in einem festen Block? Dann wie beim Vorbild nach oben hinaus,
+      höchstens drei Blöcke weit, bis Füße und Kopf frei sind */
+  herausdruecken(w, p){
+    const steckt = y => {
+      const hw = p.w/2 - 0.01;
+      for(let by = Math.floor(y + 0.01); by <= Math.floor(y + p.h - 0.01); by++)
+        for(let bz = Math.floor(p.z - hw); bz <= Math.floor(p.z + hw); bz++)
+          for(let bx = Math.floor(p.x - hw); bx <= Math.floor(p.x + hw); bx++){
+            const id = w.getBlock(bx, by, bz);
+            if(!blocksMovement(id) || isTreppe(id)) continue;       // Treppen haben eigene Kästen (treppeKaesten)
+            const o = id*6, unten = by + COLL[o + 1], oben = by + COLL[o + 4];
+            if(y + p.h > unten + 0.01 && y < oben - 0.01 && p.x + hw > bx + COLL[o] && p.x - hw < bx + COLL[o + 3] && p.z + hw > bz + COLL[o + 2] && p.z - hw < bz + COLL[o + 5]) return oben;
+          }
+      return -1;
+    };
+    let y = p.y;
+    for(let k = 0; k < 4; k++){ const o = steckt(y); if(o < 0) break; y = o; }
+    if(y !== p.y && steckt(y) < 0 && y - p.y <= 3){ p.y = y + 0.001; p.vy = Math.max(p.vy, 0); p.fallFrom = null; }
+  },
+  /** gleich nach der Ankunft im End: steht man nicht auf der Plattform (Chunk noch nicht da,
+      Plattform weg), wird sie neu gelegt und man darauf gestellt; wer im Kreativmodus ins
+      Nichts fällt, kommt auf die Plattform zurück */
+  endAnkunft(dt){
+    const p = this.player, w = this.world, [ax, ay, az] = END_ANKUNFT;
+    const zurueck = () => {
+      const c = w.ensureChunk(ax >> 4, az >> 4);
+      if(!c) return;
+      for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++) if(w.getBlock(ax + dx, ay - 1, az + dz) !== B.OBSIDIAN) w.setBlock(ax + dx, ay - 1, az + dz, B.OBSIDIAN);
+      p.x = ax + 0.5; p.y = ay; p.z = az + 0.5; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
+    };
+    if(p.ankunftT > 0){
+      p.ankunftT -= dt;
+      if(p.y < ay - 0.5 && Math.hypot(p.x - ax - .5, p.z - az - .5) < 3) zurueck();
+    }
+    if(p.creative && p.y < END_INSEL_Y - 60) zurueck();
   },
   /** Drache und Kristalle, solange er lebt (und was von ihnen noch übrig ist) */
   endKampf(){
@@ -2560,6 +2599,8 @@ const Game = {
     if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
     if(p.inLava && !p.creative && p.hurt(4, 'Du bist in Lava gefallen')){ this.hurtFlash = 1; Sfx.play('hurt'); }
     if(!p.inLava && !p.creative && imFeuer(w, p) && p.hurt(1, 'Du bist verbrannt')){ this.hurtFlash = 1; Sfx.play('hurt'); }
+    if(this.dim === 'ende') this.endAnkunft(dt);
+    this.herausdruecken(w, p);
     // Endportal: wer hineintritt, ist sofort drüben (wie beim Vorbild, ohne Warten)
     {
       const im = w.getBlock(Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z)) === B.ENDPORTAL;
@@ -2928,6 +2969,14 @@ const Input = {
     }
     if(e.pointerType === 'mouse') this.digging = false;
   },
+  /** Laufrichtung aus den gedrückten Tasten (W A S D) */
+  bewegungAusTasten(){
+    let x = 0, z = 0;
+    if(this.keys['w']) z -= 1; if(this.keys['s']) z += 1;
+    if(this.keys['a']) x -= 1; if(this.keys['d']) x += 1;
+    if(!this.moveId){ this.mx = x; this.mz = z; }
+    this.jump = !!this.keys[' ']; this.sneak = !!this.keys['shift'];
+  },
   /** alles loslassen — etwa, wenn der Chat aufgeht, während man läuft */
   loslassen(){
     this.keys = {}; this.mx = this.mz = 0; this.jump = this.sneak = this.sprint = false;
@@ -2935,13 +2984,14 @@ const Input = {
   },
   key(e, dn){
     const k = e.key.toLowerCase();
+    if(!dn && this.keys[k]){ this.keys[k] = false; if(Screens.open || Chat.offen || Menue.aktiv) this.bewegungAusTasten(); }
     // Titelbild und Optionen: Escape geht einen Schritt zurück, sonst nichts
     if(Menue.aktiv){ if(dn && k === 'escape') Menue.zurueck(); return; }
     if(!Game.running) return;
     if(Chat.offen) return;                             // Tasten gehören dem Eingabefeld
     // Pause mit Enter: Escape beendet in Safari auf dem Mac das Vollbild (und schließt das Fenster) — Escape geht trotzdem weiter
     if(dn && (k === 'enter' || k === 'escape')){ e.preventDefault(); if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); if(Screens.open) Screens.hide(); else togglePause(); return; }
-    if(Screens.open && Screens.open !== 'pause') { if(dn && (k === 'e')) Screens.hide(); return; }
+    if(Screens.open && Screens.open !== 'pause') { if(!dn) this.keys[k] = false; if(dn && (k === 'e')) Screens.hide(); return; }
     // T öffnet den Chat, / gleich mit Schrägstrich — wie beim Vorbild
     if(dn && !Screens.open && (k === 't' || e.key === '/')){ e.preventDefault(); Chat.oeffnen(e.key === '/' ? '/' : ''); return; }
     this.keys[k] = dn;
@@ -2952,7 +3002,7 @@ const Input = {
     // zweimal kurz hintereinander Leertaste: im Kreativmodus fliegen (und wieder landen) wie beim Vorbild
     if(dn && k === ' ' && !e.repeat && Game.player && Game.player.creative){
       const jetzt = e.timeStamp || performance.now();             // wann gedrückt wurde, nicht wann es ankam
-      if(jetzt - (this._leerT || 0) < 320){ Game.player.flying = !Game.player.flying; this._leerT = 0; Game.player.vy = 0; }
+      if(jetzt - (this._leerT || 0) < 320){ Game.player.flying = !Game.player.flying; this._leerT = 0; Game.player.vy = 0; hint(Game.player.flying ? 'Fliegen an' : 'Fliegen aus', 900); }
       else this._leerT = jetzt;
     }
     if(dn && k === 'q') dropHeld();
