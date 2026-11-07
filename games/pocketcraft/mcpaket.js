@@ -241,13 +241,15 @@ const McPaket = {
     }catch(e){}
     this._geladen = true;
     const s = Game.settings;
-    if(s.mcTexturen && this.texturen && !s.klassik) this.neuFragen();      // gleich fragen, nicht erst nach dem Umrechnen
+    // die Geräusche zuerst: sie brauchen nichts umzurechnen — früher kamen sie erst nach allen
+    // Bildern, und ging dabei etwas schief, blieben sie ganz aus
+    this.klaengeSetzen(!!s.mcKlaenge && !!this.klaenge);
     if(s.mcTexturen && this.texturen && !s.klassik){
-      await this.texturenSetzen(true);
+      try{ this.neuFragen(); }catch(e){ console.warn('Minecraft-Paket:', e); }   // gleich fragen, nicht erst nach dem Umrechnen
+      try{ await this.texturenSetzen(true); }catch(e){ console.warn('Minecraft-Texturen:', e); }
       if(!this.hatWesen()) setTimeout(() => hint('Minecraft-Paket: einmal neu laden, dann sehen auch Tiere, Hand und Inventar aus wie in Minecraft', 5200), 1500);
     }
     else if(s.mcTexturen){ s.mcTexturen = false; Game.saveOpts(); }
-    this.klaengeSetzen(!!s.mcKlaenge && !!this.klaenge);
     if(typeof Menue !== 'undefined' && Menue.aktiv === 'minecraft') this.zeigen();
   },
   /** Bilder, die Pocketcraft inzwischen aus der client.jar braucht, die beim
