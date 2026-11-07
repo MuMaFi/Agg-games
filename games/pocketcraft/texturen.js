@@ -1483,6 +1483,25 @@ function buildTextures(){
     haut(ENDER, 1322)(p);
     for(const x0 of [4, 18]){ p.rect(x0, 18, 10, 2, [206, 60, 250]); p.rect(x0 + 3, 18, 4, 2, [232, 160, 255]); }
   });
+  /* — Enderdrache: schwarze Schuppen, lila Augen; Flügel als dunkle Haut mit hellen Knochen; Endkristall rosa — */
+  const DRACHE = pal('#0e0d12','#16151c','#1d1b24','#24222c','#2c2934');
+  addTex('m_drache', p => { haut(DRACHE, 1341)(p); for(let i = 0; i < 14; i++){ const x = p.r()*TS, y = p.r()*TS; p.rect(x, y, 3, 2, [40, 36, 50]); } });
+  addTex('m_drache_kopf', p => {
+    haut(DRACHE, 1342)(p);
+    for(const x0 of [4, 20]){ p.rect(x0, 10, 8, 4, [190, 60, 230]); p.rect(x0 + 2, 11, 4, 2, [240, 170, 255]); }
+    p.rect(6, 24, 20, 2, [8, 6, 10]);
+  });
+  addTex('m_drache_fluegel', p => {
+    p.fuell((x, y) => .6*fbm(x, y, 4, 4, 1343, 2) + .4*vnoise(x, y, 8, 8, 1344), pal('#1a1820','#222029','#2a2733','#33303d'), null, .5);
+    for(let k = 0; k < 4; k++){ const y0 = 3 + k*8; for(let x = 0; x < TS; x++) p.put(x, (y0 + (x >> 3)) % TS, [70, 66, 80]); }
+  });
+  addTex('m_kristall', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const rand = x < 3 || y < 3 || x > TS - 4 || y > TS - 4;
+      p.put(x, y, rand ? [230, 170, 236] : [150, 70, 170], rand ? 255 : 150);
+    }
+  });
+  addTex('m_kristall_kern', p => p.fuell((x, y) => vnoise(x, y, 8, 8, 1351), pal('#d070e0','#e898f0','#f8c8ff','#ffffff'), null, .4));
   addTex('m_golem', p => {
     golemEisen(p, 394);
     let x = 6 + (p.r()*20 | 0);
@@ -1872,6 +1891,32 @@ function buildTextures(){
     const t = hoehe/zunge;
     return t < .25 ? [255, 236, 150] : t < .5 ? [252, 184, 48] : t < .75 ? [234, 110, 20] : [180, 46, 10];
   }));
+  /* — Das End: Endstein (blassgelb, gesprenkelt), Rahmen (oben grünlich mit
+     Mulde für das Auge, an den Seiten ein dunkler Streifen), Portal (schwarz
+     mit Sternen), Drachenei (schwarz, lila Tupfen) — */
+  const endTon = (x, y, s) => { const n = fbm(x*TS/16, y*TS/16, 8, 8, s, 2), k = h2(x, y, s + 1);
+    if(k > .92) return [186, 188, 128]; return n > .62 ? [236, 238, 184] : n > .45 ? [222, 224, 166] : n > .3 ? [208, 210, 150] : [196, 198, 140]; };
+  addTex('endstein', p => fein(p, (x, y) => endTon(x, y, 1301)));
+  const rahmenOben = (x, y) => {
+    const r = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
+    if(r > 6.5) return h2(x, y, 1311) > .5 ? [62, 104, 84] : [48, 86, 70];
+    if(r > 3.5) return h2(x, y, 1312) > .7 ? [70, 120, 96] : [40, 74, 62];
+    return [22, 40, 36];
+  };
+  addTex('endrahmen_oben', p => fein(p, rahmenOben));
+  addTex('endrahmen_auge', p => fein(p, (x, y) => {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    if(d < 1.6) return [8, 14, 10];
+    if(d < 3.6) return d < 2.6 ? [36, 132, 86] : [26, 96, 64];
+    return rahmenOben(x, y);
+  }));
+  addTex('endrahmen_seite', p => fein(p, (x, y) => y < 3 ? (h2(x, y, 1313) > .5 ? [62, 104, 84] : [40, 74, 62]) : y === 3 ? [30, 54, 46] : endTon(x, y, 1314)));
+  addTex('endportal', p => fein(p, (x, y) => {
+    const k = h2(x, y, 1321);
+    if(k > .95) return [200, 250, 230]; if(k > .9) return [60, 200, 180]; if(k > .86) return [40, 110, 160];
+    return h2(x >> 2, y >> 2, 1322) > .5 ? [10, 16, 22] : [4, 8, 12];
+  }));
+  addTex('drachenei', p => fein(p, (x, y) => h2(x, y, 1331) > .88 ? [110, 40, 140] : h2(x, y, 1332) > .6 ? [24, 18, 30] : [12, 8, 16]));
   /* — Netherziegel: kleine, dunkelrote Ziegel mit fast schwarzen Fugen — */
   addTex('netherziegel', p => fein(p, (x, y) => {
     const reihe = y >> 2, v = (x + (reihe & 1)*4) & 7;

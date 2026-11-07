@@ -24,7 +24,7 @@ const KLANG_DATEIEN = {
 
 /** Geräusche ohne eigene Datei: mit dem Minecraft-Paket dessen, sonst diese */
 const KLANG_ERSATZ = { wither_laut:'skelett', wither_au:'skelett_au', wither_tot:'skelett_tot',
-  lohe_au:'skelett_au', lohe_tot:'skelett_tot', ender_au:'zombie_au', ender_tot:'zombie_tot' };
+  lohe_au:'skelett_au', lohe_tot:'skelett_tot', ender_au:'zombie_au', ender_tot:'zombie_tot', explosion:'kaputt', drache_au:'zombie_au' };
 
 /* Material → [Datei, Lautstärke] je Anlass. Aufbau und Verhältnisse nach
    Minetest Game: Stein klingt beim Abbauen »knackig«, Holz »hackend«,
@@ -77,6 +77,8 @@ const WESEN_KLANG = {
   wither:   { laut:['wither_laut', .8, .8], au:['wither_au', .7, .8], tot:['wither_tot', .75, .8] },
   ghast:    { laut:['ghast_laut', .9], au:['ghast_au', .9], tot:['ghast_tot', 1], feuer:['ghast_feuer', .9] },
   blaze:    { laut:['lohe_laut', .55], au:['lohe_au', .7, 1.2], tot:['lohe_tot', .8, 1.2], feuer:['lohe_feuer', .5, 1.3] },
+  drache:   { laut:['drache_laut', 1], au:['drache_au', .9], tot:['drache_tot', 1], fluegel:['drache_fluegel', .8], feuer:['ghast_feuer', .8] },
+  kristall: { tot:['explosion', 1] },
   enderman: { laut:['ender_laut', .6], au:['ender_au', .7, .7], tot:['ender_tot', .8, .7], schrei:['ender_schrei', .8], tele:['ender_tele', .6] },
   villager: { laut:['dorf_hmm', .5], au:['dorf_au', .6], tot:['dorf_au', .6, .8] },
   golem:    { laut:['golem', .5], au:['hacken_metall', .8, .6], tot:['weg_metall', .9, .55], schlag:['setzen_metall', .9, .5] },

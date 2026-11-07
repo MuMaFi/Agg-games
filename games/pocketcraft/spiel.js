@@ -62,7 +62,7 @@ const Game = {
     w.schaltung = new Schaltung(w);
     w.schaltung.abfallen = w.stroemung.wegspuelen;
     w.schaltung.wesen = () => {
-      const l = [], p = this.player, d = w.typ === 'nether' ? 'nether' : 'oben';
+      const l = [], p = this.player, d = dimVonWelt(w);
       if(p && !p.dead && this.world === w && !this._fremd) l.push(p);
       for(const s of Netz.andere.values()) if(!s.tot && (s.dim || 'oben') === d) l.push(s);
       return l.concat(this.world === w ? this.mobs : []);
@@ -82,7 +82,7 @@ const Game = {
     w.setBlock = (x, y, z, id, noSave) => {
       const vorher = w.getBlock(x, y, z);
       const ok = setzen(x, y, z, id, noSave);
-      if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id, w.typ === 'nether' ? 1 : 0);
+      if(ok && !noSave && Netz.rolle && !Netz.eingehend) Netz.blockGeaendert(x, y, z, id, Netz.dimNr(dimVonWelt(w)));
       if(ok && !Netz.istGast){ w.stroemung.melden(x, y, z); w.schaltung.melden(x, y, z, vorher, id); }
       if(ok && (id === B.FEUER || vorher === B.FEUER)){
         const k = x + ',' + y + ',' + z;
@@ -116,7 +116,7 @@ const Game = {
     Chat.leeren();
     // Oberwelt einrichten; den Nether gibt es erst, wenn jemand hinübergeht (netherWelt)
     this.weltEinrichten(this.world);
-    this.oben = this.world; this.nether = null; this.dim = 'oben'; this._dimRest = {};
+    this.oben = this.world; this.nether = null; this.ende = null; this.dim = 'oben'; this._dimRest = {};
     this.wasser = this.world.stroemung; this.schaltung = this.world.schaltung;
     Plattenspieler.alleAus();
     this.player = new Player();
@@ -146,7 +146,10 @@ const Game = {
       // Netherportale der Oberwelt, und der Nether selbst, wenn schon jemand dort war
       for(const q of (saved.portale || [])) this.oben.portale.set(q.x + ',' + q.y + ',' + q.z, q);
       if(saved.nether) this.weltLaden(this.netherWelt(), saved.nether);
-      if(saved.dim === 'nether' && this.nether){ this.dim = 'nether'; this.world = this.nether; this.wasser = this.nether.stroemung; this.schaltung = this.nether.schaltung; }
+      if(saved.ende) this.weltLaden(this.endeWelt(), saved.ende);
+      if(saved.drache && this.ende) this.ende.drache = saved.drache;
+      const dw = saved.dim === 'nether' ? this.nether : saved.dim === 'ende' ? this.ende : null;
+      if(dw){ this.dim = saved.dim; this.world = dw; this.wasser = dw.stroemung; this.schaltung = dw.schaltung; }
       // gezüchtete und gefütterte Tiere bleiben in der Welt
       for(const t of (saved.tiere || [])){
         const [art, x, y, z, yaw, hp, kind, pause, wolle, geschoren] = t;
@@ -192,7 +195,7 @@ const Game = {
     this.start(meta, {
       p: du.p || null, inv: du.inv || [], ruest: du.ruest || [], bekannt: du.bekannt || [], rest: du.rest || [],
       mods: w.mods || [], lava: 1, furn: w.furn || [], truhen: w.truhen || [], felder: w.felder || [],
-      portale: w.portale || [], nether: w.nether, dim: w.dim,
+      portale: w.portale || [], nether: w.nether, ende: w.ende, drache: w.drache, dim: w.dim,
       time: w.time, zeit: w.zeit, tiere: [], wetter: w.wetter, regeln: w.regeln
     });
     const p = this.player;
@@ -332,7 +335,12 @@ const Game = {
     if(!this.nether){ this.nether = new World(this.oben.seedStr + ':nether', 2, 'nether'); this.weltEinrichten(this.nether); }
     return this.nether;
   },
-  welt(d){ return d === 'nether' ? this.netherWelt() : this.oben; },
+  /** das End: Startwert der Oberwelt mit »:ende«; wie es dem Drachen geht, steht in w.drache */
+  endeWelt(){
+    if(!this.ende){ this.ende = new World(this.oben.seedStr + ':ende', 2, 'ende'); this.weltEinrichten(this.ende); this.ende.drache = this.ende.drache || { tot: false, kristalle: null }; }
+    return this.ende;
+  },
+  welt(d){ return d === 'nether' ? this.netherWelt() : d === 'ende' ? this.endeWelt() : this.oben; },
   /** Wesen, Liegendes und Geschosse einer Welt (die eigene oder die abgelegte) */
   listen(d){
     if(d === this.dim) return this;
@@ -372,8 +380,8 @@ const Game = {
   /** Host: die andere Welt weiterrechnen, solange ein Gast dort ist */
   andereWeltRechnen(dt){
     if(!Netz.istHost) return;
-    const d = this.dim === 'nether' ? 'oben' : 'nether';
-    if(!Netz.bereiteGaeste().some(g => (g.dim || 'oben') === d)) return;
+    for(const d of DIMS){
+    if(d === this.dim || !Netz.bereiteGaeste().some(g => (g.dim || 'oben') === d)) continue;
     this.inDim(d, () => {
       this.updateMobs(dt); this.updateDrops(dt); this.updatePfeile(dt);
       this.tickFurnaces(dt); this.tickFelder(dt); this.spawnMobs(dt); this.feuerBrennt(dt); if(d === 'oben') this.dorfLeben(dt);
@@ -381,12 +389,13 @@ const Game = {
       this._pruefAndere = (this._pruefAndere || 0) - dt;
       if(this._pruefAndere <= 0){ this._pruefAndere = 1; this.portalePruefen(); }
     });
+    }
   },
   dimWechseln(ziel){
     if(ziel === this.dim) return;
     this._dimRest[this.dim] = { mobs: this.mobs, drops: this.drops, pfeile: this.pfeile };
     this.dim = ziel;
-    this.world = ziel === 'nether' ? this.netherWelt() : this.oben;
+    this.world = this.welt(ziel);
     this.wasser = this.world.stroemung; this.schaltung = this.world.schaltung;
     const r = this._dimRest[ziel] || {};
     this.mobs = r.mobs || []; this.drops = r.drops || []; this.pfeile = r.pfeile || []; this.partikel = [];
@@ -435,7 +444,7 @@ const Game = {
   /** mit dem Feuerzeug in einen Obsidianrahmen: ein Portal */
   zuenden(t){
     if(!t) return;
-    const w = this.world, fx = t.x + t.nx, fy = t.y + t.ny, fz = t.z + t.nz, q = this.portalRahmen(w, fx, fy, fz);
+    const w = this.world, fx = t.x + t.nx, fy = t.y + t.ny, fz = t.z + t.nz, q = this.dim === 'ende' ? null : this.portalRahmen(w, fx, fy, fz);   // im End gibt es kein Netherportal
     if(!q){
       // kein Rahmen: Feuer, wo darunter etwas Festes ist und die Zelle frei
       const da = w.getBlock(fx, fy, fz);
@@ -508,7 +517,7 @@ const Game = {
     for(let j = 0; j < 3; j++){ w.setBlock(x - dx, y + j, z - dz, B.OBSIDIAN); w.setBlock(x + dx*2, y + j, z + dz*2, B.OBSIDIAN); }
     const q = { a, x, y, z, w: 2, h: 3 };
     w.portale.set(x + ',' + y + ',' + z, q);
-    Netz.portalNeu(q, w.typ === 'nether' ? 'nether' : 'oben');
+    Netz.portalNeu(q, dimVonWelt(w));
     return q;
   },
 
@@ -548,7 +557,8 @@ const Game = {
       const p = this.player;
       const data = Object.assign({
         seed: this.oben.seedStr, gen: this.oben.gen, typ: this.oben.typ, doerfer: this.oben.doerfer, obsidian: this.oben.obsidian, lava: 1,
-        dim: this.dim, nether: this.nether ? this.weltTeil(this.nether) : undefined, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
+        dim: this.dim, nether: this.nether ? this.weltTeil(this.nether) : undefined, ende: this.ende ? this.weltTeil(this.ende) : undefined,
+        drache: this.ende ? this.ende.drache : undefined, time: this.time, zeit: this.gesamtZeit, wetter: Wetter.daten(),
         regeln: this.regeln, ops: [...this.ops],
         p: { x:p.x, y:p.y, z:p.z, yaw:p.yaw, pitch:p.pitch, health:p.health, food:p.food,
              saturation:p.saturation, air:p.air, creative:p.creative,
@@ -787,12 +797,15 @@ const Game = {
       // ins Leere: ein Ei fliegt trotzdem, und Wasser schöpft man auch, wenn dahinter nichts in Reichweite ist
       const h = Inv.held();
       if(h && istWurf(h.id)) this.eiWerfen();
+      else if(h && h.id === ITEM.enderauge) this.augeWerfen();
       else if(h && h.id === ITEM.bucket) this.schoepfen();
       return;
     }
     const id = w.getBlock(t.x,t.y,t.z), k = t.x+','+t.y+','+t.z;
     const s = Inv.held(), it = s ? items[s.id] : null;
     if(s && s.id === ITEM.feuerzeug){ this.zuenden(t); return; }
+    // Enderauge: in einen Rahmen setzen — sonst werfen, es zeigt den Weg zur Endfestung
+    if(s && s.id === ITEM.enderauge){ if(id === B.ENDRAHMEN) this.augeEinsetzen(t.x, t.y, t.z); else this.augeWerfen(); return; }
     // Benutzbare Blöcke — geduckt baut man stattdessen daran
     if(!Input.sneak){
       if(id === B.TABLE){ Screens.oeffne('werkbank'); Sfx.block('hacken', B.TABLE, t.x, t.y, t.z, .6); return; }
@@ -1055,7 +1068,7 @@ const Game = {
       liegen (schlafPruefen); bis dahin kann man wieder aufstehen. */
   schlafen(x, y, z){
     const p = this.player;
-    if(this.dim === 'nether'){ hint('Im Nether kann man nicht schlafen', 2400); return; }
+    if(this.dim !== 'oben'){ hint(this.dim === 'ende' ? 'Im End kann man nicht schlafen' : 'Im Nether kann man nicht schlafen', 2400); return; }
     // im zweiteiligen Bett liegt man im Kopfteil
     const bid = this.world.getBlock(x, y, z);
     if(bid !== B.BETTKOPF){
@@ -1255,16 +1268,19 @@ const Game = {
     // Als Gast rechnet der Host: nur fragen, aufblitzen lassen
     if(Netz.istGast){ Netz.wesenAnfrage('treffer', m, { dmg, kx: r2(kx), kz: r2(kz) }); m.hurtTimer = 0.4; return; }
     if(m.def.neutral) this.enderWuetend(m);
+    if(m.type === 'kristall'){ m.dead = true; this.kristallPlatzt(m); return; }
     // eine halbe Sekunde unverwundbar wie beim Vorbild: dann zählt nur, was ein Treffer mehr bringt, ohne neuen Stoß
     let stoss = true;
     if(m.trefferT > 0){ if(dmg <= (m.letzterTreffer || 0)) return; const mehr = dmg - m.letzterTreffer; m.letzterTreffer = dmg; dmg = mehr; stoss = false; }
     else { m.letzterTreffer = dmg; m.trefferT = 0.5; }
     m.health -= dmg; m.hurtTimer = 0.4;
-    if(!m.def.golem && stoss){ m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5); }
+    if(!m.def.golem && !m.def.drache && stoss){ m.vx += kx*6; m.vz += kz*6; m.vy = Math.max(m.vy, 4.5); }
+    if(m.def.drache) Sfx.wesen(m, 'au');
     if(!m.def.hostile && !m.def.golem){ m.flucht = 4; m.fluchtX = kx; m.fluchtZ = kz; }   // Tiere laufen weg
     if(von !== GOLEM_HAND && (m.def.golem || m.def.dorf)) this.golemZorn(m, von);
     if(m.health <= 0){
       m.dead = true;
+      if(m.def.drache) this.drachenSieg(m);
       if(m.def.schleim && m.groesse > 1) this.schleimTeilen(m);
       if(!(m.kind > 0)){
         const beute = m.def.beute(m).filter(([, n]) => n > 0);
@@ -1614,6 +1630,7 @@ const Game = {
       const a = this.pfeile[i];
       a.alter += dt;
       if(a.weg || a.alter > 40){ this.pfeile.splice(i, 1); continue; }
+      if(a.auge){ if(this.augeFliegt(a, dt)) this.pfeile.splice(i, 1); continue; }
       if(a.steckt){
         // Pfeile des Spielers aufheben, sobald man nah ist; fremde verschwinden bald
         if(a.vomSpieler && !p.creative && Math.hypot(p.x - a.x, p.y + 0.9 - a.y, p.z - a.z) < 1.6){
@@ -1731,10 +1748,12 @@ const Game = {
   },
   spawnMobs(dt){
     const menge = MONSTER_MENGE[this.settings.monster] || MONSTER_MENGE.normal;
+    if(this.dim === 'ende') this.endKampf();                   // der Drache gehört zum End, auch ohne Monster
     // »Keine«: auch die, die schon da sind, verschwinden — wie friedlich beim Vorbild
-    if(!menge.nacht && this.mobs.some(m => m.def.hostile)) this.mobs = this.mobs.filter(m => !m.def.hostile);
+    if(!menge.nacht && this.mobs.some(m => m.def.hostile && !m.def.drache)) this.mobs = this.mobs.filter(m => !m.def.hostile || m.def.drache);
     if(!this.regeln.doMobSpawning) return;
     if(this.dim === 'nether'){ if(menge.nacht) this.netherSpawnen(dt); return; }
+    if(this.dim === 'ende'){ this.endeSpawnen(dt, menge); return; }
     this.mobTimer -= dt;
     if(this.mobTimer > 0) return;
     // Wesen erscheinen rund um jeden Spieler, reihum
@@ -1777,6 +1796,215 @@ const Game = {
         }
       }
     }
+  },
+  /* ── Das End ─────────────────────────────────────────────────────────
+     Enderauge werfen (zeigt zur nächsten Endfestung) oder in einen Rahmen
+     setzen; zwölf volle Rahmen öffnen das Portal. Im End warten der Drache
+     und seine Kristalle; wer ihn besiegt, kommt durch das Ausgangsportal heim. */
+  augeWerfen(){
+    const p = this.player, jetzt = performance.now();
+    if(jetzt - (this._augeT || 0) < 600) return;
+    this._augeT = jetzt;
+    if(this.dim !== 'oben'){ hint('Hier weiß das Enderauge keinen Weg', 2000); return; }
+    const f = endfestungNaechste(this.world, p.x, p.z);
+    if(!f){ hint('In dieser Welt gibt es keine Endfestung', 2200); return; }
+    const dx = f.px + 0.5 - p.x, dz = f.pz + 0.5 - p.z, d = Math.hypot(dx, dz) || 1;
+    const a = new Pfeil(p.x, p.eyeY() - 0.2, p.z, 0, 0, 0, 0, true, false);
+    a.auge = { ux: dx/d, uz: dz/d, weit: Math.min(12, d), x0: p.x, y0: p.eyeY() - 0.2, z0: p.z, zielY: d < 12 ? f.py + 1 : null };
+    this.pfeile.push(a);
+    if(!p.creative) Inv.consumeHeld();
+    Sfx.play('werfen'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+  },
+  /** das geworfene Auge: steigt und fliegt zwölf Blöcke in Richtung der Festung, schwebt kurz,
+      dann fällt es meistens herunter (aufheben!) — eins von fünf zerbricht. true: es ist weg */
+  augeFliegt(a, dt){
+    const o = a.auge, t = Math.min(1, a.alter/1.7);
+    const glatt = t*t*(3 - 2*t);
+    a.x = o.x0 + o.ux*o.weit*glatt; a.z = o.z0 + o.uz*o.weit*glatt;
+    a.y = o.zielY !== null ? o.y0 + (o.zielY - o.y0)*glatt : o.y0 + 2.6*Math.min(1, a.alter/1.1) + Math.sin(a.alter*6)*0.08;
+    a.rx = o.ux; a.ry = 0; a.rz = o.uz;
+    if(Math.random() < dt*12) this.partikel.push({ x: a.x, y: a.y, z: a.z, t: 0, tex: 'portal', gr: 0.05, dauer: 0.5, fall: false, vx: 0, vy: 0, vz: 0 });
+    if(a.alter < 2.3) return false;
+    if(Math.random() < 0.8) this.dropItem(ITEM.enderauge, 1, a.x, a.y, a.z);
+    else { Sfx.play('kaputt', a.x, a.y, a.z); this.portalFunken(a.x, a.y, a.z, 14); }
+    return true;
+  },
+  augeEinsetzen(x, y, z){
+    const w = this.world, p = this.player;
+    w.setBlock(x, y, z, B.ENDRAHMEN_AUGE);
+    if(!p.creative) Inv.consumeHeld();
+    p.swinging = true; p.swing = 0; HUD.refreshHotbar();
+    if(!Sfx.probe('auge_setzen', { gain: .8, x: x + .5, y: y + .5, z: z + .5 })) Sfx.play('kolben_raus', x + .5, y + .5, z + .5);
+    this.endportalPruefen(x, y, z);
+  },
+  /** zwölf Rahmen mit Auge um ein 3 × 3-Feld: das Portal öffnet sich */
+  endportalPruefen(x, y, z){
+    const w = this.world;
+    for(let cz = z - 2; cz <= z + 2; cz++) for(let cx = x - 2; cx <= x + 2; cx++){
+      let voll = true;
+      for(let dz = -2; dz <= 2 && voll; dz++) for(let dx = -2; dx <= 2 && voll; dx++){
+        const rand = (Math.abs(dx) === 2) !== (Math.abs(dz) === 2);
+        if(rand && w.getBlock(cx + dx, y, cz + dz) !== B.ENDRAHMEN_AUGE) voll = false;
+      }
+      if(!voll) continue;
+      for(let dz = -1; dz <= 1; dz++) for(let dx = -1; dx <= 1; dx++) w.setBlock(cx + dx, y, cz + dz, B.ENDPORTAL);
+      if(!Sfx.probe('endportal', { gain: 1 })) Sfx.play('kolben_rein');
+      this.portalFunken(cx + .5, y + 1, cz + .5, 30);
+      hint('Das Endportal ist offen!', 3000);
+      return true;
+    }
+    return false;
+  },
+  /** durchs Endportal: hin auf die Plattform aus Obsidian — oder (im End) heim zum Startpunkt */
+  endReise(){
+    const p = this.player;
+    p.endSperre = true; p.vx = p.vy = p.vz = 0; p.fallFrom = null;
+    if(this.dim === 'ende'){
+      this.dimWechseln('oben');
+      p.x = p.spawnX; p.y = p.spawnY; p.z = p.spawnZ;
+      this.platzSuchen = !this.bett;
+      hint('Zurück in der Oberwelt', 2400);
+      return;
+    }
+    this.dimWechseln('ende');
+    const w = this.world, [ax, ay, az] = END_ANKUNFT;
+    for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++) w.ensureChunk((ax >> 4) + dx, (az >> 4) + dz);
+    for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++){
+      w.setBlock(ax + dx, ay - 1, az + dz, B.OBSIDIAN);
+      for(let y = ay; y <= ay + 2; y++) if(w.getBlock(ax + dx, y, az + dz) !== B.AIR) w.setBlock(ax + dx, y, az + dz, B.AIR);
+    }
+    p.x = ax + 0.5; p.y = ay; p.z = az + 0.5; p.yaw = Math.PI/2; p.pitch = 0;
+    if(!Netz.istGast) this.endKampf();
+    hint('Das End', 2400);
+  },
+  /** Drache und Kristalle, solange er lebt (und was von ihnen noch übrig ist) */
+  endKampf(){
+    const w = this.world;
+    if(w.typ !== 'ende') return;
+    const d = w.drache || (w.drache = { tot: false, kristalle: null });
+    const S = endSaeulen(w);
+    if(!Array.isArray(d.kristalle)) d.kristalle = S.map((s, i) => i);
+    if(!this.mobs.some(m => m.type === 'kristall'))
+      for(const i of d.kristalle){ const s = S[i]; if(!s) continue; const k = new Mob('kristall', s.x + .5, s.top + 1, s.z + .5, false); k.saeule = i; k.bleibt = true; this.mobs.push(k); }
+    if(!d.tot && !this.mobs.some(m => m.type === 'drache')){
+      const m = new Mob('drache', 40.5, 80, 0.5, false); m.bleibt = true;
+      if(d.leben > 0) m.health = d.leben;
+      this.mobs.push(m);
+    }
+  },
+  /** ein Kristall platzt: Knall, Schaden ringsum; der Drache spürt es */
+  kristallPlatzt(m){
+    const d = this.world.drache;
+    if(d && Array.isArray(d.kristalle)) d.kristalle = d.kristalle.filter(i => i !== m.saeule);
+    Sfx.wesen(m, 'tot');
+    for(let k = 0; k < 24; k++) this.partikel.push({ x: m.x + (Math.random() - .5)*2, y: m.y + 1 + (Math.random() - .5)*2, z: m.z + (Math.random() - .5)*2,
+      t: -k*0.01, dauer: .7, gr: .2, tex: 'p_dotter' });
+    for(const q of this.spielerOrte()){
+      const e = Math.hypot(q.x - m.x, q.y + 1 - m.y - 1, q.z - m.z);
+      if(e > 6 || q.dead || q.creative) continue;
+      const dmg = Math.max(1, Math.round(12*(1 - e/6))), kx = (q.x - m.x)/(e || 1), kz = (q.z - m.z)/(e || 1);
+      if(q.ich){ if(this.player.hurt(dmg, 'Ein Endkristall ist explodiert', kx, kz)){ this.hurtFlash = 1; this.camShake = 0.4; Sfx.play('hurt'); } }
+      else Netz.autsch(q.g, dmg, 'Ein Endkristall ist explodiert', kx, kz);
+    }
+    for(const r of this.mobs) if(r.type === 'drache' && r.heilt === m){ r.health -= 10; r.hurtTimer = 0.4; r.heilt = null; if(r.health <= 0){ r.dead = true; this.drachenSieg(r); } }
+  },
+  /** der Drache: kreist, stößt herab, speit Feuer, heilt sich an den Kristallen */
+  drachenDenken(m, dt, leute){
+    const d = this.world.drache || {};
+    const opfer = leute.filter(q => !q.dead && !q.creative && Math.hypot(q.x, q.z) < 150);
+    let heil = null, hd = 48;
+    for(const k of this.mobs) if(k.type === 'kristall' && !k.dead){ const e = Math.hypot(k.x - m.x, k.y - m.y, k.z - m.z); if(e < hd){ hd = e; heil = k; } }
+    m.heilt = heil;
+    if(heil && m.health < m.def.health) m.health = Math.min(m.def.health, m.health + dt*1.5);
+    if(!m.zustand){ m.zustand = 'kreisen'; m.zustandT = 8; m.winkel = Math.atan2(m.z, m.x); }
+    m.zustandT -= dt;
+    const finde = o => o && leute.find(q => o.ich ? q.ich : q.g === o.g);
+    let ziel;
+    if(m.zustand === 'kreisen'){
+      m.winkel += dt*0.26;
+      ziel = [Math.cos(m.winkel)*52, 76 + Math.sin(m.age*0.7)*5, Math.sin(m.winkel)*52];
+      if(m.zustandT <= 0 && opfer.length){ m.opfer = opfer[(Math.random()*opfer.length) | 0]; m.zustand = 'sturz'; m.zustandT = 7; Sfx.wesen(m, 'laut'); }
+      m.feuerCd = (m.feuerCd === undefined ? 5 : m.feuerCd) - dt;
+      if(m.feuerCd <= 0 && opfer.length){
+        const q = opfer[(Math.random()*opfer.length) | 0], hx = m.x - Math.sin(m.yaw)*5, hy = m.y + 1.5, hz = m.z - Math.cos(m.yaw)*5;
+        const l = Math.hypot(q.x - hx, q.y + 1 - hy, q.z - hz);
+        if(l < 70 && this.freieSicht(hx, hy, hz, q.x, q.y + 1.2, q.z)){
+          const v = 14, ux = (q.x - hx)/l, uy = (q.y + 1 - hy)/l, uz = (q.z - hz)/l;
+          const pf = new Pfeil(hx, hy, hz, ux*v, uy*v, uz*v, 6, false, false, true);
+          this.pfeile.push(pf); Netz.pfeilSenden(pf, false); Sfx.wesen(m, 'feuer');
+        }
+        m.feuerCd = 5 + Math.random()*4;
+      }
+    } else if(m.zustand === 'sturz'){
+      const q = finde(m.opfer);
+      if(!q || q.dead || q.creative || m.zustandT <= 0){ m.zustand = 'steigen'; m.zustandT = 3; }
+      else ziel = [q.x, q.y + 1, q.z];
+    }
+    if(m.zustand === 'steigen'){
+      ziel = [Math.cos(m.winkel)*52, 86, Math.sin(m.winkel)*52];
+      if(m.zustandT <= 0){ m.zustand = 'kreisen'; m.zustandT = 12 + Math.random()*8; }
+    }
+    // steuern: sanft zum Ziel, ohne Rücksicht auf Blöcke (er fliegt durch, wie beim Vorbild)
+    const sp = m.zustand === 'sturz' ? 19 : 13;
+    const ex = ziel[0] - m.x, ey = ziel[1] - m.y, ez = ziel[2] - m.z, el = Math.hypot(ex, ey, ez) || 1;
+    const k = Math.min(1, dt*1.5);
+    m.vx += (ex/el*sp - m.vx)*k; m.vy += (ey/el*sp - m.vy)*k; m.vz += (ez/el*sp - m.vz)*k;
+    m.x += m.vx*dt; m.y = clamp(m.y + m.vy*dt, END_INSEL_Y - 20, WH - 6); m.z += m.vz*dt;
+    m.yaw = Math.atan2(-m.vx, -m.vz); m.moving = true;
+    // wer ihm zu nahe kommt, den trifft er mit Kopf oder Flügel und schleudert ihn fort
+    for(const q of opfer){
+      const e = Math.hypot(q.x - m.x, q.y + 1 - (m.y + 1.5), q.z - m.z);
+      if(e > 5 || m.attackCd > 0) continue;
+      const kx = (q.x - m.x)/(e || 1), kz = (q.z - m.z)/(e || 1), dmg = m.zustand === 'sturz' ? 10 : 5;
+      if(q.ich){ if(this.player.hurt(dmg, m.def.treffer, kx*2, kz*2)){ this.player.vy = 11; this.hurtFlash = 1; Sfx.play('hurt'); } }
+      else Netz.autsch(q.g, dmg, m.def.treffer, kx*2, kz*2);
+      m.attackCd = 1.2;
+      if(m.zustand === 'sturz'){ m.zustand = 'steigen'; m.zustandT = 3; }
+    }
+    if(Math.random() < dt*0.6) Sfx.wesen(m, 'fluegel');
+    if(Math.random() < dt*0.06) Sfx.wesen(m, 'laut');
+    d.leben = m.health;
+  },
+  /** besiegt: das Ausgangsportal öffnet sich, obenauf liegt das Drachenei */
+  drachenSieg(m){
+    const w = this.world, d = w.drache || (w.drache = {});
+    d.tot = true; d.leben = 0;
+    Sfx.wesen(m, 'tot');
+    for(let k = 0; k < 80; k++) this.partikel.push({ x: m.x + (Math.random() - .5)*8, y: m.y + Math.random()*4, z: m.z + (Math.random() - .5)*8,
+      t: -k*0.02, dauer: 1.6, gr: .25, tex: 'portal' });
+    endAusgangOeffnen(w, (x, y, z, id) => w.setBlock(x, y, z, id));
+    w.setBlock(0, END_PORTAL_Y + 4, 0, B.DRACHENEI);
+    const text = 'Der Enderdrache ist besiegt! In der Mitte führt ein Portal zurück.';
+    hint(text, 5000);
+    if(Netz.istHost) Netz.anDim({ t:'hinweis', text }, 'ende');
+  },
+  /** im End: Endermen auf dem Endstein, und der Kampf, solange der Drache lebt */
+  endeSpawnen(dt, menge){
+    this.mobTimer -= dt;
+    if(this.mobTimer > 0) return;
+    this.mobTimer = 2;
+    const w = this.world, leute = this.spielerOrte().filter(q => !q.creative && !q.dead);
+    if(!leute.length || !menge.nacht) return;
+    const p = leute[(Math.random()*leute.length) | 0];
+    if(this.mobs.filter(m => m.type === 'enderman' && Math.hypot(m.x - p.x, m.z - p.z) < 64).length >= 10) return;
+    for(let a = 0; a < 6; a++){
+      const ang = Math.random()*TAU, r = 16 + Math.random()*30;
+      const x = Math.floor(p.x + Math.cos(ang)*r), z = Math.floor(p.z + Math.sin(ang)*r);
+      const c = w.chunks.get(ckey(x >> 4, z >> 4));
+      if(!c || c.state < 1) continue;
+      let y = WH - 4;
+      while(y > 2 && w.getBlock(x, y - 1, z) !== B.ENDSTEIN) y--;
+      if(y <= 2 || blocksMovement(w.getBlock(x, y, z)) || blocksMovement(w.getBlock(x, y + 1, z)) || blocksMovement(w.getBlock(x, y + 2, z))) continue;
+      this.mobs.push(new Mob('enderman', x + .5, y, z + .5)); break;
+    }
+  },
+  /** der Lebensbalken oben, solange der Drache in der Nähe ist */
+  bossLeiste(){
+    const el = document.getElementById('bossbar');
+    if(!el) return;
+    const p = this.player, m = this.dim === 'ende' ? this.mobs.find(q => q.type === 'drache' && !q.dead && Math.hypot(q.x - p.x, q.z - p.z) < 192) : null;
+    el.classList.toggle('on', !!m);
+    if(m){ const f = clamp(m.health/m.def.health, 0, 1); if(this._bossF !== f){ this._bossF = f; el.querySelector('b').style.width = (f*100).toFixed(1) + '%'; } }
   },
   /** Ghast: schwebt von Ziel zu Ziel; sieht er einen Spieler, dreht er sich zu
       ihm, öffnet das Maul und schießt alle drei, vier Sekunden eine Feuerkugel */
@@ -2143,6 +2371,8 @@ const Game = {
       if(m.trefferT > 0) m.trefferT -= dt;
       if(m.attackCd > 0) m.attackCd -= dt;
       if(m.jumpCd > 0) m.jumpCd -= dt;
+      if(m.def.statisch) continue;                                  // Endkristall: steht und dreht sich nur
+      if(m.def.drache){ this.drachenDenken(m, dt, leute); continue; }
 
       let tx = 0, tz = 0, speed = m.def.speed, partner = null, eltern = null;
       if(m.def.neutral) this.enderDenken(m, dt, opfer, od, leute);
@@ -2261,7 +2491,7 @@ const Game = {
       if(m.moving || tx || tz) m.walkPhase += dt*speed*3.2;
 
       // Sonnenbrand — nicht bei Regen, da ist der Tag zu trüb
-      if(m.def.hostile && !m.def.feuerfest && !m.def.sonnenfest && dl > 0.6 && Wetter.staerke < 0.5 && this.dim !== 'nether'){
+      if(m.def.hostile && !m.def.feuerfest && !m.def.sonnenfest && dl > 0.6 && Wetter.staerke < 0.5 && this.dim === 'oben'){
         const lv = w.getLight(Math.floor(m.x), Math.floor(m.y+m.h), Math.floor(m.z));
         if((lv & 15) >= 14){ m.health -= dt*3.2; m.hurtTimer = 0.2; if(m.health <= 0) m.dead = true; }
       }
@@ -2330,6 +2560,12 @@ const Game = {
     if(p.inWater && !warImWasser && p.vy < -5) Sfx.play('platsch');
     if(p.inLava && !p.creative && p.hurt(4, 'Du bist in Lava gefallen')){ this.hurtFlash = 1; Sfx.play('hurt'); }
     if(!p.inLava && !p.creative && imFeuer(w, p) && p.hurt(1, 'Du bist verbrannt')){ this.hurtFlash = 1; Sfx.play('hurt'); }
+    // Endportal: wer hineintritt, ist sofort drüben (wie beim Vorbild, ohne Warten)
+    {
+      const im = w.getBlock(Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z)) === B.ENDPORTAL;
+      if(im && !p.endSperre && !p.dead){ this.endReise(); return; }
+      if(!im) p.endSperre = false;
+    }
     p.headInLava = w.getBlock(Math.floor(p.x), Math.floor(p.eyeY()), Math.floor(p.z)) === B.LAVA;
     {
       const ey = p.eyeY(), ky = Math.floor(ey), kopf = w.getBlock(Math.floor(p.x), ky, Math.floor(p.z));
@@ -2475,6 +2711,7 @@ const Game = {
   /* ── Tageszeit ───────────────────────────────────────────────────── */
   sunAngle(){ return (this.time/DAY_LEN) * TAU; },
   dayLight(){
+    if(this.dim === 'ende') return END_LICHT;                   // im End ist es immer gleich dämmrig
     const s = Math.sin(this.sunAngle());
     return (0.165 + 0.835 * clamp(s*2.1 + 0.34, 0, 1)) * (1 - 0.25*Wetter.staerke);    // Regen macht den Tag trüb
   },
@@ -2811,10 +3048,11 @@ function frame(now){
     } else { Game.wasser.naechste.clear(); Game.schaltung.naechste.clear(); }   // beim Gast fließt und schaltet es, wie der Host es schickt
     if(!imMenue) handleDigging(dt);
   }
-  Wetter.tick(dt, paused || Game.dim === 'nether');      // im Nether regnet es nicht
+  Wetter.tick(dt, paused || Game.dim !== 'oben');      // im Nether und im End regnet es nicht
   // oben wechselt das Wetter trotzdem weiter — für die Mitspieler dort
-  if(Game.dim === 'nether' && !paused && Netz.istHost && Game.regeln.doWeatherCycle){ Wetter.rest -= dt; if(Wetter.rest <= 0) Wetter.wechseln(); }
+  if(Game.dim !== 'oben' && !paused && Netz.istHost && Game.regeln.doWeatherCycle){ Wetter.rest -= dt; if(Wetter.rest <= 0) Wetter.wechseln(); }
   Netz.tick(dt);
+  Game.bossLeiste();
   /* Tod: gleich wodurch — Sturz, Zombie, Hunger. Früher prüfte das nur die
      Spielerbewegung selbst; wer von einem Zombie erschlagen wurde, blieb
      ohne Todesbildschirm einfach stehen. */

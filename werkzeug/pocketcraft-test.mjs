@@ -555,7 +555,7 @@ pruef(T(`BERUFE.length === 4 && BERUFE.every(b => b.handel().length >= 4 && b.ha
   && defOf(a.bekommt[0]) && a.bekommt[1] > 0 && a.bekommt[1] <= stackOf(a.bekommt[0])))`), 'Berufe und Tauschangebote: alles gibt es');
 pruef(T(`ITEM.emerald > 0 && items[ITEM.emerald].name === 'Smaragd' && TEX.i_smaragd !== undefined && MOBS.villager.parts.every(p => TEX[p.tex] !== undefined && (!p.face || TEX[p.face] !== undefined))
   && ['m_dorf_haut','m_dorf_face','m_dorf_kutte'].every(n => KLASSIK[n]) && lagenOk()`), 'Smaragd und Dorfbewohner haben ihre Bilder, auch klassisch');
-pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-6).join() === 'villager,golem,wither,ghast,blaze,enderman'; })()`),
+pruef(T(`(() => { const a = kuttenFarbe({ beruf: 0 }, 1).slice(), b = kuttenFarbe({ beruf: 2 }, 1).slice(); return a[0] !== b[0] && Object.keys(MOBS).slice(-8).join() === 'villager,golem,wither,ghast,blaze,enderman,kristall,drache'; })()`),
   'die Kutte trägt die Farbe des Berufs; Dorfbewohner und Golems stehen hinten in der Liste der Wesen');
 // 26.10.08: Kürbis, geschnitzter Kürbis (Gesicht in vier Richtungen), Eisengolem
 pruef(T(`blocks[B.KUERBIS].name === 'Kürbis' && [0, 1, 2, 3].every(r => { const f = blocks[B.GESCHNITZT + r].faces, i = [0, 1, 4, 5][r];
@@ -688,5 +688,21 @@ pruef(T(`(() => { const w = new World('neth:nether', 2, 'nether'); let wenig = 9
 pruef(T(`B.FEUER >= BLOCK2 && blocks[B.FEUER].light === 15 && !blocks[B.FEUER].solid && blocks[B.FEUER].replaceable && LEUCHTET[B.FEUER] === 1
   && rasterRezept([{id:ITEM.lohenstaub,n:1},{id:ITEM.enderperle,n:1},null,null], 2).out === ITEM.enderauge && TEX.feuer < 256 && TEX.i_enderauge !== undefined`),
   'Feuer-Block, Enderauge aus Lohenstaub und Enderperle');
+// 26.11.07: das End
+pruef(T(`(() => { const w = new World('abc', 2), f = endfestungen(w);
+  if(f.length !== 3 || !f.every(q => { const d = Math.hypot(q.px, q.pz); return d > 300 && d < 560; })) return 'Lage';
+  const g = f[0]; let rahmen = 0;
+  for(let cx = g.box[0] >> 4; cx <= g.box[2] >> 4; cx++) for(let cz = g.box[1] >> 4; cz <= g.box[3] >> 4; cz++) w.ensureChunk(cx, cz);
+  for(const [x, y, z] of g.rahmen){ const id = w.getBlock(x, y, z); if(id === B.ENDRAHMEN || id === B.ENDRAHMEN_AUGE) rahmen++; }
+  return rahmen === 12 && w.getBlock(g.px, g.py - 1, g.pz) === B.LAVA && w.getBlock(g.px, g.py, g.pz) === B.AIR && endfestungen(new World('a', 2, 'flach')).length === 0
+    && endfestungNaechste(w, g.px + 3, g.pz) === g; })()`), 'Endfestungen: drei im Ring, Portalraum mit zwölf Rahmen über Lava, keine im Flachland');
+pruef(T(`(() => { const e = new World('abc:ende', 2, 'ende'), c = e.ensureChunk(0, 0), s = endSaeulen(e);
+  return e.typ === 'ende' && e.getBlock(0, END_PORTAL_Y - 1, 0) === B.BEDROCK && e.getBlock(0, END_PORTAL_Y + 3, 0) === B.BEDROCK && e.getBlock(2, END_PORTAL_Y, 0) === B.AIR
+    && s.length === 10 && s.every(q => q.top < WH - 2) && e.ensureChunk(s[0].x >> 4, s[0].z >> 4) && e.getBlock(s[0].x, s[0].top, s[0].z) === B.BEDROCK
+    && e.getBlock(s[0].x, s[0].top - 3, s[0].z) === B.OBSIDIAN && e.ensureChunk(40, 40).blocks.every(id => id === 0); })()`),
+  'Das End: Insel, zehn Säulen mit Grundgestein obenauf, Ausgangsportal in der Mitte, weit draußen nichts');
+pruef(T(`DIMS.join() === 'oben,nether,ende' && dimVonWelt(new World('a:ende', 2, 'ende')) === 'ende' && B.DRACHENEI < BMAX && MOBS.drache.health === 200
+  && MOBS.drache.parts.every(p => TEX[p.tex] !== undefined) && MOBS.kristall.statisch && TEX.endportal < 256 && TEX.endrahmen_auge < 256
+  && blocks[B.ENDPORTAL].solid === false && blocks[B.ENDRAHMEN].hardness < 0 && WESEN_NAMEN.enderdrache === 'drache'`), 'End-Blöcke, Drache und Kristall');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

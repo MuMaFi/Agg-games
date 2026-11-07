@@ -553,3 +553,186 @@ function schmuecken2(w, c, S, steilAn){
     }
   }
 }
+
+/* ══ Endfestungen (Strongholds) ═══════════════════════════════════════
+   Drei je Welt, tief unter der Erde in einem Ring um den Ursprung (näher
+   als beim Vorbild: 320 … 520 Blöcke). Gänge aus Steinziegeln, eine
+   Kreuzung, zwei Kammern mit Truhen und der Portalraum: auf einem Sockel
+   zwölf Endportalrahmen um ein Lavabecken. Wer alle zwölf mit Enderaugen
+   füllt, öffnet das Portal ins End. Wie die anderen Bauten: Lage und
+   Gestalt aus dem Startwert, jeder Chunk baut seinen Teil. */
+const ENDFESTUNG_WEIT = 60;
+/** die drei Endfestungen einer Welt (Mitte des Portalraums: x, y, z; das Portal liegt bei px, py, pz) */
+function endfestungen(w){
+  if(w._endfestungen) return w._endfestungen;
+  const l = [];
+  if(w.typ === 'normal'){
+    const r = mulberry32(w.seed ^ 0x57f0e9d);
+    const a0 = r()*TAU;
+    for(let k = 0; k < 3; k++){
+      const a = a0 + k*TAU/3 + (r() - .5)*0.5, d = 320 + r()*200;
+      const x = Math.round(Math.cos(a)*d), z = Math.round(Math.sin(a)*d), y = 14 + Math.floor(r()*8);
+      l.push(endfestungPlanen(w, x, y, z, mulberry32(w.seed ^ Math.imul(k + 1, 0x2c9277b5))));
+    }
+  }
+  return (w._endfestungen = l);
+}
+function endfestungPlanen(w, sx, y0, sz, r){
+  const S = B.STONEBRICK, f = { x: sx, y: y0, z: sz, px: sx, py: y0 + 3, pz: sz + 2, teile: [], rahmen: [] };
+  const box = [sx - 6, sz - 7, sx + 6, sz + 7];
+  const teil = (b, bauen) => { f.teile.push({ box: b, bauen }); box[0] = Math.min(box[0], b[0]); box[1] = Math.min(box[1], b[1]); box[2] = Math.max(box[2], b[2]); box[3] = Math.max(box[3], b[3]); };
+  // Steinziegel, hier und da Bruchstein — so alt sieht das Gemäuer beim Vorbild aus
+  const stein = (x, y, z) => ghash(x, y, z, w.seed ^ 0x51) < 0.12 ? B.COBBLE : S;
+  /** Hülle aus Stein, innen Luft: x0…x1, y0…y1, z0…z1 einschließlich der Wände */
+  const kasten = (setze, x0, ya, z0, x1, yb, z1) => {
+    for(let y = ya; y <= yb; y++) for(let z = z0; z <= z1; z++) for(let x = x0; x <= x1; x++){
+      const rand = x === x0 || x === x1 || y === ya || y === yb || z === z0 || z === z1;
+      setze(x, y, z, rand ? stein(x, y, z) : B.AIR);
+    }
+  };
+  // der Portalraum
+  const p = f;
+  for(let dz = -2; dz <= 2; dz++) for(let dx = -2; dx <= 2; dx++){
+    if(Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+    if(Math.abs(dx) === 2 || Math.abs(dz) === 2) f.rahmen.push([p.px + dx, p.py, p.pz + dz, r() < 0.1]);
+  }
+  teil([sx - 6, sz - 7, sx + 6, sz + 7], setze => {
+    kasten(setze, sx - 6, y0, sz - 7, sx + 6, y0 + 8, sz + 7);
+    for(let dz = -3; dz <= 3; dz++) for(let dx = -3; dx <= 3; dx++){
+      const x = p.px + dx, z = p.pz + dz, innen = Math.abs(dx) <= 1 && Math.abs(dz) <= 1;
+      setze(x, y0 + 1, z, S); setze(x, y0 + 2, z, innen ? B.LAVA : S);
+    }
+    for(const [x, y, z, auge] of f.rahmen) setze(x, y, z, auge ? B.ENDRAHMEN_AUGE : B.ENDRAHMEN);
+    // Stufen hinauf zum Sockel, Fackeln in den Ecken, die Tür nach Süden
+    for(let dx = -1; dx <= 1; dx++){ setze(sx + dx, y0 + 1, p.pz - 4, treppeId(2, 2, false)); }
+    for(const [dx, dz] of [[-5, -6], [5, -6], [-5, 6], [5, 6]]) setze(sx + dx, y0 + 1, sz + dz, B.TORCH);
+    for(let dx = -1; dx <= 1; dx++) for(let y = y0 + 1; y <= y0 + 3; y++) setze(sx + dx, y, sz - 7, B.AIR);
+  });
+  // ein Gang nach Süden, eine Kreuzung, links und rechts je ein Gang zu einer Kammer
+  const L = 14 + Math.floor(r()*10), kz = sz - 7 - L - 4;
+  teil([sx - 2, kz + 3, sx + 2, sz - 7], setze => {
+    kasten(setze, sx - 2, y0, kz + 3, sx + 2, y0 + 4, sz - 7);
+    for(let dx = -1; dx <= 1; dx++) for(let y = y0 + 1; y <= y0 + 3; y++){ setze(sx + dx, y, sz - 7, B.AIR); setze(sx + dx, y, kz + 3, B.AIR); }
+    for(let z = kz + 6; z < sz - 7; z += 6) setze(sx + 1, y0 + 1, z, B.TORCH);
+  });
+  teil([sx - 4, kz - 4, sx + 4, kz + 4], setze => {
+    kasten(setze, sx - 4, y0, kz - 4, sx + 4, y0 + 6, kz + 4);
+    for(let d = -1; d <= 1; d++) for(let y = y0 + 1; y <= y0 + 3; y++){ setze(sx + d, y, kz + 4, B.AIR); setze(sx - 4, y, kz + d, B.AIR); setze(sx + 4, y, kz + d, B.AIR); }
+    setze(sx, y0 + 1, kz, B.TORCH);
+  });
+  for(const s of [-1, 1]){
+    const G = 10 + Math.floor(r()*12), gx0 = sx + s*5, gx1 = sx + s*(4 + G), kx = gx1 + s*3;
+    teil([Math.min(gx0, gx1), kz - 2, Math.max(gx0, gx1), kz + 2], setze => {
+      kasten(setze, Math.min(gx0, gx1) - (s > 0 ? 1 : 0), y0, kz - 2, Math.max(gx0, gx1) + (s < 0 ? 1 : 0), y0 + 4, kz + 2);
+      for(let d = -1; d <= 1; d++) for(let y = y0 + 1; y <= y0 + 3; y++){ setze(gx0 - s, y, kz + d, B.AIR); setze(gx1 + s, y, kz + d, B.AIR); }
+    });
+    teil([kx - 3, kz - 3, kx + 3, kz + 3], setze => {
+      kasten(setze, kx - 3, y0, kz - 3, kx + 3, y0 + 5, kz + 3);
+      for(let d = -1; d <= 1; d++) for(let y = y0 + 1; y <= y0 + 3; y++) setze(kx - s*3, y, kz + d, B.AIR);
+      setze(kx + s*2, y0 + 1, kz, B.CHEST);
+      setze(kx, y0 + 1, kz + 2, B.TORCH);
+    });
+  }
+  f.box = box;
+  return f;
+}
+function endfestungenBauen(w, c){
+  const ox = c.cx*CS, oz = c.cz*CS, bl = c.blocks;
+  const l = endfestungen(w).filter(f => f.box[0] <= ox + CS - 1 && f.box[2] >= ox && f.box[1] <= oz + CS - 1 && f.box[3] >= oz);
+  if(!l.length) return;
+  const setze = (x, y, z, id) => {
+    if(x < ox || z < oz || x >= ox + CS || z >= oz + CS || y < 1 || y >= WH - 1) return;
+    bl[IDX(x - ox, y, z - oz)] = id;
+    if(id === B.CHEST) (c.dorfTruhen || (c.dorfTruhen = [])).push([x, y, z, 'endfestung']);
+  };
+  for(const f of l) for(const t of f.teile)
+    if(t.box[0] <= ox + CS - 1 && t.box[2] >= ox && t.box[1] <= oz + CS - 1 && t.box[3] >= oz) t.bauen(setze);
+}
+/** die nächste Endfestung um x, z (für das Enderauge) */
+function endfestungNaechste(w, x, z){
+  let best = null, bd = Infinity;
+  for(const f of endfestungen(w)){ const d = Math.hypot(f.px - x, f.pz - z); if(d < bd){ bd = d; best = f; } }
+  return best;
+}
+/** Beute einer Kammer in der Endfestung */
+function endfestungBeute(w, x, y, z){
+  const r = mulberry32(Math.imul(x, 0x2f6b4c3) ^ Math.imul(y, 0x1d3a7f) ^ Math.imul(z, 0x51c9e3) ^ w.seed ^ 0xe7d);
+  const t = new Array(27).fill(null);
+  const TAFEL = [[ITEM.enderperle, 1, 2, 10], [ITEM.bread, 1, 3, 15], [ITEM.apple, 1, 3, 15], [ITEM.iron, 1, 5, 10], [ITEM.gold, 1, 3, 5],
+    [ITEM.redstone, 4, 9, 5], [ITEM.diamond, 1, 3, 3], [ITEM.iron_sword, 1, 1, 5], [ITEM.iron_pickaxe, 1, 1, 5], [ITEM.iron_chestplate, 1, 1, 5],
+    [ITEM.iron_helmet, 1, 1, 5]].filter(e => e[0] !== undefined);
+  const summe = TAFEL.reduce((a, e) => a + e[3], 0);
+  for(let n = 3 + Math.floor(r()*4); n > 0; n--){
+    let v = r()*summe, e = TAFEL[0];
+    for(const g of TAFEL){ v -= g[3]; if(v < 0){ e = g; break; } }
+    let i = Math.floor(r()*27), k = 0;
+    while(t[i] && k++ < 27) i = (i + 1) % 27;
+    if(!t[i]) t[i] = { id: e[0], n: e[1] + Math.floor(r()*(e[2] - e[1] + 1)), dur: items[e[0]] ? items[e[0]].dur : 0 };
+  }
+  return t;
+}
+
+/* ══ Das End ═══════════════════════════════════════════════════════════
+   Eine große Insel aus Endstein im Nichts, um die Mitte zehn Säulen aus
+   Obsidian mit je einem Endkristall obenauf, in der Mitte das
+   Ausgangsportal aus Grundgestein (offen erst, wenn der Drache besiegt ist).
+   Wer ankommt, steht auf einer Plattform aus Obsidian bei x = 100. */
+const END_INSEL_Y = 54, END_LICHT = 0.5, END_GRUNDLICHT = 0.3, END_NEBEL = [0.09, 0.07, 0.11];
+const END_SPALTE = { h: END_INSEL_Y, biome: BIO.ENDE };
+const END_PORTAL_Y = END_INSEL_Y + 4;          // der Boden des Ausgangsportals
+const END_ANKUNFT = [100, 49, 0];
+/** die zehn Säulen: x, z, Halbmesser, Höhe der Spitze */
+function endSaeulen(w){
+  if(w._saeulen) return w._saeulen;
+  const r = mulberry32(w.seed ^ 0xe0d5a1), l = [];
+  for(let i = 0; i < 10; i++){
+    const a = i*TAU/10;
+    l.push({ x: Math.round(Math.cos(a)*42), z: Math.round(Math.sin(a)*42), r: 2 + Math.floor(r()*3), top: 72 + Math.floor(r()*8)*2 });
+  }
+  return (w._saeulen = l);
+}
+function endInselDicke(w, wx, wz){
+  const d = Math.hypot(wx, wz), n = w.nCont.fbm2(wx*0.02, wz*0.02, 3, 2, .5), R = 92 + n*16;
+  if(d >= R) return null;
+  const t = d/R;
+  return [END_INSEL_Y - Math.round((1 - t*t)*28*(0.75 + 0.25*w.nHill.fbm2(wx*0.05, wz*0.05, 2, 2, .5)) + 2), END_INSEL_Y + Math.round(3*(1 - t*t) + n*2)];
+}
+function erzeugenEnde(w, c){
+  const bl = c.blocks = new Uint16Array(CS*WH*CS), ox = c.cx*CS, oz = c.cz*CS;
+  for(let z = 0; z < CS; z++) for(let x = 0; x < CS; x++){
+    const wx = ox + x, wz = oz + z, ab = endInselDicke(w, wx, wz);
+    if(ab) for(let y = Math.max(1, ab[0]); y <= ab[1]; y++) bl[IDX(x, y, z)] = B.ENDSTEIN;
+  }
+  const setze = (x, y, z, id) => { if(x >= ox && z >= oz && x < ox + CS && z < oz + CS && y > 0 && y < WH) bl[IDX(x - ox, y, z - oz)] = id; };
+  // die Säulen
+  for(const s of endSaeulen(w)){
+    if(s.x + s.r < ox || s.x - s.r >= ox + CS || s.z + s.r < oz || s.z - s.r >= oz + CS) continue;
+    for(let dz = -s.r; dz <= s.r; dz++) for(let dx = -s.r; dx <= s.r; dx++){
+      if(dx*dx + dz*dz > s.r*s.r + s.r) continue;
+      for(let y = END_INSEL_Y - 12; y <= s.top; y++) setze(s.x + dx, y, s.z + dz, B.OBSIDIAN);
+    }
+    setze(s.x, s.top, s.z, B.BEDROCK);
+  }
+  // das Ausgangsportal: Schale aus Grundgestein, in der Mitte eine Säule mit vier Fackeln
+  if(ox <= 4 && ox + CS > -4 && oz <= 4 && oz + CS > -4){
+    const Y = END_PORTAL_Y;
+    for(let dz = -4; dz <= 4; dz++) for(let dx = -4; dx <= 4; dx++){
+      const d = Math.hypot(dx, dz);
+      if(d > 3.6) continue;
+      for(let y = Y; y <= Y + 6; y++) setze(dx, y, dz, B.AIR);
+      setze(dx, Y - 1, dz, B.BEDROCK);
+      if(d > 2.5) setze(dx, Y, dz, B.BEDROCK);
+    }
+    for(let y = Y; y <= Y + 3; y++) setze(0, y, 0, B.BEDROCK);
+    setze(1, Y + 2, 0, B.FACKEL_WAND + 1); setze(-1, Y + 2, 0, B.FACKEL_WAND + 0);
+    setze(0, Y + 2, 1, B.FACKEL_WAND + 3); setze(0, Y + 2, -1, B.FACKEL_WAND + 2);
+    if(w.drache && w.drache.tot) endAusgangOeffnen(w, setze);
+  }
+  c.hmap.fill(END_INSEL_Y); c.biome.fill(BIO.ENDE); c.kalt.fill(0);
+}
+/** nach dem Sieg: das Ausgangsportal leuchtet, obenauf liegt das Drachenei */
+function endAusgangOeffnen(w, setze){
+  const Y = END_PORTAL_Y;
+  for(let dz = -3; dz <= 3; dz++) for(let dx = -3; dx <= 3; dx++)
+    if(Math.hypot(dx, dz) <= 2.5 && (dx || dz)) setze(dx, Y, dz, B.ENDPORTAL);
+}

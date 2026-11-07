@@ -64,7 +64,9 @@ MC_TEX.lava = { p:'block/lava_still', bild:0 }; MC_TEX.netherrack = 'block/nethe
 MC_TEX.i_feuerzeug = 'item/flint_and_steel';
 Object.assign(MC_TEX, { wirr_nyzel:'block/warped_nylium', wirr_nyzel_seite:'block/warped_nylium_side', wirr_stiel:{ p:'block/warped_stem', bild:0 },
   wirr_stiel_oben:'block/warped_stem_top', wirr_warze:'block/warped_wart_block', wirr_wurzeln:'block/warped_roots', wirr_pilz:'block/warped_fungus',
-  pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', feuer:{ p:'block/fire_0', bild:0 }, i_enderauge:'item/ender_eye', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+  pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', feuer:{ p:'block/fire_0', bild:0 },
+  endstein:'block/end_stone', endrahmen_oben:'block/end_portal_frame_top', endrahmen_seite:'block/end_portal_frame_side',
+  endrahmen_auge:{ p:'block/end_portal_frame_top', drauf:'block/end_portal_frame_eye' }, drachenei:'block/dragon_egg', i_enderauge:'item/ender_eye', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < WATER_FRAMES; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
@@ -111,6 +113,9 @@ const MC_KLANG = {
   lohe_laut:mcV('mob/blaze/breathe', 4), lohe_au:mcV('mob/blaze/hit', 4), lohe_tot:['mob/blaze/death'], lohe_feuer:['mob/ghast/fireball4'],
   ender_laut:mcV('mob/endermen/idle', 5), ender_au:mcV('mob/endermen/hit', 4), ender_tot:['mob/endermen/death'],
   ender_schrei:mcV('mob/endermen/scream', 4), ender_tele:['mob/endermen/portal', 'mob/endermen/portal2'],
+  drache_laut:mcV('mob/enderdragon/growl', 4), drache_au:mcV('mob/enderdragon/hit', 4), drache_tot:['mob/enderdragon/end'],
+  drache_fluegel:mcV('mob/enderdragon/wings', 6), explosion:mcV('random/explode', 4),
+  auge_setzen:mcV('block/end_portal/eyeplace', 3), endportal:['block/end_portal/endportal'],
   wither_laut:mcV('mob/wither_skeleton/idle', 3), wither_au:mcV('mob/wither_skeleton/hurt', 4), wither_tot:mcV('mob/wither_skeleton/death', 2),
 };
 /* Blöcke: Minecraft klingt beim Laufen und Hacken mit »step«, beim Abbauen

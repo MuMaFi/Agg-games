@@ -411,6 +411,36 @@ MOBS.enderman = {
     { n:'leg1', box:mcKasten(-3, -5, -1, 2, 30, 2), tex:'m_ender', anim:'leg', ph:1 },
   ],
 };
+/* Endkristall: schwebt über einer Säule, dreht sich, heilt den Drachen;
+   ein Schlag oder Pfeil, und er explodiert. Er bewegt sich nicht (statisch). */
+MOBS.kristall = {
+  name:'Endkristall', w:1.6, h:2, health:1, speed:0, hostile:false, statisch:true, leuchtet:true, feuerfest:true,
+  beute: () => [],
+  parts: [{ n:'huelle', box:[-0.55, 0.45, -0.55, 1.1, 1.1, 1.1], tex:'m_kristall', anim:'kristall', ph:0, pivot:[0, 1, 0] },
+          { n:'kern', box:[-0.32, 0.68, -0.32, 0.64, 0.64, 0.64], tex:'m_kristall_kern', anim:'kristall', ph:1, pivot:[0, 1, 0] }],
+};
+/* Enderdrache: kreist um die Säulen, stößt auf Spieler herab, speit Feuer,
+   lässt sich von den Kristallen heilen. Gebaut in Blockgröße, Kopf nach −z. */
+MOBS.drache = {
+  name:'Enderdrache', w:6, h:3, health:200, speed:14, hostile:true, dmg:10, laut:'drache', feuerfest:true, schwebt:true, drache:true,
+  treffer:'Der Enderdrache hat dich erwischt',
+  beute: () => [],
+  parts: [
+    { n:'koerper', box:[-1, 0.6, -1.5, 2, 1.6, 3.2], tex:'m_drache' },
+    { n:'zacke0', box:[-0.12, 2.2, -1.2, 0.24, 0.35, 0.5], tex:'m_drache_fluegel' },
+    { n:'zacke1', box:[-0.12, 2.2, 0.0, 0.24, 0.35, 0.5], tex:'m_drache_fluegel' },
+    { n:'zacke2', box:[-0.12, 2.2, 1.1, 0.24, 0.35, 0.5], tex:'m_drache_fluegel' },
+    { n:'hals', box:[-0.4, 1.2, -3.3, 0.8, 0.8, 1.9], tex:'m_drache' },
+    { n:'kopf', box:[-0.7, 1.05, -4.9, 1.4, 1.05, 1.65], tex:'m_drache', face:'m_drache_kopf' },
+    { n:'kiefer', box:[-0.6, 0.72, -4.8, 1.2, 0.33, 1.45], tex:'m_drache' },
+    { n:'fluegel1', box:[1, 1.9, -1.2, 5.6, 0.12, 2.6], tex:'m_drache_fluegel', anim:'drachenfluegel', ph:1, pivot:[1, 1.95, 0] },
+    { n:'fluegel0', box:[-6.6, 1.9, -1.2, 5.6, 0.12, 2.6], tex:'m_drache_fluegel', anim:'drachenfluegel', ph:0, pivot:[-1, 1.95, 0] },
+    { n:'schwanz', box:[-0.35, 1.1, 1.7, 0.7, 0.7, 4.4], tex:'m_drache', anim:'schwanz', pivot:[0, 1.45, 1.7] },
+    { n:'schwanzspitze', box:[-0.22, 1.18, 6.1, 0.44, 0.5, 1.6], tex:'m_drache', anim:'schwanz', pivot:[0, 1.45, 1.7] },
+    { n:'bein0', box:[-0.95, 0.05, -1.1, 0.4, 0.7, 0.4], tex:'m_drache' }, { n:'bein1', box:[0.55, 0.05, -1.1, 0.4, 0.7, 0.4], tex:'m_drache' },
+    { n:'bein2', box:[-0.95, 0.05, 1.0, 0.4, 0.7, 0.4], tex:'m_drache' }, { n:'bein3', box:[0.55, 0.05, 1.0, 0.4, 0.7, 0.4], tex:'m_drache' },
+  ],
+};
 const _kutte = [0, 0, 0];
 function kuttenFarbe(m, f){
   const c = (typeof BERUFE !== 'undefined' && BERUFE[m.beruf | 0] || { farbe:[0.8, 0.8, 0.8] }).farbe;

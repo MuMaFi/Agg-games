@@ -12,7 +12,7 @@
    Nachrichten am Stück annimmt. */
 'use strict';
 
-const NETZ_VERSION = 20;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse · 16: Betten zweiteilig, Skins, Kampf wie Java · 17: Lava, Obsidian, Braustand, Wandfackeln · 18: Nether (Netherrack, Witherskelett, Ghast) · 19: Blöcke über 255 (Wirrwald), Lohe, Enderman, Enderperle · 20: Nether im Mehrspieler (jede Nachricht sagt, in welcher Welt)
+const NETZ_VERSION = 21;                 // 2: Hühner, fließendes Wasser · 3: Plattenspieler · 4: neues Gelände, Wetter · 5: Chat, Befehle · 6: Flachland · 7: Redstone · 8: Schleime · 9: Verstärker, Kolben · 10: Rüstung sichtbar · 11: alle schlafen · 12: Treppen · 13: gemeinsame Gegenstände, PvP, Stufen, Betten · 14: Dörfer, Dorfbewohner · 15: Eisengolems, Kürbisse · 16: Betten zweiteilig, Skins, Kampf wie Java · 17: Lava, Obsidian, Braustand, Wandfackeln · 18: Nether (Netherrack, Witherskelett, Ghast) · 19: Blöcke über 255 (Wirrwald), Lohe, Enderman, Enderperle · 20: Nether im Mehrspieler (jede Nachricht sagt, in welcher Welt) · 21: das End (dritte Welt), Endkristall, Enderdrache
 const NETZ_MAX = 8;                       // Spieler insgesamt, Host eingerechnet
 const NETZ_PRAEFIX = 'pocketcraft-';
 const NETZ_ZEICHEN = 'ACDEFHJKLMNPRTUVWXY34679';   // ohne 0/O, 1/I, 2/Z, 5/S, 8/B …
@@ -158,8 +158,8 @@ const Netz = {
   bereiteGaeste(){ const l = []; for(const g of this.gaeste.values()) if(g.bereit) l.push(g); return l; },
   /* Welten: 0 Oberwelt, 1 Nether. Jeder Spieler ist in einer; Figuren,
      Wesen, Liegendes und Geschosse sieht man nur in der eigenen. */
-  dimNr(d){ return d === 'nether' ? 1 : 0; },
-  dimVon(n){ return n === 1 ? 'nether' : 'oben'; },
+  dimNr(d){ return d === 'nether' ? 1 : d === 'ende' ? 2 : 0; },
+  dimVon(n){ return n === 1 ? 'nether' : n === 2 ? 'ende' : 'oben'; },
   /** steht diese Figur in derselben Welt wie man selbst? */
   hier(s){ return (s.dim || 'oben') === Game.dim; },
   /** an alle Gäste in Welt d */
@@ -317,13 +317,15 @@ const Netz = {
     const p = Game.player, du = Game.gaeste[id] || null;
     const ort = du && du.p ? du.p : { x: p.spawnX, y: p.spawnY, z: p.spawnZ, yaw: 0, pitch: 0 };
     g.x = ort.x; g.y = ort.y; g.z = ort.z;
-    g.dim = du && du.p && du.dim === 'nether' ? 'nether' : 'oben';
+    g.dim = du && du.p && DIMS.includes(du.dim) ? du.dim : 'oben';
     const o = Game.oben;
     this.senden(g.conn, { t:'willkommen', v: NETZ_VERSION, code: this.code, du, op: Game.ops.has(id),
       welt: Object.assign({ name: Game.meta.name, seed: o.seedStr, gen: o.gen, typ: o.typ, doerfer: o.doerfer, obsidian: o.obsidian, modus: p.creative ? 'kreativ' : 'ueberleben',
                             time: Game.time, zeit: Game.gesamtZeit, wetter: Wetter.daten(), regeln: Game.regeln,
                             spawn: [p.spawnX, p.spawnY, p.spawnZ], dim: g.dim,
-                            nether: Game.nether || g.dim === 'nether' ? Game.weltTeil(Game.netherWelt()) : undefined }, Game.weltTeil(o)) });
+                            nether: Game.nether || g.dim === 'nether' ? Game.weltTeil(Game.netherWelt()) : undefined,
+                            ende: Game.ende || g.dim === 'ende' ? Game.weltTeil(Game.endeWelt()) : undefined,
+                            drache: Game.ende ? Game.ende.drache : undefined }, Game.weltTeil(o)) });
     const fig = this.figur(id, g.name, g.farbe, ort); fig.dim = g.dim;
     this.andere.set(id, fig);
     // Öfen und Wesen gleich hinterher, nicht erst beim nächsten Takt
@@ -352,7 +354,7 @@ const Netz = {
   /** Inventar und Ort eines Gastes: der Host hebt sie mit der Welt auf */
   standMerken(g, m){
     if(!m.p) return;
-    Game.gaeste[g.id] = { name: g.name, p: m.p, dim: m.d === 1 ? 'nether' : 'oben', inv: m.inv || [], ruest: m.ruest || [], bekannt: m.bekannt || [], rest: m.rest || [], zeit: Date.now() };
+    Game.gaeste[g.id] = { name: g.name, p: m.p, dim: this.dimVon(m.d | 0), inv: m.inv || [], ruest: m.ruest || [], bekannt: m.bekannt || [], rest: m.rest || [], zeit: Date.now() };
   },
   wesenAnfrageHost(g, m){ Game.inDim(g.dim || 'oben', () => this._wesenAnfrage(g, m)); },
   _wesenAnfrage(g, m){
@@ -474,7 +476,7 @@ const Netz = {
         if(m.dead || Math.abs(m.x - g.x) > 80 || Math.abs(m.z - g.z) > 80) continue;
         const f = (m.moving ? 1 : 0) | (m.hurtTimer > 0 ? 2 : 0) | (m.geschoren ? 4 : 0) | (m.liebe > 0 ? 8 : 0) | (m.pause > 0 ? 16 : 0) | (m.kind > 0 ? 32 : 0)
           | (m.onGround ? 0 : 64) | (m.schlagT > 0 ? 128 : 0);
-        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.groesse || m.wolle || m.beruf | 0);
+        l.push(m.nid, WESEN_ARTEN.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), f, m.type === 'drache' ? Math.max(0, Math.round(m.health)) : m.groesse || m.wolle || m.beruf | 0);
       }
       this.senden(g.conn, { t:'w', d: this.dimNr(g.dim), l });
     }
@@ -489,8 +491,8 @@ const Netz = {
   /** Öfen: Inhalt, Glut und Fortschritt, sobald sich etwas ändert */
   oefenSenden(alle){
     const l = [];
-    for(const w of [Game.oben, Game.nether]) if(w) for(const [k, f] of w.furnaces){
-      const d = w.typ === 'nether' ? 1 : 0;
+    for(const w of [Game.oben, Game.nether, Game.ende]) if(w) for(const [k, f] of w.furnaces){
+      const d = this.dimNr(dimVonWelt(w));
       const e = [k, stapelKurz(f.in), stapelKurz(f.fuel), stapelKurz(f.out), Math.round(f.burn), Math.round(f.burnMax), Math.round(f.cook), d];
       const sig = JSON.stringify(e);
       if(!alle && this._ofenSig[d + k] === sig) continue;
@@ -533,8 +535,10 @@ const Netz = {
       w.chunks.delete(k);
     }
     // die andere Welt: dort steht der Host nicht, gebraucht wird nur, was um Gäste liegt
-    const d = Game.dim === 'nether' ? 'oben' : 'nether', a = d === 'nether' ? Game.nether : Game.oben;
-    if(a) for(const [k, c] of a.chunks) if(!this.chunkGebraucht(c.cx, c.cz, d)) a.chunks.delete(k);
+    for(const d of DIMS){
+      const a = d === 'nether' ? Game.nether : d === 'ende' ? Game.ende : Game.oben;
+      if(d !== Game.dim && a) for(const [k, c] of a.chunks) if(!this.chunkGebraucht(c.cx, c.cz, d)) a.chunks.delete(k);
+    }
   },
 
   /* ═══ GAST ═══════════════════════════════════════════════════════ */
@@ -784,6 +788,7 @@ const Netz = {
       m.liebe = (f & 8) ? 1 : 0; m.pause = (f & 16) ? 1 : 0;
       if(art === 'sheep'){ m.geschoren = !!(f & 4); m.wolle = l[i+7] | 0; }
       if(art === 'villager') m.beruf = l[i+7] | 0;
+      if(art === 'drache') m.health = l[i+7] | 0;
       if((f & 128) && !(m.schlagT > 0)) m.schlagT = 0.5;
       if(art === 'slime' && m.groesse !== (l[i+7] | 0) && [1, 2, 4].includes(l[i+7])) schleimGroesse(m, l[i+7]);
       if(jung && !(m.kind > 0)){ m.kind = 1; m.w = m.def.w*BABY; m.h = m.def.h*BABY; }
@@ -825,7 +830,7 @@ const Netz = {
     if(!Array.isArray(l)) return;
     this._toene = 4;
     for(let i = 0; i + 4 < l.length; i += 5){
-      const x = l[i] | 0, y = l[i+1] | 0, z = l[i+2] | 0, id = l[i+3] | 0, d = l[i+4] === 1 ? 1 : 0;
+      const x = l[i] | 0, y = l[i+1] | 0, z = l[i+2] | 0, id = l[i+3] | 0, d = [0, 1, 2].includes(l[i+4]) ? l[i+4] : 0;
       if(!blocks[id] && id !== B.AIR) continue;
       this.blockSetzen(x, y, z, id, Game.welt(this.dimVon(d)));
       // der Host gibt alles an alle weiter, auch zurück an den Absender:
@@ -898,7 +903,7 @@ const Netz = {
     }
   },
   truheEmpfangen(m, von){
-    const d = m.d === 1 ? 1 : 0, w = Game.welt(this.dimVon(d)), k = String(m.k);
+    const d = [0, 1, 2].includes(m.d) ? m.d : 0, w = Game.welt(this.dimVon(d)), k = String(m.k);
     let t = w.chests.get(k);
     if(!t){ t = new Array(27).fill(null); w.chests.set(k, t); }
     // an Ort und Stelle ändern: Ist die Truhe gerade offen, hängt die Anzeige an genau diesem Feld
@@ -910,14 +915,14 @@ const Netz = {
     if(Screens.open === 'beh' && Screens.modus === 'truhe' && Screens.truheKey === k) Screens.render();
   },
   ofenEmpfangen(m){
-    const w = Game.welt(this.dimVon(m.d === 1 ? 1 : 0)), k = String(m.k), f = w.furnaces.get(k);
+    const w = Game.welt(this.dimVon(m.d | 0)), k = String(m.k), f = w.furnaces.get(k);
     if(!f || !Array.isArray(m.s)) return;
     f.in = stapelLang(m.s[0]); f.fuel = stapelLang(m.s[1]); f.out = stapelLang(m.s[2]);
     if(w === Game.world && Screens.open === 'beh' && Screens.modus === 'ofen' && Screens.ofenKey === k){ this.behaelterGeoeffnet(); Screens.render(); }
   },
   oefenEmpfangen(l){
     for(const [k, a, b, c, burn, burnMax, cook, d] of (l || [])){
-      const w = Game.welt(this.dimVon(d === 1 ? 1 : 0));
+      const w = Game.welt(this.dimVon(d | 0));
       let f = w.furnaces.get(k);
       if(!f){ const [x, y, z] = String(k).split(',').map(Number); f = { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x, y, z }; w.furnaces.set(k, f); }
       f.in = stapelLang(a); f.fuel = stapelLang(b); f.out = stapelLang(c); f.burn = burn; f.burnMax = burnMax; f.cook = cook;
@@ -936,7 +941,7 @@ const Netz = {
   },
   pfeilEmpfangen(m, von){
     const a = m.a; if(!Array.isArray(a) || a.length < 7 || !a.slice(0, 6).every(v => Number.isFinite(+v))) return;
-    const d = this.dimVon(m.d === 1 ? 1 : 0);
+    const d = this.dimVon(m.d | 0);
     if(von){ if(d !== (von.dim || 'oben')) return; }
     else if(d !== Game.dim) return;                       // aus der anderen Welt: hier nicht zu sehen
     const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], clamp(a[6] | 0, 0, 20), false, !!m.ei, !!m.feuer);

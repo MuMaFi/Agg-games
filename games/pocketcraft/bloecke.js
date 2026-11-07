@@ -29,7 +29,9 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   // ab hier 16 Bit — der Wirrwald im Nether
   WIRR_NYZEL:512 /* Wirr-Nezel: Netherrack mit blaugrünem Bewuchs */, WIRR_STIEL:513, WIRR_WARZE:514,
   WIRR_WURZELN:515, WIRR_PILZ:516, PILZLICHT:517,
-  NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */, FEUER:520 };
+  NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */, FEUER:520,
+  // das End
+  ENDRAHMEN:521, ENDRAHMEN_AUGE:522, ENDPORTAL:523, ENDSTEIN:524, DRACHENEI:525 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -365,6 +367,15 @@ function initBlocks(){
   // Feuer: mit dem Feuerzeug auf einen Block gesetzt; brennt aus — auf Netherrack für immer
   defBlock(B.FEUER,{name:'Feuer', tex:'feuer', model:'cross', solid:false, opaque:false, light:15, hardness:0, drop:B.AIR, item:false,
     replaceable:true, mc:'fire'});
+  // Das End: Rahmen im Portalraum der Festung (mit Enderauge voll), das Portal, Endstein, das Drachenei
+  defBlock(B.ENDRAHMEN,{name:'Endportalrahmen', tex:['endrahmen_oben','endstein','endrahmen_seite'], model:'box', box:[0,0,0,16,13,16],
+    opaque:false, hardness:-1, mc:'end_portal_frame'});
+  defBlock(B.ENDRAHMEN_AUGE,{name:'Endportalrahmen mit Auge', tex:['endrahmen_auge','endstein','endrahmen_seite'], model:'box', box:[0,0,0,16,16,16],
+    opaque:false, hardness:-1, item:false, drop:B.AIR});
+  defBlock(B.ENDPORTAL,{name:'Endportal', tex:'endportal', model:'box', box:[0,0,0,16,12,16], solid:false, opaque:false, light:15,
+    hardness:-1, item:false, drop:B.AIR, mc:'end_portal'});
+  defBlock(B.ENDSTEIN,{name:'Endstein', tex:'endstein', hardness:3, tool:'pickaxe', tier:1, mc:'end_stone'});
+  defBlock(B.DRACHENEI,{name:'Drachenei', tex:'drachenei', model:'box', box:[2,0,2,14,15,14], opaque:false, hardness:3, light:1, mc:'dragon_egg'});
   defBlock(B.SPAWNER,{name:'Monsterspawner', tex:'spawner', hardness:5, tool:'pickaxe', tier:1, opaque:false, model:'cutout', drop:B.AIR, mc:'spawner'});
   // Braustand wie beim Vorbild: Stab, drei Fußplatten, drei Arme; steht in der Dorfkirche beim Priester
   defBlock(B.BRAUSTAND,{name:'Braustand', tex:'braustand', icon:'braustand', model:'braustand', box:[1,0,1,15,2,15], opaque:false,

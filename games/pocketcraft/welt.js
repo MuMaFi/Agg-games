@@ -8,8 +8,11 @@ const CS = 16, WH = 96, SEA = 38;
 const IDX = (x,y,z) => (y*CS + z)*CS + x;
 const ckey = (cx,cz) => cx + ',' + cz;
 
-const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5, TAIGA:6, SCHNEE:7, FLUSS:8, NETHER:9, WIRRWALD:10 };
-const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald','Schneeebene','Fluss','Nether-Ödland','Wirrwald'];
+const BIO = { OCEAN:0, BEACH:1, PLAINS:2, FOREST:3, DESERT:4, MOUNT:5, TAIGA:6, SCHNEE:7, FLUSS:8, NETHER:9, WIRRWALD:10, ENDE:11 };
+const BIO_NAME = ['Ozean','Strand','Ebene','Wald','Wüste','Gebirge','Nadelwald','Schneeebene','Fluss','Nether-Ödland','Wirrwald','Das End'];
+/* die drei Welten: Oberwelt, Nether, End */
+const DIMS = ['oben', 'nether', 'ende'];
+const dimVonWelt = w => w.typ === 'nether' ? 'nether' : w.typ === 'ende' ? 'ende' : 'oben';
 
 /* Sichtbarkeits-/Lichtregeln — als flache Tabellen, weil sie im
    Mesh- und Licht-Kern millionenfach abgefragt werden */
@@ -227,7 +230,7 @@ class World{
   constructor(seedStr, gen, typ, doerfer, obsidian){
     this.seedStr = seedStr;
     this.gen = gen === 2 ? 2 : 1;
-    this.typ = typ === 'flach' ? 'flach' : typ === 'nether' ? 'nether' : 'normal';
+    this.typ = typ === 'flach' ? 'flach' : typ === 'nether' ? 'nether' : typ === 'ende' ? 'ende' : 'normal';
     this.doerfer = !!doerfer && (this.gen === 2 || this.typ === 'flach');
     this.portale = new Map();                // Netherportale: "x,y,z" → { a: 'x' | 'z', x, y, z, w, h } (Innenmaß, ab der unteren Ecke)
     this.obsidian = !!obsidian;              // ab 26.11: Lava (Höhlen unten, kleine Seen) und Obsidian — ältere Welten bleiben Block für Block gleich
@@ -261,6 +264,7 @@ class World{
   column(wx,wz){
     if(this.typ === 'flach') return FLACH_SPALTE;
     if(this.typ === 'nether') return istWirrwald(this, wx, wz) ? WIRR_SPALTE : NETHER_SPALTE;
+    if(this.typ === 'ende') return END_SPALTE;
     if(this.gen === 2) return spalte2(this, wx, wz);
     const cont = this.nCont.fbm2(wx*0.0032, wz*0.0032, 4, 2, .5);
     const hill = this.nHill.fbm2(wx*0.014, wz*0.014, 4, 2, .5);
@@ -316,8 +320,9 @@ class World{
   /* — Terrain erzeugen — */
   generate(c){
     if(this.typ === 'nether') erzeugenNether(this, c);
+    else if(this.typ === 'ende') erzeugenEnde(this, c);
     else if(this.typ === 'flach'){ erzeugenFlach(c); doerferBauen(this, c); }
-    else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); }
+    else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); endfestungenBauen(this, c); }
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));
     if(m) for(const [i,id] of m) bl[i] = id;

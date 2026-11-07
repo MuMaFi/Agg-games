@@ -443,6 +443,26 @@ function drawSky(){
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
 }
 
+/** der Himmel im End: dunkel violettgrau, ohne Sonne und Mond, nur ein schwaches Glimmen */
+function drawEndHimmel(){
+  const P = Super.an ? Super.sky : R.progSky;
+  gl.useProgram(P.p);
+  if(Super.an) Super.skyUniforms(P);
+  gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
+  invert4(R.invVP, R.vp);
+  const p = Game.player;
+  gl.uniformMatrix4fv(P.u.uInvVP, false, R.invVP);
+  gl.uniform3f(P.u.uCam, p.x, p.eyeY(), p.z);
+  gl.uniform3f(P.u.uZenith, 0.05, 0.035, 0.07);
+  gl.uniform3f(P.u.uHorizon, END_NEBEL[0], END_NEBEL[1], END_NEBEL[2]);
+  gl.uniform3f(P.u.uSunCol, 0, 0, 0);
+  gl.uniform3f(P.u.uSunDir, 0, -1, 0);
+  gl.uniform1f(P.u.uNight, 0.55);
+  gl.bindVertexArray(R.skyVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
+}
+
 function chunkUniforms(P, fogCol, near, far){
   gl.uniformMatrix4fv(P.u.uVP, false, R.vp);
   const p = Game.player;
@@ -465,7 +485,7 @@ function drawChunks(waterPass, fogCol, near, far){
   gl.uniform1f(P.u.uWater0, TEX['water0']);
   gl.uniform1f(P.u.uLava, TEX.lava !== undefined ? TEX.lava : -9);
   gl.uniform1f(P.u.uZeit, (performance.now()/1000) % 1000);
-  gl.uniform1f(P.u.uGrund, Game.dim === 'nether' ? NETHER_GRUNDLICHT : 0);
+  gl.uniform1f(P.u.uGrund, Game.dim === 'nether' ? NETHER_GRUNDLICHT : Game.dim === 'ende' ? END_GRUNDLICHT : 0);
   gl.uniform1f(P.u.uSchaerfe, -1.0);
   gl.uniform1f(P.u.uWaterFrame, Math.floor(performance.now()/1000*7) % WATER_FRAMES);
   gl.activeTexture(gl.TEXTURE0);
@@ -511,7 +531,7 @@ function setLayers(P, all, faceTex){
 }
 function blockLightAt(x,y,z){
   const lv = Game.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
-  const l = Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : 0);
+  const l = Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : Game.dim === 'ende' ? END_GRUNDLICHT : 0);
   return 0.09 + 0.91 * Math.pow(clamp(l, 0, 1), 1.35);
 }
 
@@ -547,8 +567,23 @@ function drawMobs(fogCol, near, far){
       else if(part.anim === 'tentakel') ang = 0.2*Math.sin(m.age*2 + part.ph) + 0.4;     // Ghast: wie beim Vorbild
       // Flügel: in der Luft schlagen sie, am Boden liegen sie an
       else if(part.anim === 'fluegel') ang = m.onGround ? 0 : (0.25 + Math.abs(Math.sin(m.age*19))*1.05) * (part.ph ? 1 : -1);
+      else if(part.anim === 'drachenfluegel') ang = (Math.sin(m.age*3.2)*0.6 + 0.1) * (part.ph ? 1 : -1);     // der Drache schlägt langsam und weit
+      else if(part.anim === 'schwanz') ang = Math.sin(m.age*1.6)*0.15;
       if(part.mc){ mcTeilMatrix(_m, m, part, ang); gl.uniform1fv(P.u.uLayers, part.lagen); }
       else { partMatrix(_m, m, part, ang); setLayers(P, TEX[part.tex], part.face !== undefined ? TEX[part.face] : undefined); }
+      gl.uniformMatrix4fv(P.u.uModel, false, _m);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+    }
+    // der Strahl, mit dem ein Endkristall den Drachen heilt
+    const q = m.heilt;
+    if(q && !q.dead){
+      const ax = q.x, ay = q.y + 1, az = q.z, bx = m.x, by = m.y + 1.5, bz = m.z;
+      const dx = bx - ax, dy = by - ay, dz = bz - az, l = Math.hypot(dx, dy, dz);
+      gl.uniform1f(P.u.uLight, 1); gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+      setLayers(P, TEX.m_kristall_kern);
+      M4.ident(_m); M4.translate(_m, _m, ax, ay, az);
+      M4.rotY(_m, _m, Math.atan2(dx, dz)); M4.rotX(_m, _m, -Math.atan2(dy, Math.hypot(dx, dz)));
+      M4.scale(_m, _m, 0.12, 0.12, l); M4.translate(_m, _m, -0.5, -0.5, 0);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
     }
@@ -697,7 +732,7 @@ function drawPfeile(fogCol, near, far){
   let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
-    const t = a.feuer ? 'lava' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
+    const t = a.feuer ? 'lava' : a.auge ? 'i_enderauge' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
     gl.uniform1f(P.u.uLight, a.feuer ? 1 : blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
@@ -708,7 +743,7 @@ function drawPfeile(fogCol, near, far){
       M4.rotX(_m, _m, a.alter*5); M4.rotY(_m, _m, a.alter*3);
       const g = a.klein ? 0.3 : 0.7;
       M4.scale(_m, _m, g, g, g);
-    } else if(a.perle){
+    } else if(a.perle || a.auge){
       M4.rotY(_m, _m, a.alter*6);
       M4.scale(_m, _m, 0.25, 0.25, 0.25);
     } else if(a.ei){
@@ -794,6 +829,16 @@ function loheRing(out, mob, part){
 function partMatrix(out, mob, part, ang, bisGelenk){
   wesenGrund(out, mob, part.kopf, mob.def && mob.def.kopfPunkt);
   if(part.anim === 'lohe') loheRing(out, mob, part);
+  if(part.anim === 'kristall'){
+    // der Endkristall: zwei Würfel ineinander, die sich gegeneinander drehen und auf und ab schweben
+    const [px, py, pz] = part.pivot, a = mob.age || 0, s = part.ph ? -1 : 1;
+    M4.translate(out, out, px, py + Math.sin(a*2)*0.18, pz);
+    M4.rotY(out, out, a*1.6*s); M4.rotX(out, out, 0.62); M4.rotZ(out, out, 0.62);
+    M4.translate(out, out, -px, -py, -pz);
+    const [ox, oy, oz, w, h, d] = part.box;
+    M4.translate(out, out, ox, oy, oz); M4.scale(out, out, w, h, d);
+    return out;
+  }
   const [ox, oy, oz, w, h, d] = part.box;
   if(ang || part.gier){
     // Drehpunkt: Kopf in der Mitte, Glieder oben — oder wo pivot ihn hinlegt
@@ -802,7 +847,7 @@ function partMatrix(out, mob, part, ang, bisGelenk){
     const px = pv ? pv[0] : ox + w/2, py = pv ? pv[1] : (part.anim === 'head' ? oy + h/2 : oy + h), pz = pv ? pv[2] : oz + d/2;
     M4.translate(out, out, px, py, pz);
     if(part.gier) M4.rotY(out, out, part.gier);
-    if(ang){ if(part.anim === 'fluegel') M4.rotZ(out, out, ang); else M4.rotX(out, out, ang); }
+    if(ang){ if(part.anim === 'fluegel' || part.anim === 'drachenfluegel') M4.rotZ(out, out, ang); else if(part.anim === 'schwanz') M4.rotY(out, out, ang); else M4.rotX(out, out, ang); }
     M4.translate(out, out, -px, -py, -pz);
   }
   if(bisGelenk) return;
@@ -1032,6 +1077,8 @@ function render(dt){
     const t = R._wirr;
     fog = [0.2 - 0.1*t, 0.035 - 0.015*t, 0.03 + 0.08*t]; near = far*0.12; far *= 0.8;
   }
+  const ende = Game.dim === 'ende';
+  if(ende){ fog = END_NEBEL; near = far*0.35; }                    // das End: dunkel, violettgrau, kein Tag und keine Nacht
   if(p.headInWater){ fog = [0.10, 0.28, 0.42]; near = 0.2; far = 15; }
   if(p.headInLava){ fog = [0.78, 0.26, 0.03]; near = 0; far = 1.2; }
 
@@ -1043,7 +1090,8 @@ function render(dt){
 
   gl.clearColor(fog[0], fog[1], fog[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  if(!nether) drawSky();
+  if(!nether && !ende) drawSky();
+  if(ende) drawEndHimmel();
   drawChunks(false, fog, near, far);
   drawMobs(fog, near, far);
   drawSpieler(fog, near, far);
@@ -1055,6 +1103,6 @@ function render(dt){
   const ohne = Game.panoramaAktiv || Game._ohneHand || !!Game.bett;
   if(!ohne) drawSelection(Game.targetBlock(), fog, near, far);
   drawChunks(true, fog, near, far);
-  if(!Game.panoramaAktiv && !nether) Wetter.zeichnen();
+  if(!Game.panoramaAktiv && !nether && !ende) Wetter.zeichnen();
   if(!ohne) drawHeld(fog);
 }

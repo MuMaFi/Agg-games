@@ -40,12 +40,12 @@ const MC_NAMEN = {
   stone_button:'KNOPF', stone_pressure_plate:'DRUCKPLATTE', redstone_wire:'STAUB', redstone_leitung:'STAUB', leitung:'STAUB', slime_ball:'slimeball', repeater:'VERSTAERKER', verstaerker:'VERSTAERKER',
   piston:'KOLBEN', sticky_piston:'KLEBKOLBEN', pumpkin:'KUERBIS', carved_pumpkin:'GESCHNITZT',
   warped_nylium:'WIRR_NYZEL', warped_stem:'WIRR_STIEL', warped_wart_block:'WIRR_WARZE', warped_roots:'WIRR_WURZELN',
-  warped_fungus:'WIRR_PILZ', shroomlight:'PILZLICHT', blaze_rod:'lohenrute', nether_bricks:'NETHERZIEGEL', spawner:'SPAWNER', nether_brick:'netherziegel', fire:'FEUER', ender_eye:'enderauge', blaze_powder:'lohenstaub', ender_pearl:'enderperle',
+  warped_fungus:'WIRR_PILZ', shroomlight:'PILZLICHT', blaze_rod:'lohenrute', nether_bricks:'NETHERZIEGEL', spawner:'SPAWNER', nether_brick:'netherziegel', fire:'FEUER', ender_eye:'enderauge', end_portal_frame:'ENDRAHMEN', end_portal:'ENDPORTAL', end_stone:'ENDSTEIN', dragon_egg:'DRACHENEI', blaze_powder:'lohenstaub', ender_pearl:'enderperle',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager',
   eisengolem:'golem', golem:'golem', iron_golem:'golem', witherskelett:'wither', wither_skeleton:'wither', ghast:'ghast',
-  lohe:'blaze', blaze:'blaze', enderman:'enderman' };
+  lohe:'blaze', blaze:'blaze', enderman:'enderman', enderdrache:'drache', ender_dragon:'drache', endkristall:'kristall', end_crystal:'kristall' };
 const MODI = { ueberleben:false, survival:false, s:false, '0':false, kreativ:true, creative:true, c:true, '1':true };
 const TAGESZEITEN = { day:1000, tag:1000, noon:6000, mittag:6000, sunset:12000, abend:12000, night:13000, nacht:13000,
   midnight:18000, mitternacht:18000, sunrise:23000, morgen:23000 };
