@@ -66,6 +66,12 @@
   .chs{display:flex;gap:4px;}
   #tname{font-size:20px;color:var(--smoke);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:28ch;}
   @media (max-width:640px){ #tname{display:none;} .chs button{padding:7px 8px;} }
+  .palrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px;color:var(--smoke);letter-spacing:.06em;}
+  .pals{display:flex;gap:6px;flex-wrap:wrap;}
+  .pals button{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid transparent;}
+  .pals button[aria-pressed="true"]{border-color:var(--bone);background-clip:padding-box;}
+  #bar .pals button{width:26px;height:26px;padding:0;}
+  @media (max-width:640px){ #bar .pals{order:5;} }
   #drop{position:fixed;inset:0;z-index:6;display:grid;place-items:center;pointer-events:none;opacity:0;
     font-family:var(--f-game);font-size:clamp(14px,3vw,22px);background:rgba(160,20,15,.35);transition:opacity .2s;}
   #drop.on{opacity:1;}
@@ -84,9 +90,10 @@
       <button id="bMic">MIKROFON<small>Live-Musik im Raum</small></button>
       <button id="bTab" hidden>TAB-AUDIO<small>Spotify/YouTube-Tab mitschneiden</small></button>
     </div>
+    <div class="palrow"><span>FARBE</span><div class="pals" id="pals1"></div></div>
     <p id="msg" role="status"></p>
     <div class="foot">
-      <span><kbd>Leertaste</kbd> Pause · <kbd>1</kbd>–<kbd>5</kbd> Szene · <kbd>A</kbd> Auto · <kbd>H</kbd> HUD · <kbd>F</kbd> Vollbild · <kbd>S</kbd> weniger Blitze</span>
+      <span><kbd>Leertaste</kbd> Pause · <kbd>1</kbd>–<kbd>5</kbd> Szene · <kbd>A</kbd> Auto · <kbd>C</kbd> Farbe · <kbd>M</kbd> Farbwechsel bei Drops · <kbd>H</kbd> HUD · <kbd>F</kbd> Vollbild · <kbd>S</kbd> weniger Blitze</span>
       <span>Enthält schnelle Lichtblitze. Mit <kbd>S</kbd> abschwächen.</span>
     </div>
   </div>
@@ -97,6 +104,8 @@
   <div id="seekWrap"><span id="tcur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position"><span id="tdur">0:00</span></div>
   <span id="tname"></span>
   <div class="chs" id="chs"></div>
+  <div class="pals" id="pals2"></div>
+  <button id="bMix" aria-pressed="false" title="Farbe bei jedem Drop wechseln">MIX</button>
   <button id="bAuto" aria-pressed="true">AUTO</button>
   <button id="bHud" aria-pressed="true">HUD</button>
   <button id="bSrc">QUELLE</button>
@@ -126,11 +135,20 @@ let strobeSafe = reduceMotion;
 
 /* ---------------- Szenen ---------------- */
 const SCENES = [
-  {name:'HAUS',     decay:.84, zoom:.003, rot:.0,  lift:.0022, soft:.34},
-  {name:'STEM',     decay:.80, zoom:.002, rot:1.,  lift:0,     soft:.07},
-  {name:'GRAT',     decay:.50, zoom:.0,   rot:.0,  lift:0,     soft:.05},
-  {name:'PHOSPHOR', decay:.93, zoom:.011, rot:1.,  lift:0,     soft:.04},
-  {name:'8-BIT',    decay:.0,  zoom:.0,   rot:.0,  lift:0,     soft:.0 },
+  {name:'GRAT',     decay:.50, zoom:.0,   rot:.0,  lift:0, soft:.05},
+  {name:'STADT',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.04},
+  {name:'TUNNEL',   decay:.62, zoom:.006, rot:.0,  lift:0, soft:.03},
+  {name:'KERN',     decay:.55, zoom:.002, rot:1.,  lift:0, soft:.04},
+  {name:'PHOSPHOR', decay:.93, zoom:.011, rot:1.,  lift:0, soft:.04},
+];
+const PALS = [
+  {name:'GLUT',   c:[[.20,.008,.015],[.78,.05,.035],[1,.40,.11],[1,.93,.84]]},
+  {name:'EIS',    c:[[.0,.035,.11],[.04,.33,.85],[.35,.85,1],[.92,.98,1]]},
+  {name:'GIFT',   c:[[.0,.09,.03],[.12,.6,.1],[.62,1,.22],[.95,1,.85]]},
+  {name:'ULTRA',  c:[[.09,.0,.17],[.55,.05,.75],[1,.25,.65],[1,.88,.95]]},
+  {name:'GOLD',   c:[[.11,.045,.0],[.62,.3,.02],[1,.74,.2],[1,.97,.85]]},
+  {name:'NEON',   c:[[.05,.0,.14],[.85,.08,.55],[.1,.9,1],[1,1,1]]},
+  {name:'MONO',   c:[[.05,.05,.05],[.38,.38,.38],[.78,.78,.78],[1,1,1]]},
 ];
 
 /* ---------------- Shader ---------------- */
@@ -148,109 +166,57 @@ float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
 float fbm(vec2 p){ float v=0., a=.5; mat2 m=mat2(1.6,1.2,-1.2,1.6);
   for(int i=0;i<5;i++){ v+=a*noise(p); p=m*p; a*=.5; } return v; }
+uniform vec3 uPal[4];
 vec3 ember(float t){
   t=clamp(t,0.,1.);
-  vec3 c=mix(vec3(0.), vec3(.20,.008,.015), smoothstep(0.,.25,t));
-  c=mix(c, vec3(.78,.05,.035), smoothstep(.2,.55,t));
-  c=mix(c, vec3(1.,.40,.11), smoothstep(.5,.8,t));
-  c=mix(c, vec3(1.,.93,.84), smoothstep(.78,1.,t));
+  vec3 c=mix(vec3(0.), uPal[0], smoothstep(0.,.25,t));
+  c=mix(c, uPal[1], smoothstep(.2,.55,t));
+  c=mix(c, uPal[2], smoothstep(.5,.8,t));
+  c=mix(c, uPal[3], smoothstep(.78,1.,t));
   return c; }
 `;
 
 const FS_SCENE = COMMON + `
 uniform sampler2D uPrev, uSpec, uWave, uHist;
 uniform vec2 uRes;
-uniform float uTime, uSub, uBass, uMid, uHigh, uLevel, uKick, uSnare, uHat, uDrop, uRoll, uHue, uHistRow, uSpin, uInt;
+uniform float uTime, uSub, uBass, uMid, uHigh, uLevel, uKick, uSnare, uHat, uDrop, uRoll, uHue, uHistRow, uSpin, uInt, uTravel, uCam;
 uniform float uDecay, uZoom, uRot, uLift;
 uniform int uScene;
 
 float spec(float x){ return texture(uSpec, vec2(x,.5)).r; }
 float wave(float x){ return texture(uWave, vec2(x,.5)).r*2.-1.; }
 float hist(float x, float age){
-  float row = mod(uHistRow - floor(age*63.) + 64., 64.);
+  float row = mod(uHistRow - floor(clamp(age,0.,1.)*63.) + 64., 64.);
+  return texture(uHist, vec2(x, (row+.5)/64.)).r; }
+float histK(float x, float k){
+  float row = mod(uHistRow - k + 64., 64.);
   return texture(uHist, vec2(x, (row+.5)/64.)).r; }
 float fitS(){ return min(1., uRes.x/uRes.y*1.08); }
-float sdBox(vec2 p, vec2 b){ vec2 d=abs(p)-b; return length(max(d,0.))+min(max(d.x,d.y),0.); }
+mat3 camM(vec3 ro, vec3 ta, float roll){
+  vec3 w=normalize(ta-ro); vec3 u=normalize(cross(vec3(sin(roll),cos(roll),0.),w)); return mat3(u,cross(w,u),w); }
+vec3 safeDir(vec3 d){ return vec3(abs(d.x)<1e-5?1e-5:d.x, abs(d.y)<1e-5?1e-5:d.y, abs(d.z)<1e-5?1e-5:d.z); }
+float faceEdge(vec3 pos, vec3 n){
+  vec3 f=fract(pos); vec2 u= abs(n.x)>.5 ? f.yz : abs(n.y)>.5 ? f.xz : f.xy;
+  vec2 g=abs(u-.5); return smoothstep(.40,.485,max(g.x,g.y)); }
+vec3 stars(vec3 rd){
+  vec2 s=vec2(atan(rd.z,rd.x)*60., rd.y*60.); vec2 id=floor(s); float h=hash(id);
+  vec2 f=abs(fract(s)-.5);
+  return mix(vec3(1.),uPal[3],.5)*step(.985,h)*step(max(f.x,f.y),.18)*(.3+.7*fract(h*77.+uTime*.6))*(.4+uHat*.8); }
 
-/* ---- 1: HAUS — brennendes Haus, rot, verschwommen ---- */
-vec3 sceneHaus(vec2 p){
-  vec2 q=p/fitS();
-  float t=uTime;
-  vec2 hp=q-vec2(0.,-.24);
-  float body=sdBox(hp,vec2(.16,.10));
-  float roof=max(max(abs(hp.x)*.72+hp.y-.235, .10-hp.y), abs(hp.x)-.2);
-  float chim=sdBox(hp-vec2(.09,.19),vec2(.022,.06));
-  float house=min(min(body,roof),chim);
-  float hm=smoothstep(.004,-.004,house);
-  float rise=t*(.22+uBass*.3);
-  vec2 fq=vec2(q.x*2.4, q.y*2.1-rise*2.);
-  float n=fbm(fq+vec2(fbm(fq*1.7+t*.3), fbm(fq*1.3-t*.2))*1.4);
-  float heat=n*1.05-(q.y+.02)*1.25-abs(q.x)*1.6-.16+uBass*.26+uKick*.16+uSub*.10;
-  float smoke=fbm(q*1.6+vec2(0.,-t*.06))*fbm(q*3.1+vec2(t*.02,-t*.11));
-  vec3 col=vec3(.16,.008,.018)*smoke*(.7+uLevel*1.1)+vec3(.05,0.,.004)*(1.-length(q));
-  col+=ember(heat)*smoothstep(0.,.25,heat)*.8;
-  float win=min(sdBox(hp-vec2(-.08,.02),vec2(.03,.028)), sdBox(hp-vec2(.08,.02),vec2(.03,.028)));
-  float door=sdBox(hp-vec2(0.,-.05),vec2(.025,.05));
-  float flick=.65+.35*noise(vec2(t*13.,2.));
-  vec3 inner=ember(.72+uMid*.25)*smoothstep(.003,-.003,min(win,door))*(.55+uMid*1.6)*flick;
-  col=mix(col, vec3(.012,.004,.004)+inner, hm*(1.-clamp(heat-.75,0.,1.)*.6));
-  float gy=-.345;
-  if(q.y<gy){ float dd=gy-q.y;
-    col=mix(col, vec3(.02,0.,.003)+ember(.55)*exp(-abs(q.x)*3.5)*exp(-dd*18.)*(.25+uBass*.6), smoothstep(0.,.006,dd)); }
-  col+=vec3(.5,.06,.04)*uSnare*.35*(1.-hm)*smoothstep(-.4,.4,q.y);
-  return col; }
-
-/* ---- 2: STEM — Scheibe mit LED-Armen ---- */
-vec3 sceneStem(vec2 p){
-  vec2 q=p/fitS();
-  float r=length(q);
-  vec3 col=vec3(.10,0.,.012)*smoothstep(.95,0.,r)*(.35+uLevel*.9);
-  col+=vec3(.06,.0,.0)*fbm(q*2.+uTime*.05)*smoothstep(.4,.9,r);
-  float body=smoothstep(.405,.40,r);
-  col=mix(col, vec3(.036,.031,.029)*(.85+.3*noise(q*55.)), body);
-  col+=vec3(.3,.24,.2)*smoothstep(.006,0.,abs(r-.405))*.35;
-  float lv[4]; lv[0]=uSub; lv[1]=uBass; lv[2]=uMid; lv[3]=uHigh;
-  for(int k=0;k<4;k++){
-    float a=uSpin+PI*.25+float(k)*PI*.5;
-    vec2 d=vec2(cos(a),sin(a));
-    float al=dot(q,d), pe=dot(q,vec2(-d.y,d.x));
-    float idx=clamp(floor((al-.085)/.036+.5),0.,7.);
-    float cen=.085+idx*.036;
-    float dist=length(vec2(al-cen,pe));
-    float on=step(idx/8., lv[k]*1.08-.03);
-    float led=smoothstep(.0115,.0075,dist);
-    float glow=exp(-dist*dist*800.);
-    vec3 lc=mix(vec3(.13,.02,.02), vec3(1.,.13,.08), on);
-    col+=(lc*led+vec3(1.,.15,.07)*glow*on*.9)*step(0.,al);
-  }
-  float aa=atan(q.y,q.x)+PI*.5;
-  float seg=2.*PI/48.;
-  float j=floor(aa/seg);
-  float ca=(j+.5)*seg-PI*.5;
-  vec2 lp=vec2(cos(ca),sin(ca))*.352;
-  float dd=length(q-lp);
-  float m=abs((j+.5)/48.*2.-1.);
-  float l=spec(.03+.75*(1.-m));
-  col+=vec3(1.,.24,.11)*(smoothstep(.0085,.005,dd)*(.08+l*1.5)+exp(-dd*dd*1400.)*l*.8);
-  float cr=.048+uKick*.014;
-  col+=vec3(1.,.9,.84)*smoothstep(cr,cr-.005,r)*(.25+uKick*1.1);
-  col+=vec3(1.,.18,.08)*exp(-r*r*90.)*uSub*.7;
-  return col; }
-
-/* ---- 3: GRAT — Spektrum-Gebirge in Pixeln, Sonnenfinsternis ---- */
+/* ---- 1: GRAT — Spektrum-Gebirge in Pixeln, Sonnenfinsternis ---- */
 vec3 sceneGrat(vec2 uv){
   float ps=max(2.,floor(uRes.y/170.));
   vec2 g=(floor(uv*uRes/ps)+.5)*ps;
   vec2 p=(g-.5*uRes)/uRes.y;
-  vec3 col=vec3(.07,0.,.01)*smoothstep(-.05,.5,p.y);
-  col+=vec3(.35,.03,.03)*exp(-abs(p.y-.1)*9.)*(.25+uBass*.8);
+  vec3 col=uPal[0]*.35*smoothstep(-.05,.5,p.y);
+  col+=ember(.5)*.45*exp(-abs(p.y-.1)*9.)*(.25+uBass*.8);
   vec2 sp=p-vec2(0.,.2); float sr=length(sp);
   float cor=exp(-max(sr-.115,0.)*16.)*(.45+uSub*1.2+uKick*.6);
   cor*=.65+.35*noise(vec2(atan(sp.y,sp.x)*5.,uTime*2.));
   col+=ember(.35+cor*.45)*cor;
   col=mix(col, vec3(0.), smoothstep(.118,.112,sr));
   vec2 sid=floor(g/(ps*3.)); float sh=hash(sid);
-  if(sh>.986 && p.y>.08) col+=vec3(1.,.86,.8)*(.25+.75*fract(sh*91.+uTime*.7))*(.35+uHat);
+  if(sh>.986 && p.y>.08) col+=mix(vec3(1.),uPal[3],.5)*(.25+.75*fract(sh*91.+uTime*.7))*(.35+uHat);
   const int N=38;
   for(int i=0;i<N;i++){
     float z=float(i)/float(N);
@@ -262,13 +228,158 @@ vec3 sceneGrat(vec2 uv){
     if(p.y<top){
       float e=step(top-p.y, ps/uRes.y*1.01);
       vec3 lc=ember(.42+h*1.7)*(1.-z*.75);
-      col=mix(vec3(.012,0.,.003)*(1.-z), lc, e);
+      col=mix(uPal[0]*.06*(1.-z), lc, e);
       break;
     }
   }
   return col; }
 
-/* ---- 4: PHOSPHOR — Oszilloskop mit Nachleuchten ---- */
+/* ---- 2: STADT — Blockstadt aus dem Spektrogramm ---- */
+float cityH(vec2 c){
+  if(c.y<0. || c.y>63. || abs(c.x+.5)>22.) return 0.;
+  if(mod(c.x+22.,3.)>1.5 || mod(c.y,3.)>1.5) return 0.;
+  float f=abs(c.x+.5)/22.;
+  float v=histK(f*.78+.01, c.y);
+  return floor(pow(v,1.35)*10.)/10.*6.5*(1.-f*.3);
+}
+vec3 sceneStadt(vec2 p){
+  float t=uTime, cm=mod(uCam,3.);
+  vec3 ro, ta;
+  if(cm<.5){ ro=vec3(sin(t*.13)*3.,4.6+sin(t*.3)*.5,-5.); ta=vec3(sin(t*.1)*2.,1.2,26.); }
+  else if(cm<1.5){ ro=vec3(sin(t*.07)*5.,17.,-6.); ta=vec3(0.,0.,15.); }
+  else { ro=vec3(-27.,6.,4.+sin(t*.15)*4.); ta=vec3(0.,1.5,26.); }
+  ro.y+=uKick*.3;
+  vec3 rd=safeDir(normalize(camM(ro,ta,sin(t*.17)*.06+(cm>1.5?.08:0.))*vec3(p,1.35)));
+  vec3 col=mix(uPal[0]*.3, vec3(0.), clamp(rd.y*2.5,0.,1.));
+  col+=ember(.55)*exp(-abs(rd.y-.02)*16.)*(.2+uBass*.7);
+  col+=stars(rd)*step(.05,rd.y);
+  vec2 cell=floor(ro.xz), d2=rd.xz, stp=sign(d2), tD=abs(1./d2), tM=((cell+max(stp,0.))-ro.xz)/d2;
+  float tE=0., th=-1., hh=0.; vec3 n=vec3(0.,1.,0.); vec2 hc=cell;
+  for(int i=0;i<110;i++){
+    float h=cityH(cell);
+    float tX=min(tM.x,tM.y);
+    if(ro.y+rd.y*tE<h){ th=tE; hh=h; hc=cell; break; }
+    if(rd.y<0. && ro.y+rd.y*tX<h){ th=(h-ro.y)/rd.y; n=vec3(0.,1.,0.); hh=h; hc=cell; break; }
+    if(tM.x<tM.y){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
+    else { tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,0.,-stp.y); }
+    if(tE>90.) break;
+  }
+  if(th>0.){
+    vec3 pos=ro+rd*th;
+    float lvl=hh/6.5;
+    vec3 c;
+    if(hh<.01){
+      vec2 g=abs(fract(pos.xz)-.5);
+      float line=smoothstep(.45,.5,max(g.x,g.y));
+      float near=step(0.,pos.z)*step(pos.z,64.)*step(abs(pos.x),22.);
+      c=uPal[0]*.12+ember(.6)*line*(.12+uKick*.9)*(.4+near*.6);
+    } else if(n.y>.5){
+      float e=faceEdge(pos,n);
+      c=ember(.3+lvl*.55)*(.5+.5*e)+ember(.92)*e*lvl*.7;
+    } else {
+      float u=abs(n.x)>.5 ? pos.z : pos.x;
+      vec2 wc=vec2(floor(fract(u)*3.), floor(pos.y*2.5));
+      float wh=hash(wc+hc*7.13);
+      vec2 wf=vec2(fract(fract(u)*3.), fract(pos.y*2.5));
+      float win=step(.25,wf.x)*step(wf.x,.75)*step(.3,wf.y)*step(wf.y,.75);
+      float lit=step(.62-uMid*.35,wh);
+      c=ember(.16+lvl*.3)*(.3+.25*abs(n.x))+ember(.72+wh*.25)*win*lit*(.5+uHigh*1.3);
+      c+=ember(.88)*smoothstep(.12,0.,hh-pos.y)*(.6+uKick*.6);
+    }
+    col=mix(col,c,exp(-th*.032));
+  }
+  return col; }
+
+/* ---- 3: TUNNEL — Flug durch Blockwände ---- */
+float tunExt(vec3 c){
+  float age=clamp((c.z-uTravel)/48.,0.,1.);
+  float a=atan(c.y+.5,c.x+.5);
+  float v=hist(abs(a)/PI*.75+.02, age);
+  return floor(v*v*4.6);
+}
+vec3 sceneTunnel(vec2 p){
+  float t=uTime, cm=mod(uCam,3.);
+  vec3 ro=vec3(sin(t*.5)*1.1, cos(t*.37)*1.1, uTravel);
+  vec3 look=cm<.5 ? vec3(sin(t*.3)*.3,cos(t*.25)*.3,1.) : cm<1.5 ? vec3(.45,.1,1.) : vec3(-.2,-.35,1.);
+  float roll=uSpin*.5+(cm>1.5?t*.25:sin(t*.2)*.25);
+  vec3 rd=safeDir(normalize(camM(ro,ro+look,roll)*vec3(p,1.1)));
+  vec3 cell=floor(ro), stp=sign(rd), tD=abs(1./rd), tM=((cell+max(stp,0.))-ro)/rd;
+  vec3 n=vec3(0.); float th=-1., tE=0.;
+  for(int i=0;i<96;i++){
+    if(max(abs(cell.x+.5),abs(cell.y+.5))>6.5-tunExt(cell)){ th=tE; break; }
+    if(tM.x<tM.y && tM.x<tM.z){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
+    else if(tM.y<tM.z){ tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,-stp.y,0.); }
+    else { tE=tM.z; tM.z+=tD.z; cell.z+=stp.z; n=vec3(0.,0.,-stp.z); }
+  }
+  vec3 col=uPal[0]*.04;
+  if(th>0.){
+    vec3 pos=ro+rd*th;
+    float ext=tunExt(cell);
+    float e=faceEdge(pos,n);
+    float ring=step(mod(cell.z,8.),.5);
+    float diff=.35+.65*abs(dot(n,normalize(vec3(.3,.6,-.7))));
+    vec3 c=ember(.2+ext*.15)*diff*(.55+.45*e)+ember(.86)*e*(ext/4.)*.85;
+    c+=ember(.72)*ring*(.25+uKick*1.6)*(.4+e);
+    if(abs(n.z)>.5 && ext>0.) c+=ember(.55+ext*.1)*.35;
+    col=mix(col,c,exp(-th*.055));
+  }
+  col+=ember(.9)*exp(-length(p)*7.)*(.1+uSub*.6);
+  return col; }
+
+/* ---- 4: KERN — Voxel-Planet mit Spektrogramm-Haut ---- */
+float kernR(vec3 q){
+  float r=length(q); vec3 d=q/max(r,1e-3);
+  float lat=acos(clamp(d.y,-1.,1.))/PI;
+  float lon=abs(atan(d.z,d.x))/PI;
+  return 5.5+uSub*1.4+uKick*.8+hist(lon*.75+.02, abs(lat*2.-1.))*5.5;
+}
+bool kernFill(vec3 c){
+  vec3 q=c+.5; float r=length(q);
+  float rx=length(q.xz);
+  if(abs(q.y)<.9 && rx>15. && rx<16.8){
+    float a=atan(q.z,q.x)/(2.*PI)+.5;
+    return spec(abs(fract(a+uTime*.02)*2.-1.)*.8+.02)>.42;
+  }
+  return r<kernR(q);
+}
+vec3 sceneKern(vec2 p){
+  float t=uTime, cm=mod(uCam,3.);
+  float a=t*.12+uSpin;
+  float dist=cm<.5?40.:cm<1.5?38.:50.;
+  float el=cm<.5?9.:cm<1.5?-10.:22.;
+  vec3 ro=vec3(sin(a)*dist, el+uKick*.4, cos(a)*dist);
+  vec3 rd=safeDir(normalize(camM(ro,vec3(0.),.15*sin(t*.2))*vec3(p,1.5)));
+  vec3 col=uPal[0]*.25*exp(-length(p)*2.)+stars(rd);
+  float b=dot(ro,rd), cc=dot(ro,ro)-18.5*18.5, disc=b*b-cc;
+  if(disc>0.){
+    float t0=max(-b-sqrt(disc),0.);
+    vec3 o=ro+rd*t0;
+    vec3 cell=floor(o), stp=sign(rd), tD=abs(1./rd), tM=((cell+max(stp,0.))-o)/rd;
+    vec3 n=-rd; float tE=0., th=-1.;
+    for(int i=0;i<80;i++){
+      if(kernFill(cell)){ th=tE; break; }
+      if(tM.x<tM.y && tM.x<tM.z){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
+      else if(tM.y<tM.z){ tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,-stp.y,0.); }
+      else { tE=tM.z; tM.z+=tD.z; cell.z+=stp.z; n=vec3(0.,0.,-stp.z); }
+      if(dot(cell,cell)>420.) break;
+    }
+    if(th>=0.){
+      vec3 pos=o+rd*th; vec3 q=cell+.5;
+      float r=length(q);
+      float isRing=step(12.,length(q.xz))*step(abs(q.y),1.);
+      float hgt=clamp((r-5.5)/6.,0.,1.);
+      float e=faceEdge(pos,n);
+      vec3 L=normalize(vec3(.5,.8,.3));
+      float diff=.3+.7*max(dot(n,L),0.);
+      vec3 c=ember(.2+hgt*.45)*diff*(.6+.4*e)+ember(.9)*e*hgt*.45;
+      c=mix(c, ember(.45+uHigh*.2)*(.4+diff*.3+e*.6), isRing);
+      c+=ember(.85)*smoothstep(.8,1.,hgt)*(.2+uKick*.5);
+      col=mix(col,c,exp(-max(th-8.,0.)*.02));
+    }
+  }
+  return col; }
+
+/* ---- 5: PHOSPHOR — Oszilloskop mit Nachleuchten ---- */
 vec3 sceneScope(vec2 p){
   vec2 q=p/fitS();
   float r=length(q), a=atan(q.y,q.x);
@@ -276,7 +387,7 @@ vec3 sceneScope(vec2 p){
   float w=wave(m);
   float rr=.21+uBass*.07+w*.11*(.6+uLevel);
   float d=abs(r-rr);
-  vec3 col=vec3(1.,.32,.16)*exp(-d*d*26000.)*1.3+vec3(1.,.08,.04)*exp(-d*55.)*.22;
+  vec3 col=ember(.82)*exp(-d*d*26000.)*1.3+ember(.5)*exp(-d*55.)*.22;
   float s=spec(m*.85+.01);
   float ray=smoothstep(.35,0.,abs(fract(m*72.)-.5))*step(.055,r)*step(r,.07+s*.13);
   col+=ember(.45+s*.55)*ray*.7;
@@ -284,43 +395,8 @@ vec3 sceneScope(vec2 p){
   float x=p.x/aspect+.5;
   float wy=wave(x)*.11-.37;
   float wd=abs(p.y-wy);
-  col+=vec3(1.,.55,.3)*exp(-wd*wd*32000.)*.75;
-  col+=vec3(1.,.9,.85)*exp(-r*r*500.)*uKick*.6;
-  return col; }
-
-/* ---- 5: 8-BIT — Block-EQ, Sterne, Flammengeist ---- */
-const int SPR[8]=int[8](16,56,124,126,219,255,126,60);
-vec3 sceneArcade(vec2 uv){
-  float vh=120.; float ps=uRes.y/vh;
-  vec2 c=floor(uv*uRes/ps);
-  float vw=floor(uRes.x/ps);
-  vec3 col=vec3(.025,0.,.01);
-  float spd=uTime*(18.+uInt*30.);
-  float rs=.4+hash(vec2(c.y,1.));
-  vec2 sc=vec2(c.x+floor(spd*rs), c.y);
-  if(hash(sc*.37+3.)>.994 && c.y>16.) col=vec3(.9,.72,.66)*(.4+rs*.4);
-  if(c.y==14.) col=vec3(.55,.06,.05)*(1.+uKick);
-  if(c.y<14.){ float ch=mod(floor((c.x+spd*2.)/4.)+floor(c.y/2.),2.); col=mix(vec3(.05,0.,.01),vec3(.11,.01,.02),ch); }
-  float nb=24., bw=6.; float x0=floor((vw-nb*bw)*.5);
-  float bi=floor((c.x-x0)/bw), bx=mod(c.x-x0,bw);
-  if(bi>=0. && bi<nb && bx<5. && c.y>15.){
-    float f=(bi+.5)/nb;
-    vec4 sv=texture(uSpec, vec2(f*.82+.02,.5));
-    float yy=c.y-16.;
-    float hgt=floor(sv.r*72./3.)*3.;
-    if(yy<hgt && mod(yy,3.)<2.) col=ember(.38+yy/72.*.62);
-    float pk=floor(sv.g*72./3.)*3.+1.;
-    if(abs(yy-pk)<.5) col=vec3(1.,.9,.82);
-  }
-  float sz=3.;
-  vec2 o0=vec2(floor(vw*.5)-12., 82.+floor(uKick*7.));
-  vec2 lc=floor((c-o0)/sz);
-  if(lc.x>=0. && lc.x<8. && lc.y>=0. && lc.y<8.){
-    int row=7-int(lc.y); int bits=SPR[row];
-    int bit=(bits>>(7-int(lc.x)))&1;
-    if(bit==1){ col=ember(.95-lc.y*0.0+ (7.-lc.y)*-.06 + .1*noise(vec2(lc.x,uTime*8.))); col=mix(col, vec3(1.,.95,.9), uSnare*.6); }
-    else if(row==4) col=mix(vec3(1.,.95,.9), vec3(1.,.1,.05), uSnare);
-  }
+  col+=ember(.9)*exp(-wd*wd*32000.)*.75;
+  col+=uPal[3]*exp(-r*r*500.)*uKick*.6;
   return col; }
 
 /* ---- Pixel-Glut, in allen Szenen ---- */
@@ -334,11 +410,11 @@ vec3 embers(vec2 uv){
     g.x+=sin(g.y*.31+fl*2.)*.6;
     vec2 id=floor(g), f=fract(g);
     float h=hash(id+fl*17.31);
-    if(h>.935-uInt*.04-uSnare*.06){
+    if(h>.945-uInt*.04-uSnare*.06){
       vec2 c0=vec2(hash(id+3.1),hash(id+7.7))*.6+.2;
       vec2 d=abs(f-c0);
       float sq=step(max(d.x,d.y), .5/7.);
-      c+=ember(.55+h*.45)*sq*(.35+uHigh*.9+uSnare*.5);
+      c+=ember(.55+h*.45)*sq*(.3+uHigh*.8+uSnare*.5);
     }
   }
   return c; }
@@ -359,11 +435,11 @@ void main(){
   float dec=max(uDecay, uDrop*.92);
   prev=max(prev*dec-.003,0.);
   vec3 cur;
-  if(uScene==0) cur=sceneHaus(p);
-  else if(uScene==1) cur=sceneStem(p);
-  else if(uScene==2) cur=sceneGrat(uv);
-  else if(uScene==3) cur=sceneScope(p);
-  else cur=sceneArcade(uv);
+  if(uScene==0) cur=sceneGrat(uv);
+  else if(uScene==1) cur=sceneStadt(p);
+  else if(uScene==2) cur=sceneTunnel(p);
+  else if(uScene==3) cur=sceneKern(p);
+  else cur=sceneScope(p);
   cur+=embers(uv);
   o=vec4(max(cur,prev),1.);
 }`;
@@ -402,16 +478,16 @@ void main(){
   vec3 lft=textureLod(uScene,suv-vec2(.006,0.),1.5).rgb;
   float yl=dot(lft,vec3(.299,.587,.114));
   col=mix(col, y+(lft-yl)*1.05, .35);
-  col+=vec3(1.,.15,.1)*band*.12*hash(vec2(floor(suv.x*300.),floor(uTime*60.)));
+  col+=uPal[1]*band*.12*hash(vec2(floor(suv.x*300.),floor(uTime*60.)));
   vec2 huv=vec2(suv.x,1.-suv.y);
   vec4 h0=texture(uHud,huv), h1=texture(uHud,huv+vec2(.0018,0.)), h2=texture(uHud,huv-vec2(.0012,0.));
   vec3 hud=vec3(h1.r,h0.g,h2.b);
   float ha=max(max(h0.a,h1.a),h2.a);
   col=mix(col, hud, ha*.92);
-  col+=uFlash*vec3(1.,.82,.76)*.55;
+  col+=uFlash*mix(vec3(1.),uPal[3],.4)*.55;
   col=1.-exp(-col*1.3);
-  col=pow(max(col,0.),vec3(.94,1.,1.1));
-  col=col*.95+vec3(.022,.007,.008);
+  col=pow(max(col,0.),vec3(.97,1.,1.03));
+  col=col*.95+uPal[0]*.08+.01;
   col*=.86+.14*sin(vUv.y*uRes.y*1.5708);
   col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.075;
   vec2 vv=(vUv-.5)*vec2(1.,1.15);
@@ -521,7 +597,7 @@ const onK=new Onset(1.5,.16), onS=new Onset(1.7,.14), onH=new Onset(1.4,.045);
 
 /* Zustand für Shader + HUD */
 const S={sub:0,bass:0,mid:0,high:0,level:0,kick:0,snare:0,hat:0,drop:0,roll:0,hue:.5,spin:0,spinT:0,glitch:0,pixel:0,flash:0,int:0,
-  shortE:0,longE:.001,quiet:0,bpm:0,phase:0,note:'',noteHz:0,noteA:0,combo:0,score:0,lastKick:-9,drops:0,kicks:0,kicksSince:0};
+  shortE:0,longE:.001,quiet:0,bpm:0,phase:0,note:'',noteHz:0,noteA:0,combo:0,score:0,travel:0,cam:0,lastKick:-9,drops:0,kicks:0,kicksSince:0};
 const agc={};
 function norm(k,v,dt){ const m=Math.max(v, (agc[k]||.1)*Math.pow(.9994,dt*60)); agc[k]=Math.max(m,.06); return Math.min(1,v/agc[k]); }
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -602,6 +678,7 @@ function analyze(t,dt){
     const err=Math.round(S.phase)-S.phase; S.phase+=err*.35;
     if(S.quiet>1.6 && ratio>1.2 && srcMode!=='none'){ triggerDrop(); S.quiet=0; }
     else if(auto && S.kicksSince>=48){ nextScene(); S.kicksSince=0; S.pixel=.7; S.glitch=.6; }
+    else if(S.kicksSince%12===0){ S.cam++; S.glitch=Math.max(S.glitch,.35); }
   }
   if(ev.snare){ S.snare=1; pushOn(t,1); S.score+=25; if(!strobeSafe) S.flash=Math.max(S.flash,.18*S.int); }
   if(ev.hat){ S.hat=1; hatTimes.push(t); pushOn(t,.5); }
@@ -609,6 +686,7 @@ function analyze(t,dt){
   if(hatTimes.length>=5){ S.roll=Math.min(1,S.roll+dt*8); S.glitch=Math.max(S.glitch,.25*(strobeSafe?.3:1)); }
   if(t-S.lastKick>2.2) S.combo=0;
   S.spin=ease(S.spin,S.spinT,8,8,dt); S.spinT+=dt*.05;
+  S.travel+=dt*(3+(S.bpm||120)/40+S.int*5+S.kick*7);
   // BPM aus Kick-Abständen
   if((S._bt=(S._bt||0)+dt)>1){ S._bt=0; estimateBPM(); }
   if(S.bpm>0) S.phase+=dt*S.bpm/60;
@@ -628,6 +706,25 @@ function estimateBPM(){
   if(best) S.bpm = S.bpm && Math.abs(S.bpm-best)<6 ? Math.round(lerp(S.bpm,best,.3)) : best;
 }
 
+/* ---------------- Farbpaletten ---------------- */
+let palIdx=0, palMix=false;
+try{ const v=+localStorage.getItem('burnline.pal'); if(v>=0&&v<PALS.length) palIdx=v; palMix=localStorage.getItem('burnline.mix')==='1'; }catch(e){}
+const palCur=PALS[palIdx].c.map(a=>a.slice()), palFlat=new Float32Array(12);
+const rgb=(c,a=1)=>`rgba(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)},${a})`;
+const HC={shadow:'',hot:'',hi:'',m1:'',m2:'',m3:''};
+function hudColors(){ const c=palCur; HC.shadow=rgb(c[1],.85); HC.hot=rgb(c[2]); HC.hi=rgb(c[3]); HC.m1=rgb(c[1]); HC.m2=rgb(c[2]); HC.m3=rgb(c[3]);
+  const st=document.documentElement.style; st.setProperty('--ember',rgb(c[1])); st.setProperty('--ember-hot',rgb(c[2])); }
+function setPal(i){ palIdx=(i+PALS.length)%PALS.length; try{ localStorage.setItem('burnline.pal',palIdx); }catch(e){}
+  document.querySelectorAll('.pals button').forEach(b=>b.setAttribute('aria-pressed', +b.dataset.i===palIdx?'true':'false')); }
+function setMix(v){ palMix=v; $('#bMix').setAttribute('aria-pressed',v?'true':'false'); try{ localStorage.setItem('burnline.mix',v?'1':'0'); }catch(e){} }
+function updPal(dt){ const tg=PALS[palIdx].c, k=1-Math.exp(-dt*4);
+  for(let i=0;i<4;i++) for(let j=0;j<3;j++){ palCur[i][j]+=(tg[i][j]-palCur[i][j])*k; palFlat[i*3+j]=palCur[i][j]; } }
+['#pals1','#pals2'].forEach(sel=>{ const box=$(sel); PALS.forEach((pl,i)=>{ const b=document.createElement('button'); b.dataset.i=i;
+  b.title=pl.name; b.setAttribute('aria-label','Farbe '+pl.name);
+  b.style.background=`linear-gradient(135deg, ${rgb(pl.c[0])} 0%, ${rgb(pl.c[1])} 35%, ${rgb(pl.c[2])} 70%, ${rgb(pl.c[3])} 100%)`;
+  b.onclick=()=>{ setPal(i); banner={text:pl.name,t:performance.now()/1000}; }; box.appendChild(b); }); });
+setPal(palIdx); hudColors();
+
 /* ---------------- Szenensteuerung ---------------- */
 let scene=0, auto=true, hudOn=true;
 const BANNERS=['DROP','LEVEL UP','808 MODE','BOSS FIGHT','STAGE','EXTRA LIFE','CONTINUE?'];
@@ -639,6 +736,8 @@ function triggerDrop(){
   const b=BANNERS[(S.drops-1)%BANNERS.length];
   banner={text: b==='STAGE' ? 'STAGE '+String(S.drops).padStart(2,'0') : b, t:performance.now()/1000};
   if(auto){ nextScene(); S.kicksSince=0; }
+  if(palMix){ let n; do{ n=Math.floor(Math.random()*PALS.length); }while(n===palIdx); setPal(n); }
+  S.cam++;
 }
 const chs=$('#chs');
 SCENES.forEach((s,i)=>{ const b=document.createElement('button'); b.textContent=i+1; b.title=s.name; b.setAttribute('aria-label','Szene '+s.name);
@@ -651,7 +750,7 @@ let trackName='', fontsReady=false;
 document.fonts && document.fonts.ready.then(()=>fontsReady=true);
 function fmtTC(sec){ sec=Math.max(0,sec); const h=Math.floor(sec/3600), m=Math.floor(sec/60)%60, s=Math.floor(sec)%60, f=Math.floor(sec*25)%25;
   return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`; }
-function txt(s,x,y,al,col){ hx.textAlign=al||'left'; hx.fillStyle='rgba(210,24,20,.85)'; hx.fillText(s,x+2*U,y); hx.fillStyle=col||'#f1e7dc'; hx.fillText(s,x,y); }
+function txt(s,x,y,al,col){ hx.textAlign=al||'left'; hx.fillStyle=HC.shadow; hx.fillText(s,x+2*U,y); hx.fillStyle=col||'#f1e7dc'; hx.fillText(s,x,y); }
 function drawHud(now){
   const W=hc.width,H=hc.height; hx.clearRect(0,0,W,H);
   if(!hudOn) return;
@@ -666,7 +765,7 @@ function drawHud(now){
   else if(playing){ hx.beginPath(); hx.moveTo(m,mt+3*U); hx.lineTo(m+16*U,mt+12*U); hx.lineTo(m,mt+21*U); hx.closePath(); hx.fill(); txt('PLAY',m+26*U,mt); }
   else { hx.fillRect(m,mt+3*U,6*U,18*U); hx.fillRect(m+10*U,mt+3*U,6*U,18*U); if(blink) txt('PAUSE',m+26*U,mt); }
   txt('SP  '+fmtTC(srcTime()),m,mt+30*U);
-  if(srcMode==='mic'||srcMode==='tab'){ if(blink){ hx.fillStyle='#e02a1f'; hx.beginPath(); hx.arc(m+8*U,mt+75*U,7*U,0,PI2); hx.fill(); } txt(srcMode==='mic'?'LIVE MIC':'LIVE TAB',m+22*U,mt+62*U); }
+  if(srcMode==='mic'||srcMode==='tab'){ if(blink){ hx.fillStyle=HC.m2; hx.beginPath(); hx.arc(m+8*U,mt+75*U,7*U,0,PI2); hx.fill(); } txt(srcMode==='mic'?'LIVE MIC':'LIVE TAB',m+22*U,mt+62*U); }
   // Kanal oben rechts
   txt(`CH ${String(scene+1).padStart(2,'0')} ${SCENES[scene].name}`,W-m,mt,'right');
   txt(auto?'AUTO':'MANUELL',W-m,mt+30*U,'right','#c9b9ad');
@@ -674,21 +773,21 @@ function drawHud(now){
   const yb=H-m-30*U;
   if(trackName){ let tn=trackName.toUpperCase(); const maxW=W<H?W*.4:W*.55; if(hx.measureText(tn).width>maxW){ while(tn.length>4&&hx.measureText(tn+'…').width>maxW) tn=tn.slice(0,-1); tn+='…'; } txt(tn,m,yb-60*U); }
   txt(S.bpm?`${S.bpm} BPM`:'--- BPM',m,yb-30*U);
-  txt(S.noteA>.05?`808 ▸ ${S.note}  ${Math.round(S.noteHz)} HZ`:'808 ▸ —',m,yb,'left', S.noteA>.05?'#ffb38f':'#8d7b73');
+  txt(S.noteA>.05?`808 ▸ ${S.note}  ${Math.round(S.noteHz)} HZ`:'808 ▸ —',m,yb,'left', S.noteA>.05?HC.hot:'#8d7b73');
   // unten rechts: Score, Combo, Power
   hx.font=`${Math.round(13*U)}px "Press Start 2P", monospace`;
   txt('SCORE '+String(S.score%10000000).padStart(7,'0'),W-m,yb-48*U,'right');
-  if(S.combo>2) txt('COMBO x'+S.combo,W-m,yb-26*U,'right', S.combo>15?'#ffb38f':'#f1e7dc');
+  if(S.combo>2) txt('COMBO x'+S.combo,W-m,yb-26*U,'right', S.combo>15?HC.hot:'#f1e7dc');
   const bw=9*U, gap=3*U, n=16, x0=W-m-n*(bw+gap)+gap, pw=Math.min(n,Math.round(Math.min(1,S.int*.75+S.level*.35)*n));
-  for(let i=0;i<n;i++){ hx.fillStyle = i<pw ? (i>12?'#ffd2b8':i>8?'#ff6a2a':'#d3241b') : 'rgba(241,231,220,.16)'; hx.fillRect(x0+i*(bw+gap),yb+4*U,bw,16*U); }
+  for(let i=0;i<n;i++){ hx.fillStyle = i<pw ? (i>12?HC.m3:i>8?HC.m2:HC.m1) : 'rgba(241,231,220,.16)'; hx.fillRect(x0+i*(bw+gap),yb+4*U,bw,16*U); }
   // Banner
   const ba=now-banner.t;
   if(ba<1.6){
     const sc=1+Math.max(0,.35-ba)*1.6; const fs=Math.round(Math.min(46*U, W/(banner.text.length+2)*1.05)*sc);
     hx.font=`${fs}px "Press Start 2P", monospace`; hx.textBaseline='middle';
     if(ba<1.1 || Math.floor(ba*10)%2===0){
-      hx.textAlign='center'; hx.fillStyle='rgba(211,36,27,.95)'; hx.fillText(banner.text,W/2+4*U,H/2+4*U);
-      hx.fillStyle=Math.floor(ba*8)%2?'#fff3ea':'#ffb38f'; hx.fillText(banner.text,W/2,H/2); }
+      hx.textAlign='center'; hx.fillStyle=HC.m1; hx.fillText(banner.text,W/2+4*U,H/2+4*U);
+      hx.fillStyle=Math.floor(ba*8)%2?'#fff3ea':HC.hot; hx.fillText(banner.text,W/2,H/2); }
     hx.textBaseline='top';
   }
 }
@@ -707,7 +806,7 @@ function srcTime(){ if(srcMode==='file') return audioEl.currentTime||0; if(srcMo
 function began(mode,name){
   srcMode=mode; trackName=name; tSrc=actx?actx.currentTime:0;
   $('#start').hidden=true; $('#tname').textContent=name; $('#seekWrap').style.visibility = mode==='file'?'visible':'hidden';
-  S.score=0; S.combo=0; S.drops=0; S.bpm=0; kickTimes.length=0; onTimes.length=0; S.kicksSince=0; S.quiet=0;
+  S.score=0; S.combo=0; S.cam=0; S.drops=0; S.bpm=0; kickTimes.length=0; onTimes.length=0; S.kicksSince=0; S.quiet=0;
   Object.keys(agc).forEach(k=>delete agc[k]);
   banner={text: mode==='demo'?'PLAYER 1':'START', t:performance.now()/1000}; S.pixel=1; S.glitch=.8;
   showBar(); wake();
@@ -752,6 +851,7 @@ function togglePlay(){
 function updPlayBtn(){ $('#bPlay').textContent=isPlaying()?'❚❚':'▶'; }
 $('#bPlay').onclick=togglePlay;
 $('#bAuto').onclick=()=>setAuto(!auto);
+$('#bMix').onclick=()=>setMix(!palMix); setMix(palMix);
 $('#bHud').onclick=()=>{ hudOn=!hudOn; $('#bHud').setAttribute('aria-pressed',hudOn?'true':'false'); };
 $('#bSrc').onclick=()=>{ $('#start').hidden=false; msg(''); };
 $('#bFs').onclick=toggleFs;
@@ -770,6 +870,8 @@ addEventListener('keydown',e=>{
   else if(k==='a') setAuto(!auto);
   else if(k==='h') $('#bHud').click();
   else if(k==='f') toggleFs();
+  else if(k==='c'){ setPal(palIdx+1); banner={text:PALS[palIdx].name,t:performance.now()/1000}; }
+  else if(k==='m') setMix(!palMix);
   else if(k==='s'){ strobeSafe=!strobeSafe; banner={text:strobeSafe?'BLITZE AUS':'BLITZE AN',t:performance.now()/1000}; }
   else if(k==='d' && srcMode!=='none') triggerDrop();
   else if(k==='escape' && srcMode!=='none') $('#start').hidden=!$('#start').hidden;
@@ -919,7 +1021,7 @@ function frame(nowMs){
   // adaptive Qualität
   fpsAcc+=dt; fpsN++; if(fpsAcc>2){ const avg=fpsAcc/fpsN; if(avg>.024 && quality>.55){ quality-=.15; resize(); } fpsAcc=0; fpsN=0; }
   const t=srcMode==='none'? now : now;
-  analyze(t,dt);
+  analyze(t,dt); updPal(dt); if((S._hc=(S._hc||0)+dt)>.1){ S._hc=0; hudColors(); }
   // Texturen
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,specTex); gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,NB,1,gl.RGBA,gl.UNSIGNED_BYTE,specBuf);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,waveTex); gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,NW,1,gl.RED,gl.UNSIGNED_BYTE,waveBuf);
@@ -936,12 +1038,13 @@ function frame(nowMs){
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,specTex);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,waveTex);
   gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,histTex);
+  if(PS.u.uPal) gl.uniform3fv(PS.u.uPal,palFlat);
   i1(PS,'uPrev',0); i1(PS,'uSpec',1); i1(PS,'uWave',2); i1(PS,'uHist',3);
   gl.uniform2f(PS.u.uRes,sw,sh);
   const gm=strobeSafe?.35:1;
   f1(PS,'uTime',now%3600); f1(PS,'uSub',S.sub); f1(PS,'uBass',S.bass); f1(PS,'uMid',S.mid); f1(PS,'uHigh',S.high); f1(PS,'uLevel',S.level);
   f1(PS,'uKick',S.kick*gm+S.kick*(1-gm)*.4); f1(PS,'uSnare',S.snare*gm); f1(PS,'uHat',S.hat); f1(PS,'uDrop',S.drop); f1(PS,'uRoll',S.roll);
-  f1(PS,'uHue',S.hue); f1(PS,'uHistRow',histIdx); f1(PS,'uSpin',S.spin); f1(PS,'uInt',Math.min(1.2,S.int));
+  f1(PS,'uHue',S.hue); f1(PS,'uHistRow',histIdx); f1(PS,'uSpin',S.spin); f1(PS,'uTravel',S.travel); f1(PS,'uCam',S.cam%3); f1(PS,'uInt',Math.min(1.2,S.int));
   f1(PS,'uDecay',sc.decay); f1(PS,'uZoom',sc.zoom); f1(PS,'uRot',sc.rot); f1(PS,'uLift',sc.lift); i1(PS,'uScene',scene);
   gl.drawArrays(gl.TRIANGLES,0,3);
   gl.bindTexture(gl.TEXTURE_2D,null);
@@ -951,6 +1054,7 @@ function frame(nowMs){
   gl.useProgram(PP.p);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,wr.t);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,hudTex);
+  if(PP.u.uPal) gl.uniform3fv(PP.u.uPal,palFlat);
   i1(PP,'uScene',0); i1(PP,'uHud',1);
   gl.uniform2f(PP.u.uRes,canvas.width,canvas.height);
   f1(PP,'uTime',now%3600); f1(PP,'uKick',S.kick*gm); f1(PP,'uGlitch',S.glitch*gm); f1(PP,'uPixel',S.pixel); f1(PP,'uSoft',sc.soft);
@@ -965,5 +1069,5 @@ function frame(nowMs){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__burnline={S,setScene,triggerDrop,startDemo};
+window.__burnline={S,setScene,triggerDrop,startDemo,setPal};
 </script>
