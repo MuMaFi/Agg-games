@@ -756,6 +756,7 @@ const Menue = {
     $('#oSuper').textContent = 'SUPER DUPER GRAFIK PAKET: ' + (s.superGrafik ? 'An' : 'Aus');
     $('#oKlassik').textContent = 'Texturen: ' + (s.mcTexturen ? 'Minecraft' : s.klassik ? 'Klassisch (wie früher)' : 'Modern');
     $('#oSprung').textContent = 'Auto-Sprung: ' + (s.autojump ? 'An' : 'Aus');
+    $('#oFassung').textContent = 'Pocketcraft-Fassung ' + PC_FASSUNG;
     $('#oSteuer').textContent = 'Steuerung: ' + (s.steuerung === 'kreuz' ? 'Steuerkreuz' : 'Joystick');
     $('#oMonster').textContent = 'Monster: ' + (MONSTER_MENGE[s.monster] || MONSTER_MENGE.normal).name;
     const pz = v => v > 0 ? v + ' %' : 'Aus';

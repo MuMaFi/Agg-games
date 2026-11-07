@@ -4,6 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
+const PC_FASSUNG = '2026-11-07f';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -2777,6 +2778,8 @@ const Input = {
     window.addEventListener('pointerup', e => this.up(e));
     window.addEventListener('pointercancel', e => this.up(e));
     window.addEventListener('keydown', e => this.key(e, true));
+    // Fenster verlassen (Cmd+Tab, anderer Tab): das Loslassen der Tasten kommt dann nie an — also alles los
+    window.addEventListener('blur', () => this.loslassen());
     window.addEventListener('keyup', e => this.key(e, false));
     window.addEventListener('wheel', e => {
       if(!Game.running || Screens.open) return;
@@ -2983,7 +2986,8 @@ const Input = {
     this.digging = this.attackHeld = false;
   },
   key(e, dn){
-    const k = e.key.toLowerCase();
+    const k = e.code === 'Space' || e.key === 'Spacebar' ? ' ' : e.key.toLowerCase();
+    const schonUnten = !!this.keys[k];                 // gehalten: macOS schickt Wiederholungen, nicht jeder Browser markiert sie
     if(!dn && this.keys[k]){ this.keys[k] = false; if(Screens.open || Chat.offen || Menue.aktiv) this.bewegungAusTasten(); }
     // Titelbild und Optionen: Escape geht einen Schritt zurück, sonst nichts
     if(Menue.aktiv){ if(dn && k === 'escape') Menue.zurueck(); return; }
@@ -3000,9 +3004,10 @@ const Input = {
     if(dn && k === 'f3'){ Game.settings.debug = !Game.settings.debug; $('#dbg').classList.toggle('on', Game.settings.debug); Game.saveOpts(); e.preventDefault(); }
     if(dn && k === 'f' && Game.player && Game.player.creative) Game.player.flying = !Game.player.flying;
     // zweimal kurz hintereinander Leertaste: im Kreativmodus fliegen (und wieder landen) wie beim Vorbild
-    if(dn && k === ' ' && !e.repeat && Game.player && Game.player.creative){
-      const jetzt = e.timeStamp || performance.now();             // wann gedrückt wurde, nicht wann es ankam
-      if(jetzt - (this._leerT || 0) < 320){ Game.player.flying = !Game.player.flying; this._leerT = 0; Game.player.vy = 0; hint(Game.player.flying ? 'Fliegen an' : 'Fliegen aus', 900); }
+    if(dn && k === ' ' && !e.repeat && !schonUnten && Game.player && Game.player.creative){
+      // wann gedrückt wurde, nicht wann es ankam — sofern der Browser einen passenden Zeitstempel liefert
+      const jetzt0 = performance.now(), jetzt = e.timeStamp > jetzt0 - 2000 && e.timeStamp <= jetzt0 + 5 ? e.timeStamp : jetzt0;
+      if(jetzt - (this._leerT || 0) < 380){ Game.player.flying = !Game.player.flying; this._leerT = 0; Game.player.vy = 0; hint(Game.player.flying ? 'Fliegen an' : 'Fliegen aus', 900); }
       else this._leerT = jetzt;
     }
     if(dn && k === 'q') dropHeld();
