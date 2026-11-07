@@ -1,5 +1,6 @@
 // Burnline für macOS — Electron-Hauptprozess
-const { app, BrowserWindow, Menu, session, desktopCapturer, systemPreferences, shell } = require('electron');
+const { app, BrowserWindow, Menu, session, desktopCapturer, systemPreferences, shell, ipcMain, dialog } = require('electron');
+const fs = require('fs');
 const path = require('path');
 
 app.setName('Burnline');
@@ -12,7 +13,7 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     fullscreenable: true,
     show: false,
-    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false }
+    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js') }
   });
   win.once('ready-to-show', () => win.show());
   win.loadFile(path.join(__dirname, 'index.html'));
@@ -31,6 +32,15 @@ app.whenReady().then(async () => {
       .then(src => cb(src.length ? { video: src[0], audio: 'loopback' } : {}))
       .catch(() => cb({}));
   }, { useSystemPicker: true });
+  // Video-Export: „Speichern unter“, startet im Filme-Ordner, zeigt die Datei danach im Finder
+  ipcMain.handle('save-video', async (e, name, buffer) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const r = await dialog.showSaveDialog(win, { title: 'Video speichern', defaultPath: path.join(app.getPath('videos'), name) });
+    if (r.canceled || !r.filePath) return false;
+    await fs.promises.writeFile(r.filePath, Buffer.from(buffer));
+    shell.showItemInFolder(r.filePath);
+    return true;
+  });
   if (process.platform === 'darwin') { try { await systemPreferences.askForMediaAccess('microphone'); } catch (e) {} }
 
   const template = [
