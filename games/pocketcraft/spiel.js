@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07i';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-07j';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -724,7 +724,7 @@ const Game = {
   },
   finishBreak(x,y,z,id){
     const info = this.breakSpeed(id);
-    if(!this.player.creative){ Inv.damageHeld(1); this.player.addExhaustion(0.02); }
+    if(!this.player.creative){ Inv.damageHeld(1); this.player.addExhaustion(0.005); }
     this.entfernen(x, y, z, info.tierOk);
     Sfx.block('weg', id, x, y, z);
     this.camShake = 0.05;
@@ -1235,6 +1235,7 @@ const Game = {
     // ein Mitspieler: der Treffer geht übers Netz, hier blitzt er nur rot auf
     const treffen = (z, d, k) => { if(z instanceof Mob) this.mobTreffer(z, d, kx*k, kz*k); else { z.rotT = 0.4; Netz.pvpTreffer(z, d, kx*k, kz*k); } };
     treffen(best, dmg, sprintStoss ? 2 : 1);
+    if(sprintStoss){ Input.sprint = false; p.vx *= 0.6; p.vz *= 0.6; }      // nach dem Rückstoß-Schlag ist der Sprint vorbei (Java)
     if(schwung) for(const z of this.mobs.concat(this.gegner()))
       if(z !== best && !z.dead && !z.tot && Math.hypot(z.x - best.x, z.z - best.z) < 1.5 && Math.abs(z.y - best.y) < 1.2 && Math.hypot(z.x - p.x, z.z - p.z) < 3.6)
         treffen(z, 1, 1);
@@ -2743,7 +2744,7 @@ const Game = {
         p.vy = Math.max(p.vy, -3.2);
       } else {
         p.vy -= GRAV*dt;
-        if(input.jump && p.onGround){ p.vy = 8.6; p.addExhaustion(0.05); }
+        if(input.jump && p.onGround){ p.vy = 8.6; p.addExhaustion(input.sprint ? 0.2 : 0.05); }
       }
       p.vy = clamp(p.vy, -TERMINAL, 30);
       // Sturzhöhe verfolgen
@@ -2774,8 +2775,8 @@ const Game = {
       }
       if(p.onGround && wasAir && p.fallFrom !== null){
         const fall = p.fallFrom - p.y;
-        if(fall > 3.2 && !p.inWater && !p.creative){
-          const dmg = Math.floor(fall - 3);
+        if(fall > 3 && !p.inWater && !p.creative){
+          const dmg = Math.ceil(fall - 3 - 1e-6);                 // wie beim Vorbild: jeder angefangene Block über drei
           if(dmg > 0){ p.hurt(dmg, 'Du bist zu tief gefallen'); this.hurtFlash = 1; Sfx.play('hurt'); this.camShake = 0.16; }
         }
         p.fallFrom = null;
@@ -2790,7 +2791,7 @@ const Game = {
         // der Block unter den Füßen gibt den Klang; geduckt leiser
         const unten = w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z));
         Sfx.block('schritt', feetId === B.SCHNEEDECKE ? feetId : (unten !== B.AIR ? unten : feetId), undefined, undefined, undefined, p.sneaking ? .45 : 1);
-        p.addExhaustion(input.sprint ? 0.06 : 0.012); }
+        if(input.sprint) p.addExhaustion(0.137); }             // ein Schritt ≈ 1,37 Blöcke; Sprinten 0,1 je Block, Gehen nichts
     } else this._lastStep = p.bob;
     if(p.inWater && !p.onGround && (Math.abs(wx)+Math.abs(wz)) > 0.05){
       this._schwimmT = (this._schwimmT || 0) + dt;
@@ -2812,13 +2813,19 @@ const Game = {
     if(!p.creative){
       if(p.exhaustion >= 4){ p.exhaustion -= 4;
         if(p.saturation > 0) p.saturation = Math.max(0, p.saturation-1); else p.food = Math.max(0, p.food-1); }
-      if(p.food >= 18 && p.health < p.maxHealth){
+      // Heilen wie bei Java: satt und mit Sättigung schnell (alle 0,5 s, bis zu ein halbes Herz),
+      // sonst ab 18 Hungerpunkten alle 4 s ein halbes Herz für 6 Erschöpfung
+      if(p.health < p.maxHealth && p.food >= 20 && p.saturation > 0){
         p.regenTimer += dt;
-        if(p.regenTimer > 3.6){ p.regenTimer = 0; p.health = Math.min(p.maxHealth, p.health+1); p.addExhaustion(1.2); }
+        if(p.regenTimer >= 0.5){ p.regenTimer = 0; const f = Math.min(p.saturation, 6); p.health = Math.min(p.maxHealth, p.health + f/6); p.addExhaustion(f); }
+      } else if(p.health < p.maxHealth && p.food >= 18){
+        p.regenTimer += dt;
+        if(p.regenTimer >= 4){ p.regenTimer = 0; p.health = Math.min(p.maxHealth, p.health + 1); p.addExhaustion(6); }
       } else p.regenTimer = 0;
+      // verhungern: alle 4 s ein halbes Herz — auf »Normal« wie beim Vorbild nicht unter ein halbes Herz
       if(p.food <= 0){
         p.starveTimer += dt;
-        if(p.starveTimer > 4){ p.starveTimer = 0; if(p.hurt(1, 'Du bist verhungert')){ this.hurtFlash = 1; } }
+        if(p.starveTimer > 4){ p.starveTimer = 0; if(p.health > 1 && p.hurt(1, 'Du bist verhungert')){ this.hurtFlash = 1; } }
       }
     }
     if(p.y < -8 && !p.creative) p.hurt(20, 'Du bist aus der Welt gefallen');
@@ -3259,7 +3266,7 @@ function frame(now){
     if(b.classList.contains('on') !== zeigen) b.classList.toggle('on', zeigen);
   }
   if(Game.camShake > 0) Game.camShake = Math.max(0, Game.camShake - dt*0.4);
-  if(Game.hurtFlash > 0){ Game.hurtFlash -= dt*2.4; $('#hurt').style.opacity = Math.max(0, Game.hurtFlash*0.9); }
+  if(Game.hurtFlash > 0){ Game.hurtFlash -= dt*2; $('#hurt').style.opacity = Math.max(0, Game.hurtFlash*0.22); }   // beim Vorbild kippt die Kamera, rot wird kaum etwas
   $('#water').style.opacity = Game.player.headInWater ? 1 : 0;
 
   const p = Game.player;
@@ -3294,6 +3301,8 @@ function handleDigging(dt){
   }
   if(Input.lookId === null) Input.touchDig = false;
   if(Game.bogen.aktiv){ Game.breakPos = null; Game.breakProg = 0; return; }
+  // nach jedem Block eine Viertelsekunde Pause, wie beim Vorbild (5 Ticks) — sonst fällt beim Festhalten zu viel weg
+  if(Game.abbauPause > 0){ Game.abbauPause -= dt; Game.breakPos = null; Game.breakProg = 0; return; }
   const want = Input.digging || Input.touchDig || Input.attackHeld;
   if(!want){ Game.breakPos = null; Game.breakProg = 0; return; }
   const t = Game.targetBlock();
@@ -3312,6 +3321,7 @@ function handleDigging(dt){
   if(Game.breakProg >= Game.breakTotal){
     Game.finishBreak(t.x, t.y, t.z, t.id);
     Game.breakPos = null; Game.breakProg = 0;
+    Game.abbauPause = 0.25;
   }
 }
 

@@ -397,9 +397,9 @@ const HUD = {
       zeigeSlot(cell, Inv.slots[i]);
     }
     for(let i=0;i<9;i++) if(Inv.slots[i]) Inv.bekannt.add(Inv.slots[i].id);
-    // ESSEN gibt es nur, wenn man etwas Essbares hält
+    // ESSEN: mit Essbarem in der Hand voll sichtbar, sonst gedämpft
     const h = Inv.held(), bm = document.getElementById('btnMode');
-    if(bm) bm.classList.toggle('zeigen', !!(h && items[h.id] && items[h.id].food));
+    if(bm) bm.style.opacity = h && items[h.id] && items[h.id].food ? '' : '.5';
   },
   refreshVitals(p){
     const set = (sel, val, maxPips, per) => {
@@ -410,6 +410,11 @@ const HUD = {
       }
     };
     set('#hp', p.health, 10, 2);
+    // Herzen wie bei Java: nach einem Treffer blinken sie hell, bei zwei Herzen oder weniger wackeln sie
+    const hp = document.getElementById('hp');
+    if(this._hp !== undefined && p.health < this._hp - 0.01){ hp.classList.remove('blink'); void hp.offsetWidth; hp.classList.add('blink'); }
+    this._hp = p.health;
+    hp.classList.toggle('wackel', p.health <= 4 && !p.creative && !p.dead);
     set('#food', p.food, 10, 2);
     const ab = $('#airbar');
     ab.style.display = (p.air < p.maxAir) ? 'flex' : 'none';

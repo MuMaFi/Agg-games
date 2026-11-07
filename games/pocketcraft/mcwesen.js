@@ -312,8 +312,9 @@ const McWesen = {
   setzen(an){ this.an = !!an && this._verfuegbar; },
   /** die Teile, mit denen ein Wesen gezeichnet wird, oder null für Pocketcrafts eigene */
   teile(m){
+    // Dorfbewohner liegen je Beruf (villager0 …), nicht unter »villager« — also zuerst
+    if(this.an && m.type === 'villager') return this.sets['villager' + ((m.beruf | 0) % MC_BERUFE.length)] || null;
     if(!this.an || !this.sets[m.type]) return m.type === 'drache' || m.type === 'kristall' ? this.ohnePaket(m.type) : null;
-    if(m.type === 'villager') return this.sets['villager' + ((m.beruf | 0) % MC_BERUFE.length)] || null;
     if(m.type === 'ghast' && m.feuerT > 0) return this.sets.ghast_feuer || this.sets.ghast || null;   // beim Schießen: Augen und Maul auf
     return this.sets[m.type] || null;
   },

@@ -57,8 +57,10 @@ void main(){
   else if(nrm < 3.5) fs = 0.48;     // -Y
   else if(nrm < 5.5) fs = 0.87;     // ±Z
   float lig = max(max(aSky / 15.0 * uDay, aBlk / 15.0 * 0.97), uGrund);   // uGrund: Grundlicht im Nether
-  lig = mix(lig, 1.0 - pow(1.0 - lig, 4.0), uHellig);                     // Helligkeit aus den Optionen, wie beim Vorbild
-  vShade = fs * (0.55 + ao * 0.15) * lightCurve(lig);
+  lig += uHellig * 0.6 * pow(1.0 - lig, 2.5);                             // Helligkeit: hebt nur das Dunkle an, Helles bleibt
+  float sh = fs * (0.55 + ao * 0.15);
+  sh = 1.0 - (1.0 - sh) * (1.0 - 0.45 * uHellig);                         // und weichere Schatten an Seiten und Ecken
+  vShade = sh * lightCurve(lig);
   float d = distance(wp, uCam);
   vFog = clamp((d - uFogNear) / max(1.0, uFogFar - uFogNear), 0.0, 1.0);
 }`;
@@ -316,9 +318,10 @@ const R = {
     return [w, h];
   },
 
-  setCamera(px,py,pz, yaw,pitch, fov, near, far, w, h){
+  setCamera(px,py,pz, yaw,pitch, fov, near, far, w, h, roll){
     M4.persp(this.proj, fov, w/h, near, far);
     const v = M4.ident(this.view);
+    if(roll) M4.rotZ(v, v, roll);
     M4.rotX(v, v, -pitch); M4.rotY(v, v, -yaw);
     M4.translate(v, v, -px, -py, -pz);
     M4.mul(this.vp, this.proj, this.view);
@@ -531,9 +534,9 @@ function setLayers(P, all, faceTex){
   if(faceTex !== undefined) _layers[5] = faceTex;
   gl.uniform1fv(P.u.uLayers, _layers);
 }
-/** Helligkeit aus den Optionen, 0 … 1: hebt das Dunkle an (1 − (1 − l)⁴ wie beim Vorbild), das Helle bleibt */
+/** Helligkeit aus den Optionen, 0 … 1: hebt fast nur das Dunkle an (+0,6·(1 − l)^2,5), das Helle bleibt, wie es ist */
 function helligkeit(){ return clamp((Game.settings.helligkeit || 0)/100, 0, 1); }
-function hellKurve(l){ const h = helligkeit(); return h ? l + (1 - Math.pow(1 - l, 4) - l)*h : l; }
+function hellKurve(l){ const h = helligkeit(); return h ? l + h*0.6*Math.pow(Math.max(0, 1 - l), 2.5) : l; }
 function blockLightAt(x,y,z){
   const lv = Game.world.getLight(Math.floor(x), Math.floor(y), Math.floor(z));
   const l = hellKurve(Math.max((lv & 15)/15 * Game.dayLight(), (lv >> 4)/15 * 0.97, Game.dim === 'nether' ? NETHER_GRUNDLICHT : Game.dim === 'ende' ? END_GRUNDLICHT : 0));
@@ -1098,7 +1101,9 @@ function render(dt){
   let fov = 1.28 + (Input.sprint ? 0.07 : 0) + (p.inWater ? -0.04 : 0) - (Game.bogen.aktiv ? Math.min(1, Game.bogen.t)*0.14 : 0);
   const bobY = p.onGround ? Math.sin(p.bob*2)*0.022 : 0;
   const shake = Game.camShake > 0 ? (Math.random()-0.5)*Game.camShake : 0;
-  R.setCamera(p.x, p.eyeY() + bobY + shake + (p.stufeGlatt || 0), p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh);
+  // getroffen: die Kamera kippt kurz zur Seite, wie bei Java (sin(t⁴·π), bis 14°)
+  const ht = clamp(Game.hurtFlash || 0, 0, 1), kipp = ht > 0 ? Math.sin(Math.pow(ht, 4)*Math.PI)*0.24 : 0;
+  R.setCamera(p.x, p.eyeY() + bobY + shake + (p.stufeGlatt || 0), p.z, p.yaw, p.pitch, fov, 0.08, Math.max(180, far*2.4), vw, vh, kipp);
   if(Super.an){ Super.schattenPass(); gl.viewport(0, 0, vw, vh); }
 
   gl.clearColor(fog[0], fog[1], fog[2], 1);

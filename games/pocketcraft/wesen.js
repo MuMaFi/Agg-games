@@ -175,7 +175,7 @@ class Player{
       this.letzterTreffer = dmg; dmg = mehr; stoss = false;
     } else { this.letzterTreffer = dmg; this.trefferT = 0.5; }
     if(kx !== undefined) dmg = Ruestung.abfangen(dmg);      // Rüstung hilft gegen Wesen und Spieler
-    this.health -= dmg; this.hurtTimer = 0.5;
+    this.health -= dmg; this.hurtTimer = 0.5; this.exhaustion += 0.1;
     if(stoss){
       this.vx = this.vx/2 + kx*6.5; this.vz = this.vz/2 + kz*6.5;
       if(this.onGround) this.vy = Math.min(7.5, this.vy/2 + 7.5);
@@ -363,7 +363,7 @@ MOBS.golem = {
    einem Steinschwert statt des Bogens — es kämpft Mann gegen Mann. */
 const WITHER_FARBE = [0.24, 0.24, 0.26];
 MOBS.wither = {
-  name:'Witherskelett', w:0.7, h:2.4, health:20, speed:2.6, hostile:true, dmg:5, laut:'skelett', feuerfest:true, skala:1.2, armSchwung:0.12,
+  name:'Witherskelett', w:0.7, h:2.4, health:20, speed:2.6, hostile:true, dmg:8, laut:'skelett', feuerfest:true, skala:1.2, armSchwung:0.12,
   treffer:'Ein Witherskelett hat dich erwischt',
   beute: () => [[ITEM.bone, zufallN(0, 2)], [ITEM.coal, zufallN(0, 1)]],
   parts: MOBS.skeleton.parts.filter(p => p.n !== 'bogen').map(p => Object.assign({}, p, { farbe: () => WITHER_FARBE }))

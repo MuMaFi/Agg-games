@@ -114,12 +114,12 @@ void main(){
   float himmel = 0.055 + 0.945 * pow(vSky, 1.35);
   float glut = max(pow(vBlk, 1.7), uGrund);           // Grundlicht im Nether
   float frei = smoothstep(0.45, 0.95, vSky);          // direktes Licht nur, wo der Himmel hinsieht
-  float sv = schatten(vLicht, 0.0006);
+  float sv = mix(schatten(vLicht, 0.0006), 1.0, 0.45 * uHellig);   // mit mehr Helligkeit weichere Schatten
   vec3 N = normalize(vN);
   float ndl = vSharp > 0.5 ? 0.6 : max(dot(N, uLichtDir), 0.0);
   vec3 licht = uUmgebung * himmel + uLichtFarbe * ndl * sv * frei + vec3(1.0, 0.66, 0.38) * glut * 0.95;
-  licht = mix(licht, vec3(1.0) - pow(vec3(1.0) - min(licht, vec3(1.0)), vec3(4.0)), uHellig);   // Helligkeit aus den Optionen
-  vec3 col = c.rgb * max(licht, vec3(0.03)) * vAO;
+  licht += uHellig * 0.6 * pow(max(vec3(1.0) - licht, vec3(0.0)), vec3(2.5));   // Helligkeit: nur das Dunkle, Helles bleibt
+  vec3 col = c.rgb * max(licht, vec3(0.03)) * (1.0 - (1.0 - vAO) * (1.0 - 0.45 * uHellig));
   float a = c.a;
   vec3 V = normalize(uCam - vWelt);
   if(vWasser > 0.5 && N.y > 0.5){
