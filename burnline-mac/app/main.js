@@ -34,24 +34,33 @@ app.whenReady().then(async () => {
   }, { useSystemPicker: true });
   // Video-Export: Aufnahme läuft stückweise in eine Temp-Datei, am Ende „Speichern unter“.
   // Bricht man den Dialog ab, landet das Video trotzdem im Filme-Ordner — es geht nie verloren.
-  let recFile = null, recStream = null;
+  let recFile = null, recFh = null, recPos = 0;
   const uniquePath = (p) => { if (!fs.existsSync(p)) return p; const ext = path.extname(p), base = p.slice(0, -ext.length);
     for (let i = 2; ; i++) { const q = `${base} (${i})${ext}`; if (!fs.existsSync(q)) return q; } };
   const moveFile = async (from, to) => { try { await fs.promises.rename(from, to); }
     catch (err) { if (err.code !== 'EXDEV') throw err; await fs.promises.copyFile(from, to); await fs.promises.unlink(from); } };
   ipcMain.handle('rec-begin', async (e, ext) => {
-    if (recStream) recStream.destroy();
+    if (recFh) { try { await recFh.close(); } catch (_) {} }
     recFile = path.join(app.getPath('temp'), `burnline-rec-${Date.now()}.${ext === 'mp4' ? 'mp4' : 'webm'}`);
-    recStream = fs.createWriteStream(recFile);
+    recFh = await fs.promises.open(recFile, 'w'); recPos = 0;
     return true;
   });
-  ipcMain.handle('rec-chunk', (e, buffer) => new Promise((resolve, reject) => {
-    if (!recStream) return resolve(false);
-    recStream.write(Buffer.from(buffer), (err) => err ? reject(err) : resolve(true));
-  }));
+  // position: wohin geschrieben wird (MP4 trägt am Ende Werte vorne nach); ohne position wird angehängt
+  ipcMain.handle('rec-chunk', async (e, buffer, position) => {
+    if (!recFh) return false;
+    const b = Buffer.from(buffer), pos = typeof position === 'number' ? position : recPos;
+    await recFh.write(b, 0, b.length, pos);
+    recPos = Math.max(recPos, pos + b.length);
+    return true;
+  });
+  ipcMain.handle('rec-abort', async () => {
+    if (recFh) { try { await recFh.close(); } catch (_) {} recFh = null; }
+    if (recFile) { try { await fs.promises.unlink(recFile); } catch (_) {} recFile = null; }
+    return true;
+  });
   ipcMain.handle('rec-end', async (e, name) => {
-    if (!recStream) return { ok: false, error: 'no recording in progress' };
-    await new Promise((r) => recStream.end(r)); recStream = null;
+    if (!recFh) return { ok: false, error: 'no recording in progress' };
+    await recFh.close(); recFh = null;
     const win = BrowserWindow.fromWebContents(e.sender);
     const def = path.join(app.getPath('videos'), name);
     let dest, canceled = false;

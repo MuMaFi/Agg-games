@@ -87,6 +87,12 @@
   .row{display:flex;gap:8px;flex-wrap:wrap;}
   .row .main{flex:1;background:var(--ember);border-color:var(--ember);color:#fff;}
   .note{margin:0;font-size:18px;color:var(--smoke);line-height:1.25;}
+  #prog{position:fixed;inset:auto 0 0 0;z-index:9;display:grid;place-items:center;
+    padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+    padding-block:16px max(16px, env(safe-area-inset-bottom, 0px));}
+  #prog .deck{width:min(520px,100%);gap:14px;padding:18px 20px;}
+  .pbar{height:14px;border:1px solid var(--line);padding:2px;}
+  #progFill{height:100%;width:0;background:var(--ember);transition:width .2s;}
   #recBadge{position:fixed;top:max(14px, env(safe-area-inset-top, 0px));left:50%;transform:translateX(-50%);z-index:8;
     display:flex;align-items:center;gap:12px;background:var(--glass);border:1px solid var(--line);padding:6px 8px 6px 14px;font-size:22px;}
   #recBadge .dot{color:#ff3b2f;animation:blink 1s steps(2) infinite;}
@@ -174,9 +180,10 @@
       </div></div>
     <div class="opt"><span>LENGTH</span>
       <div class="seg" id="expLen">
-        <button data-v="song" aria-pressed="true">CURRENT SONG<small>from start to finish</small></button>
-        <button data-v="album" aria-pressed="false">WHOLE PLAYLIST<small>all songs in one go</small></button>
-        <button data-v="manual" aria-pressed="false">UNTIL I STOP<small>with STOP or the R key</small></button>
+        <button data-v="song" aria-pressed="true">CURRENT SONG<small>fast render</small></button>
+        <button data-v="album" aria-pressed="false">WHOLE PLAYLIST<small>fast render, all songs</small></button>
+        <button data-v="demo" aria-pressed="false">DEMO BEAT<small>fast render, 0:43</small></button>
+        <button data-v="manual" aria-pressed="false">LIVE<small>real time until you stop · mic, system audio</small></button>
       </div></div>
     <div class="opt"><span>HUD IN VIDEO</span>
       <div class="seg" id="expHud">
@@ -187,8 +194,17 @@
     <div class="row"><button class="main" id="expGo">● START RECORDING</button><button id="expX">CANCEL</button></div>
   </div>
 </div>
+<div id="prog" hidden>
+  <div class="deck" role="dialog" aria-labelledby="progT" aria-live="polite">
+    <h2 id="progT">RENDERING VIDEO</h2>
+    <div class="pbar"><div id="progFill"></div></div>
+    <p class="note" id="progTxt">Preparing …</p>
+    <div class="row"><button id="progX">CANCEL</button></div>
+  </div>
+</div>
 <div id="recBadge" hidden><span class="dot">●</span> REC <span id="recT">0:00</span><button id="recStop">STOP</button></div>
 
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -201,11 +217,12 @@
 
 const $ = s => document.querySelector(s);
 const canvas = $('#gl');
-const gl = canvas.getContext('webgl2', {antialias:false, alpha:false, depth:false, stencil:false, powerPreference:'high-performance'});
+const gl = canvas.getContext('webgl2', {antialias:false, alpha:false, depth:false, stencil:false, preserveDrawingBuffer:true, powerPreference:'high-performance'});
 const msg = t => { $('#msg').textContent = t || ''; };
 if (!gl) { msg('Your browser does not support WebGL2. Try Chrome, Edge, Firefox or Safari 15+.'); throw new Error('no webgl2'); }
 const halfOK = !!gl.getExtension('EXT_color_buffer_float');
 
+let offT=null; const clock=()=> offT!==null ? offT : performance.now()/1000;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let strobeSafe = reduceMotion;
 
@@ -830,7 +847,7 @@ function updPal(dt){ const tg=PALS[palIdx].c, k=1-Math.exp(-dt*4);
 ['#pals1','#pals2'].forEach(sel=>{ const box=$(sel); PALS.forEach((pl,i)=>{ const b=document.createElement('button'); b.dataset.i=i;
   b.title=pl.name; b.setAttribute('aria-label','Color '+pl.name);
   b.style.background=`linear-gradient(135deg, ${rgb(pl.c[0])} 0%, ${rgb(pl.c[1])} 35%, ${rgb(pl.c[2])} 70%, ${rgb(pl.c[3])} 100%)`;
-  b.onclick=()=>{ setPal(i); banner={text:pl.name,t:performance.now()/1000}; }; box.appendChild(b); }); });
+  b.onclick=()=>{ setPal(i); banner={text:pl.name,t:clock()}; }; box.appendChild(b); }); });
 setPal(palIdx); hudColors();
 
 /* ---------------- Szenensteuerung ---------------- */
@@ -842,7 +859,7 @@ function setScene(n){ scene=n; document.querySelectorAll('#chs button').forEach(
 function triggerDrop(){
   S.drops++; S.drop=1; S.pixel=1; S.glitch=strobeSafe?.3:1; S.flash=strobeSafe?.15:1; S.score+=1000; S.spinT+=Math.PI*.5;
   const b=BANNERS[(S.drops-1)%BANNERS.length];
-  banner={text: b==='STAGE' ? 'STAGE '+String(S.drops).padStart(2,'0') : b, t:performance.now()/1000};
+  banner={text: b==='STAGE' ? 'STAGE '+String(S.drops).padStart(2,'0') : b, t:clock()};
   if(auto){ nextScene(); S.kicksSince=0; }
   if(palMix){ let n; do{ n=Math.floor(Math.random()*PALS.length); }while(n===palIdx); setPal(n); }
   S.cam++;
@@ -909,14 +926,14 @@ function stopAll(){
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   if(streamNode){ try{streamNode.disconnect();}catch(e){} streamNode=null; }
 }
-function isPlaying(){ if(srcMode==='file') return !audioEl.paused; if(srcMode==='demo') return demo&&demo.running; return srcMode!=='none'; }
-function srcTime(){ if(srcMode==='file') return audioEl.currentTime||0; if(srcMode==='none') return performance.now()/1000; return actx? actx.currentTime-tSrc : 0; }
+function isPlaying(){ if(offT!==null) return true; if(srcMode==='file') return !audioEl.paused; if(srcMode==='demo') return demo&&demo.running; return srcMode!=='none'; }
+function srcTime(){ if(offT!==null) return offT; if(srcMode==='file') return audioEl.currentTime||0; if(srcMode==='none') return performance.now()/1000; return actx? actx.currentTime-tSrc : 0; }
 function began(mode,name){
   srcMode=mode; trackName=name; tSrc=actx?actx.currentTime:0;
   $('#start').hidden=true; $('#tname').textContent=name; setTimeout(renderPl,0); $('#seekWrap').style.visibility = mode==='file'?'visible':'hidden';
   S.score=0; S.combo=0; S.cam=0; S.drops=0; S.bpm=0; kickTimes.length=0; onTimes.length=0; S.kicksSince=0; S.quiet=0;
   Object.keys(agc).forEach(k=>delete agc[k]);
-  banner={text: mode==='demo'?'PLAYER 1':'START', t:performance.now()/1000}; S.pixel=1; S.glitch=.8;
+  banner={text: mode==='demo'?'PLAYER 1':'START', t:clock()}; S.pixel=1; S.glitch=.8;
   showBar(); wake();
 }
 async function startDemo(){
@@ -955,7 +972,7 @@ async function playTrack(i,fresh){
     msg('This file can\'t be played. Try MP3, WAV or M4A.'); $('#start').hidden=false; return false; }
   if(fresh || srcMode!=='file') began('file', it.name);
   else { trackName=it.name; $('#tname').textContent=it.name; }
-  if(playlist.length>1) banner={text:'TRACK '+String(i+1).padStart(2,'0'), t:performance.now()/1000};
+  if(playlist.length>1) banner={text:'TRACK '+String(i+1).padStart(2,'0'), t:clock()};
   renderPl(); return true;
 }
 function plLabel(){ return playlist.length>1 ? `${String(plIdx+1).padStart(2,'0')}/${String(playlist.length).padStart(2,'0')} · ${trackName}` : trackName; }
@@ -1024,7 +1041,7 @@ seek.oninput=()=>{ if(audioEl.duration) audioEl.currentTime=seek.value/1000*audi
 audioEl.addEventListener('ended',()=>{
   const last = plIdx>=playlist.length-1;
   if(!last && !(rec && expOpt.len==='song')){ playTrack(plIdx+1,false); return; }
-  updPlayBtn(); banner={text:'GAME OVER',t:performance.now()/1000};
+  updPlayBtn(); banner={text:'GAME OVER',t:clock()};
   if(rec && (expOpt.len==='song'||expOpt.len==='album')) setTimeout(stopRec,1200);
 });
 
@@ -1037,30 +1054,32 @@ function seg(id,key){ const box=$(id); box.querySelectorAll('button').forEach(b=
 seg('#expFmt','fmt'); seg('#expLen','len'); seg('#expHud','hud');
 function pickMime(){ if(!window.MediaRecorder) return '';
   return ['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1.640028,opus','video/mp4;codecs=avc1,opus','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>{ try{ return MediaRecorder.isTypeSupported(m); }catch(e){ return false; } })||''; }
+const canFast=()=>!!(window.VideoEncoder && window.AudioEncoder && window.AudioData && window.VideoFrame && window.Mp4Muxer && window.OfflineAudioContext);
+function lenAvail(v){ if(v==='song') return srcMode==='file'; if(v==='album') return srcMode==='file' && playlist.length>1;
+  if(v==='demo') return srcMode==='demo'; return srcMode!=='none'; }
 function updExpNote(){
-  const songOK = srcMode==='file', albumOK = songOK && playlist.length>1;
-  $('#expLen [data-v="song"]').disabled=!songOK; $('#expLen [data-v="album"]').disabled=!albumOK;
-  if(expOpt.len==='album' && !albumOK && songOK){ expOpt.len='song'; $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='song'?'true':'false')); }
-  if(!songOK && expOpt.len!=='manual'){ expOpt.len='manual'; $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v==='manual'?'true':'false')); }
-  const m=pickMime(); let t;
-  if(!m) t='This browser can\'t record video. Use the Mac app, Chrome or Edge.';
-  else if(srcMode==='none') t='Start the demo beat or load a song first, then start recording here.';
-  else { const tot=plTotal(); const d = expOpt.len==='album' && tot ? ` The playlist is ${fmt(tot)} long (${playlist.length} songs), so recording takes that long too.`
-      : expOpt.len==='song' && srcMode==='file' && audioEl.duration ? ` Your song is ${fmt(audioEl.duration)} long, so recording takes that long too.` : '';
-    t=`Recording runs in real time, with sound.${d} Saved as ${m.startsWith('video/mp4')?'MP4':'WebM'}.`+(window.top!==window?' Saving may be blocked in the claude.ai preview; it works in the Mac app.':''); }
-  $('#expNote').textContent=t; $('#expGo').disabled=!m||srcMode==='none';
+  ['song','album','demo','manual'].forEach(v=>{ const b=$(`#expLen [data-v="${v}"]`); b.disabled=!lenAvail(v); b.hidden = v==='demo' && srcMode!=='demo'; });
+  if(!lenAvail(expOpt.len)){ expOpt.len = ['song','demo','manual'].find(lenAvail)||'manual';
+    $('#expLen').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===expOpt.len?'true':'false')); }
+  const fast=expOpt.len!=='manual', m=pickMime(); let t, ok=true;
+  if(srcMode==='none'){ t='Start the demo beat or load a song first, then export here.'; ok=false; }
+  else if(fast && !canFast()){ t='Fast export needs the Mac app or a current Chrome or Edge. LIVE still works.'; ok=false; }
+  else if(fast){ const tot = expOpt.len==='album' ? plTotal() : expOpt.len==='song' ? (playlist[plIdx]&&playlist[plIdx].dur||audioEl.duration||0) : 43;
+    t=`Renders as fast as your computer can, you don't have to watch it play. Video length ${fmt(tot)}`+(expOpt.len==='album'?` (${playlist.length} songs)`:'')+`, saved as MP4 with sound.`+(window.top!==window?' Saving may be blocked in the claude.ai preview; it works in the Mac app.':''); }
+  else if(!m){ t='This browser can\'t record video. Use the Mac app, Chrome or Edge.'; ok=false; }
+  else t=`LIVE records in real time, with sound, until you press STOP. Use it for the microphone or system audio. Saved as ${m.startsWith('video/mp4')?'MP4':'WebM'}.`;
+  $('#expNote').textContent=t; $('#expGo').disabled=!ok;
+  $('#expGo').textContent = fast ? '▶ RENDER VIDEO' : '● START RECORDING';
 }
-function openExp(){ if(rec){ stopRec(); return; } updExpNote(); $('#exp').hidden=false; $('#expGo').focus(); }
+function openExp(){ if(offline) return; if(rec){ stopRec(); return; } updExpNote(); $('#exp').hidden=false; $('#expGo').focus(); }
 $('#bRec').onclick=openExp;
 $('#expX').onclick=()=>{ $('#exp').hidden=true; };
 $('#recStop').onclick=()=>stopRec();
-$('#expGo').onclick=async()=>{
-  $('#exp').hidden=true;
+$('#expGo').onclick=()=>{ $('#exp').hidden=true; if(expOpt.len==='manual') startLiveRec(); else exportFast(); };
+async function startLiveRec(){
   recMime=pickMime(); if(!recMime||!actx) return;
   exportSize=FORMATS[expOpt.fmt]; resize();
   hudBefore=hudOn; hudOn=expOpt.hud==='on';
-  if(expOpt.len==='song' && srcMode==='file'){ audioEl.pause(); audioEl.currentTime=0; }
-  if(expOpt.len==='album' && srcMode==='file'){ audioEl.pause(); }
   S.score=0; S.combo=0; S.drops=0; S.cam=0; S.kicksSince=0;
   const vs=canvas.captureStream(60);
   recDest=actx.createMediaStreamDestination(); playBus.connect(recDest); micBus.connect(recDest);
@@ -1076,15 +1095,141 @@ $('#expGo').onclick=async()=>{
   rec.onstop=saveRec;
   rec.start(1000); recStart=performance.now();
   $('#recBadge').hidden=false; $('#bRec').textContent='■ STOP';
-  banner={text:'REC',t:performance.now()/1000};
-  if(expOpt.len==='song' && srcMode==='file'){ try{ await audioEl.play(); }catch(e){} }
-  else if(expOpt.len==='album' && srcMode==='file'){ await playTrack(0,false); }
-  else if(srcMode==='demo' && demo && !demo.running) demo.resume();
-};
+  banner={text:'REC',t:clock()};
+  if(srcMode==='demo' && demo && !demo.running) demo.resume();
+}
+function exportTitle(){ return (expOpt.len==='album' && playlist.length>1 ? `Playlist ${playlist.length} Songs` : trackName||'Burnline').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60); }
+
+/* Schneller Export: Audio wird offline analysiert (OfflineAudioContext, Halt an jedem Bild),
+   jedes Bild gerendert und per WebCodecs kodiert, mp4-muxer baut die MP4.
+   In der Mac-App läuft die Datei stückweise auf die Platte. */
+let offCancel=false;
+function renderDemoAudio(sr){
+  const bar=60/140*4, dur=24*bar+1.5;
+  const oc=new OfflineAudioContext(2, Math.ceil(sr*dur), sr);
+  const d=new DemoBeat(oc, oc.destination); const sp=60/d.bpm/4;
+  for(let st=0,t=.05; st<24*16; st++, t+=sp) d.play(st,t,sp);
+  d.out.gain.setValueAtTime(.85,dur-1.4); d.out.gain.linearRampToValueAtTime(0,dur-.05);
+  return oc.startRendering();
+}
+async function pickVideoCodec(w,h,fps,br){
+  for(const c of ['avc1.640033','avc1.4d0033','avc1.42003e','avc1.640028']){
+    try{ const r=await VideoEncoder.isConfigSupported({codec:c,width:w,height:h,bitrate:br,framerate:fps}); if(r.supported) return c; }catch(e){} }
+  return ''; }
+async function pickAudioCodec(sr){
+  for(const [c,m] of [['mp4a.40.2','aac'],['opus','opus']]){
+    try{ const r=await AudioEncoder.isConfigSupported({codec:c,sampleRate:sr,numberOfChannels:2,bitrate:256000}); if(r.supported) return [c,m]; }catch(e){} }
+  return null; }
+function progShow(frac,txt){ $('#progFill').style.width=(Math.max(0,Math.min(1,frac))*100).toFixed(1)+'%'; $('#progTxt').textContent=txt; }
+async function exportFast(){
+  const FPS=60, F=FORMATS[expOpt.fmt], BR=expOpt.fmt==='16:9'?16e6:12e6;
+  ensureCtx(); const sr=actx.sampleRate;
+  const vc=await pickVideoCodec(F.w,F.h,FPS,BR), ac=await pickAudioCodec(sr);
+  if(!vc||!ac){ $('#start').hidden=false; msg('This computer cannot encode H.264 video here. Use LIVE export instead.'); return; }
+  // Jobs: welche Songs?
+  let jobs;
+  if(expOpt.len==='album') jobs=playlist.slice();
+  else if(expOpt.len==='song') jobs=[playlist[plIdx]];
+  else jobs=[{name:'BURNLINE DEMO — 140 BPM F MINOR', demo:true}];
+  const total=jobs.reduce((a,j)=>a+(j.dur||0),0)||43;
+  // Ziel: Mac-App schreibt auf die Platte, sonst im Speicher
+  const disk=!!(window.burnlineApp && window.burnlineApp.recBegin);
+  let wq=Promise.resolve(), wErr='';
+  const target = disk ? new Mp4Muxer.StreamTarget({ chunked:true, chunkSize:8*1024*1024,
+      onData:(d,pos)=>{ const c=d.slice(); wq=wq.then(()=>window.burnlineApp.recChunk(c.buffer,pos)).catch(e=>{ wErr=String(e&&e.message||e); }); } })
+    : new Mp4Muxer.ArrayBufferTarget();
+  if(disk) await window.burnlineApp.recBegin('mp4');
+  const muxer=new Mp4Muxer.Muxer({ target, video:{codec:'avc',width:F.w,height:F.h,frameRate:FPS},
+    audio:{codec:ac[1],numberOfChannels:2,sampleRate:sr}, fastStart:false, firstTimestampBehavior:'offset' });
+  let encErr='';
+  const ve=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m), error:e=>{ encErr=String(e&&e.message||e); }});
+  ve.configure({codec:vc,width:F.w,height:F.h,bitrate:BR,framerate:FPS,latencyMode:'quality'});
+  const ae=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,m), error:e=>{ encErr=String(e&&e.message||e); }});
+  ae.configure({codec:ac[0],sampleRate:sr,numberOfChannels:2,bitrate:256000});
+
+  // Zustand vorbereiten
+  const wasPlaying=isPlaying(), realAnalyser=analyser, keepName=trackName, keepIdx=plIdx;
+  audioEl.pause(); if(demo && demo.running) demo.pause();
+  offline=true; offCancel=false; exportSize=F; resize();
+  hudBefore=hudOn; hudOn=expOpt.hud==='on';
+  S.score=0; S.combo=0; S.drops=0; S.cam=0; S.kicksSince=0; S.quiet=0; kickTimes.length=0; onTimes.length=0; S.bpm=0;
+  banner={text:'',t:-9}; S.pixel=0; S.glitch=0; S.flash=0;
+  $('#prog').hidden=false; $('#bar').classList.add('off'); progShow(0,'Preparing …');
+  const t0=performance.now(); let T=0, frameIdx=0, ok=false, err='';
+  const encA=(buf,from,to,base)=>{ if(to<=from) return; const c0=buf.getChannelData(0), c1=buf.numberOfChannels>1?buf.getChannelData(1):c0;
+    const n=to-from, data=new Float32Array(n*2); data.set(c0.subarray(from,to),0); data.set(c1.subarray(from,to),n);
+    const ad=new AudioData({format:'f32-planar',sampleRate:sr,numberOfFrames:n,numberOfChannels:2,timestamp:Math.round((base+from/sr)*1e6),data});
+    ae.encode(ad); ad.close(); };
+  try{
+    for(let ji=0; ji<jobs.length; ji++){
+      const job=jobs[ji];
+      progShow(T/total, jobs.length>1?`Loading song ${ji+1} of ${jobs.length} …`:'Loading audio …');
+      const buf = job.demo ? await renderDemoAudio(sr) : await actx.decodeAudioData(await job.file.arrayBuffer());
+      trackName=job.name; if(!job.demo) plIdx=playlist.indexOf(job);
+      banner={text: jobs.length>1 ? 'TRACK '+String(ji+1).padStart(2,'0') : (job.demo?'PLAYER 1':'START'), t:T};
+      const oac=new OfflineAudioContext(2, buf.length, sr);
+      const src=oac.createBufferSource(); src.buffer=buf;
+      const an=oac.createAnalyser(); an.fftSize=4096; an.smoothingTimeConstant=0; an.minDecibels=-92; an.maxDecibels=-16;
+      src.connect(an); an.connect(oac.destination); src.start(0);
+      analyser=an;
+      const nF=Math.floor(buf.duration*FPS), q=128/sr; let k=0, aPos=0;
+      await new Promise((res,rej)=>{
+        const step=async()=>{
+          try{
+            if(offCancel) throw new Error('canceled');
+            if(encErr||wErr) throw new Error(encErr||wErr);
+            const lt=k/FPS; offT=T+lt;
+            renderStep(offT, 1/FPS);
+            const vf=new VideoFrame(canvas,{timestamp:Math.round(offT*1e6), duration:Math.round(1e6/FPS)});
+            ve.encode(vf,{keyFrame: frameIdx%(FPS*2)===0}); vf.close(); frameIdx++;
+            const aTo=Math.min(buf.length, Math.floor((lt+.5)*sr)); if(aTo-aPos>=sr*.25){ encA(buf,aPos,aTo,T); aPos=aTo; }
+            while(ve.encodeQueueSize>4 || ae.encodeQueueSize>8) await new Promise(r=>setTimeout(r,2));
+            if(frameIdx%10===0){ const done=T+lt, el=(performance.now()-t0)/1000, spd=done/Math.max(el,.001);
+              progShow(done/total, `${fmt(done)} / ${fmt(total)}`+(jobs.length>1?` · song ${ji+1} of ${jobs.length}`:'')+` · ${spd.toFixed(1)}× real time · about ${fmt(Math.max(0,(total-done)/Math.max(spd,.01)))} left`);
+              await new Promise(r=>setTimeout(r,0)); }
+            k++;
+            if(k<nF) oac.suspend(Math.max(q, Math.ceil((k/FPS)/q)*q)).then(step);
+            oac.resume();
+          }catch(e){ rej(e); try{ oac.resume(); }catch(_){} }
+        };
+        oac.suspend(q).then(step);
+        oac.startRendering().then(()=>res()).catch(rej);
+      });
+      encA(buf,aPos,buf.length,T);
+      T+=buf.duration;
+    }
+    progShow(1,'Finishing video …');
+    await ve.flush(); await ae.flush(); muxer.finalize();
+    const name=`Burnline - ${exportTitle()} - ${expOpt.fmt.replace(':','x')}.mp4`;
+    if(disk){ await wq; if(wErr) throw new Error(wErr);
+      progShow(1,'Choose where to save …');
+      const r=await window.burnlineApp.recEnd(name); ok=!!(r&&r.ok); if(!ok) err=(r&&r.error)||'unknown error';
+      if(ok && r.canceled) banner={text:'SAVED TO MOVIES',t:performance.now()/1000+.001};
+      window.__lastExport={name,disk:true,ok,path:r&&r.path,secs:(performance.now()-t0)/1000,len:T};
+    } else {
+      const blob=new Blob([target.buffer],{type:'video/mp4'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),120000);
+      ok=true; window.__lastExport={name,size:blob.size,secs:(performance.now()-t0)/1000,len:T};
+    }
+  }catch(e){ err=String(e&&e.message||e); }
+  try{ if(ve.state!=='closed') ve.close(); }catch(e){} try{ if(ae.state!=='closed') ae.close(); }catch(e){}
+  if(!ok && disk && window.burnlineApp.recAbort) await window.burnlineApp.recAbort();
+  // aufräumen
+  analyser=realAnalyser; offT=null; offline=false; exportSize=null; hudOn=hudBefore; resize();
+  trackName=keepName; plIdx=keepIdx; $('#prog').hidden=true; showBar();
+  const now=performance.now()/1000;
+  if(ok){ if(!banner.text.startsWith('SAVED TO')) banner={text:'SAVED',t:now}; else banner.t=now; }
+  else if(err==='canceled') banner={text:'CANCELED',t:now};
+  else { banner={text:'EXPORT FAILED',t:now}; $('#start').hidden=false; msg('The video could not be exported: '+err+'. Please send me this message.'); }
+  if(wasPlaying && srcMode==='demo' && demo) demo.resume();
+}
+$('#progX').onclick=()=>{ offCancel=true; $('#progTxt').textContent='Canceling …'; };
+
 function stopRec(){ if(!rec || rec.state==='inactive') return; rec.stop(); $('#recT').textContent='saving …'; }
 async function saveRec(){
   const ext=recMime.startsWith('video/mp4')?'mp4':'webm';
-  const safe=(expOpt.len==='album' && playlist.length>1 ? `Playlist ${playlist.length} Songs` : trackName||'Burnline').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
+  const safe=exportTitle().replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
   const name=`Burnline - ${safe} - ${expOpt.fmt.replace(':','x')}.${ext}`;
   try{ playBus.disconnect(recDest); micBus.disconnect(recDest); }catch(e){}
   rec=null; recDest=null; exportSize=null; hudOn=hudBefore; resize();
@@ -1103,7 +1248,7 @@ async function saveRec(){
     ok=true; window.__lastExport={size:blob.size,type:blob.type,name};
   }
   $('#recBadge').hidden=true;
-  banner={text: ok ? (info||'SAVED') : 'SAVE FAILED', t:performance.now()/1000};
+  banner={text: ok ? (info||'SAVED') : 'SAVE FAILED', t:clock()};
   if(!ok){ $('#start').hidden=false; msg('The video could not be saved: '+(recErr||'unknown error')+'. Please send me this message.'); }
 }
 const fmt=s=>isFinite(s)?`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`:'0:00';
@@ -1117,9 +1262,9 @@ addEventListener('keydown',e=>{
   else if(k==='a') setAuto(!auto);
   else if(k==='h') $('#bHud').click();
   else if(k==='f') toggleFs();
-  else if(k==='c'){ setPal(palIdx+1); banner={text:PALS[palIdx].name,t:performance.now()/1000}; }
+  else if(k==='c'){ setPal(palIdx+1); banner={text:PALS[palIdx].name,t:clock()}; }
   else if(k==='m') setMix(!palMix);
-  else if(k==='s'){ strobeSafe=!strobeSafe; banner={text:strobeSafe?'FLASHES OFF':'FLASHES ON',t:performance.now()/1000}; }
+  else if(k==='s'){ strobeSafe=!strobeSafe; banner={text:strobeSafe?'FLASHES OFF':'FLASHES ON',t:clock()}; }
   else if(k==='d' && srcMode!=='none') triggerDrop();
   else if(k==='n'){ if(srcMode==='file') $('#bNext').click(); }
   else if(k==='p'){ if(srcMode==='file') $('#bPrev').click(); }
@@ -1138,7 +1283,7 @@ let dragN=0;
 addEventListener('dragenter',e=>{ e.preventDefault(); dragN++; $('#drop').classList.add('on'); });
 addEventListener('dragleave',()=>{ if(--dragN<=0){ dragN=0; $('#drop').classList.remove('on'); } });
 addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{ e.preventDefault(); dragN=0; $('#drop').classList.remove('on'); const fs=e.dataTransfer.files; if(!fs.length) return; if(srcMode==='file' && playlist.length){ const n=addFiles(fs); if(n){ openPl(true); banner={text:'+'+n+' SONG'+(n>1?'S':''),t:performance.now()/1000}; } } else startFiles(fs); });
+addEventListener('drop',e=>{ e.preventDefault(); dragN=0; $('#drop').classList.remove('on'); const fs=e.dataTransfer.files; if(!fs.length) return; if(srcMode==='file' && playlist.length){ const n=addFiles(fs); if(n){ openPl(true); banner={text:'+'+n+' SONG'+(n>1?'S':''),t:clock()}; } } else startFiles(fs); });
 
 /* ---------------- Demo-Beat: Analog-Trap mit Tape, 808, Chip-Lead ---------------- */
 function satCurve(k){ const n=2048, c=new Float32Array(n); const d=Math.tanh(k); for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(k*x)/d; } return c; }
@@ -1269,12 +1414,22 @@ const F1G=43.65;
 
 /* ---------------- Render-Loop ---------------- */
 let last=performance.now(), fpsAcc=0, fpsN=0, slowT=0;
+let offline=false;
 function frame(nowMs){
+  if(offline){ last=nowMs; requestAnimationFrame(frame); return; }
   const now=nowMs/1000; let dt=Math.min(.05,(nowMs-last)/1000); last=nowMs;
   // adaptive Qualität
   fpsAcc+=dt; fpsN++; if(fpsAcc>2){ const avg=fpsAcc/fpsN; if(!exportSize && avg>.024 && quality>.55){ quality-=.15; resize(); } fpsAcc=0; fpsN=0; }
-  const t=srcMode==='none'? now : now;
-  analyze(t,dt); updPal(dt); if((S._hc=(S._hc||0)+dt)>.1){ S._hc=0; hudColors(); }
+  renderStep(now,dt);
+  // UI
+  if(srcMode==='file' && audioEl.duration){ seek.value=audioEl.currentTime/audioEl.duration*1000; $('#tcur').textContent=fmt(audioEl.currentTime); $('#tdur').textContent=fmt(audioEl.duration); }
+  if(srcMode!=='none' && nowMs-barT>3000 && !$('#bar').classList.contains('off')){ $('#bar').classList.add('off'); document.body.classList.add('hidecursor'); }
+  updPlayBtn();
+  if(rec && rec.state==='recording') $('#recT').textContent=fmt((nowMs-recStart)/1000);
+  requestAnimationFrame(frame);
+}
+function renderStep(now,dt){
+  analyze(now,dt); updPal(dt); if((S._hc=(S._hc||0)+dt)>.1){ S._hc=0; hudColors(); }
   // Texturen
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,specTex); gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,NB,1,gl.RGBA,gl.UNSIGNED_BYTE,specBuf);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,waveTex); gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,NW,1,gl.RED,gl.UNSIGNED_BYTE,waveBuf);
@@ -1314,13 +1469,6 @@ function frame(nowMs){
   f1(PP,'uRoll',S.roll*gm); f1(PP,'uFlash',S.flash*(strobeSafe?.25:1)); f1(PP,'uLevel',S.level); f1(PP,'uSnare',S.snare);
   gl.drawArrays(gl.TRIANGLES,0,3);
   ping=1-ping;
-
-  // UI
-  if(srcMode==='file' && audioEl.duration){ seek.value=audioEl.currentTime/audioEl.duration*1000; $('#tcur').textContent=fmt(audioEl.currentTime); $('#tdur').textContent=fmt(audioEl.duration); }
-  if(srcMode!=='none' && nowMs-barT>3000 && !$('#bar').classList.contains('off')){ $('#bar').classList.add('off'); document.body.classList.add('hidecursor'); }
-  updPlayBtn();
-  if(rec && rec.state==='recording') $('#recT').textContent=fmt((nowMs-recStart)/1000);
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 window.__burnline={S,setScene,triggerDrop,startDemo,setPal};
