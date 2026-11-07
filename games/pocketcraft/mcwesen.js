@@ -42,7 +42,8 @@ const MC_WESEN = {
   ghast:    [['ghast', 'entity/ghast/ghast']],
   ghast_feuer: [['ghast', 'entity/ghast/ghast_shooting']],
   blaze:    [['blaze', 'entity/blaze/blaze']],
-  drache:   [['drache', 'entity/enderdragon/dragon', { anims: DRACHE_ANIM }]],
+  drache:   [['drache', 'entity/enderdragon/dragon', { anims: DRACHE_ANIM }],
+             ['drache', 'entity/enderdragon/dragon_eyes', { anims: DRACHE_ANIM, nur: ['head'], leuchtet: true, weich: true }]],
   kristall: [['kristall', 'entity/end_crystal/end_crystal', { ohne: ['base'], anims: { outer_glass:{ mkristall:0 }, inner_glass:{ mkristall:1 }, cube:{ mkristall:2 } } }]],
   enderman: [['enderman', 'entity/enderman/enderman']],
 };
@@ -178,7 +179,7 @@ const McWesen = {
   /** aus einem Minecraft-Modell die Teile für Pocketcraft */
   _bauen(name, px, extra){
     const M = MC_MODELLE[name], sx = px.w/M.t[0], sy = px.h/M.t[1];
-    return this._teile(name, extra, c => new Float32Array(mcSeiten(px, sx, sy, c, extra && extra.huelle).map(s => this._lage(s))));
+    return this._teile(name, extra, c => new Float32Array(mcSeiten(px, sx, sy, c, extra && (extra.huelle || extra.weich)).map(s => this._lage(s))));
   },
   /** die Teile eines Minecraft-Modells; lagen(c, name, k) gibt die sechs Bildlagen eines Kastens.
       Unterteile mit eigener Bewegung (Flügelspitze, Kiefer) schwingen um ihr Gelenk und mit
@@ -189,13 +190,16 @@ const McWesen = {
     const animVon = n => (extra && extra.anims && extra.anims[n]) || MC_ANIM[n];
     const gehe = (knoten, kette, oben, n, animKette) => {
       if(extra && extra.ohne && extra.ohne.includes(n)) return;
+      if(extra && extra.nur && oben && !extra.nur.includes(oben)) return;      // nur diese Teile (die leuchtenden Augen)
       const eigen = n !== null && n !== oben ? animVon(n) : null;
       const kette2 = eigen && eigen.anim ? animKette.concat([{ anim: eigen.anim, ph: eigen.ph | 0, pivot: mcGelenk(kette) }]) : animKette;
       let k = 0;
       for(const c of knoten.c || []){
         const a = animVon(oben) || {};
         // Flughaut hat beim Vorbild keine Dicke — hier ein Hauch, sonst flimmern Ober- und Unterseite
-        const cm = c[4] === 0 ? (() => { const d = c.slice(); d[4] = 0.3; d[1] -= 0.15; return d; })() : c;
+        let cm = c[4] === 0 ? (() => { const d = c.slice(); d[4] = 0.3; d[1] -= 0.15; return d; })() : c;
+        // leuchtende Augen liegen einen Hauch über dem Kopf, damit sie nicht mit ihm flimmern
+        if(extra && extra.leuchtet){ cm = cm.slice(); cm[8] += 0.06; cm[9] += 0.06; cm[10] += 0.06; }
         const teil = { n:oben, name:n, mc:true, L: mcKastenMatrix(kette, cm, true), pivot: mcPunkt(kette[1] || [0, 0, 0]),
           lagen: lagen(c, n, k++), anim:a.anim, ph:a.ph, kopf:!!a.kopf, kopfPunkt };
         if(kette2.length) teil.animKette = kette2;
@@ -205,6 +209,7 @@ const McWesen = {
         if(w.mkristall !== undefined){ teil.mkristall = w.mkristall; teil.anim = 'mkristall'; }
         if(extra && extra.fell){ teil.wenn = m => !m.geschoren; teil.farbe = m => WOLLE[m.wolle].tint; }
         if(extra && extra.huelle) teil.huelle = true;
+        if(extra && extra.leuchtet) teil.leuchtet = true;
         teile.push(teil);
       }
       for(const [m, kind] of Object.entries(knoten.k || {})) gehe(kind, kette.concat([kind.p]), oben || m, m, kette2);
@@ -222,7 +227,9 @@ const McWesen = {
       if(n === 'head' && k[3] === 16){ const f = sechs('m_drache'); f[5] = L('m_drache_kopf'); return f; }
       if(k[3] <= 2) return sechs('m_drache_fluegel');               // Zacken auf Rücken, Hals und Schwanz
       return sechs('m_drache');
-    });
+    }).concat(this._teile('drache', MC_WESEN.drache[1][2], (k, n) => {
+      const f = sechs('m_leer'); if(n === 'head' && k[3] === 16) f[5] = L('m_drache_augen'); return f;
+    }));
     else if(type === 'kristall') c[type] = this._teile('kristall', MC_WESEN.kristall[0][2], (k, n) => sechs(n === 'cube' ? 'm_kristall_kern' : 'm_kristall'));
     else c[type] = null;
     return c[type];

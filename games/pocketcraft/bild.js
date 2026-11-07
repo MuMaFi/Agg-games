@@ -562,6 +562,7 @@ function drawMobs(fogCol, near, far){
       const f = part.farbe ? part.farbe(m) : null;
       const tr = f ? f[0] : 1, tg = f ? f[1] : 1, tb = f ? f[2] : 1;
       gl.uniform4f(P.u.uTint, hurt ? 1.6*tr : tr, hurt ? 0.45*tg : tg, hurt ? 0.45*tb : tb, 1);
+      gl.uniform1f(P.u.uLight, part.leuchtet ? 1.25 : light);       // die Augen des Drachen leuchten im Dunkeln
       let ang = 0;
       if(part.anim === 'leg') ang = part.ph ? -sw : sw;
       // Erhobene Arme zeigen nach vorn (−Z). Das Vorzeichen war lange falsch:
@@ -737,16 +738,17 @@ function drawPfeile(fogCol, near, far){
   let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
-    const t = a.feuer ? 'lava' : a.auge ? 'i_enderauge' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
+    const t = a.drachen ? 'p_atem' : a.feuer ? 'lava' : a.auge ? 'i_enderauge' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
     gl.uniform1f(P.u.uLight, a.feuer ? 1 : blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
     M4.ident(_m);
     M4.translate(_m, _m, a.x, a.y, a.z);
-    if(a.perle || a.auge){
+    if(a.perle || a.auge || a.drachen){
       // Enderperle und Enderauge: ein flaches Bild, das zur Kamera schaut — wie beim Vorbild
       M4.rotY(_m, _m, Game.player.yaw);
-      M4.scale(_m, _m, 0.42, 0.42, 0.01);
+      const g = a.drachen ? 1.1 : 0.42;
+      M4.scale(_m, _m, g, g, 0.01);
       M4.translate(_m, _m, -0.5, -0.5, -0.5);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
       gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
@@ -784,7 +786,7 @@ function drawPartikel(){
     if(q.t < 0) continue;                  // noch nicht dran (Herzen kommen nacheinander)
     const t = q.tex || 'p_herz';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
-    gl.uniform1f(P.u.uLight, q.tex ? blockLightAt(q.x, q.y, q.z) : 1);
+    gl.uniform1f(P.u.uLight, q.hell || !q.tex ? 1 : blockLightAt(q.x, q.y, q.z));
     const dauer = q.dauer || 1.3, gr = q.gr || 0.26;
     const sc = gr * Math.min(1, q.t*5) * (q.t > dauer - 0.3 ? Math.max(0, dauer - q.t)/0.3 : 1);
     M4.ident(_m);

@@ -640,6 +640,7 @@ const Netz = {
       case 'oefen': this.oefenEmpfangen(m.l); break;
       case 'pfeil': this.pfeilEmpfangen(m, null); break;
       case 'portal': this.portalEmpfangen(m, null); break;
+      case 'wolke': if((m.d | 0) === this.dimNr(Game.dim) && Array.isArray(m.a) && m.a.every(Number.isFinite)) Game.atemWolke(m.a[0], m.a[1] + 0.5, m.a[2], clamp(m.a[3], 1, 6), clamp(m.a[4], 1, 30), true); break;
       case 'autsch': {
         const p = Game.player;
         if(p.hurt(+m.n || 1, m.grund || '', +m.kx || 0, +m.kz || 0)){ Game.hurtFlash = 1; Sfx.play('hurt'); }
@@ -936,7 +937,7 @@ const Netz = {
     if(!this.rolle || this.rolle === 'verbinde') return;
     const d = this.dimNr(Game.dim);
     const m = { t:'pfeil', a: [r2(a.x), r2(a.y), r2(a.z), r2(a.vx), r2(a.vy), r2(a.vz), a.dmg | 0], bild: nurBild ? 1 : 0, ei: a.ei ? 1 : 0,
-                feuer: a.feuer ? (a.klein ? 2 : 1) : 0, d };
+                feuer: a.feuer ? (a.drachen ? 3 : a.klein ? 2 : 1) : 0, d };
     if(this.istGast) this.senden(this.hostConn, m); else this.anDim(m, Game.dim);
   },
   pfeilEmpfangen(m, von){
@@ -945,7 +946,7 @@ const Netz = {
     if(von){ if(d !== (von.dim || 'oben')) return; }
     else if(d !== Game.dim) return;                       // aus der anderen Welt: hier nicht zu sehen
     const pf = new Pfeil(+a[0], +a[1], +a[2], +a[3], +a[4], +a[5], clamp(a[6] | 0, 0, 20), false, !!m.ei, !!m.feuer);
-    pf.klein = m.feuer === 2;
+    pf.klein = m.feuer === 2; pf.drachen = m.feuer === 3;
     // ein Gast schießt: für alle anderen nur zu sehen, getroffen wird beim Schützen
     if(von || m.bild) pf.nurBild = true;
     Game.listen(d).pfeile.push(pf);

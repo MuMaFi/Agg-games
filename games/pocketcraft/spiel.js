@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07h';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-07i';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -386,7 +386,7 @@ const Game = {
     this.inDim(d, () => {
       this.updateMobs(dt); this.updateDrops(dt); this.updatePfeile(dt);
       this.tickFurnaces(dt); this.tickFelder(dt); this.spawnMobs(dt); this.feuerBrennt(dt); if(d === 'oben') this.dorfLeben(dt);
-      this.wasser.tick(dt); this.schaltung.tick(dt);
+      this.wasser.tick(dt); this.schaltung.tick(dt); this.wolkenTick(dt);
       this._pruefAndere = (this._pruefAndere || 0) - dt;
       if(this._pruefAndere <= 0){ this._pruefAndere = 1; this.portalePruefen(); }
     });
@@ -1622,6 +1622,7 @@ const Game = {
   },
   /** eine Feuerkugel platzt: ein Knall, ein paar Funken (Blöcke bleiben heil) */
   feuerkugelPlatzt(a){
+    if(a.drachen){ this.atemWolke(a.x, a.y, a.z, 3, 6); return; }
     Sfx.play('kaputt', a.x, a.y, a.z);
     if(!a.klein) this.camShake = Math.max(this.camShake, 0.15);
     for(let k = 0, n = a.klein ? 4 : 10; k < n; k++) this.partikel.push({ x: a.x + (Math.random() - .5), y: a.y + (Math.random() - .5), z: a.z + (Math.random() - .5),
@@ -1675,7 +1676,7 @@ const Game = {
           }
         } else if(!a.nurBild && !this._fremd && !p.dead && Math.abs(a.x - p.x) < p.w/2 + (a.feuer ? (a.klein ? .2 : .45) : .1) && Math.abs(a.z - p.z) < p.w/2 + (a.feuer ? (a.klein ? .2 : .45) : .1)
                   && a.y > p.y - (a.feuer ? .4 : 0) && a.y < p.y + p.h + (a.feuer ? .4 : 0)){
-          const wer = a.klein ? 'Eine Lohe hat dich getroffen' : a.feuer ? 'Ein Ghast hat dich getroffen' : 'Ein Skelett hat dich getroffen';
+          const wer = a.drachen ? 'Der Enderdrache hat dich getroffen' : a.klein ? 'Eine Lohe hat dich getroffen' : a.feuer ? 'Ein Ghast hat dich getroffen' : 'Ein Skelett hat dich getroffen';
           if(p.hurt(a.dmg, wer, a.vx/tv*(a.feuer && !a.klein ? 1.2 : .5), a.vz/tv*(a.feuer && !a.klein ? 1.2 : .5))){ this.hurtFlash = 1; Sfx.play('hurt'); }
           if(a.feuer) this.feuerkugelPlatzt(a);
           a.weg = true;
@@ -1985,6 +1986,7 @@ const Game = {
         if(l < 70 && this.freieSicht(hx, hy, hz, q.x, q.y + 1.2, q.z)){
           const v = 14, ux = (q.x - hx)/l, uy = (q.y + 1 - hy)/l, uz = (q.z - hz)/l;
           const pf = new Pfeil(hx, hy, hz, ux*v, uy*v, uz*v, 6, false, false, true);
+          pf.drachen = true;                                            // lila: hinterlässt eine Atemwolke
           this.pfeile.push(pf); Netz.pfeilSenden(pf, false); Sfx.wesen(m, 'feuer');
         }
         m.feuerCd = 5 + Math.random()*4;
@@ -2010,14 +2012,14 @@ const Game = {
       for(const o of opfer){ const e = Math.hypot(o.x - m.x, o.z - m.z); if(e < qd){ qd = e; q = o; } }
       if(q){
         m.yaw = winkelNach(m.yaw, Math.atan2(-(q.x - m.x), -(q.z - m.z)), Math.min(1, dt*2));
-        m.feuerCd = (m.feuerCd === undefined ? 2 : m.feuerCd) - dt;
-        if(m.feuerCd <= 0 && qd > 6){
-          const hx = m.x - Math.sin(m.yaw)*4.5, hy = m.y + 1.2, hz = m.z - Math.cos(m.yaw)*4.5, l = Math.hypot(q.x - hx, q.y + 1 - hy, q.z - hz) || 1;
-          if(this.freieSicht(hx, hy, hz, q.x, q.y + 1.2, q.z)){
-            const v = 12, pf = new Pfeil(hx, hy, hz, (q.x - hx)/l*v, (q.y + 1 - hy)/l*v, (q.z - hz)/l*v, 6, false, false, true);
-            this.pfeile.push(pf); Netz.pfeilSenden(pf, false); Sfx.wesen(m, 'feuer'); m.feuerT = 0.6;
-          }
-          m.feuerCd = 2.2 + Math.random()*1.5;
+        // Drachenatem: ein lila Strahl schräg vor ihm auf den Boden, dort bleibt eine Wolke liegen
+        m.feuerCd = (m.feuerCd === undefined ? 1.5 : m.feuerCd) - dt;
+        const blick = Math.abs(((Math.atan2(-(q.x - m.x), -(q.z - m.z)) - m.yaw + 3*Math.PI) % (2*Math.PI)) - Math.PI);
+        if(m.feuerCd <= 0 && blick < 0.35){                           // erst, wenn er hinsieht
+          const fx = -Math.sin(m.yaw), fz = -Math.cos(m.yaw), d = clamp(qd, 4, 9);
+          this.atemWolke(m.x + fx*d, m.y + 1, m.z + fz*d, 3.5, 7);
+          m.atemT = 2.2; m.feuerT = 2.2; Sfx.wesen(m, 'feuer');
+          m.feuerCd = 4 + Math.random()*2;
         }
       }
       if(m.feuerT > 0) m.feuerT -= dt;
@@ -2084,7 +2086,57 @@ const Game = {
       this.mobs.push(new Mob('enderman', x + .5, y, z + .5)); break;
     }
   },
+  /* Drachenatem: eine lila Wolke am Boden, die eine Weile liegen bleibt und jedem schadet,
+     der darin steht (beim Vorbild der Trank des Schadens). Der Host rechnet den Schaden,
+     alle sehen die Wolke (Netz: »wolke«). */
+  atemWolke(x, y, z, r, dauer, vomNetz){
+    if(Netz.istGast && !vomNetz) return;                 // beim Gast kommt sie vom Host
+    const w = this.world;
+    let gy = Math.floor(y);
+    for(let k = 0; k < 8 && gy > 1 && !blocksMovement(w.getBlock(Math.floor(x), gy - 1, Math.floor(z))); k++) gy--;
+    (w.wolken || (w.wolken = [])).push({ x, y: gy, z, r, t: dauer });
+    Sfx.play('kaputt', x, gy, z);
+    if(Netz.istHost && !vomNetz) Netz.anDim({ t:'wolke', d: Netz.dimNr(this.dim), a: [r2(x), gy, r2(z), r, dauer] }, this.dim);
+  },
+  wolkenTick(dt){
+    const w = this.world;
+    if(!w.wolken || !w.wolken.length) return;
+    const leute = Netz.istGast ? [] : this.spielerOrte();
+    this._atemCd = this._atemCd || new Map();
+    for(let i = w.wolken.length - 1; i >= 0; i--){
+      const c = w.wolken[i];
+      c.t -= dt;
+      if(c.t <= 0){ w.wolken.splice(i, 1); continue; }
+      // lila Teilchen steigen auf, am Rand weniger
+      if(!this._fremd) for(let n = Math.random() < c.r*c.r*dt*10 % 1 ? 1 : 0, k = Math.floor(c.r*c.r*dt*10) + n; k > 0; k--){
+        const a = Math.random()*TAU, e = Math.sqrt(Math.random())*c.r;
+        this.partikel.push({ x: c.x + Math.cos(a)*e, y: c.y + Math.random()*0.6, z: c.z + Math.sin(a)*e, t: 0, tex: 'p_atem', hell: true,
+          gr: 0.25 + Math.random()*0.3, dauer: 0.8 + Math.random()*0.8, fall: false });
+      }
+      for(const q of leute){
+        if(q.dead || q.creative || Math.hypot(q.x - c.x, q.z - c.z) > c.r || q.y < c.y - 1 || q.y > c.y + 2.5) continue;
+        // einmal je Sekunde, wie der Trank des Schadens beim Vorbild
+        const k = q.ich ? 'ich' : q.g.id, jetzt = this.gesamtZeit;
+        if((this._atemCd.get(k) || 0) > jetzt) continue;
+        this._atemCd.set(k, jetzt + 1);
+        if(q.ich){ if(this.player.hurt(3, 'Der Drachenatem war zu viel')){ this.hurtFlash = 1; Sfx.play('hurt'); } }
+        else Netz.autsch(q.g, 3, 'Der Drachenatem war zu viel', 0, 0);
+      }
+    }
+  },
   /** der Lebensbalken oben, solange der Drache in der Nähe ist */
+  atemStrahl(dt){
+    for(const m of this.mobs){
+      if(m.type !== 'drache' || !(m.atemT > 0)) continue;
+      m.atemT -= dt;
+      const fx = -Math.sin(m.yaw), fz = -Math.cos(m.yaw), hx = m.x + fx*4.2, hy = m.y + (m.def.mcHoch || 0) + 0.6, hz = m.z + fz*4.2;
+      for(let k = 0; k < 4; k++){
+        const v = 5 + Math.random()*3;
+        this.partikel.push({ x: hx, y: hy, z: hz, t: 0, tex: 'p_atem', hell: true, gr: 0.2 + Math.random()*0.25, dauer: 0.9,
+          fall: false, vx: (fx + (Math.random() - .5)*0.5)*v, vy: -v*0.45, vz: (fz + (Math.random() - .5)*0.5)*v, fliegt: true });
+      }
+    }
+  },
   bossLeiste(){
     const el = document.getElementById('bossbar');
     if(!el) return;
@@ -3137,7 +3189,8 @@ function frame(now){
         const nx = q.x + q.vx*dt, ny = q.y + q.vy*dt, nz = q.z + q.vz*dt;
         if(blocksMovement(Game.world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz)))) q.vx = q.vy = q.vz = 0;
         else { q.x = nx; q.y = ny; q.z = nz; }
-      } else if(q.t > 0) q.y += dt*0.55;
+      } else if(q.fliegt){ q.x += q.vx*dt; q.y += q.vy*dt; q.z += q.vz*dt; }
+      else if(q.t > 0) q.y += dt*0.55;
       if(q.t > (q.dauer || 1.3)) Game.partikel.splice(i, 1);
     }
     if(Game.bogen.aktiv){
@@ -3160,6 +3213,7 @@ function frame(now){
   // oben wechselt das Wetter trotzdem weiter — für die Mitspieler dort
   if(Game.dim !== 'oben' && !paused && Netz.istHost && Game.regeln.doWeatherCycle){ Wetter.rest -= dt; if(Wetter.rest <= 0) Wetter.wechseln(); }
   Netz.tick(dt);
+  if(!paused){ Game.wolkenTick(dt); Game.atemStrahl(dt); }
   Game.bossLeiste();
   /* Tod: gleich wodurch — Sturz, Zombie, Hunger. Früher prüfte das nur die
      Spielerbewegung selbst; wer von einem Zombie erschlagen wurde, blieb

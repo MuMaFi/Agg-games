@@ -1495,6 +1495,9 @@ function buildTextures(){
     p.fuell((x, y) => .6*fbm(x, y, 4, 4, 1343, 2) + .4*vnoise(x, y, 8, 8, 1344), pal('#1a1820','#222029','#2a2733','#33303d'), null, .5);
     for(let k = 0; k < 4; k++){ const y0 = 3 + k*8; for(let x = 0; x < TS; x++) p.put(x, (y0 + (x >> 3)) % TS, [70, 66, 80]); }
   });
+  // nur die Augen des Drachen, sonst durchsichtig: leuchten im Dunkeln (wie dragon_eyes beim Vorbild)
+  addTex('m_drache_augen', p => { p.klar(); for(const x0 of [4, 20]){ p.rect(x0, 10, 8, 4, [200, 80, 240]); p.rect(x0 + 2, 11, 4, 2, [250, 200, 255]); } });
+  addTex('m_leer', p => { for(let i = 0; i < p.d.length; i += 4){ p.d[i] = p.d[i+1] = p.d[i+2] = 40; p.d[i+3] = 0; } });   // ganz durchsichtig (grau, nicht schwarz: wegen des Filterns)
   addTex('m_kristall', p => {
     for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
       const rand = x < 3 || y < 3 || x > TS - 4 || y > TS - 4;
@@ -1777,6 +1780,13 @@ function buildTextures(){
     const L = S.lage(pal('#8a5a08','#d89010','#f0b020','#f8cc40','#fce27a'));
     S.oval(L, 16, 16, 12, 10);
     L.glanz = [[11,11],[12,10],[11,12]];
+  });
+  /* Drachenatem: ein lila Wölkchen, das Teilchen für die Atemwolke und die Drachenfeuerbälle */
+  sprite('p_atem', S => {
+    const L = S.lage(pal('#4a0e6e','#7a1eb0','#a838e0','#cc66f4','#f0b8ff'));
+    S.oval(L, 16, 16, 11, 10); S.oval(L, 10, 12, 6, 5); S.oval(L, 22, 20, 6, 5);
+    L.muster = (x, y) => (h2(x, y, 1371) < .25 ? -1 : h2(x, y, 1372) > .8 ? 1 : 0);
+    L.glanz = [[12,10],[13,10],[12,11]];
   });
   sprite('p_herz', S => {
     const L = S.lage(pal('#6a0c16','#b01c2c','#e0303c','#f25a5e','#ff9c9c'));
