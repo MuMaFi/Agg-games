@@ -187,7 +187,7 @@ const Menue = {
       const an = !Game.settings.superGrafik;
       Game.settings.superGrafik = an && Super.setzen(true);
       if(!an) Super.setzen(false);
-      if(an && !Game.settings.superGrafik) hint('Dieses Gerät schafft das SUPER DUPER GRAFIK PAKET leider nicht', 3200);
+      if(an && !Game.settings.superGrafik) hint('Das SUPER DUPER GRAFIK PAKET ließ sich hier nicht starten' + (Super.fehler ? ' (' + Super.fehler + ')' : ''), 5000);
       else if(an) hint('SUPER DUPER GRAFIK PAKET an — braucht ein schnelles Gerät', 2600);
       Game.saveOpts(); this.optionenZeigen();
     });

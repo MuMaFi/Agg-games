@@ -100,7 +100,7 @@ in float vFog; in float vSharp; in float vWasser; in vec4 vLicht;
 uniform sampler2DArray uTex; uniform vec3 uFogCol; uniform float uAlpha; uniform vec3 uWaterTint;
 uniform float uSchaerfe, uZeit;
 uniform vec3 uCam, uLichtDir, uLichtFarbe, uUmgebung, uZenith, uHorizon;
-uniform float uLava, uZeit, uWater0, uGrund;
+uniform float uLava, uWater0, uGrund;                 // uZeit steht schon oben
 out vec4 outColor;
 ${SD_SCHATTEN}
 ${SD_TON}
@@ -246,7 +246,7 @@ const Super = {
   setzen(an){
     if(an && !this.bereit && !this.kaputt){
       try{ this.bauen(); this.bereit = true; }
-      catch(e){ console.warn('SUPER DUPER GRAFIK PAKET geht hier nicht:', e.message); this.kaputt = true; }
+      catch(e){ console.warn('SUPER DUPER GRAFIK PAKET geht hier nicht:', e.message); this.kaputt = true; this.fehler = String(e.message || e).split('\n')[0].slice(0, 120); }
     }
     this.an = !!an && this.bereit;
     document.body.classList.toggle('superGrafik', this.an);

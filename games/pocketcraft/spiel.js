@@ -2939,7 +2939,8 @@ const Input = {
     if(Menue.aktiv){ if(dn && k === 'escape') Menue.zurueck(); return; }
     if(!Game.running) return;
     if(Chat.offen) return;                             // Tasten gehören dem Eingabefeld
-    if(dn && k === 'escape'){ if(Screens.open) Screens.hide(); else togglePause(); return; }
+    // Pause mit Enter: Escape beendet in Safari auf dem Mac das Vollbild (und schließt das Fenster) — Escape geht trotzdem weiter
+    if(dn && (k === 'enter' || k === 'escape')){ e.preventDefault(); if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); if(Screens.open) Screens.hide(); else togglePause(); return; }
     if(Screens.open && Screens.open !== 'pause') { if(dn && (k === 'e')) Screens.hide(); return; }
     // T öffnet den Chat, / gleich mit Schrägstrich — wie beim Vorbild
     if(dn && !Screens.open && (k === 't' || e.key === '/')){ e.preventDefault(); Chat.oeffnen(e.key === '/' ? '/' : ''); return; }
