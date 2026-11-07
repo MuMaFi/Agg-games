@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07f';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-07g';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -1813,7 +1813,10 @@ const Game = {
     if(!f){ hint('In dieser Welt gibt es keine Endfestung', 2200); return; }
     const dx = f.px + 0.5 - p.x, dz = f.pz + 0.5 - p.z, d = Math.hypot(dx, dz) || 1;
     const a = new Pfeil(p.x, p.eyeY() - 0.2, p.z, 0, 0, 0, 0, true, false);
-    a.auge = { ux: dx/d, uz: dz/d, weit: Math.min(12, d), x0: p.x, y0: p.eyeY() - 0.2, z0: p.z, zielY: d < 12 ? f.py + 1 : null };
+    // steht man fast darüber, fliegt es erst ein Stück in Blickrichtung — sonst sähe man es nicht
+    const fw = p.forward(), fh = Math.hypot(fw[0], fw[2]) || 1;
+    const nah = d < 3;
+    a.auge = { ux: nah ? fw[0]/fh : dx/d, uz: nah ? fw[2]/fh : dz/d, weit: nah ? 3 : Math.min(12, d), x0: p.x, y0: p.eyeY() - 0.2, z0: p.z, nah: d < 12 };
     this.pfeile.push(a);
     if(!p.creative) Inv.consumeHeld();
     Sfx.play('werfen'); p.swinging = true; p.swing = 0; HUD.refreshHotbar();
@@ -1824,10 +1827,15 @@ const Game = {
     const o = a.auge, t = Math.min(1, a.alter/1.7);
     const glatt = t*t*(3 - 2*t);
     a.x = o.x0 + o.ux*o.weit*glatt; a.z = o.z0 + o.uz*o.weit*glatt;
-    a.y = o.zielY !== null ? o.y0 + (o.zielY - o.y0)*glatt : o.y0 + 2.6*Math.min(1, a.alter/1.1) + Math.sin(a.alter*6)*0.08;
+    // erst steigen, dann schweben — ist die Festung nah, sinkt es danach langsam (zeigt nach unten),
+    // aber nie in einen Block hinein
+    let y = o.y0 + 2.6*Math.min(1, a.alter/1.1) + Math.sin(a.alter*6)*0.08;
+    if(o.nah && a.alter > 1.2) y -= Math.min(3.5, (a.alter - 1.2)*2.2);
+    if(blocksMovement(this.world.getBlock(Math.floor(a.x), Math.floor(y), Math.floor(a.z)))) y = Math.max(a.y, Math.floor(y) + 1.15);
+    a.y = y;
     a.rx = o.ux; a.ry = 0; a.rz = o.uz;
     if(Math.random() < dt*12) this.partikel.push({ x: a.x, y: a.y, z: a.z, t: 0, tex: 'portal', gr: 0.05, dauer: 0.5, fall: false, vx: 0, vy: 0, vz: 0 });
-    if(a.alter < 2.3) return false;
+    if(a.alter < (o.nah ? 2.9 : 2.3)) return false;
     if(Math.random() < 0.8) this.dropItem(ITEM.enderauge, 1, a.x, a.y, a.z);
     else { Sfx.play('kaputt', a.x, a.y, a.z); this.portalFunken(a.x, a.y, a.z, 14); }
     return true;

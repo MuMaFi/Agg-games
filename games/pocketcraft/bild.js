@@ -743,14 +743,20 @@ function drawPfeile(fogCol, near, far){
     const hv = Math.hypot(a.rx, a.rz);
     M4.ident(_m);
     M4.translate(_m, _m, a.x, a.y, a.z);
+    if(a.perle || a.auge){
+      // Enderperle und Enderauge: ein flaches Bild, das zur Kamera schaut — wie beim Vorbild
+      M4.rotY(_m, _m, Game.player.yaw);
+      M4.scale(_m, _m, 0.42, 0.42, 0.01);
+      M4.translate(_m, _m, -0.5, -0.5, -0.5);
+      gl.uniformMatrix4fv(P.u.uModel, false, _m);
+      gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+      continue;
+    }
     M4.rotY(_m, _m, Math.atan2(-a.rx, -a.rz));
     if(a.feuer){
       M4.rotX(_m, _m, a.alter*5); M4.rotY(_m, _m, a.alter*3);
       const g = a.klein ? 0.3 : 0.7;
       M4.scale(_m, _m, g, g, g);
-    } else if(a.perle || a.auge){
-      M4.rotY(_m, _m, a.alter*6);
-      M4.scale(_m, _m, 0.25, 0.25, 0.25);
     } else if(a.ei){
       M4.rotX(_m, _m, a.alter*14);
       M4.scale(_m, _m, 0.15, 0.19, 0.15);
