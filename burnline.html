@@ -68,6 +68,8 @@
   @media (max-width:640px){ #tname{display:none;} .chs button{padding:7px 8px;} }
   .palrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:20px;color:var(--smoke);letter-spacing:.06em;}
   .pals{display:flex;gap:6px;flex-wrap:wrap;}
+  .looks{display:flex;gap:6px;flex-wrap:wrap;}
+  .looks button{font-size:18px;padding:5px 9px;}
   .pals button{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid transparent;}
   .pals button[aria-pressed="true"]{border-color:var(--bone);background-clip:padding-box;}
   #bar .pals button{width:26px;height:26px;padding:0;}
@@ -137,9 +139,10 @@
       <button id="bTab" hidden>TAB AUDIO<small>Capture a Spotify or YouTube tab</small></button>
     </div>
     <div class="palrow"><span>COLOR</span><div class="pals" id="pals1"></div></div>
+    <div class="palrow"><span>LOOK</span><div class="looks" id="looks1"></div></div>
     <p id="msg" role="status"></p>
     <div class="foot">
-      <span><kbd>Space</kbd> Pause · <kbd>1</kbd>–<kbd>5</kbd> Scene · <kbd>A</kbd> Auto · <kbd>C</kbd> Color · <kbd>M</kbd> Color change on drops · <kbd>H</kbd> HUD · <kbd>R</kbd> Video · <kbd>L</kbd> Playlist · <kbd>N</kbd>/<kbd>P</kbd> Next/previous song · <kbd>F</kbd> Fullscreen · <kbd>S</kbd> Fewer flashes</span>
+      <span><kbd>Space</kbd> Pause · <kbd>1</kbd>–<kbd>7</kbd> Scene · <kbd>V</kbd> Look · <kbd>A</kbd> Auto · <kbd>C</kbd> Color · <kbd>M</kbd> Color change on drops · <kbd>H</kbd> HUD · <kbd>R</kbd> Video · <kbd>L</kbd> Playlist · <kbd>N</kbd>/<kbd>P</kbd> Next/previous song · <kbd>F</kbd> Fullscreen · <kbd>S</kbd> Fewer flashes</span>
       <span>Contains fast flashing lights. Press <kbd>S</kbd> to tone them down.</span>
     </div>
   </div>
@@ -154,6 +157,7 @@
   <div class="chs" id="chs"></div>
   <div class="pals" id="pals2"></div>
   <button id="bMix" aria-pressed="false" title="Change color on every drop">MIX</button>
+  <button id="bLook" title="Change look (V)">LOOK: VHS</button>
   <button id="bAuto" aria-pressed="true">AUTO</button>
   <button id="bHud" aria-pressed="true">HUD</button>
   <button id="bList" class="plb2" aria-pressed="false" title="Playlist (L)">LIST</button>
@@ -233,6 +237,8 @@ const SCENES = [
   {name:'PULSE',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.03},
   {name:'CORE',     decay:.32, zoom:.0,   rot:.0,  lift:0, soft:.04},
   {name:'PHOSPHOR', decay:.93, zoom:.011, rot:1.,  lift:0, soft:.04},
+  {name:'MONOLITH', decay:.4,  zoom:.0,   rot:.0,  lift:0, soft:.03},
+  {name:'DUNES',    decay:.4,  zoom:.0,   rot:.0,  lift:0, soft:.03},
 ];
 const PALS = [
   {name:'EMBER',   c:[[.20,.008,.015],[.78,.05,.035],[1,.40,.11],[1,.93,.84]]},
@@ -501,6 +507,113 @@ vec3 sceneKern(vec2 p){
   }
   return col; }
 
+/* ---- gemeinsamer Block-Raymarcher für MONOLITH (m=0) und DUNES (m=1) ---- */
+float monoH(vec2 c){
+  vec2 q=c+.5; float r=length(q);
+  if(r<9. || r>34.) return 0.;
+  if(mod(c.x,3.)>.5 || mod(c.y,3.)>.5) return 0.;
+  float h0=hash(c*1.37);
+  if(h0<.3) return 0.;
+  float f=abs(atan(q.y,q.x))/PI, ring=(r-9.)/25.;
+  float v=spec(f*.7+.02+ring*.05);
+  return floor((1.5+v*v*13.*(1.-ring*.45)+h0*2.)*2.)/2.;
+}
+float duneH(vec2 c){
+  vec2 q=c*.085;
+  float n=noise(q)*.65+noise(q*2.3+7.)*.35;
+  float ridge=1.-abs(n*2.-1.);
+  float side=smoothstep(2.,10.,abs(c.x+.5));
+  float s=spec(clamp(abs(c.x+.5)/30.,0.,1.)*.7+.02);
+  return floor((ridge*ridge*6.5*(.45+uBass*.9)+s*3.2)*side*2.)/2.;
+}
+float fieldH(int m, vec2 c){ return m==0 ? monoH(c) : duneH(c); }
+float marchField(int m, vec3 ro, vec3 rd, out float hh, out vec3 n, out vec2 hc){
+  vec2 cell=floor(ro.xz), d2=rd.xz, stp=sign(d2), tD=abs(1./d2), tM=((cell+max(stp,0.))-ro.xz)/d2;
+  float tE=0.; n=vec3(0.,1.,0.); hh=0.; hc=cell;
+  for(int i=0;i<150;i++){
+    float h=fieldH(m,cell);
+    float tX=min(tM.x,tM.y);
+    if(ro.y+rd.y*tE<h){ hh=h; hc=cell; return tE; }
+    if(rd.y<0. && ro.y+rd.y*tX<h){ hh=h; hc=cell; n=vec3(0.,1.,0.); return (h-ro.y)/rd.y; }
+    if(tM.x<tM.y){ tE=tM.x; tM.x+=tD.x; cell.x+=stp.x; n=vec3(-stp.x,0.,0.); }
+    else { tE=tM.y; tM.y+=tD.y; cell.y+=stp.y; n=vec3(0.,0.,-stp.y); }
+    if(tE>130.) break;
+  }
+  return -1.;
+}
+
+/* ---- 6: MONOLITH — Säulen-Arena, jede Säule ein VU-Meter ---- */
+vec3 sceneMono(vec2 p){
+  float t=uTime, cm=mod(uCam,3.), a=t*.1+uSpin*.4;
+  vec3 ro, ta; float lens=1.15, roll=0.;
+  if(cm<.5){ ro=vec3(0.,2.6+uBass*.8,0.); ta=ro+vec3(cos(a),.28+.08*sin(t*.3),sin(a)); lens=.95; roll=sin(t*.2)*.05; }
+  else if(cm<1.5){ ro=vec3(sin(a)*4.,50.,cos(a)*4.); ta=vec3(0.); roll=t*.06; }
+  else { ro=vec3(sin(a)*46.,13.+sin(t*.2)*4.,cos(a)*46.); ta=vec3(0.,3.,0.); lens=1.3; }
+  ro.y+=uKick*.3;
+  vec3 rd=safeDir(normalize(camM(ro,ta,roll)*vec3(p,lens)));
+  vec3 col=mix(uPal[0]*.28, vec3(0.), clamp(rd.y*2.5,0.,1.))+ember(.5)*exp(-abs(rd.y)*12.)*(.12+uSub*.5);
+  col+=stars(rd)*step(.05,rd.y);
+  float hh; vec3 n; vec2 hc;
+  float th=marchField(0,ro,rd,hh,n,hc);
+  if(th>0.){
+    vec3 pos=ro+rd*th; float r=length(hc+.5);
+    vec3 c;
+    if(hh<.01){
+      vec2 g=abs(fract(pos.xz)-.5);
+      float line=smoothstep(.46,.5,max(g.x,g.y));
+      float ringL=smoothstep(.3,0.,abs(length(pos.xz)-(9.+fract(t*.25+uKick*.1)*25.)));
+      c=uPal[0]*.08+ember(.5)*line*(.06+uKick*.35)+ember(.75)*ringL*(.15+uKick*.6)+ember(.6)*exp(-length(pos.xz)*.12)*uSub*.5;
+    } else if(n.y>.5){
+      float e=faceEdge(pos,n);
+      c=ember(.92)*(.6+e*.5)*(.6+uKick*.5);
+    } else {
+      float seg=step(fract(pos.y*1.6),.74);
+      float u=abs(n.x)>.5?fract(pos.z):fract(pos.x);
+      float inset=step(.14,u)*step(u,.86);
+      float lv=pos.y/14.;
+      c=ember(.1)*(.4+.2*abs(n.x)) + ember(.35+lv*.6)*seg*inset*(.55+uHigh*.8);
+    }
+    col=mix(col,c,exp(-th*.02));
+  }
+  return col; }
+
+/* ---- 7: DUNES — endloser Flug über Block-Dünen ---- */
+vec3 sceneDunes(vec2 p){
+  float t=uTime, cm=mod(uCam,3.), z=uTravel*1.6;
+  vec3 ro, look; float lens=1.1, roll=sin(t*.23)*.08;
+  if(cm<.5){ ro=vec3(sin(t*.3)*1.4,3.4+sin(t*.5)*.4,z); look=vec3(sin(t*.2)*.15,-.12,1.); }
+  else if(cm<1.5){ ro=vec3(0.,15.,z); look=vec3(0.,-.6,1.); lens=1.25; roll=0.; }
+  else { ro=vec3(0.,4.2,z); look=vec3(-.55,-.12,1.); lens=1.; roll=-.12; }
+  ro.y+=uKick*.25;
+  vec3 rd=safeDir(normalize(camM(ro,ro+look,roll)*vec3(p,lens)));
+  vec3 sd=normalize(vec3(0.,.1,1.));
+  float sa=dot(rd,sd);
+  vec3 col=mix(uPal[0]*.35, vec3(0.), clamp(rd.y*3.,0.,1.));
+  float cor=exp(-max(acos(clamp(sa,-1.,1.))-.16,0.)*14.)*(.5+uSub*1.2+uKick*.5);
+  col+=ember(.4+cor*.45)*cor;
+  col=mix(col, vec3(0.), smoothstep(.985,.988,sa));
+  col+=stars(rd)*step(.08,rd.y)*(1.-cor);
+  float hh; vec3 n; vec2 hc;
+  float th=marchField(1,ro,rd,hh,n,hc);
+  if(th>0.){
+    vec3 pos=ro+rd*th; float lv=clamp(hh/7.,0.,1.);
+    vec3 c;
+    if(hh<.01){
+      float lane=smoothstep(.25,0.,abs(abs(pos.x)-2.2));
+      float dash=step(.5,fract(pos.z*.25-t*.0));
+      vec2 g=abs(fract(pos.xz)-.5);
+      c=uPal[0]*.08+ember(.8)*lane*dash*(.35+uKick*.9)+ember(.5)*smoothstep(.46,.5,max(g.x,g.y))*.08;
+    } else if(n.y>.5){
+      float e=faceEdge(pos,n);
+      c=ember(.3+lv*.6)*(.55+.45*e)+ember(.95)*e*lv*.5;
+    } else {
+      float e=faceEdge(pos,n);
+      c=ember(.14+lv*.3)*(.35+.25*abs(n.x))*(.6+.4*e)+ember(.85)*smoothstep(.1,0.,hh-pos.y)*(.35+uKick*.6);
+    }
+    col=mix(col,c,exp(-th*.028));
+  }
+  return col; }
+
 /* ---- 5: PHOSPHOR — Oszilloskop mit Nachleuchten ---- */
 vec3 sceneScope(vec2 p){
   vec2 q=p/fitS();
@@ -561,7 +674,9 @@ void main(){
   else if(uScene==1) cur=sceneStadt(p);
   else if(uScene==2) cur=scenePulse(p);
   else if(uScene==3) cur=sceneKern(p);
-  else cur=sceneScope(p);
+  else if(uScene==4) cur=sceneScope(p);
+  else if(uScene==5) cur=sceneMono(p);
+  else cur=sceneDunes(p);
   cur+=embers(uv);
   o=vec4(max(cur,prev),1.);
 }`;
@@ -570,50 +685,101 @@ const FS_POST = COMMON + `
 uniform sampler2D uScene, uHud;
 uniform vec2 uRes;
 uniform float uTime, uKick, uGlitch, uPixel, uSoft, uRoll, uFlash, uLevel, uSnare;
+uniform int uLook;
 vec2 barrel(vec2 uv, float k){ vec2 c=uv-.5; return .5+c*(1.+k*dot(c,c)); }
+const int BAY[16]=int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);
+const int GLY[6]=int[6](0,8192,1040,1488,24445,29679);
+vec3 grab(vec2 uv){
+  vec3 c=textureLod(uScene,uv,1.).rgb;
+  vec3 b=textureLod(uScene,uv,4.).rgb*.5+textureLod(uScene,uv,6.).rgb*.3;
+  c+=max(b-.15,0.)*.6;
+  return 1.-exp(-c*1.3); }
+float luma(vec3 c){ return dot(c,vec3(.299,.587,.114)); }
 void main(){
-  vec2 uv=barrel(vUv,.09);
+  bool vhs = uLook==0;
+  float vf = vhs ? 1. : 0.;
+  vec2 uv = vhs ? barrel(vUv,.09) : vUv;
   vec2 edge=smoothstep(0.,.006,uv)*smoothstep(1.,.994,uv);
-  float inside=edge.x*edge.y;
+  float inside = vhs ? edge.x*edge.y : 1.;
   vec2 suv=uv;
   if(uPixel>.01){ float bs=max(1.,floor(mix(1.,48.,uPixel*uPixel)*uRes.y/540.)); suv=(floor(suv*uRes/bs)+.5)*bs/uRes; }
   float ln=floor(suv.y*240.);
   float burst=step(.72,hash(vec2(floor(suv.y*18.),floor(uTime*14.))));
-  float jit=(hash(vec2(ln,floor(uTime*30.)))-.5)*(.0012+uGlitch*.035*burst);
+  float jit=(hash(vec2(ln,floor(uTime*30.)))-.5)*(.0012*vf+uGlitch*.035*burst);
   float bandY=1.-fract(uTime*.11);
-  float band=smoothstep(.035,0.,abs(suv.y-bandY))*(.25+uGlitch*.8);
+  float band=smoothstep(.035,0.,abs(suv.y-bandY))*(.25+uGlitch*.8)*vf;
   suv.x+=jit+band*.008*sin(suv.y*500.+uTime*40.);
   if(uRoll>.05){ vec2 b=floor(suv*vec2(10.,24.)); float h=hash(b+floor(uTime*24.));
     if(h<uRoll*.16) suv.x+=(hash(b+3.)-.5)*.12; }
-  float ca=.0012+uKick*.005+uGlitch*.012;
+  float ca=(.0012*vf+.0004)+uKick*.005*(.4+.6*vf)+uGlitch*.012;
   vec2 dir=(suv-.5)*ca*2.+vec2(ca,0.);
   vec3 col;
-  col.r=textureLod(uScene,suv+dir,0.).r;
-  col.g=textureLod(uScene,suv,0.).g;
-  col.b=textureLod(uScene,suv-dir,0.).b;
-  vec3 soft=textureLod(uScene,suv,2.6).rgb;
-  col=mix(col,soft,uSoft);
-  vec3 b1=textureLod(uScene,suv,3.5).rgb, b2=textureLod(uScene,suv,5.).rgb, b3=textureLod(uScene,suv,6.5).rgb;
-  vec3 bloom=b1*.45+b2*.35+b3*.3;
-  col+=max(bloom-.15,0.)*(.6+uKick*.6);
-  float y=dot(col,vec3(.299,.587,.114));
-  vec3 lft=textureLod(uScene,suv-vec2(.006,0.),1.5).rgb;
-  float yl=dot(lft,vec3(.299,.587,.114));
-  col=mix(col, y+(lft-yl)*1.05, .35);
-  col+=uPal[1]*band*.12*hash(vec2(floor(suv.x*300.),floor(uTime*60.)));
+  float sc=max(1.,floor(uRes.y/540.));
+  if(uLook==2){ // DITHER — 4 Farbstufen, Bayer-Raster, große Pixel
+    float ps=max(2.,floor(uRes.y/200.));
+    vec2 cell=floor(gl_FragCoord.xy/ps);
+    vec3 g=grab((cell+.5)*ps/uRes);
+    ivec2 q=ivec2(mod(cell,4.));
+    float d=float(BAY[q.x+q.y*4])/16.;
+    float idx=clamp(floor(luma(g)*3.4+d-.15),0.,3.);
+    col = idx<.5 ? uPal[0]*.3 : idx<1.5 ? uPal[1]*.8 : idx<2.5 ? uPal[2] : uPal[3];
+  } else if(uLook==3){ // HALFTONE — Druckpunkte im 45°-Raster
+    float cs=7.*sc;
+    vec2 fc=gl_FragCoord.xy; mat2 r45=mat2(.7071,-.7071,.7071,.7071);
+    vec2 rp=r45*fc; vec2 cell=floor(rp/cs);
+    vec2 cc=transpose(r45)*((cell+.5)*cs);
+    vec3 g=grab(cc/uRes);
+    float l=pow(clamp(luma(g)*1.4,0.,1.),.85);
+    float rad=sqrt(l)*cs*.62;
+    float dd=length(rp-(cell+.5)*cs);
+    float dot1=smoothstep(rad+.8,rad-.8,dd);
+    vec3 ink=mix(uPal[1],uPal[3],smoothstep(.35,1.,l));
+    col=uPal[0]*.12+ink*dot1*1.05;
+  } else if(uLook==4){ // ASCII — Terminal-Zeichen aus 3×5-Glyphen
+    vec2 cs=vec2(4.,6.)*sc;
+    vec2 cell=floor(gl_FragCoord.xy/cs);
+    vec3 g=grab((cell+.5)*cs/uRes);
+    float l=pow(clamp(luma(g)*1.8,0.,1.),.75);
+    int lvl = l<.16 ? 0 : int(clamp(floor(l*6.),1.,5.));
+    vec2 lp=floor((gl_FragCoord.xy-cell*cs)/sc);
+    int lx=int(lp.x), ly=4-int(lp.y-.0);
+    float on=0.;
+    if(lx<3 && ly>=0 && ly<5){ int bit=ly*3+lx; on=float((GLY[lvl]>>bit)&1); }
+    col=uPal[0]*.05+mix(uPal[1],uPal[3],smoothstep(.25,1.,l))*on*(.6+l*.7);
+  } else {
+    col.r=textureLod(uScene,suv+dir,0.).r;
+    col.g=textureLod(uScene,suv,0.).g;
+    col.b=textureLod(uScene,suv-dir,0.).b;
+    vec3 soft=textureLod(uScene,suv,2.6).rgb;
+    col=mix(col,soft,uSoft*vf);
+    vec3 b1=textureLod(uScene,suv,3.5).rgb, b2=textureLod(uScene,suv,5.).rgb, b3=textureLod(uScene,suv,6.5).rgb;
+    vec3 bloom=b1*.45+b2*.35+b3*.3;
+    col+=max(bloom-.15,0.)*(.6+uKick*.6);
+    if(vhs){
+      float y=luma(col);
+      vec3 lft=textureLod(uScene,suv-vec2(.006,0.),1.5).rgb;
+      col=mix(col, y+(lft-luma(lft))*1.05, .35);
+      col+=uPal[1]*band*.12*hash(vec2(floor(suv.x*300.),floor(uTime*60.)));
+    }
+    col=1.-exp(-col*1.3);
+  }
   vec2 huv=vec2(suv.x,1.-suv.y);
-  vec4 h0=texture(uHud,huv), h1=texture(uHud,huv+vec2(.0018,0.)), h2=texture(uHud,huv-vec2(.0012,0.));
+  vec4 h0=texture(uHud,huv), h1=texture(uHud,huv+vec2(.0018*vf,0.)), h2=texture(uHud,huv-vec2(.0012*vf,0.));
   vec3 hud=vec3(h1.r,h0.g,h2.b);
   float ha=max(max(h0.a,h1.a),h2.a);
   col=mix(col, hud, ha*.92);
-  col+=uFlash*mix(vec3(1.),uPal[3],.4)*.55;
-  col=1.-exp(-col*1.3);
-  col=pow(max(col,0.),vec3(.97,1.,1.03));
-  col=col*.95+uPal[0]*.08+.01;
-  col*=.86+.14*sin(vUv.y*uRes.y*1.5708);
-  col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.075;
-  vec2 vv=(vUv-.5)*vec2(1.,1.15);
-  col*=1.-dot(vv,vv)*.9;
+  col+=uFlash*mix(vec3(1.),uPal[3],.4)*.45;
+  if(vhs){
+    col=pow(max(col,0.),vec3(.97,1.,1.03));
+    col=col*.95+uPal[0]*.08+.01;
+    col*=.86+.14*sin(vUv.y*uRes.y*1.5708);
+    col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.075;
+    vec2 vv=(vUv-.5)*vec2(1.,1.15);
+    col*=1.-dot(vv,vv)*.9;
+  } else if(uLook==1){
+    col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.02;
+    vec2 vv=(vUv-.5); col*=1.-dot(vv,vv)*.35;
+  }
   o=vec4(col*inside,1.);
 }`;
 
@@ -850,6 +1016,18 @@ function updPal(dt){ const tg=PALS[palIdx].c, k=1-Math.exp(-dt*4);
   b.onclick=()=>{ setPal(i); banner={text:pl.name,t:clock()}; }; box.appendChild(b); }); });
 setPal(palIdx); hudColors();
 
+/* ---------------- Looks (Filter über das ganze Bild) ---------------- */
+const LOOKS=['VHS','CLEAN','DITHER','HALFTONE','ASCII'];
+let lookIdx=0;
+try{ const v=+localStorage.getItem('burnline.look'); if(v>=0&&v<LOOKS.length) lookIdx=v; }catch(e){}
+function setLook(i){ lookIdx=(i+LOOKS.length)%LOOKS.length; try{ localStorage.setItem('burnline.look',lookIdx); }catch(e){}
+  $('#bLook').textContent='LOOK: '+LOOKS[lookIdx];
+  document.querySelectorAll('#looks1 button').forEach((b,j)=>b.setAttribute('aria-pressed',j===lookIdx?'true':'false')); }
+LOOKS.forEach((n,i)=>{ const b=document.createElement('button'); b.textContent=n; b.setAttribute('aria-label','Look '+n);
+  b.onclick=()=>{ setLook(i); banner={text:n,t:clock()}; }; $('#looks1').appendChild(b); });
+$('#bLook').onclick=()=>{ setLook(lookIdx+1); banner={text:LOOKS[lookIdx],t:clock()}; };
+setLook(lookIdx);
+
 /* ---------------- Szenensteuerung ---------------- */
 let scene=0, auto=true, hudOn=true;
 const BANNERS=['DROP','LEVEL UP','808 MODE','BOSS FIGHT','STAGE','EXTRA LIFE','CONTINUE?'];
@@ -1021,6 +1199,25 @@ $('#bMic').onclick=()=>startStream('mic');
 if(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){ $('#bTab').hidden=false; $('#bTab').onclick=()=>startStream('tab'); }
 if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) $('#bMic').hidden=true;
 const IS_APP=/Electron/.test(navigator.userAgent);
+// Android-App: Brücke zur nativen Seite (Video stückweise in Filme/Burnline speichern)
+const IS_ANDROID=!!window.BurnlineAndroid;
+if(IS_ANDROID && !window.burnlineApp){
+  const b64=buf=>{ const u=new Uint8Array(buf); let x=''; for(let i=0;i<u.length;i+=0x8000) x+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return btoa(x); };
+  window.burnlineApp={
+    recBegin: async ext=>BurnlineAndroid.recBegin(ext),
+    recChunk: async (buf,pos)=>{ const r=BurnlineAndroid.recChunk(b64(buf), typeof pos==='number'?pos:-1); if(r!=='ok') throw new Error(r); return true; },
+    recEnd: async name=>JSON.parse(BurnlineAndroid.recEnd(name)),
+    recAbort: async ()=>BurnlineAndroid.recAbort()
+  };
+  $('#bTab').hidden=true;
+  document.querySelector('.foot span').hidden=true;
+}
+window.androidZurueck=()=>{
+  if(offline){ return true; }
+  if(!$('#exp').hidden){ $('#exp').hidden=true; return true; }
+  if(!$('#pl').hidden){ openPl(false); return true; }
+  if($('#start').hidden && srcMode!=='none'){ $('#start').hidden=false; return true; }
+  return false; };
 if(IS_APP){ $('#bTab').innerHTML='SYSTEM AUDIO<small>Spotify, Apple Music and more, straight from your Mac</small>'; }
 
 function togglePlay(){
@@ -1122,7 +1319,7 @@ async function pickAudioCodec(sr){
   return null; }
 function progShow(frac,txt){ $('#progFill').style.width=(Math.max(0,Math.min(1,frac))*100).toFixed(1)+'%'; $('#progTxt').textContent=txt; }
 async function exportFast(){
-  const FPS=60, F=FORMATS[expOpt.fmt], BR=expOpt.fmt==='16:9'?16e6:12e6;
+  const FPS=IS_ANDROID?30:60, F=FORMATS[expOpt.fmt], BR=expOpt.fmt==='16:9'?16e6:12e6;
   ensureCtx(); const sr=actx.sampleRate;
   const vc=await pickVideoCodec(F.w,F.h,FPS,BR), ac=await pickAudioCodec(sr);
   if(!vc||!ac){ $('#start').hidden=false; msg('This computer cannot encode H.264 video here. Use LIVE export instead.'); return; }
@@ -1135,7 +1332,7 @@ async function exportFast(){
   // Ziel: Mac-App schreibt auf die Platte, sonst im Speicher
   const disk=!!(window.burnlineApp && window.burnlineApp.recBegin);
   let wq=Promise.resolve(), wErr='';
-  const target = disk ? new Mp4Muxer.StreamTarget({ chunked:true, chunkSize:8*1024*1024,
+  const target = disk ? new Mp4Muxer.StreamTarget({ chunked:true, chunkSize:(IS_ANDROID?2:8)*1024*1024,
       onData:(d,pos)=>{ const c=d.slice(); wq=wq.then(()=>window.burnlineApp.recChunk(c.buffer,pos)).catch(e=>{ wErr=String(e&&e.message||e); }); } })
     : new Mp4Muxer.ArrayBufferTarget();
   if(disk) await window.burnlineApp.recBegin('mp4');
@@ -1258,7 +1455,8 @@ addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT' && e.target.type!=='range') return;
   const k=e.key.toLowerCase();
   if(k===' '){ e.preventDefault(); togglePlay(); }
-  else if(k>='1'&&k<='5'){ setScene(+k-1); setAuto(false); S.pixel=.6; }
+  else if(k>='1'&&k<=String(SCENES.length)){ setScene(+k-1); setAuto(false); S.pixel=.6; }
+  else if(k==='v'){ $('#bLook').click(); }
   else if(k==='a') setAuto(!auto);
   else if(k==='h') $('#bHud').click();
   else if(k==='f') toggleFs();
@@ -1463,7 +1661,7 @@ function renderStep(now,dt){
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,wr.t);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,hudTex);
   if(PP.u.uPal) gl.uniform3fv(PP.u.uPal,palFlat);
-  i1(PP,'uScene',0); i1(PP,'uHud',1);
+  i1(PP,'uScene',0); i1(PP,'uHud',1); i1(PP,'uLook',lookIdx);
   gl.uniform2f(PP.u.uRes,canvas.width,canvas.height);
   f1(PP,'uTime',now%3600); f1(PP,'uKick',S.kick*gm); f1(PP,'uGlitch',S.glitch*gm); f1(PP,'uPixel',S.pixel); f1(PP,'uSoft',sc.soft);
   f1(PP,'uRoll',S.roll*gm); f1(PP,'uFlash',S.flash*(strobeSafe?.25:1)); f1(PP,'uLevel',S.level); f1(PP,'uSnare',S.snare);

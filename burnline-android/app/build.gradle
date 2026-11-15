@@ -1,0 +1,37 @@
+plugins { id 'com.android.application' }
+
+/* -Pfassung=<Nummer> zählt hoch, damit ein neues APK über das alte passt. */
+def fassung = (project.findProperty('fassung') ?: '1') as int
+
+android {
+  namespace 'de.mumafi.burnline'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'de.mumafi.burnline'
+    minSdk 29          // Android 10+: Videos landen ohne Speicher-Recht in Filme/Burnline
+    targetSdk 34
+    versionCode fassung
+    versionName "1.${fassung}"
+  }
+
+  /* Fester, offen liegender Schlüssel wie bei den AGG-Apps: so lässt sich
+     jede neue Fassung über die alte installieren. Nicht für den Play Store. */
+  signingConfigs {
+    fest {
+      storeFile rootProject.file('burnline.keystore')
+      storePassword 'android'
+      keyAlias 'burnline'
+      keyPassword 'android'
+    }
+  }
+  buildTypes {
+    debug { signingConfig signingConfigs.fest }
+    release { minifyEnabled false; signingConfig signingConfigs.fest }
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  lint { abortOnError false; checkReleaseBuilds false }
+}
