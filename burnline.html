@@ -236,17 +236,17 @@ const SCENES = [
   {name:'CITY',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.04},
   {name:'PULSE',    decay:.45, zoom:.0,   rot:.0,  lift:0, soft:.03},
   {name:'CORE',     decay:.32, zoom:.0,   rot:.0,  lift:0, soft:.04},
-  {name:'PHOSPHOR', decay:.93, zoom:.011, rot:1.,  lift:0, soft:.04},
+  {name:'PHOSPHOR', decay:.72, zoom:.004, rot:.0,  lift:0, soft:.03},
   {name:'MONOLITH', decay:.4,  zoom:.0,   rot:.0,  lift:0, soft:.03},
   {name:'DUNES',    decay:.4,  zoom:.0,   rot:.0,  lift:0, soft:.03},
 ];
 const PALS = [
-  {name:'EMBER',   c:[[.20,.008,.015],[.78,.05,.035],[1,.40,.11],[1,.93,.84]]},
-  {name:'ICE',    c:[[.0,.035,.11],[.04,.33,.85],[.35,.85,1],[.92,.98,1]]},
-  {name:'TOXIC',   c:[[.0,.09,.03],[.12,.6,.1],[.62,1,.22],[.95,1,.85]]},
-  {name:'ULTRA',  c:[[.09,.0,.17],[.55,.05,.75],[1,.25,.65],[1,.88,.95]]},
-  {name:'GOLD',   c:[[.11,.045,.0],[.62,.3,.02],[1,.74,.2],[1,.97,.85]]},
-  {name:'NEON',   c:[[.05,.0,.14],[.85,.08,.55],[.1,.9,1],[1,1,1]]},
+  {name:'EMBER',   c:[[.24,.0,.02],[.95,.04,.03],[1,.45,.05],[1,.95,.80]]},
+  {name:'ICE',    c:[[.0,.04,.16],[.0,.38,1],[.2,.9,1],[.9,1,1]]},
+  {name:'TOXIC',   c:[[.0,.12,.03],[.1,.8,.08],[.65,1,.1],[.95,1,.8]]},
+  {name:'ULTRA',  c:[[.12,.0,.24],[.65,.0,1],[1,.15,.7],[1,.85,.97]]},
+  {name:'GOLD',   c:[[.14,.05,.0],[.85,.38,.0],[1,.8,.1],[1,.98,.8]]},
+  {name:'NEON',   c:[[.08,.0,.2],[1,.05,.6],[0,.95,1],[1,1,1]]},
   {name:'MONO',   c:[[.05,.05,.05],[.38,.38,.38],[.78,.78,.78],[1,1,1]]},
 ];
 
@@ -614,24 +614,40 @@ vec3 sceneDunes(vec2 p){
   }
   return col; }
 
-/* ---- 5: PHOSPHOR — Oszilloskop mit Nachleuchten ---- */
+/* ---- 5: PHOSPHOR — 3D-Tunnel aus Phosphor-Ringen: jeder Ring ist das Spektrum eines Moments ---- */
 vec3 sceneScope(vec2 p){
-  vec2 q=p/fitS();
-  float r=length(q), a=atan(q.y,q.x);
-  float m=abs(a)/PI;
-  float w=wave(m);
-  float rr=.21+uBass*.07+w*.11*(.6+uLevel);
-  float d=abs(r-rr);
-  vec3 col=ember(.82)*exp(-d*d*26000.)*1.3+ember(.5)*exp(-d*55.)*.22;
-  float s=spec(m*.85+.01);
-  float ray=smoothstep(.35,0.,abs(fract(m*72.)-.5))*step(.055,r)*step(r,.07+s*.13);
-  col+=ember(.45+s*.55)*ray*.7;
-  float aspect=uRes.x/uRes.y;
-  float x=p.x/aspect+.5;
-  float wy=wave(x)*.11-.37;
-  float wd=abs(p.y-wy);
-  col+=ember(.9)*exp(-wd*wd*32000.)*.75;
-  col+=uPal[3]*exp(-r*r*500.)*uKick*.6;
+  float t=uTime, cm=mod(uCam,3.), z0=uTravel*1.4;
+  vec3 ro=vec3(sin(t*.4)*.6, cos(t*.33)*.6, z0);
+  vec3 look = cm<.5 ? vec3(sin(t*.25)*.12,cos(t*.2)*.12,1.) : cm<1.5 ? vec3(.38,.12,1.) : vec3(0.,0.,1.);
+  float roll = uSpin*.6 + (cm>1.5 ? t*.35 : sin(t*.2)*.3);
+  vec3 rd=normalize(camM(ro,ro+look,roll)*vec3(p, cm>1.5 ? .85 : 1.05));
+  vec3 col=uPal[0]*.18*(1.-length(p));
+  const float SP=1.6;
+  float zs=ceil(z0/SP)*SP;
+  for(int k=0;k<44;k++){
+    float zk=zs+float(k)*SP;
+    float tt=(zk-ro.z)/rd.z;
+    if(tt<=0.) continue;
+    vec2 q=ro.xy+rd.xy*tt;
+    float a=atan(q.y,q.x), f=abs(a)/PI;
+    float age=float(k)/43.;
+    float h=hist(f*.78+.02, age);
+    float rr=2.6+h*2.4+uSub*.4*(1.-age);
+    if(k<2) rr+=wave(f)*.9*(1.-float(k)*.5)*(.6+uLevel);
+    float lq=length(q);
+    float d=abs(lq-rr);
+    float w=.022+tt*.0025;
+    float core=exp(-d*d/(w*w));
+    float halo=exp(-d/(w*5.))*.1;
+    float fade=exp(-tt*.085)*(1.-age*.5);
+    vec3 c=mix(ember(.55+h*.45), uPal[3], core*.5);
+    col+=c*(core*1.15+halo)*fade*(.6+uKick*.6*(1.-age));
+    if(mod(floor(zk/SP+.5),4.)<.5){
+      float spk=smoothstep(.06,0.,abs(fract(f*24.)-.5)/24.*PI*lq)*step(lq,rr)*step(rr*.55,lq);
+      col+=ember(.6+h*.3)*spk*.25*fade*(.4+h);
+    }
+  }
+  col+=ember(.9)*exp(-length(p)*14.)*(.12+uSub*.4+uKick*.3);
   return col; }
 
 /* ---- Pixel-Glut, in allen Szenen ---- */
@@ -693,7 +709,8 @@ vec3 grab(vec2 uv){
   vec3 c=textureLod(uScene,uv,1.).rgb;
   vec3 b=textureLod(uScene,uv,4.).rgb*.5+textureLod(uScene,uv,6.).rgb*.3;
   c+=max(b-.15,0.)*.6;
-  return 1.-exp(-c*1.3); }
+  c=1.-exp(-c*1.5);
+  return max(mix(vec3(dot(c,vec3(.299,.587,.114))),c,1.35),0.); }
 float luma(vec3 c){ return dot(c,vec3(.299,.587,.114)); }
 void main(){
   bool vhs = uLook==0;
@@ -754,14 +771,15 @@ void main(){
     col=mix(col,soft,uSoft*vf);
     vec3 b1=textureLod(uScene,suv,3.5).rgb, b2=textureLod(uScene,suv,5.).rgb, b3=textureLod(uScene,suv,6.5).rgb;
     vec3 bloom=b1*.45+b2*.35+b3*.3;
-    col+=max(bloom-.15,0.)*(.6+uKick*.6);
+    col+=max(bloom-.12,0.)*(.85+uKick*.7);
     if(vhs){
       float y=luma(col);
       vec3 lft=textureLod(uScene,suv-vec2(.006,0.),1.5).rgb;
-      col=mix(col, y+(lft-luma(lft))*1.05, .35);
+      col=mix(col, y+(lft-luma(lft))*1.05, .18);
       col+=uPal[1]*band*.12*hash(vec2(floor(suv.x*300.),floor(uTime*60.)));
     }
-    col=1.-exp(-col*1.3);
+    col=1.-exp(-col*1.55);
+    col=max(mix(vec3(luma(col)),col,1.4),0.);
   }
   vec2 huv=vec2(suv.x,1.-suv.y);
   vec4 h0=texture(uHud,huv), h1=texture(uHud,huv+vec2(.0018*vf,0.)), h2=texture(uHud,huv-vec2(.0012*vf,0.));
@@ -772,10 +790,10 @@ void main(){
   if(vhs){
     col=pow(max(col,0.),vec3(.97,1.,1.03));
     col=col*.95+uPal[0]*.08+.01;
-    col*=.86+.14*sin(vUv.y*uRes.y*1.5708);
+    col*=.9+.1*sin(vUv.y*uRes.y*1.5708);
     col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.075;
     vec2 vv=(vUv-.5)*vec2(1.,1.15);
-    col*=1.-dot(vv,vv)*.9;
+    col*=1.-dot(vv,vv)*.6;
   } else if(uLook==1){
     col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*.02;
     vec2 vv=(vUv-.5); col*=1.-dot(vv,vv)*.35;
