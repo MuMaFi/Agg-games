@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1a0f2e">
+<title>Illegal Autostehlen VI</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231a0f2e'/%3E%3Crect y='9' width='16' height='7' fill='%23ff4fa0'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%23ffc46b'/%3E%3C/svg%3E">
+<style>
+@font-face{ font-family:"Pricedown"; src:url("schrift/pricedown.woff2") format("woff2"); font-display:swap }
+/* Neon-Abend an der Küste: tiefes Violett, Flamingo-Pink, Sonnenorange */
+:root{
+  color-scheme: dark;
+  --nacht:#140b24; --panel:rgba(16,10,30,.66); --kante:rgba(255,255,255,.14);
+  --weiss:#fff6fb; --grau:#c9bdd9; --matt:#8f84a3;
+  --pink:#ff4fa0; --lila:#8b52ff; --cyan:#3ee8ff; --sonne:#ffb347; --geld:#7dffb0; --blau:#3a7bff; --rot:#ff3a3a;
+  --titel:"Pricedown", Impact, "Arial Black", sans-serif;
+  --text:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --oben:env(safe-area-inset-top, 0px); --rechts:env(safe-area-inset-right, 0px);
+  --unten:env(safe-area-inset-bottom, 0px); --links:env(safe-area-inset-left, 0px);
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+[hidden]{ display:none !important }
+html,body{ margin:0; height:100%; overflow:hidden; background:var(--nacht); color:var(--weiss);
+  font-family:var(--text); user-select:none; -webkit-user-select:none; touch-action:none; overscroll-behavior:none }
+#buehne{ position:fixed; inset:0 }
+#buehne canvas{ display:block; width:100%; height:100% }
+button{ font:inherit; color:inherit }
+button:focus-visible{ outline:2px solid var(--cyan); outline-offset:2px }
+kbd{ display:inline-block; min-width:1.7em; padding:1px 6px; border:1px solid rgba(255,255,255,.3); border-bottom-width:3px;
+  border-radius:5px; background:rgba(255,255,255,.08); font:600 12px/1.4 var(--text); text-align:center }
+
+/* ── Laden ─────────────────────────────────────────────── */
+.bild{ position:fixed; inset:0; z-index:90; display:none }
+.bild.an{ display:block }
+#lade{ background:radial-gradient(120% 80% at 50% 20%, #3a1650 0%, #140b24 60%, #0b0614 100%); display:none; place-items:center }
+#lade.an{ display:grid }
+.ladeInnen{ width:min(560px, calc(100% - 32px)); display:grid; justify-items:center; gap:18px; text-align:center }
+.ladeLogo{ width:min(420px, 78vw); height:auto; filter:drop-shadow(0 10px 40px rgba(170,80,255,.45)); animation:atmen 3.2s ease-in-out infinite }
+@keyframes atmen{ 50%{ transform:scale(1.025) } }
+.balken{ width:100%; height:6px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden }
+.balken i{ display:block; height:100%; width:0; background:linear-gradient(90deg, var(--lila), var(--pink), var(--sonne)); transition:width .3s }
+#ladetext{ margin:0; font:600 13px/1 var(--text); letter-spacing:.18em; text-transform:uppercase; color:var(--grau) }
+.tipp{ margin:0; min-height:3em; max-width:44ch; font-size:15px; line-height:1.5; color:var(--weiss); opacity:.85; text-wrap:balance }
+
+/* ── Hauptmenü ─────────────────────────────────────────── */
+#menue{ background:linear-gradient(90deg, rgba(11,6,22,.94) 0%, rgba(11,6,22,.78) 30%, rgba(11,6,22,0) 62%) }
+.menueSeite{ position:absolute; inset:0 auto 0 0; width:min(500px, 100%); display:flex; flex-direction:column; gap:22px;
+  padding:calc(26px + var(--oben)) 24px calc(22px + var(--unten)) max(48px, calc(var(--links) + 24px)); overflow:auto }
+.menueLogo{ align-self:flex-start; width:min(330px, 72vw); height:auto; filter:drop-shadow(0 8px 30px rgba(170,80,255,.35)); margin-left:-8px }
+.liste{ display:grid; gap:2px; justify-items:start }
+.liste button, .liste a{ appearance:none; border:0; background:none; cursor:pointer; text-decoration:none; color:var(--weiss);
+  font-family:var(--titel); font-size:clamp(28px, 4.4vw, 40px); line-height:1; letter-spacing:.01em; padding:7px 18px 5px 14px; margin-left:-14px;
+  -webkit-text-stroke:1px #000; paint-order:stroke fill; text-shadow:2px 2px 0 #000; position:relative; display:flex; align-items:baseline; gap:12px;
+  transition:transform .12s, color .12s }
+.liste button small{ font:600 12px/1 var(--text); letter-spacing:.08em; color:var(--grau); -webkit-text-stroke:0; text-shadow:none }
+.liste button:focus-visible, .liste a:focus-visible, .liste button:focus, .liste a:focus{ outline:none; color:#1a0b2a; -webkit-text-stroke:0; text-shadow:none;
+  background:linear-gradient(90deg, var(--sonne), var(--pink)); transform:translateX(10px); clip-path:polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%) }
+.liste button:focus small{ color:#3a1a3a }
+.liste .klein{ font-size:clamp(20px, 3vw, 26px); color:var(--grau); margin-top:6px }
+.fuss{ margin-top:auto; display:flex; flex-wrap:wrap; gap:6px 16px; font:600 11px/1.4 var(--text); letter-spacing:.14em; text-transform:uppercase; color:var(--matt) }
+body.touch .fuss .nurMaus{ display:none }
+
+/* Tafeln: Einstellungen, Steuerung, Credits */
+.tafel{ position:fixed; z-index:95; top:50%; right:max(24px, calc(var(--rechts) + 16px)); transform:translate(30px, -50%); opacity:0; pointer-events:none;
+  width:min(560px, calc(100% - 32px)); max-height:calc(100% - 40px - var(--oben) - var(--unten)); overflow:auto;
+  background:rgba(18,10,34,.9); border:1px solid var(--kante); border-radius:10px; padding:22px 24px 20px; backdrop-filter:blur(10px);
+  box-shadow:0 20px 60px rgba(0,0,0,.5); transition:opacity .18s, transform .18s; display:grid; gap:16px }
+.tafel.an{ opacity:1; transform:translate(0, -50%); pointer-events:auto }
+.tafel h2{ margin:0; font-family:var(--titel); font-weight:400; font-size:40px; line-height:.95; -webkit-text-stroke:1px #000; paint-order:stroke fill; text-shadow:2px 2px 0 #000 }
+.zeile{ display:grid; grid-template-columns:150px 1fr; gap:10px 14px; align-items:center }
+.zeile > span{ font:600 12px/1.2 var(--text); letter-spacing:.14em; text-transform:uppercase; color:var(--pink) }
+.wahl{ display:flex; flex-wrap:wrap; gap:6px }
+.wahl button, .knopf{ padding:8px 14px; border-radius:5px; border:1px solid var(--kante); background:rgba(255,255,255,.06); cursor:pointer; font-size:14px; color:var(--weiss) }
+.wahl button[aria-pressed="true"]{ background:var(--pink); border-color:var(--pink); color:#1a0f2e; font-weight:700 }
+.wahl button:focus-visible, .knopf:focus-visible, input[type=range]:focus-visible{ outline:2px solid var(--sonne); outline-offset:2px }
+.regler{ display:flex; align-items:center; gap:10px } .regler input{ flex:1; accent-color:var(--pink) } .regler output{ width:4.2em; text-align:right; font-variant-numeric:tabular-nums; color:var(--grau); font-size:13px }
+.knopf.haupt{ background:var(--sonne); border-color:var(--sonne); color:#1a0f2e; font-weight:700 }
+.tafel .reihe{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end }
+.tafel p{ margin:0; color:var(--grau); font-size:14px; line-height:1.55 }
+.tasten{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px }
+.tk{ background:rgba(255,255,255,.05); border:1px solid var(--kante); border-radius:6px; padding:9px 12px; font-size:14px; line-height:1.7 }
+.tk h3{ margin:0 0 4px; font:600 11px/1 var(--text); letter-spacing:.16em; text-transform:uppercase; color:var(--pink) }
+.nurTouch{ display:none } body.touch .nurTouch{ display:block } body.touch .nurMaus{ display:none }
+.credits{ display:grid; gap:10px; font-size:13.5px; line-height:1.5; color:var(--grau) }
+.credits b{ color:var(--weiss) } .credits a{ color:var(--cyan) }
+@media (max-width: 760px){
+  #menue{ background:linear-gradient(180deg, rgba(11,6,22,.55) 0%, rgba(11,6,22,.9) 70%) }
+  .menueSeite{ width:100%; padding-left:max(24px, calc(var(--links) + 16px)) }
+  .tafel{ right:16px; left:16px; width:auto; transform:translate(0, -46%) } .tafel.an{ transform:translate(0, -50%) }
+  .zeile{ grid-template-columns:1fr }
+}
+
+/* flache Bildschirme (Handy quer): Logo kleiner, Menü kompakter */
+@media (max-height: 560px){
+  .menueSeite{ gap:12px; padding-top:calc(14px + var(--oben)); padding-bottom:calc(12px + var(--unten)) }
+  .menueLogo{ width:auto; max-width:60vw; height:min(30vh, 150px); margin-left:40px }
+  .liste button, .liste a{ font-size:clamp(22px, 6.4vh, 32px); padding:5px 16px 3px 14px }
+  .liste .klein{ font-size:clamp(17px, 4.6vh, 22px); margin-top:2px }
+  .ladeLogo{ width:auto; height:min(42vh, 260px) }
+  .tafel{ top:calc(10px + var(--oben)); transform:translate(30px, 0); max-height:calc(100% - 20px - var(--oben) - var(--unten)); padding:16px 18px }
+  .tafel.an{ transform:translate(0, 0) }
+  .tafel h2{ font-size:30px }
+  #pause h2{ font-size:42px }
+}
+@media (max-height: 560px) and (max-width: 760px){ .tafel{ transform:translate(0, 0) } }
+
+/* Titelkarte beim Start */
+#intro{ position:fixed; inset:0; z-index:92; display:grid; place-items:center; background:#000; opacity:0; pointer-events:none; transition:opacity .5s }
+#intro.an{ opacity:1; animation:introAus 2.6s forwards }
+@keyframes introAus{ 0%{ opacity:1 } 55%{ opacity:1 } 100%{ opacity:0 } }
+#intro .ort{ font-family:var(--titel); font-size:clamp(60px, 14vw, 150px); line-height:.9; color:#fff; -webkit-text-stroke:2px #000; paint-order:stroke fill; text-shadow:4px 4px 0 #000, 0 0 50px rgba(255,79,160,.5); text-align:center }
+#introZeit{ display:block; margin-top:10px; font:600 15px/1 var(--text); letter-spacing:.3em; text-transform:uppercase; color:var(--sonne); text-align:center; -webkit-text-stroke:0; text-shadow:none }
+
+/* ── HUD ───────────────────────────────────────────────── */
+#hud{ position:fixed; inset:0; z-index:40; pointer-events:none; display:none }
+#hud.an{ display:block }
+#ecke{ position:absolute; top:calc(12px + var(--oben)); right:calc(14px + var(--rechts)); text-align:right; display:grid; justify-items:end; gap:2px }
+#uhr{ font:600 15px/1 var(--text); letter-spacing:.1em; color:var(--weiss); text-shadow:0 1px 3px #000; font-variant-numeric:tabular-nums }
+#geld{ font-family:var(--titel); font-size:clamp(30px,5vw,44px); line-height:1; color:var(--geld);
+  -webkit-text-stroke:1.5px #000; paint-order:stroke fill; text-shadow:3px 3px 0 #000; font-variant-numeric:tabular-nums }
+#geldDelta{ font-family:var(--titel); font-size:24px; line-height:1; opacity:0; transition:opacity .25s; -webkit-text-stroke:1px #000; paint-order:stroke fill; text-shadow:2px 2px 0 #000 }
+#geldDelta.an{ opacity:1 } #geldDelta.plus{ color:var(--geld) } #geldDelta.minus{ color:var(--rot) }
+#sterne{ font-size:26px; letter-spacing:2px; line-height:1; color:rgba(255,255,255,.22); text-shadow:0 0 2px #000, 2px 2px 0 #000 }
+#sterne .an{ color:#fff }
+#sterne.blinkt .an{ animation:blink .6s steps(2) infinite }
+@keyframes blink{ 50%{ color:rgba(255,255,255,.25) } }
+
+#pauseKnopf{ position:absolute; pointer-events:auto; top:calc(8px + var(--oben)); left:calc(52px + var(--links));
+  width:34px; height:34px; border-radius:9px; border:2px solid rgba(255,255,255,.22); background:rgba(10,8,18,.72); cursor:pointer; display:grid; place-items:center; opacity:.75 }
+#pauseKnopf::before, #pauseKnopf::after{ content:""; position:absolute; width:4px; height:13px; background:#e9edf5; border-radius:1px }
+#pauseKnopf::before{ transform:translateX(-4px) } #pauseKnopf::after{ transform:translateX(4px) }
+#auftrag{ position:absolute; top:calc(54px + var(--oben)); left:calc(12px + var(--links)); max-width:min(360px,58vw);
+  background:var(--panel); border:1px solid var(--kante); border-left:3px solid var(--pink); padding:8px 12px; border-radius:4px; display:none; backdrop-filter:blur(4px) }
+#auftrag.an{ display:block }
+#auftrag .kopf{ display:flex; justify-content:space-between; gap:12px; font:600 11px/1 var(--text); letter-spacing:.16em; text-transform:uppercase; color:var(--pink) }
+#auftragText{ font-size:15px; line-height:1.35; margin-top:5px }
+#auftragZeit{ font-family:var(--titel); font-size:26px; color:var(--sonne); margin-top:3px; font-variant-numeric:tabular-nums; -webkit-text-stroke:1px #000; paint-order:stroke fill }
+
+#miniRahmen{ position:absolute; left:calc(16px + var(--links)); bottom:calc(16px + var(--unten)); width:184px; height:184px;
+  border-radius:50%; box-shadow:0 4px 18px rgba(0,0,0,.5) }
+#mini{ width:100%; height:100%; display:block }
+#tacho{ position:absolute; right:calc(20px + var(--rechts)); bottom:calc(18px + var(--unten)); text-align:right; display:none }
+#tacho.an{ display:block }
+#tachoZahl{ font-family:var(--titel); font-size:64px; line-height:.85; -webkit-text-stroke:2px #000; paint-order:stroke fill; text-shadow:3px 3px 0 #000; font-variant-numeric:tabular-nums }
+#tacho small{ display:block; font:600 12px/1 var(--text); letter-spacing:.2em; color:var(--grau); text-shadow:0 1px 2px #000 }
+#hoehe{ display:none; font:600 13px/1.3 var(--text); color:var(--cyan); text-shadow:0 1px 2px #000; margin-top:4px; font-variant-numeric:tabular-nums }
+#hoehe.an{ display:block }
+#hinweis{ position:absolute; left:50%; bottom:calc(22% + var(--unten)); transform:translateX(-50%); padding:7px 14px; border-radius:4px;
+  background:var(--panel); border:1px solid var(--kante); font-size:15px; opacity:0; transition:opacity .15s; white-space:nowrap }
+#hinweis.an{ opacity:1 }
+#meldung{ position:absolute; left:50%; top:calc(14% + var(--oben)); transform:translateX(-50%); font-size:16px; font-weight:600;
+  padding:7px 16px; border-radius:4px; background:var(--panel); border:1px solid var(--kante); opacity:0; transition:opacity .2s; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis }
+#meldung.an{ opacity:1 }
+#gross{ position:absolute; left:0; right:0; top:30%; text-align:center; opacity:0; transition:opacity .3s; padding:0 16px }
+#gross.an{ opacity:1 }
+#grossA{ font-family:var(--titel); font-size:clamp(40px,10vw,96px); line-height:.9; color:#fff; -webkit-text-stroke:2px #000; paint-order:stroke fill; text-shadow:4px 4px 0 #000 }
+#grossB{ font-size:clamp(15px,2.6vw,20px); color:var(--weiss); text-shadow:0 1px 4px #000; margin-top:8px }
+
+/* ── Touch ─────────────────────────────────────────────── */
+#touch{ position:fixed; inset:0; z-index:45; display:none }
+#touch.an{ display:block }
+#blickZone{ position:absolute; inset:0 }
+#stickZone{ position:absolute; left:0; bottom:0; width:46%; height:58% }
+#stick{ position:absolute; width:120px; height:120px; border-radius:50%; border:2px solid rgba(255,255,255,.25); background:rgba(10,8,18,.25);
+  left:calc(28px + var(--links)); bottom:calc(36px + var(--unten)); pointer-events:none; opacity:.55; transition:opacity .15s }
+#stick.an{ opacity:1; bottom:auto }
+#stickGriff{ position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.55) }
+.tknopf{ position:absolute; width:74px; height:74px; border-radius:50%; border:2px solid rgba(255,255,255,.3); background:rgba(10,8,18,.5);
+  font:700 13px/1.1 var(--text); color:#fff; display:grid; place-items:center; text-align:center; touch-action:none; padding:4px }
+.tknopf.an{ background:rgba(255,79,160,.55); border-color:var(--pink) }
+#kAktion{ right:calc(22px + var(--rechts)); bottom:calc(120px + var(--unten)); width:84px; height:84px }
+#kAktion.bereit{ border-color:var(--sonne); box-shadow:0 0 0 3px rgba(255,179,71,.35) }
+#kSprung{ right:calc(118px + var(--rechts)); bottom:calc(36px + var(--unten)) }
+#kSprint{ right:calc(22px + var(--rechts)); bottom:calc(28px + var(--unten)) }
+#kKarte{ right:calc(130px + var(--rechts)); bottom:calc(132px + var(--unten)); width:54px; height:54px; font-size:11px }
+body.touch #miniRahmen{ bottom:auto; left:calc(12px + var(--links)); top:calc(52px + var(--oben)); width:116px; height:116px }
+body.touch #auftrag{ top:calc(52px + var(--oben)); left:calc(140px + var(--links)); max-width:min(320px, 40vw) }
+@media (max-width: 600px){ body.touch #auftrag{ left:calc(12px + var(--links)); top:calc(176px + var(--oben)); max-width:calc(100vw - 24px) } }
+body.touch #tacho{ right:auto; left:50%; transform:translateX(-50%); bottom:auto; top:calc(10px + var(--oben)); text-align:center }
+body.touch #tachoZahl{ font-size:40px }
+body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
+
+/* ── Karte und Pause ───────────────────────────────────── */
+.ueber{ position:fixed; inset:0; z-index:80; display:none; place-items:center; background:rgba(12,7,22,.82); backdrop-filter:blur(6px);
+  padding:calc(16px + var(--oben)) max(16px, var(--rechts)) calc(16px + var(--unten)) max(16px, var(--links)) }
+.ueber.an{ display:grid }
+#karteBox .innen{ display:grid; gap:10px; justify-items:center }
+#karteGross{ border-radius:6px; border:1px solid var(--kante); max-width:100% }
+#pause{ position:fixed; inset:0; z-index:85; display:none; background:linear-gradient(90deg, rgba(11,6,22,.9) 0%, rgba(11,6,22,.6) 45%, rgba(11,6,22,.3) 100%); backdrop-filter:blur(3px); place-items:initial }
+#pause.an{ display:block }
+#pause h2{ margin:0; font-family:var(--titel); font-weight:400; font-size:64px; line-height:.9; -webkit-text-stroke:1.5px #000; paint-order:stroke fill; text-shadow:3px 3px 0 #000 }
+#fehler{ position:fixed; left:12px; right:12px; bottom:calc(12px + var(--unten)); z-index:99; background:#3a0d18; border:1px solid #ff6a7a; color:#fff; padding:10px 14px; border-radius:6px; font-size:14px }
+@media (prefers-reduced-motion: reduce){ #sterne.blinkt .an{ animation:none } }
+</style>
+</head>
+<body>
+<div id="buehne"></div>
+
+<section id="lade" class="an" aria-live="polite">
+  <div class="ladeInnen">
+    <img class="ladeLogo" src="bilder/logo.png" alt="Illegal Autostehlen VI" width="1177" height="948">
+    <div class="balken"><i id="ladeBalken"></i></div>
+    <p id="ladetext">Wird geladen …</p>
+    <p class="tipp" id="tipp"></p>
+  </div>
+</section>
+
+<section id="menue" class="bild">
+  <div class="menueSeite">
+    <img class="menueLogo" src="bilder/logo.png" alt="Illegal Autostehlen VI" width="1177" height="948">
+    <nav class="liste" id="hauptListe" aria-label="Hauptmenü">
+      <button data-ziel="weiter" id="mWeiter" hidden>Weiterspielen <small id="mWeiterInfo"></small></button>
+      <button data-ziel="neu">Neues Spiel</button>
+      <button data-ziel="Einstellungen">Einstellungen</button>
+      <button data-ziel="Steuerung">Steuerung</button>
+      <button data-ziel="Credits">Credits</button>
+      <a class="klein" id="mHeim" href="../../index.html">Zur Spielesammlung</a>
+    </nav>
+    <div class="fuss"><span>Version 1.0</span><span>Palma Bay</span><span class="nurMaus">↑ ↓ wählen · Enter bestätigen · Esc zurück</span></div>
+  </div>
+</section>
+
+<section id="intro" aria-hidden="true"><div class="ort">Palma Bay<span id="introZeit"></span></div></section>
+
+<div class="tafel" id="tEinstellungen" role="dialog" aria-label="Einstellungen">
+  <h2>Einstellungen</h2>
+  <div class="zeile"><span>Grafik</span><div class="wahl"><button data-grafik="hoch">Hoch</button><button data-grafik="mittel">Mittel</button><button data-grafik="niedrig">Niedrig</button></div></div>
+  <div class="zeile"><span>Ton</span><div class="wahl"><button id="eTon">An</button></div></div>
+  <div class="zeile"><span>Lautstärke</span><div class="regler"><input type="range" id="eLaut" min="0" max="100" step="5" aria-label="Lautstärke"><output id="eLautWert"></output></div></div>
+  <div class="zeile"><span>Kamera-Tempo</span><div class="regler"><input type="range" id="eEmpf" min="40" max="220" step="10" aria-label="Kamera-Tempo"><output id="eEmpfWert"></output></div></div>
+  <div class="zeile"><span>Kamera hoch/runter</span><div class="wahl"><button id="eUmkehren">Normal</button></div></div>
+  <div class="zeile"><span>Tageszeit</span><div class="wahl"><button data-zeit="7">Morgen</button><button data-zeit="13">Mittag</button><button data-zeit="17.7">Abendrot</button><button data-zeit="22">Nacht</button></div></div>
+  <p>Hoch sieht am besten aus und braucht einen guten Rechner. Auf Handys ist Mittel voreingestellt.</p>
+  <div class="reihe"><button class="knopf haupt" data-zurueck>Fertig</button></div>
+</div>
+
+<div class="tafel" id="tSteuerung" role="dialog" aria-label="Steuerung">
+  <h2>Steuerung</h2>
+  <div class="tasten nurMaus">
+    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen</div>
+    <div class="tk"><h3>Auto und Boot</h3><kbd>E</kbd> ein- und aussteigen · <kbd>W</kbd><kbd>S</kbd> Gas und Bremse · <kbd>A</kbd><kbd>D</kbd> lenken · <kbd>Leer</kbd> Handbremse · <kbd>⇧</kbd> Boost</div>
+    <div class="tk"><h3>Flugzeug</h3><kbd>W</kbd><kbd>S</kbd> Schub · <kbd>A</kbd><kbd>D</kbd> Kurve · <kbd>↑</kbd> oder <kbd>Leer</kbd> steigen · <kbd>↓</kbd> sinken · erst ab 110 km/h hochziehen</div>
+    <div class="tk"><h3>Sonst</h3><kbd>M</kbd> Karte · <kbd>Esc</kbd> Pause · Mausrad: Kameraabstand · Klick ins Bild fängt die Maus</div>
+  </div>
+  <div class="tasten nurTouch">
+    <div class="tk"><h3>Bewegen</h3>Linke Bildhälfte: Daumen auflegen und schieben. Im Auto ist oben Gas und unten Bremse.</div>
+    <div class="tk"><h3>Umsehen</h3>Rechte Bildhälfte wischen.</div>
+    <div class="tk"><h3>Knöpfe</h3>Aktion steigt ein und aus. Im Auto bremst der zweite Knopf, der dritte gibt Boost. Im Flugzeug regeln sie den Schub.</div>
+  </div>
+  <p>Gelbe Lichtsäulen sind Kurieraufträge. Fünf Sterne heißt: die halbe Stadt sucht dich. Abhängen klappt, wenn dich eine Weile keine Streife sieht.</p>
+  <div class="reihe"><button class="knopf haupt" data-zurueck>Zurück</button></div>
+</div>
+
+<div class="tafel" id="tCredits" role="dialog" aria-label="Credits">
+  <h2>Credits</h2>
+  <div class="credits">
+    <div><b>Illegal Autostehlen VI</b> · Idee und Logo: AGG Games</div>
+    <div><b>Limousine</b> · „Low poly Foxbody sedan“ von Daniel Zhabotinsky · <a href="https://sketchfab.com/3d-models/low-poly-foxbody-sedan-3d4f0d584c6945c8b14d081968073586" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>BMW E30</b> · „(Low-poly) BMW E30 (free download)“ von KrStolorz · <a href="https://sketchfab.com/3d-models/low-poly-bmw-e30-free-download-e453bdae0ee1423ea79f1322db1c7459" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>Muscle-Car</b> · „LowPoly Game model“ von archer1533 · <a href="https://sketchfab.com/3d-models/lowpoly-game-model-c429b45462524c03a460ace11f596f95" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>Figur</b> · „Nathan Animated 003 – Walking 3D Man“ von Renderpeople · <a href="https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>Schrift</b> · Pricedown von Ray Larabie (Typodermic Fonts)</div>
+    <div><b>Grafik</b> · three.js (MIT-Lizenz) · Stadt, Himmel, Wasser, Boote, Flugzeug und Ton entstehen im Spiel selbst</div>
+    <div>Die Modelle wurden für das Spiel verkleinert und neu zusammengesetzt. CC BY 4.0: <a href="https://creativecommons.org/licenses/by/4.0/deed.de" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0</a></div>
+  </div>
+  <div class="reihe"><button class="knopf haupt" data-zurueck>Zurück</button></div>
+</div>
+
+<div class="tafel" id="tNeu" role="dialog" aria-label="Neues Spiel">
+  <h2>Neues Spiel?</h2>
+  <p>Du hast schon einen Spielstand. Ein neues Spiel fängt wieder mit $500 an der Promenade an.</p>
+  <div class="reihe"><button class="knopf" id="neuNein">Abbrechen</button><button class="knopf haupt" id="neuJa">Neu anfangen</button></div>
+</div>
+
+<div id="hud">
+  <button id="pauseKnopf" aria-label="Pause"></button>
+  <div id="ecke">
+    <div id="uhr">17:36</div>
+    <div id="geld">$0</div>
+    <div id="geldDelta"></div>
+    <div id="sterne" aria-label="Fahndungsstufe"></div>
+  </div>
+  <div id="auftrag">
+    <div class="kopf"><span>Kurierauftrag</span><span id="auftragLohn"></span></div>
+    <div id="auftragText"></div>
+    <div id="auftragZeit"></div>
+  </div>
+  <div id="miniRahmen"><canvas id="mini" width="240" height="240"></canvas></div>
+  <div id="tacho"><div id="tachoZahl">0</div><small>km/h</small><div id="hoehe"></div></div>
+  <div id="hinweis"></div>
+  <div id="meldung"></div>
+  <div id="gross"><div id="grossA"></div><div id="grossB"></div></div>
+</div>
+
+<div id="touch">
+  <div id="blickZone"></div>
+  <div id="stickZone"></div>
+  <div id="stick"><div id="stickGriff"></div></div>
+  <button class="tknopf" id="kKarte">Karte</button>
+  <button class="tknopf" id="kSprung">Sprung</button>
+  <button class="tknopf" id="kSprint">Rennen</button>
+  <button class="tknopf" id="kAktion">Aktion</button>
+</div>
+
+<div class="ueber" id="karteBox">
+  <div class="innen">
+    <canvas id="karteGross" width="600" height="600"></canvas>
+    <button class="knopf" id="karteZu">Karte schließen</button>
+  </div>
+</div>
+
+<div id="pause">
+  <div class="menueSeite">
+    <h2>Pause</h2>
+    <nav class="liste" id="pauseListe" aria-label="Pausemenü">
+      <button data-ziel="weiter">Weiterspielen</button>
+      <button data-ziel="karte">Karte</button>
+      <button data-ziel="Einstellungen">Einstellungen</button>
+      <button data-ziel="Steuerung">Steuerung</button>
+      <button data-ziel="hauptmenue">Hauptmenü</button>
+    </nav>
+    <div class="fuss"><span>Dein Spielstand wird automatisch gespeichert</span></div>
+  </div>
+</div>
+
+<div id="fehler" hidden></div>
+
+<script type="importmap">
+{"imports":{"three":"../bloxrot/lib/three.module.js"}}
+</script>
+<script type="module" src="./spiel.js"></script>
+<script>
+  // Falls die Module gar nicht laden (Datei direkt geöffnet statt über einen Webserver)
+  setTimeout(function(){
+    if(!window.__spielBereit){
+      var t = document.getElementById('ladetext');
+      if(t && location.protocol === 'file:')
+        t.textContent = 'Bitte über einen Webserver öffnen (zum Beispiel GitHub Pages). Direkt als Datei lädt der Browser die Spielteile nicht.';
+    }
+  }, 6000);
+</script>
+<script src="../heim.js" data-ecke="ol"></script>
+</body>
+</html>

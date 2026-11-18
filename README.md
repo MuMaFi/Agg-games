@@ -8,6 +8,7 @@ gleich mit. Kein Server, kein Build, keine Installation: `index.html` im Browser
 
 | Spiel | Art | Datei |
 |---|---|---|
+| **Illegal Autostehlen VI** | Open World, Küstenstadt, 3D | `games/autostehlen/` |
 | **Taschenwelt** | Survival-Voxelspiel, 3D | `games/taschenwelt.html` |
 | **Found Tape — Sublevel 0** | Backrooms-Horror, Ego-Perspektive | `games/foundtape.html` |
 | **Snapshade** | Farbgedächtnis | `games/snapshade.html` |
