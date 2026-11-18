@@ -35,6 +35,7 @@ const MC_TEX = {
   coal_ore:'block/coal_ore', iron_ore:'block/iron_ore', gold_ore:'block/gold_ore', diamond_ore:'block/diamond_ore',
   kuerbis:'block/pumpkin_side', kuerbis_oben:'block/pumpkin_top', kuerbis_gesicht:'block/carved_pumpkin',
   iron_block:'block/iron_block', gold_block:'block/gold_block', diamond_block:'block/diamond_block',
+  lapis_erz:'block/lapis_ore', lapis_block:'block/lapis_block',
   wool0:'block/white_wool', wool1:'block/light_gray_wool', wool2:'block/black_wool', wool3:'block/brown_wool',
   craft_top:'block/crafting_table_top', craft_side:'block/crafting_table_side', craft_front:'block/crafting_table_front',
   furn_side:'block/furnace_side', furn_top:'block/furnace_top', furn_front:'block/furnace_front', furn_lit:'block/furnace_front_on',
@@ -53,7 +54,7 @@ const MC_TEX = {
   i_beef_raw:'item/beef', i_beef_cooked:'item/cooked_beef', i_mutton_raw:'item/mutton', i_mutton_cooked:'item/cooked_mutton',
   i_chicken_raw:'item/chicken', i_chicken_cooked:'item/cooked_chicken', i_bone:'item/bone', i_bone_meal:'item/bone_meal',
   i_arrow:'item/arrow', i_bow:'item/bow', i_string:'item/string', i_shears:'item/shears', i_flint:'item/flint',
-  i_feather:'item/feather', i_redstone:'item/redstone', i_schleimball:'item/slime_ball', i_smaragd:'item/emerald',
+  i_feather:'item/feather', i_redstone:'item/redstone', i_schleimball:'item/slime_ball', i_smaragd:'item/emerald', i_lapis:'item/lapis_lazuli',
   i_egg:'item/egg', i_verstaerker:'item/repeater', i_hebel:'block/lever',
 };
 /* Betten (zweiteilig, Bilder je Farbe und Seite; siehe emitBett in welt.js) */

@@ -158,13 +158,14 @@ pruef(T(`B.JUKEBOX === 70 && B.JUKEBOX_VOLL === 71 && blocks[B.JUKEBOX_VOLL].dro
 // Gelände: alte Welten behalten ihres (Fassung 1), neue bekommen Berge, Nadelwald, Schnee und Höhlen (Fassung 2)
 // Redstone-Erz kam später dazu, in beide Fassungen: es darf nur Stein ersetzen, und nur tief unten.
 // Die Prüfsumme sieht es deshalb als Stein — dann muss das alte Gelände wieder genau herauskommen.
-T(`globalThis.rsErz = { n: 0, hoch: 0 };
+T(`globalThis.rsErz = { n: 0, hoch: 0, lapis: 0 };
 globalThis.summe = (seed, gen) => { const W = new World(seed, gen); let h = 2166136261 >>> 0;
   for(const [cx, cz] of [[0,0],[1,0],[0,1],[-1,-1],[5,-3],[-12,7],[40,40],[-63,18],[100,-100],[3,250]]){
     W.ensureChunk(cx, cz); const c = W.getChunk(cx, cz);
     for(const a of [c.blocks, c.hmap, c.biome]) for(let i = 0; i < a.length; i++){
       let v = a[i];
       if(a === c.blocks && v === B.REDSTONE_ERZ){ v = B.STONE; rsErz.n++; if((i >> 8) > 15) rsErz.hoch++; }
+      if(a === c.blocks && v === B.LAPIS_ERZ){ v = B.STONE; rsErz.lapis++; if((i >> 8) > 30) rsErz.hoch++; }
       h ^= v; h = Math.imul(h, 16777619) >>> 0;
     }
   }
@@ -173,6 +174,8 @@ for(const [seed, soll] of [['pruefwelt', '96ae74c4'], ['taschenwelt', '3f9020af'
   const ist = T(`summe(${JSON.stringify(seed)}, 1)`);
   pruef(ist === soll, `altes Gelände unverändert, nur Stein wurde Redstone-Erz (${seed}): ${ist} statt ${soll}`);
 }
+pruef(T('rsErz.lapis') > 10, `Lapislazulierz in alten Welten: ${T('rsErz.lapis')} Blöcke`);
+pruef(T(`rasterRezept(Array(9).fill({id:ITEM.lapis,n:1}), 3).out === B.LAPIS_BLOCK && TEX.lapis_block !== undefined && TEX.i_lapis !== undefined && TEX.lapis_erz !== undefined`), 'Lapislazuliblock aus neun Stück, Texturen da');
 pruef(T('rsErz.n') > 100 && T('rsErz.hoch') === 0, `Redstone-Erz in alten Welten, nur bis Höhe 15: ${T('rsErz.n')} Blöcke in 20 Chunks`);
 const neu1 = T(`summe('pruefwelt', 2)`), neu2 = T(`summe('pruefwelt', 2)`);
 pruef(neu1 === neu2 && neu1 !== '96ae74c4', 'neues Gelände: gleicher Startwert, gleiche Welt — und eine andere als früher');
@@ -517,7 +520,7 @@ pruef(T(`(() => { try { kPixel(new K16(1), ['0123456789abcdef'], {}); return fal
 // 26.10.07: Dörfer — nur in Welten mit dem Schalter, fest nach Startwert und Gelände, chunkweise gleich
 pruef(T(`(() => { let h = 0; for(const [seed, gen, typ] of [['dorftest', 2, 'normal'], ['taschenwelt', 2, 'normal'], ['flach', 2, 'flach'], ['alt', 1, 'normal']]){
   const w = new World(seed, gen, typ);
-  for(const [cx, cz] of [[0,0],[3,6],[4,6],[-15,-34],[15,-5],[26,5]]){ const c = w.ensureChunk(cx, cz); for(let i = 0; i < c.blocks.length; i++) h = (Math.imul(h, 31) + c.blocks[i]) | 0; }
+  for(const [cx, cz] of [[0,0],[3,6],[4,6],[-15,-34],[15,-5],[26,5]]){ const c = w.ensureChunk(cx, cz); for(let i = 0; i < c.blocks.length; i++) h = (Math.imul(h, 31) + (c.blocks[i] === B.LAPIS_ERZ ? B.STONE : c.blocks[i])) | 0; }
 } return h; })()`) === 1781458509, 'ohne Dörfer: das Gelände ist Block für Block wie vor den Dörfern');
 pruef(T(`(() => { const w = new World('dorftest', 2, 'normal'); return !w.doerfer && doerferBei(w, -500, -500, 500, 500).length === 0 && !dorfSuchen(w, 0, 0, 900)
   && !new World('x', 1, 'normal', true).doerfer && new World('x', 2, 'flach', true).doerfer; })()`), 'alte Welten und Welten ohne Schalter haben keine Dörfer');
@@ -711,5 +714,7 @@ pruef(T(`(() => { const w = new World('dorftest', 2, 'normal', true, true); let 
   for(let x = d.box[0]; x <= d.box[2]; x++) for(let z = d.box[1]; z <= d.box[3]; z++) for(let y = 20; y < 90; y++){ const id = w.getBlock(x, y, z);
     if(!isBett(id)) continue; n++; if(bettPartner((a, b, c) => w.getBlock(a, b, c), x, y, z, id) < 0) allein++; }
   return n >= 4 && allein === 0; })()`), 'Dörfer: Betten aus Kopf- und Fußteil, jedes mit Partner');
+// Lapislazuli
+pruef(T(`(() => blocks[B.LAPIS_ERZ].tier === 2 && blocks[B.LAPIS_ERZ].tool === 'pickaxe' && SMELT[B.LAPIS_ERZ] === ITEM.lapis)()`), 'Lapislazulierz: ab Steinspitzhacke, schmelzbar');
 console.log(`${ok} bestanden, ${fehler} fehlgeschlagen`);
 process.exit(fehler ? 1 : 0);

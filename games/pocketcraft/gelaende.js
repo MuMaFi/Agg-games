@@ -422,6 +422,26 @@ function redstoneAdern(w, c){
   }
 }
 
+/** Lapislazuli: ein, zwei kleine Adern je Chunk, nur aus Stein, tief unten
+    (wie beim Vorbild am häufigsten um Höhe 14, nie über 30) */
+function lapisAdern(w, c){
+  const bl = c.blocks, s = w.seed ^ 0x1a915, h = (a, b) => ghash(c.cx, a*16 + b, c.cz, s);
+  const adern = h(0, 0) < .55 ? 1 : (h(0, 1) < .5 ? 2 : 0);
+  for(let a = 1; a <= adern; a++){
+    let x = 1 + Math.floor(h(a, 1)*14), z = 1 + Math.floor(h(a, 3)*14);
+    let y = Math.round(4 + (h(a, 2) + h(a, 6))*13);            // Dreieck um 17, von 4 bis 30
+    const n = 3 + Math.floor(h(a, 4)*5);
+    for(let i = 0; i < n; i++){
+      const j = IDX(x, y, z);
+      if(bl[j] === B.STONE) bl[j] = B.LAPIS_ERZ;
+      const r = Math.floor(h(a, 7 + i)*6);
+      if(r === 0 && x < 15) x++; else if(r === 1 && x > 0) x--;
+      else if(r === 2 && y < 30) y++; else if(r === 3 && y > 2) y--;
+      else if(r === 4 && z < 15) z++; else if(z > 0) z--;
+    }
+  }
+}
+
 /** Schleim-Chunk: jeder zehnte, fest nach dem Startwert der Welt (wie beim Vorbild) */
 function schleimChunk(w, cx, cz){ return ghash(cx, 987, cz, w.seed ^ 0x5eed5) < 0.1; }
 
@@ -660,7 +680,7 @@ function endfestungBeute(w, x, y, z){
   const t = new Array(27).fill(null);
   const TAFEL = [[ITEM.enderperle, 1, 2, 10], [ITEM.bread, 1, 3, 15], [ITEM.apple, 1, 3, 15], [ITEM.iron, 1, 5, 10], [ITEM.gold, 1, 3, 5],
     [ITEM.redstone, 4, 9, 5], [ITEM.diamond, 1, 3, 3], [ITEM.iron_sword, 1, 1, 5], [ITEM.iron_pickaxe, 1, 1, 5], [ITEM.iron_chestplate, 1, 1, 5],
-    [ITEM.iron_helmet, 1, 1, 5]].filter(e => e[0] !== undefined);
+    [ITEM.iron_helmet, 1, 1, 5], [ITEM.lapis, 4, 9, 5]].filter(e => e[0] !== undefined);
   const summe = TAFEL.reduce((a, e) => a + e[3], 0);
   for(let n = 3 + Math.floor(r()*4); n > 0; n--){
     let v = r()*summe, e = TAFEL[0];

@@ -201,6 +201,7 @@ const PAL = {
   eisenerz:pal('#6a4630','#946446','#bd865e','#d8a582','#edc9a6'),
   golderz: pal('#76560b','#ae820f','#dcab1f','#f3cf46','#fff09c'),
   diaerz:  pal('#0e5b5c','#158688','#2bb5b3','#5fdcd8','#c6fff8'),
+  lapis:   pal('#0b1a5e','#14298c','#1f3cbc','#3a5ee0','#8fa8ff'),
   ofen:    pal('#48494e','#56575c','#64656a','#727378','#818287','#909196'),
 };
 
@@ -611,6 +612,7 @@ function buildTextures(){
   addTex('iron_ore', p => malErz(p, 152, PAL.eisenerz, 4));
   addTex('gold_ore', p => malErz(p, 153, PAL.golderz, 3));
   addTex('diamond_ore', p => malErz(p, 154, PAL.diaerz, 3));
+  addTex('lapis_erz', p => malErz(p, 157, PAL.lapis, 5));
 
   /* — Speicherblöcke — */
   /* — Kürbis: gerippt, oben ein Stiel; geschnitzt mit Dreiecksaugen und Zahnlücken — */
@@ -672,6 +674,25 @@ function buildTextures(){
       else if(u === 1 || v2 === 1) v += .3;
       if(Math.min(x, y, TS-1-x, TS-1-y) === 0) v = x === 0 || y === 0 ? .8 : .05;
       p.quant(x, y, v, P, .5);
+    }
+  });
+
+  /* Lapislazuliblock: tiefes Ultramarin wie der Stein selbst, hellere Adern,
+     ein paar goldene Pyritkörnchen und ein schmaler Rahmen */
+  addTex('lapis_block', p => {
+    const P = pal('#081452','#0f2180','#1630a8','#2445cc','#4a6ee8','#9cb4ff');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      let v = .42 + (fbm(x, y, 4, 4, 181, 3) - .5)*.55 + (vnoise(x, y, 16, 16, 182) - .5)*.18;
+      const ader = Math.abs(fbm(x, y, 3, 3, 183, 2) - .5);
+      if(ader < .035) v += .28;
+      const r = Math.min(x, y, TS-1-x, TS-1-y);
+      if(r === 0) v = x === 0 || y === 0 ? .78 : .04;
+      else if(r === 1) v += (x === 1 || y === 1) ? .12 : -.14;
+      p.quant(x, y, Math.max(0, Math.min(.999, v)), P, .55);
+    }
+    for(let i = 0; i < 9; i++){
+      const x = 3 + (p.r()*26|0), y = 3 + (p.r()*26|0);
+      p.put(x, y, [232,196,92]); if(p.r() < .5) p.put(x + 1, y, [180,140,52]);
     }
   });
 
@@ -1356,6 +1377,15 @@ function buildTextures(){
     tafel.muster = (x, y) => ((x + y) % 7 === 0 ? -1 : 0);
     tafel.glanz = [[14,10],[13,11],[13,12],[14,11],[13,13]];
     rumpf.glanz = [[10,10],[9,11]];
+  });
+  /* Lapislazuli: ein flacher, unregelmäßiger Brocken mit Pyritkörnchen */
+  sprite('i_lapis', S => {
+    const L = S.lage(pal('#0b1a5e','#14298c','#1f3cbc','#3a5ee0','#9cb4ff'), { kante:true });
+    S.poly(L, [[7,10],[14,6],[22,7],[27,13],[25,22],[18,27],[9,25],[5,18]]);
+    L.muster = (x, y) => (h2(x, y, 358) < .22 ? -1 : h2(x, y, 359) > .85 ? 1 : 0);
+    L.glanz = [[12,9],[13,9],[11,10],[15,8]];
+    const gold = S.lage(pal('#7a5a18','#b48a2a','#e0b84a','#f0d070','#fff0b0'));
+    for(const [x, y] of [[19,12],[11,18],[21,20],[15,15]]) S.punkt(gold, x, y);
   });
   sprite('i_hebel', S => {
     const stab = S.lage(pal('#2e1d0c','#5a3a1a','#7c5226','#9c6b34','#b98545'));

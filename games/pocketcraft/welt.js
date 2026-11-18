@@ -322,7 +322,7 @@ class World{
     if(this.typ === 'nether') erzeugenNether(this, c);
     else if(this.typ === 'ende') erzeugenEnde(this, c);
     else if(this.typ === 'flach'){ erzeugenFlach(c); doerferBauen(this, c); }
-    else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); endfestungenBauen(this, c); }
+    else { if(this.gen === 2) erzeugen2(this, c); else this.erzeugen1(c); redstoneAdern(this, c); lapisAdern(this, c); endfestungenBauen(this, c); }
     const bl = c.blocks;
     const m = this.mods.get(ckey(c.cx,c.cz));
     if(m) for(const [i,id] of m) bl[i] = id;

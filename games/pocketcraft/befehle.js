@@ -41,6 +41,7 @@ const MC_NAMEN = {
   piston:'KOLBEN', sticky_piston:'KLEBKOLBEN', pumpkin:'KUERBIS', carved_pumpkin:'GESCHNITZT',
   warped_nylium:'WIRR_NYZEL', warped_stem:'WIRR_STIEL', warped_wart_block:'WIRR_WARZE', warped_roots:'WIRR_WURZELN',
   warped_fungus:'WIRR_PILZ', shroomlight:'PILZLICHT', blaze_rod:'lohenrute', nether_bricks:'NETHERZIEGEL', spawner:'SPAWNER', nether_brick:'netherziegel', fire:'FEUER', ender_eye:'enderauge', end_portal_frame:'ENDRAHMEN', end_portal:'ENDPORTAL', end_stone:'ENDSTEIN', dragon_egg:'DRACHENEI', blaze_powder:'lohenstaub', ender_pearl:'enderperle',
+  lapis_ore:'LAPIS_ERZ', lapis_block:'LAPIS_BLOCK', lapis_lazuli:'lapis', lapis:'lapis',
 };
 const WESEN_NAMEN = { kuh:'cow', cow:'cow', schwein:'pig', pig:'pig', schaf:'sheep', sheep:'sheep', huhn:'chicken', chicken:'chicken',
   zombie:'zombie', skelett:'skeleton', skeleton:'skeleton', schleim:'slime', slime:'slime', dorfbewohner:'villager', villager:'villager',

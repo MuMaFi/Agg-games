@@ -31,7 +31,8 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   WIRR_WURZELN:515, WIRR_PILZ:516, PILZLICHT:517,
   NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */, FEUER:520,
   // das End
-  ENDRAHMEN:521, ENDRAHMEN_AUGE:522, ENDPORTAL:523, ENDSTEIN:524, DRACHENEI:525 };
+  ENDRAHMEN:521, ENDRAHMEN_AUGE:522, ENDPORTAL:523, ENDSTEIN:524, DRACHENEI:525,
+  LAPIS_ERZ:526, LAPIS_BLOCK:527 };
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -340,6 +341,9 @@ function initBlocks(){
   defBlock(B.IRON_BLOCK,{name:'Eisenblock', tex:'iron_block', hardness:4, tool:'pickaxe', tier:2});
   defBlock(B.GOLD_BLOCK,{name:'Goldblock', tex:'gold_block', hardness:4, tool:'pickaxe', tier:3});
   defBlock(B.DIAMOND_BLOCK,{name:'Diamantblock', tex:'diamond_block', hardness:4.5, tool:'pickaxe', tier:3});
+  // Lapislazuli: wie beim Vorbild ab der Steinspitzhacke, das Erz gibt vier bis neun Stück
+  defBlock(B.LAPIS_ERZ,{name:'Lapislazulierz', tex:'lapis_erz', hardness:3, tool:'pickaxe', tier:2, mc:'lapis_ore'});
+  defBlock(B.LAPIS_BLOCK,{name:'Lapislazuliblock', tex:'lapis_block', hardness:3, tool:'pickaxe', tier:2, mc:'lapis_block'});
   WOLLE.forEach((f, k) => defBlock(B.WOOL + k, { name:f.name, tex:'wool' + k, hardness:.8, tool:'shears' }));
   for(let oben = 0; oben < 2; oben++) for(let offen = 0; offen < 2; offen++) for(let s = 0; s < 4; s++){
     const t = oben ? 'door_top' : 'door_bottom';
@@ -495,6 +499,7 @@ function initItems(){
   defItem('slimeball',{name:'Schleimball', tex:'i_schleimball'});
   // Dorfbewohner tauschen dafür
   defItem('emerald',{name:'Smaragd', tex:'i_smaragd'});
+  defItem('lapis',{name:'Lapislazuli', tex:'i_lapis'});
   // zündet ein Netherportal in einem Obsidianrahmen (welt: portale)
   defItem('feuerzeug',{name:'Feuerzeug', tex:'i_feuerzeug', stack:1, dur:64});
   // von der Lohe: Rute (brennt lange, für den Braustand) und Staub daraus

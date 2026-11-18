@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    SPIEL — Streaming, Eingabe, Regeln, Bild
    ═══════════════════════════════════════════════════════════════════ */
-const PC_FASSUNG = '2026-11-07k';             // in den Optionen zu sehen: läuft die neueste Fassung?
+const PC_FASSUNG = '2026-11-18a';             // in den Optionen zu sehen: läuft die neueste Fassung?
 const OPT_KEY  = 'taschenwelt.opts.v1';      // Name aus der Zeit vor Pocketcraft, bleibt für die Einstellungen
 const DAY_LEN  = 720;             // Sekunden je voller Tag
 /** so viele Chunks müssen stehen, bevor man spielt — bei großer Sichtweite
@@ -690,6 +690,7 @@ const Game = {
     if(b.tool === 'pickaxe' && !tierOk) return null;
     if(blockId === B.GLASS) return null;
     if(blockId === B.REDSTONE_ERZ) return [[ITEM.redstone, 4 + (Math.random() < .5 ? 1 : 0)]];
+    if(blockId === B.LAPIS_ERZ) return [[ITEM.lapis, 4 + Math.floor(Math.random()*6)]];
     if(blockId === B.LEAVES) return Math.random() < 0.06 ? [[ITEM.apple,1]] : (Math.random() < 0.05 ? [[B.LEAVES,1]] : null);
     if(blockId === B.FICHTENNADELN) return Math.random() < 0.05 ? [[B.FICHTENNADELN,1]] : null;
     if(blockId === B.TALLGRASS) return Math.random() < 0.14 ? [[ITEM.seeds,1]] : null;

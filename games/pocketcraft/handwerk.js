@@ -221,7 +221,7 @@ function initRecipes(){
   }
   geformt('essen', ITEM.bread, 1, ['www'], {w:ITEM.wheat});
   geformt('essen', ITEM.golden_apple, 1, ['GGG','GaG','GGG'], {G:ITEM.gold, a:ITEM.apple});
-  for(const [blk, it] of [[B.IRON_BLOCK, ITEM.iron],[B.GOLD_BLOCK, ITEM.gold],[B.DIAMOND_BLOCK, ITEM.diamond]]){
+  for(const [blk, it] of [[B.IRON_BLOCK, ITEM.iron],[B.GOLD_BLOCK, ITEM.gold],[B.DIAMOND_BLOCK, ITEM.diamond],[B.LAPIS_BLOCK, ITEM.lapis]]){
     geformt('bauen', blk, 1, ['###','###','###'], {'#':it});
     formlos('stoffe', it, 9, [blk]);
   }
@@ -312,6 +312,7 @@ function initSmelt(){
   SMELT[B.NETHERRACK] = ITEM.netherziegel;
   SMELT[B.IRON_ORE] = ITEM.iron;
   SMELT[B.GOLD_ORE] = ITEM.gold;
+  SMELT[B.LAPIS_ERZ] = ITEM.lapis;
   SMELT[ITEM.pork_raw] = ITEM.pork_cook;
   SMELT[B.LOG] = ITEM.coal;
   SMELT[B.FICHTENSTAMM] = ITEM.coal;
