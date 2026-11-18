@@ -296,13 +296,66 @@ async function ladeFigur(){
     if(d < best){ best = d; ruhe = t; }
   }
   // Blickrichtung: wohin schaut die Figur? (Nase vor dem Kopf)
-  figur = { wurzel, clip, ruhe, dauer: clip.duration };
+  let mat = null; wurzel.traverse(o => { if(o.isMesh && !mat) mat = o.material; });
+  figur = { wurzel, clip, ruhe, dauer: clip.duration, mat };
 }
 function findeKnochen(o, re){ let r = null; o.traverse(b => { if(!r && b.isBone && re.test(b.name)) r = b; }); return r; }
 
-export function baueFigur(){
+/* Kleidervarianten: Shirt, Hose, Haut und Haare in der Textur umfärben.
+   Helligkeit bleibt erhalten, damit Falten und Licht stimmen. */
+const OUTFITS = [
+  { shirt: '#c8323c', hose: '#2b2b30', haut: 1.0, haar: '#1a1410' },
+  { shirt: '#f2f2ee', hose: '#c9b48a', haut: .62, haar: '#0e0b09' },
+  { shirt: '#1f7a5a', hose: '#3a4a6a', haut: .82, haar: '#5a3a1e' },
+  { shirt: '#f2c12e', hose: '#22262e', haut: .45, haar: '#0a0a0a' },
+  { shirt: '#ff5fa2', hose: '#e8e2d0', haut: 1.08, haar: '#b8924a' },
+  { shirt: '#2b2b30', hose: '#5b6b57', haut: .72, haar: '#2a1c12' },
+  { shirt: '#3fa2e6', hose: '#1d2a44', haut: 1.12, haar: '#c9a465' },
+  { shirt: '#8f6bff', hose: '#30343c', haut: .55, haar: '#111111' },
+];
+const outfitCache = new Map();
+function hsv(r, g, b){
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if(d){ if(mx === r) h = ((g - b)/d) % 6; else if(mx === g) h = (b - r)/d + 2; else h = (r - g)/d + 4; h *= 60; if(h < 0) h += 360; }
+  return [h, mx ? d/mx : 0, mx];
+}
+function outfitMaterial(n){
+  if(outfitCache.has(n)) return outfitCache.get(n);
+  const basis = figur.mat, bild = basis.map && basis.map.image;
+  let mat = basis;
+  try {
+    const o = OUTFITS[n % OUTFITS.length];
+    const S = 1024, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d'); g.drawImage(bild, 0, 0, S, S);
+    const d = g.getImageData(0, 0, S, S), p = d.data;
+    const farbe = h => { const x = new THREE.Color(h); return [x.r*255, x.g*255, x.b*255]; };
+    const shirt = farbe(o.shirt), hose = farbe(o.hose), haar = farbe(o.haar);
+    for(let i = 0; i < p.length; i += 4){
+      const r = p[i]/255, gg = p[i + 1]/255, b = p[i + 2]/255;
+      const [h, sat, v] = hsv(r, gg, b);
+      const lum = (r + gg + b)/3;
+      let ziel = null, k = 1;
+      if(h > 195 && h < 245 && sat < .3 && v > .55){ ziel = shirt; k = lum/.72; }          // Shirt
+      else if(h > 200 && h < 240 && sat >= .28 && v > .12 && v < .62){ ziel = hose; k = lum/.32; } // Jeans
+      else if(h > 5 && h < 40 && sat > .22 && sat < .7 && v > .32){                           // Haut
+        p[i] = Math.min(255, p[i]*o.haut); p[i + 1] = Math.min(255, p[i + 1]*o.haut*(o.haut < .8 ? .94 : 1)); p[i + 2] = Math.min(255, p[i + 2]*o.haut*(o.haut < .8 ? .88 : 1));
+        continue;
+      }
+      else if(h > 10 && h < 45 && v < .3 && sat > .2){ ziel = haar; k = lum/.16; }            // Haare
+      if(ziel){ p[i] = Math.min(255, ziel[0]*k); p[i + 1] = Math.min(255, ziel[1]*k); p[i + 2] = Math.min(255, ziel[2]*k); }
+    }
+    g.putImageData(d, 0, 0);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.flipY = basis.map.flipY;
+    mat = basis.clone(); mat.map = t;
+  } catch(e){ mat = basis; }
+  outfitCache.set(n, mat);
+  return mat;
+}
+export function baueFigur(variante = 0){
   const g = new THREE.Group();
   const k = skelettKlon(figur.wurzel);
+  if(variante > 0){ const m = outfitMaterial(variante - 1); k.traverse(o => { if(o.isMesh) o.material = m; }); }
   g.add(k);
   const mixer = new THREE.AnimationMixer(k);
   const aktion = mixer.clipAction(figur.clip);

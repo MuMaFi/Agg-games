@@ -123,6 +123,15 @@ body.touch .fuss .nurMaus{ display:none }
 #geldDelta.an{ opacity:1 } #geldDelta.plus{ color:var(--geld) } #geldDelta.minus{ color:var(--rot) }
 #sterne{ font-size:26px; letter-spacing:2px; line-height:1; color:rgba(255,255,255,.22); text-shadow:0 0 2px #000, 2px 2px 0 #000 }
 #sterne .an{ color:#fff }
+#leben{ width:150px; height:8px; margin-top:6px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.25); border-radius:2px; overflow:hidden }
+#leben i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#3ddc84,#8bf0b0); transition:width .25s }
+#leben.knapp i{ background:linear-gradient(90deg,#ff3a3a,#ff8a6a); animation:blink .8s steps(2) infinite }
+#treffer{ position:fixed; inset:0; z-index:39; pointer-events:none; background:radial-gradient(circle, transparent 45%, rgba(220,20,30,.75) 120%); opacity:0; transition:opacity .15s }
+#treffer.an{ opacity:1 }
+#fadenkreuz{ position:fixed; left:50%; top:46%; width:22px; height:22px; margin:-11px 0 0 -11px; z-index:41; pointer-events:none }
+#fadenkreuz::before, #fadenkreuz::after{ content:""; position:absolute; background:#fff; box-shadow:0 0 2px #000 }
+#fadenkreuz::before{ left:10px; top:0; width:2px; height:22px } #fadenkreuz::after{ top:10px; left:0; height:2px; width:22px }
+#fadenkreuz.treffer::before, #fadenkreuz.treffer::after{ background:#ff4040 }
 #sterne.blinkt .an{ animation:blink .6s steps(2) infinite }
 @keyframes blink{ 50%{ color:rgba(255,255,255,.25) } }
 
@@ -173,6 +182,7 @@ body.touch .fuss .nurMaus{ display:none }
 #kAktion.bereit{ border-color:var(--sonne); box-shadow:0 0 0 3px rgba(255,179,71,.35) }
 #kSprung{ right:calc(118px + var(--rechts)); bottom:calc(36px + var(--unten)) }
 #kSprint{ right:calc(22px + var(--rechts)); bottom:calc(28px + var(--unten)) }
+#kSchuss{ right:calc(130px + var(--rechts)); bottom:calc(200px + var(--unten)); width:62px; height:62px; font-size:12px; border-color:rgba(255,90,90,.6) }
 #kKarte{ right:calc(130px + var(--rechts)); bottom:calc(132px + var(--unten)); width:54px; height:54px; font-size:11px }
 body.touch #miniRahmen{ bottom:auto; left:calc(12px + var(--links)); top:calc(52px + var(--oben)); width:116px; height:116px }
 body.touch #auftrag{ top:calc(52px + var(--oben)); left:calc(140px + var(--links)); max-width:min(320px, 40vw) }
@@ -239,9 +249,9 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
 <div class="tafel" id="tSteuerung" role="dialog" aria-label="Steuerung">
   <h2>Steuerung</h2>
   <div class="tasten nurMaus">
-    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen</div>
+    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen · Linksklick: schießen</div>
     <div class="tk"><h3>Auto und Boot</h3><kbd>E</kbd> ein- und aussteigen · <kbd>W</kbd><kbd>S</kbd> Gas und Bremse · <kbd>A</kbd><kbd>D</kbd> lenken · <kbd>Leer</kbd> Handbremse · <kbd>⇧</kbd> Boost</div>
-    <div class="tk"><h3>Flugzeug</h3><kbd>W</kbd><kbd>S</kbd> Schub · <kbd>A</kbd><kbd>D</kbd> Kurve · <kbd>↑</kbd> oder <kbd>Leer</kbd> steigen · <kbd>↓</kbd> sinken · erst ab 110 km/h hochziehen</div>
+    <div class="tk"><h3>Flugzeug</h3><kbd>W</kbd><kbd>S</kbd> Schub · <kbd>A</kbd><kbd>D</kbd> Kurve · <kbd>↑</kbd> oder <kbd>Leer</kbd> steigen · <kbd>↓</kbd> sinken · erst ab 110 km/h hochziehen · <kbd>E</kbd> in der Luft: Fallschirm</div>
     <div class="tk"><h3>Sonst</h3><kbd>M</kbd> Karte · <kbd>Esc</kbd> Pause · Mausrad: Kameraabstand · Klick ins Bild fängt die Maus</div>
   </div>
   <div class="tasten nurTouch">
@@ -283,6 +293,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
     <div id="geld">$0</div>
     <div id="geldDelta"></div>
     <div id="sterne" aria-label="Fahndungsstufe"></div>
+    <div id="leben" aria-label="Gesundheit"><i id="lebenBalken"></i></div>
   </div>
   <div id="auftrag">
     <div class="kopf"><span>Kurierauftrag</span><span id="auftragLohn"></span></div>
@@ -304,6 +315,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
   <button class="tknopf" id="kSprung">Sprung</button>
   <button class="tknopf" id="kSprint">Rennen</button>
   <button class="tknopf" id="kAktion">Aktion</button>
+  <button class="tknopf" id="kSchuss">Schuss</button>
 </div>
 
 <div class="ueber" id="karteBox">
@@ -327,6 +339,8 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
   </div>
 </div>
 
+<div id="treffer"></div>
+<div id="fadenkreuz" hidden></div>
 <div id="fehler" hidden></div>
 
 <script type="importmap">

@@ -44,7 +44,7 @@ let Q = STUFEN[stufeName];
 
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
 } catch(e){
   $('ladetext').textContent = 'Dein Gerät kann kein WebGL. Ohne WebGL läuft das Spiel leider nicht.';
   throw e;
@@ -59,7 +59,7 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 $('buehne').appendChild(renderer.domElement);
 
 const szene = new THREE.Scene();
-const kamera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, .3, 6000);
+const kamera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, .4, 6000);
 kamera.position.set(300, 120, -100);
 
 let composer, bloomPass;
@@ -276,6 +276,15 @@ async function aufbauen(){
     p.position.set(W.markantes.polizei.x, W.markantes.polizei.schildY, W.markantes.polizei.z - .2); p.rotation.y = Math.PI;
     szene.add(p);
   }
+  if(W.markantes.krankenhaus){
+    const k = W.markantes.krankenhaus;
+    const tex = T.schild('+ KRANKENHAUS', '#ff4040', '84px ' + schrift);
+    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1) });
+    W.neon.push({ mat: m, basis: new THREE.Color(1, 1, 1), tag: 1, nacht: 2 });
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(26, 7), m);
+    p.position.set(k.x, k.schildY, k.schildZ + .25);
+    szene.add(p);
+  }
   zeitAktualisieren(0, true);
   aufstellen();
   karteVorrendern();
@@ -438,7 +447,7 @@ function fahrzeugStoesse(){
             anderes.vx += (a === anderes ? nx : -nx)*imp2; anderes.vz += (a === anderes ? nz : -nz)*imp2;
             meldung('Fahrer flieht');
           }
-          if(anderes.typ === 'polizei' && anderes.ki && wucht > 6) fahndung(1, 'Polizei gerammt');
+          if(anderes.typ === 'polizei' && anderes.ki && wucht > 6) fahndung(1, 'Polizei gerammt', 2);
         }
       }
     }
@@ -619,9 +628,17 @@ function sicht(ax, az, bx, bz){
   return true;
 }
 let sterne = 0, sternZeit = 0, festnahme = 0;
-function fahndung(n, grund){
+// n: Sterne dazu; ohneZeugen: höchstens so viele, wenn keine Streife zusieht
+let fahndungSperre = 0;
+function polizeiSieht(){
+  return streifen.some(s => s.f.g.visible && Math.hypot(s.f.x - spieler.px, s.f.z - spieler.pz) < 90 && sicht(s.f.x, s.f.z, spieler.px, spieler.pz));
+}
+function fahndung(n, grund, ohneZeugen = 5){
+  if(uhr < fahndungSperre && n < 2) return;
+  fahndungSperre = uhr + 4;
   const alt = sterne;
-  sterne = klemm(sterne + n, 0, 5);
+  const grenze = polizeiSieht() ? 5 : Math.max(alt, ohneZeugen);
+  sterne = klemm(Math.min(sterne + n, grenze), 0, 5);
   sternZeit = 0;
   if(sterne > alt){ meldung(grund || 'Fahndung!'); hudSterne(); }
 }
@@ -636,14 +653,14 @@ function polizeiNachsetzen(){
   const A = W.knoten[k[0]], B = W.knoten[k[1]];
   const x = misch(A.x, B.x, k[2]), z = misch(A.z, B.z, k[2]);
   f.setze(x, z, Math.atan2(B.x - A.x, B.z - A.z));
-  f.g.visible = true; f.fahrer = 'polizei';
+  f.g.visible = true; f.fahrer = 'polizei'; f.schaden = 0; f.ki.schussT = 2;
   f.ki.weg = null; f.ki.fern = 0;
 }
 
 /* ── Fußgänger ─────────────────────────────────────────────────── */
 const leute = [];
 class Person {
-  constructor(){ this.m = baueFigur(); szene.add(this.m.g); this.m.g.visible = false; this.zustand = 'weg'; this.x = 0; this.z = 0; this.y = 0; }
+  constructor(){ this.m = baueFigur(leute.length + 1); szene.add(this.m.g); this.m.g.visible = false; this.zustand = 'weg'; this.x = 0; this.z = 0; this.y = 0; }
   setzeAuf(b){
     this.b = b; this.rand = 2.4;
     this.w = b.x1 - b.x0 - 2*this.rand; this.d = b.z1 - b.z0 - 2*this.rand;
@@ -676,6 +693,10 @@ class Person {
       this.y = daempf(this.y, W.bodenY(this.x, this.z), 10, dt);
       animiereFigur(this.m, v, dt);
       if(this.zustand === 'rennt' && (this.flucht -= dt) < 0) this.zustand = 'geht';
+    } else if(this.zustand === 'tot'){
+      g.rotation.x = daempf(g.rotation.x, -Math.PI/2, 8, dt);
+      this.y = daempf(this.y, W.bodenY(this.x, this.z) + .1, 8, dt);
+      if((this.liegen -= dt) < 0){ this.zustand = 'weg'; g.visible = false; g.rotation.x = 0; }
     } else if(this.zustand === 'liegt'){
       this.vy -= 18*dt;
       this.x += this.vx*dt; this.z += this.vz*dt; this.y += this.vy*dt;
@@ -721,6 +742,7 @@ const umgebung = {};
 
 function aufstellen(){
   spieler.m = baueFigur();
+  pistoleAnbringen();
   szene.add(spieler.m.g);
   gehwegBloecke = gehBloecke();
   // Sportwagen gleich neben dem Start
@@ -901,6 +923,7 @@ let mausUnten = false;
 leinwandEl.addEventListener('mousedown', e => {
   if(!laeuft || pausiert || TOUCH) return;
   mausUnten = true;
+  if(document.pointerLockElement === leinwandEl && e.button === 0){ schussGewollt = true; return; }
   if(document.pointerLockElement !== leinwandEl){ try { const p = leinwandEl.requestPointerLock(); if(p && p.catch) p.catch(() => {}); } catch(_){} }
 });
 addEventListener('mouseup', () => mausUnten = false);
@@ -914,6 +937,7 @@ leinwandEl.addEventListener('wheel', e => { kam.zoom = klemm(kam.zoom*(e.deltaY 
 const stick = { id: null, x: 0, y: 0, ax: 0, ay: 0 };
 const blick = { id: null, x: 0, y: 0 };
 const knopf = { aktion: false, sprung: false, sprint: false };
+let schussGewollt = false;
 if(TOUCH){
   const zone = $('stickZone'), griff = $('stickGriff');
   zone.addEventListener('pointerdown', e => {
@@ -941,6 +965,8 @@ if(TOUCH){
   });
   const blickLos = e => { if(e.pointerId === blick.id) blick.id = null; };
   flaeche.addEventListener('pointerup', blickLos); flaeche.addEventListener('pointercancel', blickLos);
+  $('kSchuss').addEventListener('pointerdown', e => { schussGewollt = true; $('kSchuss').classList.add('an'); e.preventDefault(); });
+  for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('kSchuss').addEventListener(ev, () => $('kSchuss').classList.remove('an'));
   for(const [id, k] of [['kAktion', 'aktion'], ['kSprung', 'sprung'], ['kSprint', 'sprint']]){
     const el = $(id);
     el.addEventListener('pointerdown', e => { knopf[k] = true; if(k === 'aktion') gedrueckt.add('KeyE'); if(k === 'sprung') gedrueckt.add('Space'); el.classList.add('an'); e.preventDefault(); });
@@ -975,7 +1001,7 @@ function einsteigen(f){
   if(f.ki && f.ki.art === 'verkehr'){
     const nahPolizei = streifen.some(s => s.f.g.visible && Math.hypot(s.f.x - f.x, s.f.z - f.z) < 120);
     meldung('Auto geklaut — garantiert');
-    if(nahPolizei) fahndung(1, 'Autodiebstahl gesehen');
+    if(nahPolizei) fahndung(1, 'Autodiebstahl gesehen', 1);
     f.ki = null;
   } else if(f.ki && f.ki.art === 'polizei'){
     fahndung(2, 'Streifenwagen geklaut');
@@ -991,8 +1017,13 @@ function einsteigen(f){
 }
 function aussteigen(){
   const f = spieler.fz;
-  if(f.art === 'flug'){
-    if(!f.flug.amBoden || f.flug.tempo > 4){ meldung('Erst landen und anhalten'); return; }
+  if(f.art === 'flug' && (!f.flug.amBoden || f.flug.tempo > 4)){
+    if(f.flug.amBoden){ meldung('Erst anhalten'); return; }
+    // Absprung mit Fallschirm
+    f.fahrer = null; spieler.fz = null; spieler.modus = 'fall';
+    spieler.x = f.x; spieler.z = f.z; spieler.y = f.y - 2; spieler.vy = -8; spieler.h = f.h;
+    spielerZeigen(); spieler.m.g.visible = true; ton.tuer(); meldung('Absprung!');
+    return;
   }
   const fx = Math.sin(f.h), fz = Math.cos(f.h), lx = fz, lz = -fx; // links = +x lokal
   const versuche = f.art === 'boot'
@@ -1013,6 +1044,7 @@ function aussteigen(){
   meldung(f.art === 'boot' ? 'Fahr näher ans Ufer oder an einen Steg' : 'Hier kannst du nicht aussteigen');
 }
 function aufprall(w){
+  if(w > 9 && spieler.fz){ spieler.fz.schaden = (spieler.fz.schaden || 0) + (w - 9)*3; if(w > 22) schaden((w - 22)*2.5, 'SCHWERER UNFALL'); }
   if(w > 4){ kam.wackel = Math.min(1, kam.wackel + w*.04); ton.krach(Math.min(1, w/20)); }
 }
 
@@ -1047,7 +1079,7 @@ function spielerFuss(dt){
     const hl = f.L/2 + .35, hb = f.W/2 + .35;
     if(Math.abs(lv) < hl && Math.abs(ls) < hb && Math.abs(f.y - spieler.y) < 2){
       const tempo = Math.hypot(f.vx, f.vz);
-      if(tempo > 6 && spieler.liegt <= 0 && f.art === 'auto'){ spieler.liegt = 1.4; spieler.vy = 4; ton.dumpf(.6); kam.wackel = .5; }
+      if(tempo > 6 && spieler.liegt <= 0 && f.art === 'auto'){ spieler.liegt = 1.4; spieler.vy = 4; ton.dumpf(.6); kam.wackel = .5; schaden(tempo*2.2, 'ÜBERFAHREN'); }
       const pv = hl - Math.abs(lv), ps = hb - Math.abs(ls);
       if(pv < ps){ const s = Math.sign(lv) || 1; spieler.x += ffx*pv*s; spieler.z += ffz*pv*s; }
       else { const s = Math.sign(ls) || 1; spieler.x += -ffz*ps*s; spieler.z += ffx*ps*s; }
@@ -1056,8 +1088,10 @@ function spielerFuss(dt){
   // Springen und Schwerkraft
   const boden = W.bodenY(spieler.x, spieler.z);
   if(taste('Space') && spieler.boden && spieler.liegt <= 0){ spieler.vy = 5.4; spieler.boden = false; }
+  const fallVorher = spieler.vy;
   spieler.vy -= 15*dt;
   spieler.y += spieler.vy*dt;
+  if(spieler.y <= boden && !spieler.boden && fallVorher < -13) schaden((-fallVorher - 13)*9, 'ABGESTÜRZT');
   if(spieler.y <= boden){ spieler.y = spieler.boden ? daempf(spieler.y, boden, 25, dt) : boden; if(spieler.y < boden - .3) spieler.y = boden - .3; spieler.vy = 0; spieler.boden = true; }
   else if(spieler.y > boden + .05) spieler.boden = spieler.vy <= 0 && spieler.y - boden < .4 ? spieler.boden : false;
   if(spieler.boden && spieler.y < boden) spieler.y = boden;
@@ -1106,10 +1140,11 @@ function spielerFahrzeug(dt){
       const fx = Math.sin(f.h), fz = Math.cos(f.h);
       if(Math.abs(dx*fx + dz*fz) < f.L/2 + .3 && Math.abs(-dx*fz + dz*fx) < f.W/2 + .3){
         p.umfahren(f, tempo);
-        fahndung(1, 'Fußgänger umgefahren');
+        fahndung(1, 'Fußgänger umgefahren', 1);
       }
     }
     spieler.tempo = tempo; spieler.vx = f.vx; spieler.vz = f.vz;
+    if((f.schaden || 0) > 70 && !f.warnte){ f.warnte = true; meldung('Der Motor qualmt. Steig lieber aus!'); }
     if(f.art === 'boot') bootSpur(f, dt);
   } else if(f.art === 'flug') fliegen(f, a, dt);
   spieler.x = f.x; spieler.z = f.z; spieler.y = f.y;
@@ -1119,11 +1154,12 @@ function spielerFahrzeug(dt){
 }
 
 /* Fliegen: vereinfachtes Flugmodell mit Schub, Nicken, Rollen */
-function fliegen(f, a, dt){
+function fliegen(f, a, dt, ohnePilot){
   const fl = f.flug;
-  const schubAuf = tasten.has('KeyW') || knopf.sprint, schubAb = tasten.has('KeyS') || knopf.sprung;
+  const schubAuf = !ohnePilot && (tasten.has('KeyW') || knopf.sprint), schubAb = ohnePilot || tasten.has('KeyS') || knopf.sprung;
   let nick = 0, roll = 0;
-  if(TOUCH){ nick = stick.ay; roll = stick.ax; }
+  if(ohnePilot){ nick = -.25; roll = .15; }
+  else if(TOUCH){ nick = stick.ay; roll = stick.ax; }
   else {
     if(tasten.has('ArrowUp') || tasten.has('Space')) nick += 1;
     if(tasten.has('ArrowDown') || tasten.has('ShiftLeft')) nick -= 1;
@@ -1177,25 +1213,209 @@ function fliegen(f, a, dt){
   f.g.position.set(f.x, f.y, f.z);
   f.g.rotation.set(-fl.pitch, f.h, fl.roll, 'YXZ');
   f.mod.prop.rotation.z += (fl.schub*60 + 4)*dt;
-  spieler.tempo = fl.tempo;
+  if(!ohnePilot) spieler.tempo = fl.tempo;
 }
 function absturz(f, wasser){
   explosion(f.x, Math.max(f.y, W.WASSER_Y + .5), f.z, wasser);
-  f.g.visible = false;
-  spieler.fz = null; spieler.modus = 'tot';
-  totZeit = 0; totWasser = !!wasser;
+  f.g.visible = false; f.wrackZeit = 0;
+  if(spieler.fz === f){ spieler.fz = null; tod(wasser ? 'ABGESOFFEN' : 'ZERSCHELLT', f.x, f.y, f.z); }
 }
-// nach einem Absturz: kurz zusehen, dann am Flughafen weiter (läuft in Spielzeit, steht also in der Pause)
-let totZeit = -1, totWasser = false;
+/* ── Gesundheit, Tod, Krankenhaus ──────────────────────────────── */
+let leben = 100, totZeit = -1, totPos = new THREE.Vector3();
+function schaden(n, grund){
+  if(spieler.modus === 'tot' || n <= 0) return;
+  leben = Math.max(0, leben - n);
+  $('treffer').classList.add('an'); clearTimeout(schaden.t); schaden.t = setTimeout(() => $('treffer').classList.remove('an'), 160);
+  if(leben <= 0) tod(grund || 'AUSGESCHALTET');
+}
+function tod(titel, x, y, z){
+  if(spieler.modus === 'tot') return;
+  if(spieler.fz){ spieler.fz.fahrer = null; spieler.fz = null; }
+  spieler.modus = 'tot'; leben = 0; totZeit = 0;
+  totPos.set(x ?? spieler.x, y ?? spieler.y, z ?? spieler.z);
+  spieler.m.g.visible = true; spieler.m.g.position.set(totPos.x, W.begehbar(totPos.x, totPos.z) ? W.bodenY(totPos.x, totPos.z) : totPos.y, totPos.z);
+  spieler.m.g.rotation.x = -Math.PI/2;
+  if(x !== undefined) spieler.m.g.visible = false;
+  grossText(titel, 'Du wachst gleich im Krankenhaus auf.', 3.4);
+  ton.alarm();
+}
 function totUpdate(dt){
   if(totZeit < 0) return;
-  const vorher = totZeit; totZeit += dt;
-  if(vorher < .4 && totZeit >= .4){ grossText(totWasser ? 'ABGESOFFEN' : 'ZERSCHELLT', 'Die Reparatur kostet $250.', 3); geldDazu(-250); }
-  if(totZeit >= 3.2){
+  totZeit += dt;
+  if(totZeit >= 3.6){
     totZeit = -1;
-    flugzeugZuruck();
-    spieler.x = W.markantes.flugzeug.x + 6; spieler.z = W.markantes.flugzeug.z - 14; spieler.y = 0; spieler.h = 0;
-    spieler.modus = 'fuss'; spielerZeigen();
+    const kosten = Math.min(geld, 200);
+    geldDazu(-kosten, 'Krankenhausrechnung');
+    sterne = 0; hudSterne();
+    for(const s2 of streifen){ s2.f.g.visible = false; s2.f.vx = s2.f.vz = 0; }
+    if(auftrag) auftragEnde(false);
+    const k = W.markantes.krankenhaus;
+    spieler.x = k.x; spieler.z = k.z; spieler.y = W.bodenY(k.x, k.z); spieler.h = k.h; spieler.vy = 0;
+    spieler.modus = 'fuss'; leben = 100; spieler.liegt = 0; spieler.m.g.rotation.x = 0;
+    kam.yaw = k.h; spielerZeigen();
+  }
+}
+// Fallschirm: Aussteigen in der Luft
+const schirm = new THREE.Mesh(new THREE.SphereGeometry(3.4, 18, 8, 0, Math.PI*2, 0, Math.PI*.38),
+  new THREE.MeshStandardMaterial({ color: 0xff4fa0, side: THREE.DoubleSide, roughness: .7 }));
+schirm.scale.y = .55; schirm.visible = false; szene.add(schirm);
+function fallschirmUpdate(dt){
+  const a = achsen();
+  const fx = Math.sin(kam.yaw), fz = Math.cos(kam.yaw), rx = -fz, rz = fx;
+  spieler.vy = daempf(spieler.vy, -4.2, 1.5, dt);
+  spieler.x += (fx*a.y + rx*a.x)*7*dt; spieler.z += (fz*a.y + rz*a.x)*7*dt;
+  spieler.y += spieler.vy*dt;
+  if(a.x || a.y) spieler.h = daempfW(spieler.h, Math.atan2(fx*a.y + rx*a.x, fz*a.y + rz*a.x), 3, dt);
+  const g = spieler.m.g; g.position.set(spieler.x, spieler.y, spieler.z); g.rotation.set(0, spieler.h, 0);
+  animiereFigur(spieler.m, 0, dt);
+  schirm.visible = true; schirm.position.set(spieler.x, spieler.y + 5.6, spieler.z); schirm.rotation.y = spieler.h;
+  spieler.px = spieler.x; spieler.pz = spieler.z; spieler.tempo = 4;
+  const land = W.begehbar(spieler.x, spieler.z);
+  const boden = land ? W.bodenY(spieler.x, spieler.z) : W.WASSER_Y;
+  if(spieler.y <= boden + .05){
+    schirm.visible = false;
+    if(!land){
+      // im Wasser gelandet: ans nächste Ufer schwimmen
+      for(let r = 4; r < 400; r += 4){ let ok = false;
+        for(let w = 0; w < 16 && !ok; w++){ const x = spieler.x + Math.cos(w/16*Math.PI*2)*r, z = spieler.z + Math.sin(w/16*Math.PI*2)*r;
+          if(W.begehbar(x, z) && !W.kreisRaus({ x, z }, .5, 0, 2)){ spieler.x = x; spieler.z = z; ok = true; } }
+        if(ok) break; }
+      meldung('Ans Ufer geschwommen');
+    }
+    spieler.y = W.bodenY(spieler.x, spieler.z); spieler.vy = 0; spieler.modus = 'fuss'; spieler.boden = true;
+  }
+}
+// das verlassene Flugzeug fliegt weiter, bis es abstürzt; danach steht ein neues am Flughafen
+function fliegerOhnePilot(dt){
+  const f = flieger;
+  if(!f || f === spieler.fz) return;
+  if(f.g.visible && !f.flug.amBoden) fliegen(f, null, dt, true);
+  else if(!f.g.visible){ f.wrackZeit = (f.wrackZeit || 0) + dt; if(f.wrackZeit > 12 && Math.hypot(spieler.px - W.markantes.flugzeug.x, spieler.pz - W.markantes.flugzeug.z) > 60) flugzeugZuruck(); }
+}
+
+/* ── Waffe ───────────────────────────────────────────────────── */
+let schussPause = 0, zielZeit = 0, pistole = null;
+const spurLinie = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: new THREE.Color(3, 2.4, 1.2), transparent: true }));
+spurLinie.frustumCulled = false; spurLinie.visible = false; szene.add(spurLinie);
+const muendung = new THREE.PointLight(0xffc070, 0, 14, 2); szene.add(muendung);
+let spurZeit = 0;
+function schussLinie(a, b){
+  const p = spurLinie.geometry.attributes.position;
+  p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true;
+  spurLinie.geometry.computeBoundingSphere();
+  spurLinie.visible = true; spurZeit = .06;
+  muendung.position.copy(a); muendung.intensity = 30;
+}
+function pistoleAnbringen(){
+  let hand = null;
+  spieler.m.koerper.traverse(o => { if(!hand && o.isBone && /hand_r/i.test(o.name)) hand = o; });
+  const g = new THREE.Group();
+  const m = new THREE.MeshStandardMaterial({ color: 0x1a1b1e, metalness: .7, roughness: .35 });
+  const lauf = new THREE.Mesh(new THREE.BoxGeometry(.035, .05, .2), m); lauf.position.set(0, .02, .07);
+  const griff = new THREE.Mesh(new THREE.BoxGeometry(.03, .1, .045), m); griff.position.set(0, -.04, -.01); griff.rotation.x = .25;
+  g.add(lauf, griff); g.visible = false;
+  if(hand){
+    spieler.m.g.updateMatrixWorld(true);
+    const sk = new THREE.Vector3(); hand.getWorldScale(sk);
+    g.scale.setScalar(1/sk.x); hand.add(g);
+  }
+  pistole = g;
+}
+const _a = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3();
+function strahlKugel(o, d, cx, cy, cz, r){
+  const ox = o.x - cx, oy = o.y - cy, oz = o.z - cz;
+  const b = ox*d.x + oy*d.y + oz*d.z, c = ox*ox + oy*oy + oz*oz - r*r, h = b*b - c;
+  if(h < 0) return -1;
+  const t = -b - Math.sqrt(h);
+  return t > 0 ? t : -1;
+}
+function schiessen(){
+  schussPause = .3; zielZeit = 2.5;
+  kamera.getWorldDirection(_d);
+  const o = kamera.position;
+  // von der Kamera aus zielen, aber erst ab der Spielfigur treffen
+  const t0 = Math.max(0, (spieler.x - o.x)*_d.x + (spieler.y + 1.4 - o.y)*_d.y + (spieler.z - o.z)*_d.z);
+  let best = 140, ziel = null;
+  for(let t = t0 + .5; t < best; t += .7){
+    const x = o.x + _d.x*t, y = o.y + _d.y*t, z = o.z + _d.z*t;
+    if(W.inHindernis(x, y, z) || (W.begehbar(x, z) ? y < W.bodenY(x, z) : y < W.WASSER_Y)){ best = t; break; }
+  }
+  for(const p of leute){
+    if(p.zustand === 'weg' || p.zustand === 'tot') continue;
+    const t = strahlKugel(o, _d, p.x, p.y + 1.1, p.z, .5);
+    if(t > t0 && t < best){ best = t; ziel = { p }; }
+  }
+  for(const f of fahrzeuge){
+    if(!f.g.visible || f === spieler.fz || f.art === 'flug') continue;
+    const fx = Math.sin(f.h), fz = Math.cos(f.h), off = f.L/2 - f.W/2;
+    for(const sx of [-1, 0, 1]){
+      const t = strahlKugel(o, _d, f.x + fx*off*sx, f.y + .8, f.z + fz*off*sx, f.W/2 + .15);
+      if(t > t0 && t < best){ best = t; ziel = { f }; }
+    }
+  }
+  spieler.h = Math.atan2(_d.x, _d.z);
+  _a.set(spieler.x + Math.sin(spieler.h)*.5, spieler.y + 1.45, spieler.z + Math.cos(spieler.h)*.5);
+  _t.copy(o).addScaledVector(_d, best);
+  schussLinie(_a, _t);
+  ton.schuss(false);
+  // Leute in der Nähe rennen weg
+  for(const p of leute) if((p.zustand === 'geht') && Math.hypot(p.x - spieler.x, p.z - spieler.z) < 40){ p.zustand = 'rennt'; p.flucht = 8; p.dir = -p.dir; }
+  if(ziel && ziel.p){
+    const p = ziel.p;
+    p.zustand = 'tot'; p.liegen = 25; ton.dumpf(.5);
+    $('fadenkreuz').classList.add('treffer'); setTimeout(() => $('fadenkreuz').classList.remove('treffer'), 150);
+    fahndung(1, 'Schüsse auf Passanten', 2);
+  } else if(ziel && ziel.f){
+    const f = ziel.f;
+    f.schaden = (f.schaden || 0) + 14;
+    $('fadenkreuz').classList.add('treffer'); setTimeout(() => $('fadenkreuz').classList.remove('treffer'), 150);
+    if(f.typ === 'polizei' && f.ki) fahndung(1, 'Auf Polizei geschossen', 3);
+    else fahndung(1, 'Schüsse in der Stadt', 1);
+  } else fahndung(1, 'Schüsse in der Stadt', 1);
+}
+function waffeUpdate(dt){
+  schussPause -= dt; zielZeit -= dt; spurZeit -= dt;
+  if(spurZeit <= 0){ spurLinie.visible = false; muendung.intensity = 0; }
+  const zuFuss = spieler.modus === 'fuss' && ansicht === 'spiel';
+  $('fadenkreuz').hidden = !zuFuss;
+  if(schussGewollt && zuFuss && spieler.liegt <= 0 && schussPause <= 0) schiessen();
+  schussGewollt = false;
+  if(pistole) pistole.visible = zuFuss && zielZeit > 0;
+  // Polizei schießt ab zwei Sternen
+  if(sterne < 2 || spieler.modus === 'tot') return;
+  for(const s2 of streifen){
+    const f = s2.f;
+    if(!f.g.visible || f === spieler.fz) continue;
+    const d = Math.hypot(f.x - spieler.px, f.z - spieler.pz);
+    if(d > 55) continue;
+    s2.schussT = (s2.schussT ?? 1.5) - dt;
+    if(s2.schussT > 0) continue;
+    s2.schussT = 1.4 - sterne*.15 + Math.random()*.5;
+    if(!sicht(f.x, f.z, spieler.px, spieler.pz)) continue;
+    _a.set(f.x, f.y + 1.3, f.z);
+    const trifft = Math.random() < (.3 + sterne*.07)*(spieler.fz ? .7 : 1)*(d > 30 ? .6 : 1);
+    _t.set(spieler.px + (trifft ? 0 : (Math.random() - .5)*4), spieler.y + 1.2, spieler.pz + (trifft ? 0 : (Math.random() - .5)*4));
+    schussLinie(_a, _t);
+    ton.schuss(true);
+    if(trifft){
+      if(spieler.fz) spieler.fz.schaden = (spieler.fz.schaden || 0) + 5 + sterne;
+      else schaden(4 + sterne*1.6, 'ERSCHOSSEN');
+    }
+  }
+}
+// Autos mit zu viel Schaden fliegen in die Luft
+function autoSchaeden(){
+  for(const f of fahrzeuge){
+    if(f.art !== 'auto' || !f.g.visible || (f.schaden || 0) < 100) continue;
+    explosion(f.x, f.y + 1, f.z, false);
+    f.g.visible = false; f.vx = f.vz = 0; f.schaden = 0;
+    // Leute in der Nähe
+    for(const p of leute) if(p.zustand !== 'weg' && Math.hypot(p.x - f.x, p.z - f.z) < 6){ p.zustand = 'tot'; p.liegen = 25; }
+    if(Math.hypot(spieler.px - f.x, spieler.pz - f.z) < 6 && spieler.fz !== f && spieler.modus === 'fuss') schaden(45, 'IN DIE LUFT GEFLOGEN');
+    if(spieler.fz === f){ spieler.fz = null; tod('IN DIE LUFT GEFLOGEN', f.x, f.y, f.z); }
+    if(f.typ === 'polizei' && f.ki){ fahndung(1, 'Streifenwagen zerstört', 4); }
+    else if(!verkehr.includes(f) && !streifen.some(s2 => s2.f === f)) f.zerstoert = uhr;
   }
 }
 
@@ -1256,7 +1476,8 @@ function kameraUpdate(dt){
   if(m === 'auto'){ dist = 8.8; hoehe = 1.75; grundPitch = .25; }
   if(m === 'boot'){ dist = 13; hoehe = 2.6; grundPitch = .2; }
   if(m === 'flug'){ dist = 24; hoehe = 3; grundPitch = .14; }
-  if(m === 'tot' && flieger){ x = feuerball.position.x; y = feuerball.position.y; z = feuerball.position.z; dist = 45; }
+  if(m === 'tot'){ x = totPos.x; y = Math.max(totPos.y, W.bodenY(totPos.x, totPos.z)); z = totPos.z; dist = 14 + totZeit*4; kam.yaw += dt*.25; }
+  if(m === 'fall'){ dist = 9; hoehe = 2.5; }
   if(kam.dx || kam.dy){
     kam.yaw -= kam.dx*.0042*einst.empf; kam.pitch = klemm(kam.pitch + kam.dy*.0032*einst.empf*(einst.umkehren ? -1 : 1), -.25, 1.25);
     kam.dx = kam.dy = 0; kam.hand = uhr;
@@ -1379,6 +1600,7 @@ const ton = (() => {
     tuer(){ piep(180, .08, 'square', .12, 90); },
     hupe(s){ piep(420, .3, 'square', .08*s); piep(520, .3, 'square', .06*s); },
     alarm(){ piep(300, .6, 'sawtooth', .15, 120); },
+    schuss(fern){ rauschen(.12, fern ? .18 : .55, fern ? 1400 : 3200); piep(fern ? 160 : 220, .08, 'square', fern ? .05 : .14, 60); },
   };
 })();
 
@@ -1428,8 +1650,9 @@ function hudModus(){
   $('hoehe').classList.toggle('an', m === 'flug');
   const L = {
     fuss: ['Aktion', 'Sprung', 'Rennen'], auto: ['Raus', 'Bremse', 'Boost'], boot: ['Raus', 'Bremse', '—'],
-    flug: ['Raus', 'Schub −', 'Schub +'], tot: ['', '', ''],
+    flug: ['Fallschirm', 'Schub −', 'Schub +'], tot: ['', '', ''], fall: ['', '', ''],
   }[m] || ['', '', ''];
+  $('kSchuss').hidden = m !== 'fuss';
   $('kAktion').textContent = L[0]; $('kSprung').textContent = L[1]; $('kSprint').textContent = L[2];
 }
 function uhrText(){
@@ -1454,6 +1677,8 @@ function hudUpdate(dt){
       if(f.art === 'flug'){ $('hoehe').textContent = Math.round(f.y*3.28) + ' ft · Schub ' + Math.round(f.flug.schub*100) + ' %'; }
     }
     $('sterne').classList.toggle('blinkt', sterne > 0 && sternZeit > 4);
+    $('lebenBalken').style.width = leben + '%';
+    $('leben').classList.toggle('knapp', leben < 30);
   }
   hudModus();
 }
@@ -1574,12 +1799,13 @@ function verkehrUpdate(dt){
       physik(f, { gas: 0, lenk: 0, hand: true }, dt); bewege(f, dt); f.zeige(dt);
       const d = Math.hypot(f.x - spieler.px, f.z - spieler.pz);
       if(d > 260){ verkehrEinsetzen(f, 170, 330); }
-    } else if(!f.g.visible) verkehrEinsetzen(f, 170, 330);
+    } else if(!f.g.visible){ if(verkehrEinsetzen(f, 170, 330)) f.schaden = 0; }
   }
 }
 function parkUpdate(dt){
   for(const f of fahrzeuge){
     if(f === spieler.fz || f.ki || verkehr.includes(f) || f.art === 'flug') continue;
+    if(f.zerstoert){ if(uhr - f.zerstoert > 60 && Math.hypot(f.x - spieler.px, f.z - spieler.pz) > 200){ f.zerstoert = 0; f.schaden = 0; } else { f.g.visible = false; continue; } }
     // abgestellte Autos weit weg gar nicht erst zeichnen
     if(f.art === 'auto' && !streifen.some(s => s.f === f)) f.g.visible = Math.abs(f.x - spieler.px) < 330 && Math.abs(f.z - spieler.pz) < 330;
     if(!f.g.visible) continue;
@@ -1596,7 +1822,7 @@ function polizeiUpdate(dt){
     s.update(dt); f.zeige(dt);
     const d = Math.hypot(f.x - spieler.px, f.z - spieler.pz);
     if(sterne > 0 && d < 85 && sicht(f.x, f.z, spieler.px, spieler.pz)) nahe = true;
-    if(sterne > 0 && d < 8 && spieler.tempo < 3.5 && spieler.modus !== 'flug' && spieler.modus !== 'tot') festnahme += dt*(1/streifen.length + .5);
+    if(sterne > 0 && d < 8 && spieler.tempo < 3.5 && spieler.modus !== 'flug' && spieler.modus !== 'fall' && spieler.modus !== 'tot') festnahme += dt*(1/streifen.length + .5);
     if((sterne === 0 && d > 140) || s.fern > 6){ f.g.visible = false; f.vx = f.vz = 0; }
   }
   // Blaulicht
@@ -1605,7 +1831,7 @@ function polizeiUpdate(dt){
   MAT.rotLicht.color.setRGB(Math.sin(t) > 0 ? .3 : 6, .05, .05);
   if(sterne > 0){
     if(nahe) sternZeit = 0; else sternZeit += dt;
-    if(sternZeit > 9 + sterne*3){ sterne--; sternZeit = 0; hudSterne(); meldung(sterne ? 'Ein Stern weniger' : 'Polizei abgehängt'); }
+    if(sternZeit > 8 + sterne*3){ sterne = 0; sternZeit = 0; hudSterne(); meldung('Polizei abgehängt'); }
   }
   if(festnahme > 2.6) verhaftet();
   festnahme = Math.max(0, festnahme - dt*.4);
@@ -1702,7 +1928,11 @@ function schritt(dt){
   if(laeuft && !pausiert){
     if(ansicht !== 'spiel'){ tasten.clear(); stick.ax = stick.ay = 0; }
     if(spieler.modus === 'fuss') spielerFuss(dt);
+    else if(spieler.modus === 'fall') fallschirmUpdate(dt);
     else if(spieler.fz) spielerFahrzeug(dt);
+    fliegerOhnePilot(dt);
+    waffeUpdate(dt);
+    autoSchaeden();
     verkehrUpdate(dt);
     parkUpdate(dt);
     polizeiUpdate(dt);
@@ -1830,6 +2060,7 @@ function spielStarten(neu){
   if(totZeit >= 0 || !flieger.g.visible){ totZeit = -1; flugzeugZuruck(); }
   spieler.modus = 'fuss'; spieler.y = W.bodenY(spieler.x, spieler.z); spieler.vy = 0; spieler.liegt = 0;
   sterne = 0; festnahme = 0; hudSterne();
+  leben = 100; totZeit = -1; schirm.visible = false; spieler.m.g.rotation.x = 0;
   for(const s2 of streifen){ s2.f.g.visible = false; s2.f.vx = s2.f.vz = 0; }
   if(auftrag){ auftrag = null; zielStrahl.visible = false; jobStrahlen.forEach(j => j.visible = true); hudAuftrag(); }
   kam.yaw = spieler.h; kam.pitch = .25; kam.hand = -9;
@@ -1943,5 +2174,5 @@ function simuliere(sek, schrittweite = 1/60){
   const n = Math.round(sek/schrittweite);
   for(let i = 0; i < n; i++) schritt(schrittweite);
 }
-window.__spiel = { simuliere, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
+window.__spiel = { simuliere, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
 aufbauen().catch(e => { console.error(e); $('ladetext').textContent = 'Fehler beim Aufbau: ' + e.message + ' — bitte neu laden.'; });
