@@ -49,6 +49,9 @@ schneller abgespielt. Die Vorwärtsdrift der Hüfte wird beim Laden entfernt.
 | BMW E30 | „(Low-poly) BMW E30 (free download)“ von KrStolorz, [Sketchfab](https://sketchfab.com/3d-models/low-poly-bmw-e30-free-download-e453bdae0ee1423ea79f1322db1c7459) | CC BY 4.0 |
 | Muscle-Car | „LowPoly Game model“ von archer1533, [Sketchfab](https://sketchfab.com/3d-models/lowpoly-game-model-c429b45462524c03a460ace11f596f95) | CC BY 4.0 |
 | Spielfigur | „Nathan Animated 003 – Walking 3D Man“ von Renderpeople, [Sketchfab](https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc) | CC BY 4.0 |
+| Hochhäuser | „Miami style condominium“ und „Hi rise apartment building“ von aitortilla01 (Sketchfab) | CC BY 4.0 |
+| Palmen | „Date Palm“ von evolveduk, „Phoenix Palm: Cities Skylines“ von TheHyperChimp (Sketchfab) | CC BY 4.0 |
+| Spiegelwasser | `lib/Water.js` und `bilder/wassernormalen.jpg` aus den three.js-Beispielen | MIT |
 | Schrift | Pricedown von Ray Larabie (Typodermic Fonts) | freie Schrift |
 | three.js | three.js-Autoren | MIT |
 
