@@ -12,7 +12,8 @@ import { OutputPass } from './lib/postprocessing/OutputPass.js';
 import * as T from './texturen.js';
 import * as W from './welt.js';
 import { baueBoot, baueFlugzeug, baueHubschrauber } from './modelle.js';
-import { ladeAlles, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
+import { ladeAlles, ladeKulisse, kulisse, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
+import { Water } from './lib/Water.js';
 
 const $ = id => document.getElementById(id);
 const klemm = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -161,11 +162,11 @@ const _c = new THREE.Color(), _c2 = new THREE.Color();
 
 let stunde = speicherLesen('autostehlen.stunde', 17.6);
 if(typeof stunde !== 'number' || !(stunde >= 0 && stunde < 24)) stunde = 17.6;
-const TAG_SEKUNDEN = 20*60;
+const tagSekunden = () => (einst.tag || 0)*60;
 let nacht = 0;
 const sonnenRichtung = new THREE.Vector3();
 function zeitAktualisieren(dt, erzwingen){
-  stunde = (stunde + dt*24/TAG_SEKUNDEN) % 24;
+  if(tagSekunden() > 0) stunde = (stunde + dt*24/tagSekunden()) % 24;
   const a = (stunde - 6)/12*Math.PI;
   sonnenRichtung.set(Math.cos(a)*.93, Math.sin(a), .36).normalize();
   const e = sonnenRichtung.y;
@@ -195,6 +196,12 @@ function zeitAktualisieren(dt, erzwingen){
   if(W.markantes.lichtflecken){ W.markantes.lichtflecken.opacity = nacht*.55; W.markantes.lichtflecken.visible = nacht > .02; }
   for(const m of lichtMats) m.emissiveIntensity = .15 + nacht*2.6;
   wasserMat.color.set(0x0e3a4a).lerp(_c2.set(0x050b1c), nacht);
+  if(spiegel){
+    const u = spiegel.material.uniforms;
+    u.sunDirection.value.copy(nacht > .6 ? _v3.copy(sonnenRichtung).negate() : sonnenRichtung).normalize();
+    u.sunColor.value.copy(sonne.color).multiplyScalar(Math.min(1, sonne.intensity/2.5));
+    u.waterColor.value.set(0x0c3646).lerp(_c2.set(0x040a18), nacht);
+  }
   // Umgebungslicht für Spiegelungen neu berechnen
   umweltZeit -= dt;
   if(erzwingen || Math.abs(e - umweltE) > .012 || umweltZeit < 0 && Math.abs(e - umweltE) > .002){
@@ -207,12 +214,24 @@ function zeitAktualisieren(dt, erzwingen){
 }
 
 /* ── Wasser ────────────────────────────────────────────────────── */
-const wasserNormal = T.wasserNormalen();
-wasserNormal.repeat.set(380, 380);
+const wasserNormal = new THREE.TextureLoader().load('bilder/wassernormalen.jpg');
+wasserNormal.wrapS = wasserNormal.wrapT = THREE.RepeatWrapping;
+wasserNormal.repeat.set(260, 260);
 const wasserMat = new THREE.MeshStandardMaterial({ color: 0x0e3a4a, roughness: .07, metalness: .05, normalMap: wasserNormal, normalScale: new THREE.Vector2(.32, .32) });
 const wasser = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI/2), wasserMat);
 wasser.position.y = W.WASSER_Y; wasser.receiveShadow = true;
 szene.add(wasser);
+// Bei hoher Grafik: echtes Spiegelwasser (die Stadt spiegelt sich in der Bucht)
+const spiegelNormal = new THREE.TextureLoader().load('bilder/wassernormalen.jpg');
+spiegelNormal.wrapS = spiegelNormal.wrapT = THREE.RepeatWrapping;
+const spiegel = new Water(new THREE.PlaneGeometry(9000, 9000), {
+  textureWidth: 512, textureHeight: 512, waterNormals: spiegelNormal,
+  sunDirection: new THREE.Vector3(0, 1, 0), sunColor: 0xffffff, waterColor: 0x0c3646, distortionScale: 2.2, fog: true,
+});
+spiegel.rotation.x = -Math.PI/2; spiegel.position.y = W.WASSER_Y; spiegel.material.uniforms.size.value = 1.6;
+szene.add(spiegel);
+function wasserWahl(){ spiegel.visible = stufeName === 'hoch'; wasser.visible = !spiegel.visible; }
+wasserWahl();
 // Brandung am Strand
 const gischtMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5, depthWrite: false, map: T.ring() });
 const gischt = new THREE.Mesh(new THREE.PlaneGeometry(6, 1120).rotateX(-Math.PI/2), gischtMat);
@@ -233,9 +252,11 @@ async function aufbauen(){
   try { await Promise.race([document.fonts.load('80px "Pricedown"'), new Promise(r => setTimeout(r, 2500))]); } catch(e){}
   ladeStand(.08, 'Autos kommen aus der Werkstatt …');
   await ladeAlles(a => ladeStand(.08 + a*.5, a < 1 ? 'Autos kommen aus der Werkstatt …' : 'Leute ziehen ein …'));
-  ladeStand(.62, 'Palma Bay wird gebaut …');
+  ladeStand(.6, 'Hochhäuser werden hochgezogen …');
+  await ladeKulisse();
+  ladeStand(.7, 'Palma Bay wird gebaut …');
   await new Promise(r => setTimeout(r, 30));
-  welt = W.baueWelt(szene, Q);
+  welt = W.baueWelt(szene, Q, kulisse);
   ladeStand(.85, 'Neonschilder werden angeknipst …');
   await new Promise(r => setTimeout(r, 30));
   // Leuchtschilder
@@ -1701,6 +1722,8 @@ function schritt(dt){
     verkehrUpdate(dt); leuteUpdate(dt);
     titelKamera(uhr);
   }
+  W.palmenNah(laeuft ? spieler.px : kamera.position.x, laeuft ? spieler.pz : kamera.position.z, dt);
+  if(spiegel) spiegel.material.uniforms.time.value += dt*.55;
   umgebungUpdate(dt, uhr);
   spurUpdate(dt);
   effekteUpdate(dt);
@@ -1749,7 +1772,7 @@ addEventListener('resize', () => {
 document.addEventListener('visibilitychange', () => { if(document.hidden && laeuft && !pausiert) pauseUmschalten(); });
 
 /* ── Menüs ─────────────────────────────────────────────────────── */
-const einst = Object.assign({ laut: .8, empf: 1, umkehren: false }, speicherLesen('autostehlen.einst', {}));
+const einst = Object.assign({ laut: .8, empf: 1, umkehren: false, tag: 12 }, speicherLesen('autostehlen.einst', {}));
 function einstSichern(){ speicherSchreiben('autostehlen.einst', einst); }
 let ansicht = 'laden';         // laden | menue | intro | spiel
 let tafelOffen = null, tafelVon = null;
@@ -1853,6 +1876,7 @@ function einstAnzeigen(){
   $('eLaut').value = Math.round(einst.laut*100); $('eLautWert').textContent = Math.round(einst.laut*100) + ' %';
   $('eEmpf').value = Math.round(einst.empf*100); $('eEmpfWert').textContent = Math.round(einst.empf*100) + ' %';
   $('eUmkehren').setAttribute('aria-pressed', einst.umkehren); $('eUmkehren').textContent = einst.umkehren ? 'Umgekehrt' : 'Normal';
+  document.querySelectorAll('[data-tag]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.tag === einst.tag));
   $('eTon').setAttribute('aria-pressed', ton.an); $('eTon').textContent = ton.an ? 'An' : 'Aus';
 }
 // Hauptmenü
@@ -1883,7 +1907,7 @@ $('karteZu').addEventListener('click', () => karteUmschalten());
 document.querySelectorAll('[data-grafik]').forEach(b => b.addEventListener('click', () => {
   stufeName = b.dataset.grafik; Q = STUFEN[stufeName]; speicherSchreiben('autostehlen.grafik', stufeName);
   renderer.setPixelRatio(Q.pr); renderer.setSize(innerWidth, innerHeight);
-  baueComposer(); schattenEinstellen(); einstAnzeigen(); ton.menue();
+  baueComposer(); schattenEinstellen(); wasserWahl(); einstAnzeigen(); ton.menue();
 }));
 document.querySelectorAll('[data-zeit]').forEach(b => b.addEventListener('click', () => {
   stunde = +b.dataset.zeit; zeitAktualisieren(0, true); speicherSchreiben('autostehlen.stunde', stunde); ton.menue();
@@ -1891,6 +1915,7 @@ document.querySelectorAll('[data-zeit]').forEach(b => b.addEventListener('click'
 $('eLaut').addEventListener('input', e => { einst.laut = e.target.value/100; einstSichern(); ton.start(); ton.lautstaerke(); einstAnzeigen(); });
 $('eEmpf').addEventListener('input', e => { einst.empf = e.target.value/100; einstSichern(); einstAnzeigen(); });
 $('eUmkehren').addEventListener('click', () => { einst.umkehren = !einst.umkehren; einstSichern(); einstAnzeigen(); ton.menue(); });
+document.querySelectorAll('[data-tag]').forEach(b => b.addEventListener('click', () => { einst.tag = +b.dataset.tag; einstSichern(); einstAnzeigen(); ton.menue(); }));
 $('eTon').addEventListener('click', () => { ton.start(); ton.umschalten(); einstAnzeigen(); });
 // Tastatur in Menüs: Pfeile wählen, Esc geht zurück
 addEventListener('keydown', e => {

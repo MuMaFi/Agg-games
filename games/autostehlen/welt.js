@@ -291,7 +291,8 @@ export const hotelSchilder = [];
 export const markantes = {};
 export let gerueste = [];
 
-export function baueWelt(szene, qualitaet){
+export const modellHaeuser = [];
+export function baueWelt(szene, qualitaet, K){
   const Z = T.mulberry32(20261118);
   const R = (a, b) => a + (b - a)*Z();
   const RI = (a, b) => Math.floor(R(a, b + 1));
@@ -393,6 +394,18 @@ export function baueWelt(szene, qualitaet){
     B.seiten(b.x0, b.x1, 0, b.y, b.z0, b.z1, 4, 1, 0, [.85, .85, .85]);
     B.deckel(b.x0, b.x1, b.y, b.z0, b.z1, ts, [1, 1, 1]);
   }
+  // Turm aus einem echten Modell: Grundfläche aus seinen Maßen, Drehung in 90°-Schritten
+  function modellTurm(typ, cx, cz, h, maxB){
+    const m = K && K[typ]; if(!m) return false;
+    const rot = Math.floor(Z()*4);
+    let b = m.b*h, t = m.t*h;
+    if(maxB && Math.max(b, t) > maxB){ const f = maxB/Math.max(b, t); h *= f; b *= f; t *= f; }
+    if(rot % 2){ const x = b; b = t; t = x; }
+    modellHaeuser.push({ typ, x: cx, z: cz, h, rot: rot*Math.PI/2 });
+    hindernis(cx - b*.36, cx + b*.36, cz - t*.36, cz + t*.36, -6, h);
+    hindernis(cx - b/2, cx + b/2, cz - t/2, cz + t/2, -6, h*.06); // Sockel
+    return true;
+  }
   function palme(x, z, s = 1){ palmen.push({ x, z, s: s*R(.85, 1.2), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .35, x + .35, z - .35, z + .35, -1, 9, 'palme'); }
   function baum(x, z){ baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .4, x + .4, z - .4, z + .4, -1, 6, 'baum'); }
   function inPlatz(b, rand, n, f){
@@ -419,6 +432,7 @@ export function baueWelt(szene, qualitaet){
       platte(b, 'gehweg');
       for(let k = 0; k < 2; k++){
         const z0 = k === 0 ? b.z0 + 4 : cz + 2, z1 = k === 0 ? cz - 2 : b.z1 - 4;
+        if(Z() < .4 && modellTurm('condo', (b.x0 + b.x1)/2, (z0 + z1)/2, R(55, 95), Math.min(b.x1 - b.x0 - 8, z1 - z0))) continue;
         const h = Math.round(R(14, 46)/3.25)*3.25;
         const kr = Z() < .5 ? wahl(['pink', 'cyan', 'lila', 'gruen']) : null;
         gebaeude(b.x0 + 6, b.x1 - 6, z0, z1, h, 'deko', { krone: kr, kanten: Z() < .35 ? wahl(['pink', 'cyan']) : null, kantenAb: h*.15 });
@@ -454,7 +468,9 @@ export function baueWelt(szene, qualitaet){
     platte(b, 'gehweg');
     if(zone === 'mitte'){
       const nah = 1 - d/240;
-      if(Z() < .3){
+      if(Z() < .42 && modellTurm(Z() < .55 ? 'hochhaus' : 'condo', cx, cz, R(95, 165)*(.8 + nah*.3), 74)){
+        for(const [x, z] of [[b.x0 + 3, b.z0 + 3], [b.x1 - 3, b.z0 + 3], [b.x0 + 3, b.z1 - 3], [b.x1 - 3, b.z1 - 3]]) palme(x, z);
+      } else if(Z() < .3){
         // ein großer Turm mit Platz davor
         const w = R(30, 44), x0 = cx - w/2 + R(-6, 6), z0 = cz - w/2 + R(-6, 6);
         const h = R(110, 200)*(.75 + nah*.4);
@@ -675,14 +691,18 @@ export function baueWelt(szene, qualitaet){
     }
     const wedelGeo = mergeSimple(wedelBau);
     const wedelMat = new THREE.MeshStandardMaterial({ map: T.wedel(), alphaTest: .45, side: THREE.DoubleSide, roughness: .8 });
-    const stamm = new THREE.InstancedMesh(stammGeo, stammMat, palmen.length);
-    const krone = new THREE.InstancedMesh(wedelGeo, wedelMat, palmen.length);
-    palmen.forEach((p, i) => {
-      tmp.position.set(p.x, p.y, p.z); tmp.rotation.set(0, p.r, 0); tmp.scale.setScalar(p.s); tmp.updateMatrix();
-      stamm.setMatrixAt(i, tmp.matrix); krone.setMatrixAt(i, tmp.matrix);
-    });
-    stamm.castShadow = krone.castShadow = true; krone.receiveShadow = true;
-    szene.add(stamm, krone);
+    if(K && K.palmeFern && K.palmeNah) palmenAusModellen(szene, K, tmp);
+    else {
+      const stamm = new THREE.InstancedMesh(stammGeo, stammMat, palmen.length);
+      const krone = new THREE.InstancedMesh(wedelGeo, wedelMat, palmen.length);
+      palmen.forEach((p, i) => {
+        tmp.position.set(p.x, p.y, p.z); tmp.rotation.set(0, p.r, 0); tmp.scale.setScalar(p.s); tmp.updateMatrix();
+        stamm.setMatrixAt(i, tmp.matrix); krone.setMatrixAt(i, tmp.matrix);
+      });
+      stamm.castShadow = krone.castShadow = true; krone.receiveShadow = true;
+      szene.add(stamm, krone);
+    }
+    if(K) turmeAufstellen(szene, K, tmp);
 
     const baumStamm = new THREE.InstancedMesh(new THREE.CylinderGeometry(.18, .28, 3, 6).translate(0, 1.5, 0), new THREE.MeshStandardMaterial({ color: 0x6b4f37, roughness: .9 }), baeume.length);
     const laubGeo = new THREE.IcosahedronGeometry(2.4, 1).translate(0, 4.2, 0);
@@ -780,4 +800,69 @@ export function mergeSimple(geos){
   g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeBoundingSphere();
   return g;
+}
+
+/* ── Modelle aufstellen ────────────────────────────────────────── */
+function instanzen(szene, modell, n, schatten = true){
+  return modell.teile.map(t => {
+    const im = new THREE.InstancedMesh(t.geo, t.mat, Math.max(1, n));
+    im.castShadow = schatten; im.receiveShadow = true; im.count = n;
+    szene.add(im); return im;
+  });
+}
+function turmeAufstellen(szene, K, tmp){
+  for(const typ of ['condo', 'hochhaus']){
+    const liste = modellHaeuser.filter(m => m.typ === typ);
+    if(!liste.length || !K[typ]) continue;
+    for(const t of K[typ].teile) if(!fensterMats.includes(t.mat) && t.mat.emissiveMap) fensterMats.push(t.mat);
+    const ims = instanzen(szene, K[typ], liste.length);
+    liste.forEach((m, i) => {
+      tmp.position.set(m.x, .15, m.z); tmp.rotation.set(0, m.rot, 0); tmp.scale.setScalar(m.h); tmp.updateMatrix();
+      for(const im of ims) im.setMatrixAt(i, tmp.matrix);
+    });
+    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+  }
+}
+// Palmen: alle als leichte Phoenix-Palme, die nächsten 90 als detaillierte Dattelpalme
+const NAH_MAX = 90;
+let palmFern = null, palmNah = null, palmNahIdx = [], palmIstNah = null;
+const _m = new THREE.Matrix4(), _null = new THREE.Matrix4().makeScale(0, 0, 0);
+function palmMatrix(p, nah, out){
+  const t = new THREE.Object3D();
+  t.position.set(p.x, p.y, p.z); t.rotation.set(0, p.r, 0); t.scale.setScalar(p.s*(nah ? 8.6 : 9.4)); t.updateMatrix();
+  return out.copy(t.matrix);
+}
+function palmenAusModellen(szene, K, tmp){
+  palmFern = instanzen(szene, K.palmeFern, palmen.length);
+  palmNah = instanzen(szene, K.palmeNah, NAH_MAX);
+  palmIstNah = new Uint8Array(palmen.length);
+  palmen.forEach((p, i) => { palmMatrix(p, false, _m); for(const im of palmFern) im.setMatrixAt(i, _m); });
+  for(const im of palmFern){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+  for(const im of palmNah){ im.count = 0; im.frustumCulled = false; }
+}
+let palmTakt = 0;
+export function palmenNah(px, pz, dt){
+  if(!palmFern || (palmTakt -= dt) > 0) return;
+  palmTakt = .5;
+  const kand = [];
+  for(let i = 0; i < palmen.length; i++){
+    const p = palmen[i], d = (p.x - px)**2 + (p.z - pz)**2;
+    if(d < 150*150) kand.push([d, i]);
+  }
+  kand.sort((a, b) => a[0] - b[0]);
+  const neu = new Uint8Array(palmen.length);
+  const idx = kand.slice(0, NAH_MAX).map(k => k[1]);
+  for(const i of idx) neu[i] = 1;
+  let geaendert = false;
+  for(let i = 0; i < palmen.length; i++) if(neu[i] !== palmIstNah[i]){
+    geaendert = true;
+    const m = neu[i] ? _null : palmMatrix(palmen[i], false, _m);
+    for(const im of palmFern) im.setMatrixAt(i, m);
+  }
+  palmIstNah = neu;
+  if(!geaendert && idx.length === palmNahIdx.length) return;
+  palmNahIdx = idx;
+  idx.forEach((i, n) => { palmMatrix(palmen[i], true, _m); for(const im of palmNah) im.setMatrixAt(n, _m); });
+  for(const im of palmNah){ im.count = idx.length; im.instanceMatrix.needsUpdate = true; }
+  for(const im of palmFern) im.instanceMatrix.needsUpdate = true;
 }

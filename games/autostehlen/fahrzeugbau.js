@@ -327,3 +327,70 @@ export function animiereFigur(f, tempo, dt){
   f.mixer.setTime(f.t);
   f.koerper.rotation.x = tempo > 5 ? .12 : tempo > 2.5 ? .05 : 0;
 }
+
+/* ── Kulisse: Türme und Palmen (CC BY 4.0, siehe Credits) ──────────
+   Jedes Modell wird zu wenigen Geometrien je Material, Boden bei y = 0,
+   mittig, Höhe 1 (Breite/Tiefe im gleichen Maßstab). So lässt es sich
+   mit InstancedMesh beliebig oft und in jeder Größe aufstellen.        */
+export const kulisse = {};
+async function kulisseLaden(name, datei, art){
+  const gltf = await lader.loadAsync(datei);
+  const w = gltf.scene; w.updateMatrixWorld(true);
+  const proMat = new Map();
+  w.traverse(o => { if(o.isMesh){ const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!proMat.has(m)) proMat.set(m, []); proMat.get(m).push(vereinheitlichen(o.geometry, o.matrixWorld)); } });
+  const box = new THREE.Box3();
+  for(const gs of proMat.values()) for(const g of gs){ g.computeBoundingBox(); box.union(g.boundingBox); }
+  const groesse = box.getSize(new THREE.Vector3());
+  const k = 1/groesse.y;
+  const m4 = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x)/2, -box.min.y, -(box.min.z + box.max.z)/2));
+  const teile = [];
+  for(const [mat, gs] of proMat){
+    for(const g of gs) g.applyMatrix4(m4);
+    const geo = zusammen(gs); geo.computeBoundingSphere();
+    if(art === 'turm') nachtfenster(mat);
+    if(mat.alphaTest || mat.transparent){ mat.transparent = false; mat.alphaTest = Math.max(mat.alphaTest || 0, .45); mat.side = THREE.DoubleSide; }
+    teile.push({ geo, mat });
+  }
+  kulisse[name] = { teile, b: groesse.x*k, t: groesse.z*k };
+}
+// Nachtfenster: dunkle, bläuliche Stellen der Fassade werden zu Fenstern, ein Teil davon leuchtet
+export const turmMats = [];
+function nachtfenster(mat){
+  const bild = mat.map && mat.map.image;
+  if(!bild) return;
+  try {
+    const w = Math.min(1024, bild.width), h = Math.min(1024, bild.height);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.drawImage(bild, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h), p = d.data;
+    const zelle = 6, an = [];
+    const z = (x, y) => { const s = Math.sin(x*127.1 + y*311.7)*43758.5453; return s - Math.floor(s); };
+    for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
+      const i = (y*w + x)*4, r = p[i], gg = p[i + 1], b = p[i + 2];
+      const hell = (r + gg + b)/3;
+      const glas = (b > r + 6 || gg > r + 10) && hell < 150;
+      const cx = (x/zelle)|0, cy = (y/zelle)|0;
+      const los = z(cx, cy);
+      if(glas && los < .42){
+        const warm = z(cy, cx) < .75;
+        p[i] = warm ? 255 : 210; p[i + 1] = warm ? 196 : 228; p[i + 2] = warm ? 128 : 255;
+        const f = .55 + .45*z(cx + 9, cy);
+        p[i] *= f; p[i + 1] *= f; p[i + 2] *= f;
+      } else { p[i] = p[i + 1] = p[i + 2] = 0; }
+      p[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.flipY = mat.map.flipY;
+    t.wrapS = mat.map.wrapS; t.wrapT = mat.map.wrapT;
+    mat.emissiveMap = t; mat.emissive = new THREE.Color(1, 1, 1); mat.emissiveIntensity = 0;
+    mat.roughness = Math.min(mat.roughness ?? 1, .6); mat.metalness = Math.max(mat.metalness ?? 0, .15);
+    mat.needsUpdate = true;
+    turmMats.push(mat);
+  } catch(e){ /* ohne Nachtfenster weiter */ }
+}
+export async function ladeKulisse(){
+  await kulisseLaden('condo', 'modelle/condo.glb', 'turm');
+  await kulisseLaden('hochhaus', 'modelle/hochhaus.glb', 'turm');
+  await kulisseLaden('palmeNah', 'modelle/palme_dattel.glb', 'palme');
+  await kulisseLaden('palmeFern', 'modelle/palme_phoenix.glb', 'palme');
+}
