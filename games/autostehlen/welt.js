@@ -416,6 +416,7 @@ export function baueWelt(szene, qualitaet, K){
   // besondere Blöcke
   const arenaBlock = bloecke.find(b => b.x0 === 8 && b.z0 === 104);
   const polizeiBlock = bloecke.find(b => b.x0 === -184 && b.z0 === 200);
+  const krankenBlock = bloecke.find(b => b.x0 === -184 && b.z0 === -88);
   const NAMEN = ['Flamingo', 'Coral', 'Starlite', 'Paradiso', 'Bay Breeze', 'Sunset', 'Pelican', 'Tropicana', 'Neptun', 'Blue Moon', 'Riviera', 'Palmetto'];
   let hotelNr = 0;
 
@@ -442,6 +443,14 @@ export function baueWelt(szene, qualitaet, K){
     }
     // Stadtblöcke nach Lage
     if(b === arenaBlock){ platte(b, 'gehweg'); markantes.arena = { x: cx, z: cz }; hindernis(cx - 36, cx + 36, cz - 36, cz + 36, -6, 22); continue; }
+    if(b === krankenBlock){
+      platte(b, 'gehweg');
+      gebaeude(b.x0 + 6, b.x1 - 6, b.z0 + 6, b.z1 - 26, 28, 'buero', { col: farbe('#f4f6f8') });
+      // Eingang zeigt nach Norden (+z) auf die Straße
+      markantes.krankenhaus = { x: cx, z: b.z1 - 12, h: 0, schildZ: b.z1 - 26, schildY: 22 };
+      for(const x of [b.x0 + 6, b.x1 - 6]) palme(x, b.z1 - 6);
+      continue;
+    }
     if(b === polizeiBlock){
       platte(b, 'gehweg');
       gebaeude(b.x0 + 6, b.x1 - 6, b.z0 + 30, b.z1 - 6, 16, 'buero', { col: farbe('#dfe6ee') });
