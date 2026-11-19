@@ -21,6 +21,7 @@
 }
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
 [hidden]{ display:none !important }
+html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; touch-action:none }
 html,body{ margin:0; height:100%; overflow:hidden; background:var(--nacht); color:var(--weiss);
   font-family:var(--text); user-select:none; -webkit-user-select:none; touch-action:none; overscroll-behavior:none }
 #buehne{ position:fixed; inset:0 }
@@ -71,6 +72,7 @@ body.touch .fuss .nurMaus{ display:none }
 .zeile{ display:grid; grid-template-columns:150px 1fr; gap:10px 14px; align-items:center }
 .zeile > span{ font:600 12px/1.2 var(--text); letter-spacing:.14em; text-transform:uppercase; color:var(--pink) }
 .wahl{ display:flex; flex-wrap:wrap; gap:6px }
+.liste button, .liste a, .wahl button, .knopf, .tknopf, .ware, .radFeld{ touch-action:manipulation }
 .wahl button, .knopf{ padding:8px 14px; border-radius:5px; border:1px solid var(--kante); background:rgba(255,255,255,.06); cursor:pointer; font-size:14px; color:var(--weiss) }
 .wahl button[aria-pressed="true"]{ background:var(--pink); border-color:var(--pink); color:#1a0f2e; font-weight:700 }
 .wahl button:focus-visible, .knopf:focus-visible, input[type=range]:focus-visible{ outline:2px solid var(--sonne); outline-offset:2px }

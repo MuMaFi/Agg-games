@@ -329,7 +329,7 @@ class Fz {
       const m = this.mod;
       for(const r of m.raeder) r.rotation.x += this.vf/m.spec.rad*dt;
       for(const l of m.lenkraeder) l.rotation.y = -this.lenk*.48;
-      this.kipp = dt ? daempf(this.kipp, klemm(this.yaw*this.vf*.006, -.07, .07), 6, dt) : 0;
+      this.kipp = dt ? daempf(this.kipp, klemm(this.yaw*this.vf*.003, -.035, .035), 8, dt) : 0;
       m.aufbau.rotation.z = this.kipp;
       m.aufbau.rotation.x = dt ? daempf(m.aufbau.rotation.x, this.nick, 8, dt) : 0;
     } else if(this.art === 'boot'){
@@ -358,25 +358,34 @@ function physik(f, st, dt){
   let vf = f.vx*fx + f.vz*fz, vr = f.vx*rx + f.vz*rz;
   const alt = vf;
   const g = st.gas;
+  const auto = f.art === 'auto';
   if(g > .05){
-    if(vf < -.4) vf += 20*g*dt;
+    if(vf < -.4) vf += (auto ? 14 : 20)*g*dt;
     else vf += sp.acc*g*Math.max(0, 1 - (vf/sp.vmax)**2)*dt;
   } else if(g < -.05){
-    if(vf > .4) vf -= 22*(-g)*dt;
+    if(vf > .4) vf -= (auto ? 14 : 22)*(-g)*dt;
     else { vf -= 8*(-g)*dt; if(vf < -sp.rueck) vf = -sp.rueck; }
   } else {
-    const d = (f.art === 'boot' ? 1.6 : 2.4)*dt;
+    const d = (auto ? 3.2 : 1.6)*dt;
     vf = Math.abs(vf) < d ? 0 : vf - Math.sign(vf)*d;
   }
   if(st.hand){ const d = 10*dt; vf = Math.abs(vf) < d ? 0 : vf - Math.sign(vf)*d; }
-  const griff = st.hand ? 1.3 : sp.griff;
+  // Autos: Lenkung spricht direkt an, Reifen haften (kaum Nachschieben);
+  // nur mit Handbremse bricht das Heck aus. Boote bleiben weich.
+  const griff = st.hand ? (auto ? 1.6 : 1.3) : sp.griff;
   vr *= Math.exp(-griff*dt);
-  f.lenk = daempf(f.lenk, st.lenk, 7, dt);
-  const sf = klemm(vf/5, -1, 1);
-  const yaw = -f.lenk*sp.lenk*sf/(1 + Math.abs(vf)/30)*(st.hand ? 1.45 : 1);
-  f.vx = fx*vf + rx*vr; f.vz = fz*vf + rz*vr;
+  f.lenk = daempf(f.lenk, st.lenk, auto ? (st.lenk ? 16 : 20) : 7, dt);
+  const sf = klemm(vf/(auto ? 3.5 : 5), -1, 1);
+  let yaw = -f.lenk*sp.lenk*sf/(1 + Math.abs(vf)/(auto ? 48 : 30))*(st.hand ? 1.45 : 1);
+  // Reifen halten etwa 1,4 g Querbeschleunigung: bei Tempo nicht unrealistisch eng einlenken
+  if(auto && !st.hand && Math.abs(vf) > 4){ const max = 13.5/Math.abs(vf); yaw = klemm(yaw, -max, max); }
   f.hAlt = f.h;
   f.h += yaw*dt;
+  if(auto && !st.hand){
+    // Geschwindigkeit dreht mit der Fahrtrichtung mit, statt geradeaus weiterzurutschen
+    const nfx = Math.sin(f.h), nfz = Math.cos(f.h);
+    f.vx = nfx*vf - nfz*vr; f.vz = nfz*vf + nfx*vr;
+  } else { f.vx = fx*vf + rx*vr; f.vz = fz*vf + rz*vr; }
   f.vf = vf; f.yaw = yaw;
   f.nick = klemm((vf - alt)/Math.max(dt, .001)*-.0035, -.05, .05);
   f.drift = Math.abs(vr);
@@ -1026,6 +1035,14 @@ addEventListener('keydown', e => {
     if(k === 'KeyR' && !WAFFEN[aktiv].nah && ladenT <= 0 && inventar[aktiv].mag < WAFFEN[aktiv].mag && inventar[aktiv].vorrat > 0){ ladenT = WAFFEN[aktiv].laden; hudWaffe(); }
   }
 });
+/* Zoom-Schutz: die Seite soll sich nie vergrößern, egal ob Finger, Mausrad oder Tastatur */
+for(const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if(e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+let letzterTipp = 0;
+document.addEventListener('touchend', e => { const t = Date.now(); if(t - letzterTipp < 320 && !e.target.closest('input')) e.preventDefault(); letzterTipp = t; }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+addEventListener('wheel', e => { if(e.ctrlKey || e.metaKey) e.preventDefault(); }, { passive: false });
+addEventListener('keydown', e => { if((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'Digit0', 'Numpad0', 'BracketRight', 'Slash'].includes(e.code)) e.preventDefault(); }, { capture: true });
 addEventListener('keyup', e => { tasten.delete(e.code); if(e.code === 'Tab') radZu(); });
 addEventListener('blur', () => tasten.clear());
 const kam = { yaw: Math.PI*.05, pitch: .3, dist: 6.5, hand: -9, zoom: 1, dx: 0, dy: 0, wackel: 0 };
@@ -1876,12 +1893,12 @@ function kameraUpdate(dt){
     kam.dx = kam.dy = 0; kam.hand = uhr;
   }
   const f = spieler.fz;
-  if(f && uhr - kam.hand > 1.4){
+  if(f && uhr - kam.hand > (f.art === 'auto' ? .7 : 1.4)){
     const fahrt = f.art === 'flug' ? f.flug.tempo : Math.abs(f.vf);
     if(fahrt > 2){
       let soll = f.h;
       if(f.art !== 'flug' && f.vf < -2) soll = f.h; // rückwärts nicht umdrehen
-      kam.yaw = daempfW(kam.yaw, soll, f.art === 'flug' ? 3 : 2.6, dt);
+      kam.yaw = daempfW(kam.yaw, soll, f.art === 'flug' ? 3 : f.art === 'auto' ? 5 : 2.6, dt);
       const pSoll = f.art === 'flug' ? grundPitch + f.flug.pitch*.6 : grundPitch;
       kam.pitch = daempf(kam.pitch, pSoll, 2, dt);
     }

@@ -21,11 +21,11 @@ export const MODELLE = {
 
 // Fahrverhalten und Aussehen der Spieltypen
 export const TYPEN = {
-  limo:    { modell: 'fox',     vmax: 46, acc: 7.5, griff: 9,  lenk: 2.2 },
-  e30:     { modell: 'e30',     vmax: 50, acc: 8.5, griff: 10, lenk: 2.4 },
-  sport:   { modell: 'mustang', vmax: 64, acc: 11.5, griff: 10, lenk: 2.4 },
-  polizei: { modell: 'fox',     vmax: 56, acc: 10.5, griff: 10, lenk: 2.4, farbe: '#141c2e', blaulicht: true },
-  taxi:    { modell: 'fox',     vmax: 44, acc: 7.5, griff: 9,  lenk: 2.2, farbe: '#f2b705', taxi: true },
+  limo:    { modell: 'fox',     vmax: 46, acc: 5.8, griff: 22, lenk: 2.3 },
+  e30:     { modell: 'e30',     vmax: 50, acc: 6.6, griff: 24, lenk: 2.5 },
+  sport:   { modell: 'mustang', vmax: 64, acc: 8.2, griff: 26, lenk: 2.5 },
+  polizei: { modell: 'fox',     vmax: 56, acc: 7.6, griff: 24, lenk: 2.5, farbe: '#141c2e', blaulicht: true },
+  taxi:    { modell: 'fox',     vmax: 44, acc: 5.8, griff: 22, lenk: 2.3, farbe: '#f2b705', taxi: true },
 };
 export const LACKE = ['#f4f4f2', '#141518', '#9da3aa', '#7d0f1d', '#1d3f8a', '#0f5c58', '#c2185b', '#e6b422', '#c4561b', '#22412c', '#4a2a73', '#5e7f9c', '#cbb994', '#3a3d44'];
 
