@@ -1158,7 +1158,10 @@ if(TOUCH){
   const stickLos = e => { if(e.pointerId !== stick.id) return; stick.id = null; stick.ax = stick.ay = 0; griff.style.transform = ''; $('stick').classList.remove('an'); };
   zone.addEventListener('pointerup', stickLos); zone.addEventListener('pointercancel', stickLos);
   const flaeche = $('blickZone');
-  flaeche.addEventListener('pointerdown', e => { blick.id = e.pointerId; blick.x = e.clientX; blick.y = e.clientY; try { flaeche.setPointerCapture(e.pointerId); } catch(_){} });
+  flaeche.addEventListener('pointerdown', e => {
+    const r = $('miniRahmen').getBoundingClientRect();
+    if(!$('miniRahmen').hidden && Math.hypot(e.clientX - (r.left + r.width/2), e.clientY - (r.top + r.height/2)) < r.width/2){ miniKarteGetippt(); return; }
+    blick.id = e.pointerId; blick.x = e.clientX; blick.y = e.clientY; try { flaeche.setPointerCapture(e.pointerId); } catch(_){} });
   flaeche.addEventListener('pointermove', e => {
     if(e.pointerId !== blick.id) return;
     kam.dx += (e.clientX - blick.x)*1.6; kam.dy += (e.clientY - blick.y)*1.6;
@@ -2713,6 +2716,10 @@ $('pauseListe').addEventListener('click', e => {
 for(const b of document.querySelectorAll('[data-zurueck]')) b.addEventListener('click', () => { ton.menue(); tafelZu(); });
 $('pauseKnopf').addEventListener('click', () => pauseUmschalten());
 $('karteZu').addEventListener('click', () => karteUmschalten());
+// Minikarte anklicken öffnet die große Karte, ein Klick auf die große Karte schließt sie
+function miniKarteGetippt(){ if(laeuft && !pausiert && ansicht === 'spiel' && !drinnen && !karteOffen){ ton.menue(); karteUmschalten(); } }
+$('miniRahmen').addEventListener('click', e => { e.stopPropagation(); miniKarteGetippt(); });
+$('karteGross').addEventListener('click', () => { if(karteOffen) karteUmschalten(); });
 $('ladenZu').addEventListener('click', () => ladenZu());
 // Einstellungen
 document.querySelectorAll('[data-grafik]').forEach(b => b.addEventListener('click', () => {

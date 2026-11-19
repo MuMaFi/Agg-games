@@ -173,6 +173,9 @@ body.touch .fuss .nurMaus{ display:none }
 #miniRahmen{ position:absolute; left:calc(16px + var(--links)); bottom:calc(16px + var(--unten)); width:184px; height:184px;
   border-radius:50%; box-shadow:0 4px 18px rgba(0,0,0,.5) }
 #mini{ width:100%; height:100%; display:block }
+#miniRahmen{ pointer-events:auto; cursor:pointer }
+#miniRahmen:hover{ box-shadow:0 4px 18px rgba(0,0,0,.5), 0 0 0 3px rgba(255,255,255,.35) }
+#karteGross{ cursor:pointer }
 #tacho{ position:absolute; right:calc(20px + var(--rechts)); bottom:calc(18px + var(--unten)); text-align:right; display:none }
 #tacho.an{ display:block }
 #tachoZahl{ font-family:var(--titel); font-size:64px; line-height:.85; -webkit-text-stroke:2px #000; paint-order:stroke fill; text-shadow:3px 3px 0 #000; font-variant-numeric:tabular-nums }
