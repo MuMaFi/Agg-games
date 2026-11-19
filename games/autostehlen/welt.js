@@ -313,6 +313,7 @@ export function baueWelt(szene, qualitaet, K){
     const m = new THREE.MeshStandardMaterial({
       map: t.map, roughnessMap: t.rm, metalnessMap: t.rm, roughness: 1, metalness: 1,
       emissiveMap: t.em, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true,
+      normalMap: T.normalVon(t.map.image, (art === 'glas' || art === 'dunkel') ? -1.2 : 2.4),
     });
     if(art === 'buero' || art === 'deko' || art === 'haus') m.envMapIntensity = .6;
     M[art] = m; fensterMats.push(m);
@@ -323,7 +324,7 @@ export function baueWelt(szene, qualitaet, K){
   M.strasse = new THREE.MeshStandardMaterial({ map: strT, normalMap: T.normalVon(strT.image, 2.2), roughnessMap: T.rauheitVon(strT.image, .82, .35), roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   M.kreuzung = new THREE.MeshStandardMaterial({ map: kreuzT, normalMap: T.normalVon(kreuzT.image, 2.2), roughnessMap: T.rauheitVon(kreuzT.image, .82, .35), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
   M.gehweg = new THREE.MeshStandardMaterial({ map: wegT, normalMap: T.normalVon(wegT.image, 1.4), roughnessMap: T.rauheitVon(wegT.image, .85, .25), roughness: 1, vertexColors: true });
-  M.gras = new THREE.MeshStandardMaterial({ map: grasT, normalMap: T.normalVon(grasT.image, 1.6), roughness: 1, vertexColors: true });
+  M.gras = new THREE.MeshStandardMaterial({ map: grasT, normalMap: T.normalVon(grasT.image, 1.1), roughness: 1, vertexColors: true });
   M.sand = new THREE.MeshStandardMaterial({ map: sandT, normalMap: T.normalVon(sandT.image, 1.2), roughness: 1, vertexColors: true });
   M.beton = new THREE.MeshStandardMaterial({ color: 0xbfb9ae, roughness: .9, vertexColors: true, side: THREE.DoubleSide });
   M.piste = new THREE.MeshStandardMaterial({ map: T.piste(), roughness: .85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
@@ -401,7 +402,7 @@ export function baueWelt(szene, qualitaet, K){
   function platte(b, mat){
     const B = bau(mat, (b.x0 + b.x1)/2, (b.z0 + b.z1)/2);
     const ts = mat === 'gras' ? 10 : 4;
-    B.seiten(b.x0, b.x1, 0, b.y, b.z0, b.z1, 4, 1, 0, [.85, .85, .85]);
+    B.seiten(b.x0, b.x1, -.06, b.y, b.z0, b.z1, 4, 1, 0, [.85, .85, .85]);
     B.deckel(b.x0, b.x1, b.y, b.z0, b.z1, ts, [1, 1, 1]);
   }
   // Turm aus einem echten Modell: Grundfläche aus seinen Maßen, Drehung in 90°-Schritten
@@ -510,7 +511,7 @@ export function baueWelt(szene, qualitaet, K){
     platte(b, 'gehweg');
     if(zone === 'mitte'){
       const nah = 1 - d/240;
-      if(Z() < .42 && modellTurm(Z() < .55 ? 'hochhaus' : 'condo', cx, cz, R(95, 165)*(.8 + nah*.3), 74)){
+      if(Z() < .58 && modellTurm(Z() < .55 ? 'hochhaus' : 'condo', cx, cz, R(95, 165)*(.8 + nah*.3), 74)){
         for(const [x, z] of [[b.x0 + 3, b.z0 + 3], [b.x1 - 3, b.z0 + 3], [b.x0 + 3, b.z1 - 3], [b.x1 - 3, b.z1 - 3]]) palme(x, z);
       } else if(Z() < .3){
         // ein großer Turm mit Platz davor
@@ -521,6 +522,7 @@ export function baueWelt(szene, qualitaet, K){
       } else {
         for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++){
           const x0 = b.x0 + 3 + i*39, z0 = b.z0 + 3 + j*39;
+          if(Z() < .3 && modellTurm(Z() < .5 ? 'hochhaus' : 'condo', x0 + 17, z0 + 17, R(70, 130)*(.7 + nah*.4), 34)) continue;
           const w = R(26, 34), dd = R(26, 34);
           const h = R(40, 150)*(.6 + nah*.6);
           const art = Z() < .4 ? 'glas' : Z() < .5 ? 'dunkel' : 'buero';
@@ -531,6 +533,7 @@ export function baueWelt(szene, qualitaet, K){
       for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++){
         if(Z() < .12){ palme(b.x0 + 20 + i*40, b.z0 + 20 + j*40); continue; }
         const x0 = b.x0 + 3 + i*39, z0 = b.z0 + 3 + j*39;
+        if(Z() < .14 && modellTurm('condo', x0 + 17, z0 + 17, R(55, 85), 34)) continue;
         const w = R(24, 34), dd = R(24, 34);
         const art = Z() < .55 ? 'buero' : Z() < .5 ? 'deko' : 'glas';
         const h = art === 'deko' ? Math.round(R(12, 34)/3.25)*3.25 : R(16, 60);
@@ -662,7 +665,7 @@ export function baueWelt(szene, qualitaet, K){
   {
     for(const r of [FESTLAND, INSEL]){
       const B = bau('gras', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2);
-      B.quadOben([r.x0, 0, r.z0], [r.x1, 0, r.z0], [r.x1, 0, r.z1], [r.x0, 0, r.z1], [r.x0/10, r.z0/10], [r.x1/10, r.z0/10], [r.x1/10, r.z1/10], [r.x0/10, r.z1/10], [.92, .95, .9]);
+      B.quadOben([r.x0, -.06, r.z0], [r.x1, -.06, r.z0], [r.x1, -.06, r.z1], [r.x0, -.06, r.z1], [r.x0/10, r.z0/10], [r.x1/10, r.z0/10], [r.x1/10, r.z1/10], [r.x0/10, r.z1/10], [.92, .95, .9]);
       const W = bau('beton', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2), u = -6, c = [.8, .78, .74];
       W.quad([r.x0, u, r.z0], [r.x1, u, r.z0], [r.x1, 0, r.z0], [r.x0, 0, r.z0], [0, 0], [1, 0], [1, 1], [0, 1], c);
       W.quad([r.x1, u, r.z1], [r.x0, u, r.z1], [r.x0, 0, r.z1], [r.x1, 0, r.z1], [0, 0], [1, 0], [1, 1], [0, 1], c);

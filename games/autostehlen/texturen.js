@@ -193,12 +193,25 @@ export function gehweg(){
   return alsTextur(c);
 }
 export function gras(){
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(10);
-  g.fillStyle = '#4c7a36'; g.fillRect(0, 0, 256, 256);
-  for(let i = 0; i < 14000; i++){
-    const h = 90 + z()*40, s = 35 + z()*25, li = 22 + z()*22;
-    g.fillStyle = `hsl(${h},${s}%,${li}%)`;
-    g.fillRect(z()*256, z()*256, 1, 2 + z()*3);
+  // 10 × 10 m, 1024 px: weiche große Farbflecken, mittlere Büschel, feine Halme; nahtlos kachelbar
+  const S = 1024, c = leinwand(S, S), g = c.getContext('2d'), z = mulberry32(10);
+  g.fillStyle = '#4a6436'; g.fillRect(0, 0, S, S);
+  const rund = (x, y, r, farbe) => {
+    for(const dx of [-S, 0, S]) for(const dy of [-S, 0, S]){
+      const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      gr.addColorStop(0, farbe); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x + dx - r, y + dy - r, r*2, r*2);
+    }
+  };
+  for(let i = 0; i < 26; i++){ const hell = z() < .5; rund(z()*S, z()*S, 120 + z()*220, hell ? `rgba(120,150,70,${.18 + z()*.15})` : `rgba(30,50,25,${.18 + z()*.15})`); }
+  for(let i = 0; i < 160; i++){ const t = z(); rund(z()*S, z()*S, 18 + z()*40, `hsla(${80 + t*35},${30 + z()*20}%,${22 + z()*16}%,.35)`); }
+  // Halme: kurze, leicht geneigte Striche
+  g.lineCap = 'round';
+  for(let i = 0; i < 60000; i++){
+    const x = z()*S, y = z()*S, l = 4 + z()*9, w = (z() - .5)*4;
+    g.strokeStyle = `hsla(${78 + z()*40},${28 + z()*22}%,${18 + z()*28}%,${.35 + z()*.4})`;
+    g.lineWidth = .8 + z()*1.1;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y - l); g.stroke();
   }
   return alsTextur(c);
 }
