@@ -51,7 +51,7 @@ try {
   $('ladetext').textContent = 'Dein Gerät kann kein WebGL. Ohne WebGL läuft das Spiel leider nicht.';
   throw e;
 }
-T.setzeAniso(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
+T.setzeAniso(Math.min(TOUCH ? 8 : 16, renderer.capabilities.getMaxAnisotropy()));
 renderer.setPixelRatio(Q.pr);
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;

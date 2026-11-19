@@ -32,6 +32,15 @@ function alsTextur(c, { srgb = true, wiederholen = true } = {}){
   t.minFilter = THREE.LinearMipmapLinearFilter;
   return t;
 }
+// feines Korn auf Pixelebene: gibt Flächen aus der Nähe Struktur statt Matsch
+function korn(c, staerke, seed){
+  const g = c.getContext('2d'), w = c.width, h = c.height, d = g.getImageData(0, 0, w, h), p = d.data, z = mulberry32(seed);
+  for(let i = 0; i < p.length; i += 4){
+    const f = 1 + (z() - .5)*2*staerke;
+    p[i] = Math.min(255, p[i]*f); p[i + 1] = Math.min(255, p[i + 1]*f); p[i + 2] = Math.min(255, p[i + 2]*f);
+  }
+  g.putImageData(d, 0, 0);
+}
 function rauschen(g, w, h, dichte, hell, dunkel, zufall){
   for(let i = 0; i < dichte; i++){
     const x = zufall()*w, y = zufall()*h;
@@ -48,9 +57,10 @@ const SELTEN = ['#ff7ad9', '#7af0ff', '#b48cff'];
 
 export function fassade(art, seed){
   const z = mulberry32(seed);
-  const S = 512;
-  const cF = leinwand(S, S), cR = leinwand(S, S), cL = leinwand(S, S);
+  const S = 512; // gezeichnet wird in 512er Koordinaten, die Farbe aber doppelt aufgelöst
+  const cF = leinwand(S*2, S*2), cR = leinwand(S, S), cL = leinwand(S, S);
   const f = cF.getContext('2d'), r = cR.getContext('2d'), l = cL.getContext('2d');
+  f.scale(2, 2);
   l.fillStyle = '#000'; l.fillRect(0, 0, S, S);
   let cols, rows, tileW, tileH;
 
@@ -139,6 +149,7 @@ export function fassade(art, seed){
       }
     }
   }
+  korn(cF, .05, seed + 100);
   return {
     map: alsTextur(cF), rm: alsTextur(cR, { srgb: false }), em: alsTextur(cL),
     tileW, tileH
@@ -148,8 +159,8 @@ export function fassade(art, seed){
 /* ── Boden ─────────────────────────────────────────────────────── */
 export function asphaltStrasse(){
   // 16 m breit, 32 m lang; doppelt aufgelöst gemalt (Koordinaten bleiben 256 × 512)
-  const c = leinwand(512, 1024), g = c.getContext('2d'), z = mulberry32(7);
-  g.scale(2, 2);
+  const c = leinwand(1024, 2048), g = c.getContext('2d'), z = mulberry32(7);
+  g.scale(4, 4);
   g.fillStyle = '#34363b'; g.fillRect(0, 0, 256, 512);
   rauschen(g, 256, 512, 9000, '#3e4045', '#2a2c30', z);
   // Flicken und Fahrspuren
@@ -163,11 +174,14 @@ export function asphaltStrasse(){
   for(let y = 0; y < 512; y += 64){ g.fillRect(m*4 - 2, y + 8, 4, 32); g.fillRect(m*12 - 2, y + 8, 4, 32); }
   g.fillStyle = '#f0c23a';
   g.fillRect(128 - 7, 0, 4, 512); g.fillRect(128 + 3, 0, 4, 512);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  rauschen(g, 1024, 2048, 60000, 'rgba(90,92,98,.5)', 'rgba(20,20,24,.5)', z); // Splitt
+  korn(c, .09, 70);
   return alsTextur(c);
 }
 export function asphaltKreuzung(){
-  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(8);
-  g.scale(2, 2);
+  const c = leinwand(1024, 1024), g = c.getContext('2d'), z = mulberry32(8);
+  g.scale(4, 4);
   g.fillStyle = '#34363b'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 5000, '#3e4045', '#2a2c30', z);
   g.fillStyle = '#e8e6df';
@@ -177,19 +191,24 @@ export function asphaltKreuzung(){
     g.fillRect(p, 4, m*1, m*2.2); g.fillRect(p, 256 - 4 - m*2.2, m*1, m*2.2);
     g.fillRect(4, p, m*2.2, m*1); g.fillRect(256 - 4 - m*2.2, p, m*2.2, m*1);
   }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  rauschen(g, 1024, 1024, 30000, 'rgba(90,92,98,.5)', 'rgba(20,20,24,.5)', z);
+  korn(c, .09, 80);
   return alsTextur(c);
 }
 export function gehweg(){
-  // 4 × 4 m
-  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(9);
-  g.scale(2, 2);
-  g.fillStyle = '#9f9a91'; g.fillRect(0, 0, 256, 256);
-  rauschen(g, 256, 256, 7000, '#aca79e', '#8f8a82', z);
-  g.globalAlpha = .12; g.fillStyle = '#5d5953';
-  for(let i = 0; i < 14; i++) g.fillRect(z()*256, z()*256, 8 + z()*40, 6 + z()*30);
-  g.globalAlpha = 1;
-  g.fillStyle = '#7f7a72';
-  for(let i = 0; i <= 256; i += 128){ g.fillRect(i - 1, 0, 2, 256); g.fillRect(0, i - 1, 256, 2); }
+  // 2 × 2 m, 1024 px: 4 × 4 Betonplatten à 50 cm mit Fugen, jede leicht anders getönt
+  const S = 1024, c = leinwand(S, S), g = c.getContext('2d'), z = mulberry32(9), P = S/4;
+  g.fillStyle = '#76726b'; g.fillRect(0, 0, S, S);
+  for(let j = 0; j < 4; j++) for(let i = 0; i < 4; i++){
+    const t = 150 + z()*22;
+    g.fillStyle = `rgb(${t},${t - 4},${t - 11})`; g.fillRect(i*P + 3, j*P + 3, P - 6, P - 6);
+    g.globalAlpha = .1; g.fillStyle = '#4a4741';
+    for(let k = 0; k < 3; k++) g.fillRect(i*P + z()*P*.7, j*P + z()*P*.7, 10 + z()*70, 6 + z()*50);
+    g.globalAlpha = 1;
+  }
+  rauschen(g, S, S, 50000, 'rgba(210,205,196,.6)', 'rgba(70,66,60,.6)', z);
+  korn(c, .07, 90);
   return alsTextur(c);
 }
 export function gras(){
@@ -203,34 +222,42 @@ export function gras(){
       g.fillStyle = gr; g.fillRect(x + dx - r, y + dy - r, r*2, r*2);
     }
   };
-  for(let i = 0; i < 26; i++){ const hell = z() < .5; rund(z()*S, z()*S, 120 + z()*220, hell ? `rgba(120,150,70,${.18 + z()*.15})` : `rgba(30,50,25,${.18 + z()*.15})`); }
+  for(let i = 0; i < 18; i++){ const hell = z() < .5; rund(z()*S, z()*S, 110 + z()*160, hell ? `rgba(120,150,70,${.18 + z()*.15})` : `rgba(30,50,25,${.18 + z()*.15})`); }
   for(let i = 0; i < 160; i++){ const t = z(); rund(z()*S, z()*S, 18 + z()*40, `hsla(${80 + t*35},${30 + z()*20}%,${22 + z()*16}%,.35)`); }
   // Halme: kurze, leicht geneigte Striche
   g.lineCap = 'round';
   for(let i = 0; i < 60000; i++){
     const x = z()*S, y = z()*S, l = 4 + z()*9, w = (z() - .5)*4;
-    g.strokeStyle = `hsla(${78 + z()*40},${28 + z()*22}%,${18 + z()*28}%,${.35 + z()*.4})`;
+    g.strokeStyle = `hsla(${72 + z()*46},${26 + z()*26}%,${12 + z()*40}%,${.45 + z()*.45})`;
     g.lineWidth = .8 + z()*1.1;
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y - l); g.stroke();
   }
+  korn(c, .06, 100);
   return alsTextur(c);
 }
 export function sand(){
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(11);
-  g.fillStyle = '#e3cfa2'; g.fillRect(0, 0, 256, 256);
-  rauschen(g, 256, 256, 12000, '#efdcb2', '#cdb68a', z);
+  const c = leinwand(1024, 1024), g = c.getContext('2d'), z = mulberry32(11);
+  g.fillStyle = '#e3cfa2'; g.fillRect(0, 0, 1024, 1024);
+  rauschen(g, 1024, 1024, 160000, '#efdcb2', '#cdb68a', z);
+  g.globalAlpha = .08; g.fillStyle = '#a8916a';
+  for(let i = 0; i < 40; i++){ g.beginPath(); g.ellipse(z()*1024, z()*1024, 40 + z()*120, 8 + z()*20, z()*3, 0, 7); g.fill(); }
+  g.globalAlpha = 1;
+  korn(c, .08, 110);
   return alsTextur(c);
 }
 export function dach(){
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(12);
+  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(12);
+  g.scale(2, 2);
   g.fillStyle = '#6a6e73'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 8000, '#777b80', '#5b5f64', z);
   g.fillStyle = 'rgba(40,40,44,.25)';
   for(let i = 0; i < 256; i += 32) g.fillRect(0, i, 256, 2);
+  korn(c, .07, 120);
   return alsTextur(c);
 }
 export function ziegel(){
-  const c = leinwand(128, 128), g = c.getContext('2d'), z = mulberry32(13);
+  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(13);
+  g.scale(2, 2);
   g.fillStyle = '#b5583a'; g.fillRect(0, 0, 128, 128);
   for(let y = 0; y < 128; y += 16){
     for(let x = (y/16)%2 ? -8 : 0; x < 128; x += 16){
@@ -242,20 +269,24 @@ export function ziegel(){
 }
 export function piste(){
   // Rollbahn: 40 m breit, 40 m lang je Bild
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(14);
+  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(14);
+  g.scale(2, 2);
   g.fillStyle = '#2d2f33'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 6000, '#37393d', '#25272a', z);
   g.fillStyle = '#eeeeea';
   g.fillRect(124, 30, 8, 100);
   g.fillRect(8, 0, 4, 256); g.fillRect(244, 0, 4, 256);
+  korn(c, .08, 140);
   return alsTextur(c);
 }
 export function parkplatz(){
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(15);
+  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(15);
+  g.scale(2, 2);
   g.fillStyle = '#3a3c40'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 6000, '#44464a', '#303236', z);
   g.fillStyle = '#e6e4dc';
   for(let x = 0; x < 256; x += 32) g.fillRect(x, 0, 3, 90), g.fillRect(x, 166, 3, 90);
+  korn(c, .08, 150);
   return alsTextur(c);
 }
 export function stamm(){
