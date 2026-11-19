@@ -12,7 +12,7 @@ import { OutputPass } from './lib/postprocessing/OutputPass.js';
 import * as T from './texturen.js';
 import * as W from './welt.js';
 import { baueBoot, baueFlugzeug, baueHubschrauber } from './modelle.js';
-import { ladeAlles, ladeKulisse, kulisse, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
+import { ladeWaffen, baueWaffe, ladeAlles, ladeKulisse, kulisse, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
 import { Water } from './lib/Water.js';
 
 const $ = id => document.getElementById(id);
@@ -254,6 +254,7 @@ async function aufbauen(){
   await ladeAlles(a => ladeStand(.08 + a*.5, a < 1 ? 'Autos kommen aus der Werkstatt …' : 'Leute ziehen ein …'));
   ladeStand(.6, 'Hochhäuser werden hochgezogen …');
   await ladeKulisse();
+  await ladeWaffen();
   ladeStand(.7, 'Palma Bay wird gebaut …');
   await new Promise(r => setTimeout(r, 30));
   welt = W.baueWelt(szene, Q, kulisse);
@@ -667,6 +668,11 @@ class Person {
     this.U = 2*(this.w + this.d);
     this.s = Z()*this.U; this.dir = Z() < .5 ? 1 : -1; this.tempo = R(1.1, 1.6);
     this.zustand = 'geht'; this.m.g.visible = true; this.m.g.rotation.set(0, 0, 0);
+    this.leben = 100; this.wut = 0;
+    // manche tragen eine Waffe, manche boxen zurück, die meisten rennen weg
+    this.bewaffnet = Z() < .17 ? wahl(['pistole', 'pistole', 'revolver', 'uzi', 'schrot']) : null;
+    this.kaempfer = !this.bewaffnet && Z() < .4;
+    if(this.wm){ this.wm.visible = false; }
     this.punkt(this.s, this); this.y = W.bodenY(this.x, this.z);
   }
   punkt(s, o){
@@ -680,6 +686,7 @@ class Person {
   }
   update(dt){
     const g = this.m.g;
+    if(this.zustand === 'kampf') return this.kampf(dt);
     if(this.zustand === 'geht' || this.zustand === 'rennt'){
       const v = this.zustand === 'rennt' ? 4.6 : this.tempo;
       this.s += this.dir*v*dt;
@@ -706,6 +713,72 @@ class Person {
       g.rotation.x = daempf(g.rotation.x, -Math.PI/2, 6, dt);
       if((this.liegen -= dt) < 0){ this.zustand = 'rennt'; this.flucht = 7; g.rotation.x = 0; }
     }
+    g.position.set(this.x, this.y, this.z);
+  }
+  erschrecken(){ if(this.zustand === 'geht'){ this.zustand = 'rennt'; this.flucht = 8; this.dir = -this.dir; } }
+  getroffen(dmg, wie){
+    if(this.zustand === 'tot' || this.zustand === 'weg') return;
+    this.leben -= dmg;
+    ton.dumpf(.4);
+    if(this.leben <= 0) return this.sterben(wie);
+    if(this.bewaffnet || this.kaempfer){ this.zustand = 'kampf'; this.schussT = .8; this.schlagT = .6; }
+    else { this.zustand = 'rennt'; this.flucht = 10; }
+    if(wie === 'faust') fahndung(1, 'Schlägerei', 0);
+  }
+  sterben(wie){
+    this.zustand = 'tot'; this.liegen = 25;
+    if(this.wm) this.wm.visible = false;
+    fahndung(1, wie === 'faust' ? 'Passant niedergeschlagen' : 'Passant erschossen', wie === 'faust' ? 1 : 2);
+    // Beute: Waffe, Geld oder Munition
+    const x = this.x + (Math.random() - .5), z = this.z + (Math.random() - .5);
+    if(this.bewaffnet) beuteFallen(x, z, 'waffe', this.bewaffnet, WAFFEN[this.bewaffnet].mag*2);
+    else if(Math.random() < .6) beuteFallen(x, z, 'geld', null, 20 + Math.floor(Math.random()*6)*20);
+    else {
+      const da = REIHE.filter(t => inventar[t] && !WAFFEN[t].nah);
+      if(da.length){ const t = wahl(da); beuteFallen(x, z, 'munition', t, Math.ceil(WAFFEN[t].mag*.75)); }
+      else beuteFallen(x, z, 'geld', null, 40);
+    }
+  }
+  kampf(dt){
+    const g = this.m.g;
+    const dx = spieler.px - this.x, dz = spieler.pz - this.z, d = Math.hypot(dx, dz);
+    if(spieler.modus === 'tot' || d > 70){ this.zustand = 'rennt'; this.flucht = 6; if(this.wm) this.wm.visible = false; return; }
+    const blick = Math.atan2(dx, dz);
+    g.rotation.y = daempfW(g.rotation.y, blick, 10, dt);
+    let v = 0;
+    if(this.bewaffnet){
+      const w = WAFFEN[this.bewaffnet];
+      if(d > Math.min(18, w.weite*.5)) v = 3.6; else if(d < 6) v = -2;
+      if(!this.wm){ this.m.hand = this.m.hand || handKnochen(this.m); this.wm = baueWaffe(this.bewaffnet); szene.add(this.wm); }
+      this.wm.visible = true;
+      waffeInHand(this.m, this.wm, g.rotation.y, 0);
+      this.schussT -= dt;
+      if(this.schussT <= 0 && d < w.weite*.7 && spieler.modus !== 'fall'){
+        this.schussT = Math.max(.35, w.rate*3) + Math.random()*.6;
+        if(sicht(this.x, this.z, spieler.px, spieler.pz)){
+          _a.copy(this.wm.position).addScaledVector(_r.set(Math.sin(blick), 0, Math.cos(blick)), this.wm.userData.laenge || .3);
+          let treffer = 0;
+          for(let k = 0; k < w.kugeln; k++) if(Math.random() < (.32 - d*.004 - w.streu)*(spieler.fz ? .6 : 1)) treffer++;
+          _t.set(spieler.px + (treffer ? 0 : (Math.random() - .5)*3), spieler.y + 1.2, spieler.pz + (treffer ? 0 : (Math.random() - .5)*3));
+          schussLinie(_a, _t); ton.schuss(true, w.ton);
+          if(treffer){ if(spieler.fz) spieler.fz.schaden = (spieler.fz.schaden || 0) + w.dmg*.2*treffer; else schaden(w.dmg*.28*treffer, 'ERSCHOSSEN'); }
+        }
+      }
+    } else {
+      if(d > 1.3) v = 4.2;
+      this.schlagT -= dt;
+      if(d < 1.6 && this.schlagT <= 0 && !spieler.fz){
+        this.schlagT = .9 + Math.random()*.4; this.m.koerper.rotation.x = .35;
+        schaden(7, 'VERPRÜGELT'); ton.dumpf(.6); kam.wackel = Math.min(1, kam.wackel + .2);
+      }
+      this.m.koerper.rotation.x = daempf(this.m.koerper.rotation.x, 0, 6, dt);
+    }
+    if(v){
+      const nx = this.x + Math.sin(blick)*v*dt, nz = this.z + Math.cos(blick)*v*dt;
+      if(W.begehbar(nx, nz)){ const p = { x: nx, z: nz }; W.kreisRaus(p, .35, this.y + .1, this.y + 1.8); this.x = p.x; this.z = p.z; }
+    }
+    this.y = daempf(this.y, W.bodenY(this.x, this.z), 10, dt);
+    animiereFigur(this.m, Math.abs(v), dt);
     g.position.set(this.x, this.y, this.z);
   }
   umfahren(f, tempo){
@@ -742,7 +815,7 @@ const umgebung = {};
 
 function aufstellen(){
   spieler.m = baueFigur();
-  pistoleAnbringen();
+  spieler.m.hand = handKnochen(spieler.m);
   szene.add(spieler.m.g);
   gehwegBloecke = gehBloecke();
   // Sportwagen gleich neben dem Start
@@ -914,8 +987,14 @@ addEventListener('keydown', e => {
   if(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(k) && laeuft) e.preventDefault();
   if((k === 'Escape' || k === 'KeyP') && laeuft && ansicht === 'spiel' && !(pausiert && tafelOffen)) pauseUmschalten();
   if(k === 'KeyM' && laeuft && !pausiert && ansicht === 'spiel') karteUmschalten();
+  if(laeuft && !pausiert && ansicht === 'spiel'){
+    if(k === 'Tab'){ e.preventDefault(); radAuf(); }
+    const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'].indexOf(k);
+    if(n >= 0) waffeWaehlen(REIHE[n]);
+    if(k === 'KeyR' && !WAFFEN[aktiv].nah && ladenT <= 0 && inventar[aktiv].mag < WAFFEN[aktiv].mag && inventar[aktiv].vorrat > 0){ ladenT = WAFFEN[aktiv].laden; hudWaffe(); }
+  }
 });
-addEventListener('keyup', e => tasten.delete(e.code));
+addEventListener('keyup', e => { tasten.delete(e.code); if(e.code === 'Tab') radZu(); });
 addEventListener('blur', () => tasten.clear());
 const kam = { yaw: Math.PI*.05, pitch: .3, dist: 6.5, hand: -9, zoom: 1, dx: 0, dy: 0, wackel: 0 };
 const leinwandEl = renderer.domElement;
@@ -929,6 +1008,7 @@ leinwandEl.addEventListener('mousedown', e => {
 addEventListener('mouseup', () => mausUnten = false);
 addEventListener('mousemove', e => {
   if(!laeuft || pausiert || TOUCH) return;
+  if(radOffen){ radBewegen(e.movementX || 0, e.movementY || 0); return; }
   if(document.pointerLockElement === leinwandEl || mausUnten){ kam.dx += e.movementX || 0; kam.dy += e.movementY || 0; }
 });
 leinwandEl.addEventListener('wheel', e => { kam.zoom = klemm(kam.zoom*(e.deltaY > 0 ? 1.1 : .9), .6, 2.2); e.preventDefault(); }, { passive: false });
@@ -965,8 +1045,9 @@ if(TOUCH){
   });
   const blickLos = e => { if(e.pointerId === blick.id) blick.id = null; };
   flaeche.addEventListener('pointerup', blickLos); flaeche.addEventListener('pointercancel', blickLos);
-  $('kSchuss').addEventListener('pointerdown', e => { schussGewollt = true; $('kSchuss').classList.add('an'); e.preventDefault(); });
-  for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('kSchuss').addEventListener(ev, () => $('kSchuss').classList.remove('an'));
+  $('kSchuss').addEventListener('pointerdown', e => { schussGewollt = true; schussHalten = true; $('kSchuss').classList.add('an'); e.preventDefault(); });
+  for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('kSchuss').addEventListener(ev, () => { schussHalten = false; $('kSchuss').classList.remove('an'); });
+  $('kWaffen').addEventListener('pointerdown', e => { e.preventDefault(); if(radOffen) radZu(); else radAuf(); });
   for(const [id, k] of [['kAktion', 'aktion'], ['kSprung', 'sprung'], ['kSprint', 'sprint']]){
     const el = $(id);
     el.addEventListener('pointerdown', e => { knopf[k] = true; if(k === 'aktion') gedrueckt.add('KeyE'); if(k === 'sprung') gedrueckt.add('Space'); el.classList.add('an'); e.preventDefault(); });
@@ -1293,36 +1374,63 @@ function fliegerOhnePilot(dt){
   else if(!f.g.visible){ f.wrackZeit = (f.wrackZeit || 0) + dt; if(f.wrackZeit > 12 && Math.hypot(spieler.px - W.markantes.flugzeug.x, spieler.pz - W.markantes.flugzeug.z) > 60) flugzeugZuruck(); }
 }
 
-/* ── Waffe ───────────────────────────────────────────────────── */
-let schussPause = 0, zielZeit = 0, pistole = null;
-const spurLinie = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+/* ── Waffen ──────────────────────────────────────────────────── */
+// Jede Waffe verhält sich anders: Schaden je Kugel, Pause zwischen Schüssen,
+// Streuung, Reichweite, Magazin, Nachladezeit, Kugeln je Schuss (Schrot)
+const WAFFEN = {
+  faust:    { name: 'Faust',        nah: true, dmg: 26, rate: .45 },
+  pistole:  { name: 'Pistole',      dmg: 34, rate: .30, streu: .018, weite: 90,  mag: 12, laden: 1.2, kugeln: 1, auto: false, ton: 1 },
+  revolver: { name: 'Revolver',     dmg: 78, rate: .70, streu: .007, weite: 115, mag: 6,  laden: 2.1, kugeln: 1, auto: false, ton: .7 },
+  schrot:   { name: 'Schrotflinte', dmg: 16, rate: .95, streu: .085, weite: 32,  mag: 2,  laden: 1.8, kugeln: 8, auto: false, ton: .5 },
+  uzi:      { name: 'Uzi',          dmg: 17, rate: .075, streu: .055, weite: 60, mag: 32, laden: 1.5, kugeln: 1, auto: true,  ton: 1.3 },
+  gewehr:   { name: 'M4A1',         dmg: 31, rate: .11, streu: .022, weite: 150, mag: 30, laden: 1.9, kugeln: 1, auto: true,  ton: .9 },
+};
+const REIHE = ['faust', 'pistole', 'revolver', 'schrot', 'uzi', 'gewehr'];
+let inventar = { faust: {} }, aktiv = 'faust';
+let schussPause = 0, ladenT = 0, schlagT = 0, schussHalten = false;
+const handMeshes = {}; // Waffen in der Hand des Spielers, je Art einmal gebaut
+function handKnochen(fig){ let h = null; fig.koerper.traverse(o => { if(!h && o.isBone && /hand_r/i.test(o.name)) h = o; }); return h; }
+const _hp = new THREE.Vector3();
+function waffeInHand(fig, mesh, yaw, pitch){
+  if(fig.hand){ fig.hand.getWorldPosition(_hp); mesh.position.copy(_hp); }
+  else mesh.position.set(fig.g.position.x, fig.g.position.y + 1.2, fig.g.position.z);
+  mesh.rotation.set(-pitch, yaw, 0, 'YXZ');
+}
+function waffeGeben(typ, munition){
+  const w = WAFFEN[typ]; if(!w) return;
+  const neu = !inventar[typ];
+  if(neu) inventar[typ] = { mag: Math.min(w.mag, munition), vorrat: Math.max(0, munition - w.mag) };
+  else inventar[typ].vorrat += munition;
+  meldung(neu ? w.name + ' aufgehoben' : '+' + munition + ' Schuss ' + w.name);
+  if(neu && aktiv === 'faust') waffeWaehlen(typ);
+  hudWaffe();
+}
+function waffeWaehlen(typ){
+  if(!inventar[typ] || typ === aktiv) return;
+  aktiv = typ; ladenT = 0; schussPause = .25; ton.menue(); hudWaffe();
+}
+function hudWaffe(){
+  const w = WAFFEN[aktiv], inv = inventar[aktiv];
+  $('waffeName').textContent = w.name;
+  $('waffeMuni').textContent = w.nah ? '' : ladenT > 0 ? 'lädt …' : inv.mag + ' | ' + inv.vorrat;
+}
+const _a = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3(), _r = new THREE.Vector3();
+let spurZeit = 0;
+const spurLinie = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(16*6), 3)),
   new THREE.LineBasicMaterial({ color: new THREE.Color(3, 2.4, 1.2), transparent: true }));
 spurLinie.frustumCulled = false; spurLinie.visible = false; szene.add(spurLinie);
 const muendung = new THREE.PointLight(0xffc070, 0, 14, 2); szene.add(muendung);
-let spurZeit = 0;
+let spurN = 0;
 function schussLinie(a, b){
   const p = spurLinie.geometry.attributes.position;
-  p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true;
-  spurLinie.geometry.computeBoundingSphere();
+  if(spurZeit <= 0) spurN = 0;
+  const i = spurN++ % 16;
+  p.setXYZ(i*2, a.x, a.y, a.z); p.setXYZ(i*2 + 1, b.x, b.y, b.z);
+  spurLinie.geometry.setDrawRange(0, Math.min(spurN, 16)*2);
+  p.needsUpdate = true;
   spurLinie.visible = true; spurZeit = .06;
   muendung.position.copy(a); muendung.intensity = 30;
 }
-function pistoleAnbringen(){
-  let hand = null;
-  spieler.m.koerper.traverse(o => { if(!hand && o.isBone && /hand_r/i.test(o.name)) hand = o; });
-  const g = new THREE.Group();
-  const m = new THREE.MeshStandardMaterial({ color: 0x1a1b1e, metalness: .7, roughness: .35 });
-  const lauf = new THREE.Mesh(new THREE.BoxGeometry(.035, .05, .2), m); lauf.position.set(0, .02, .07);
-  const griff = new THREE.Mesh(new THREE.BoxGeometry(.03, .1, .045), m); griff.position.set(0, -.04, -.01); griff.rotation.x = .25;
-  g.add(lauf, griff); g.visible = false;
-  if(hand){
-    spieler.m.g.updateMatrixWorld(true);
-    const sk = new THREE.Vector3(); hand.getWorldScale(sk);
-    g.scale.setScalar(1/sk.x); hand.add(g);
-  }
-  pistole = g;
-}
-const _a = new THREE.Vector3(), _d = new THREE.Vector3(), _t = new THREE.Vector3();
 function strahlKugel(o, d, cx, cy, cz, r){
   const ox = o.x - cx, oy = o.y - cy, oz = o.z - cz;
   const b = ox*d.x + oy*d.y + oz*d.z, c = ox*ox + oy*oy + oz*oz - r*r, h = b*b - c;
@@ -1330,58 +1438,104 @@ function strahlKugel(o, d, cx, cy, cz, r){
   const t = -b - Math.sqrt(h);
   return t > 0 ? t : -1;
 }
-function schiessen(){
-  schussPause = .3; zielZeit = 2.5;
-  kamera.getWorldDirection(_d);
-  const o = kamera.position;
-  // von der Kamera aus zielen, aber erst ab der Spielfigur treffen
-  const t0 = Math.max(0, (spieler.x - o.x)*_d.x + (spieler.y + 1.4 - o.y)*_d.y + (spieler.z - o.z)*_d.z);
-  let best = 140, ziel = null;
+// ein Strahl: trifft Haus/Boden, Person oder Fahrzeug
+function schussStrahl(o, d, t0, weite){
+  let best = weite, ziel = null;
   for(let t = t0 + .5; t < best; t += .7){
-    const x = o.x + _d.x*t, y = o.y + _d.y*t, z = o.z + _d.z*t;
+    const x = o.x + d.x*t, y = o.y + d.y*t, z = o.z + d.z*t;
     if(W.inHindernis(x, y, z) || (W.begehbar(x, z) ? y < W.bodenY(x, z) : y < W.WASSER_Y)){ best = t; break; }
   }
   for(const p of leute){
     if(p.zustand === 'weg' || p.zustand === 'tot') continue;
-    const t = strahlKugel(o, _d, p.x, p.y + 1.1, p.z, .5);
+    const t = strahlKugel(o, d, p.x, p.y + 1.1, p.z, .5);
     if(t > t0 && t < best){ best = t; ziel = { p }; }
   }
   for(const f of fahrzeuge){
     if(!f.g.visible || f === spieler.fz || f.art === 'flug') continue;
     const fx = Math.sin(f.h), fz = Math.cos(f.h), off = f.L/2 - f.W/2;
     for(const sx of [-1, 0, 1]){
-      const t = strahlKugel(o, _d, f.x + fx*off*sx, f.y + .8, f.z + fz*off*sx, f.W/2 + .15);
+      const t = strahlKugel(o, d, f.x + fx*off*sx, f.y + .8, f.z + fz*off*sx, f.W/2 + .15);
       if(t > t0 && t < best){ best = t; ziel = { f }; }
     }
   }
+  return { t: best, ziel };
+}
+function trefferZeigen(){ $('fadenkreuz').classList.add('treffer'); clearTimeout(trefferZeigen.t); trefferZeigen.t = setTimeout(() => $('fadenkreuz').classList.remove('treffer'), 150); }
+function schiessen(){
+  const w = WAFFEN[aktiv], inv = inventar[aktiv];
+  kamera.getWorldDirection(_d);
   spieler.h = Math.atan2(_d.x, _d.z);
-  _a.set(spieler.x + Math.sin(spieler.h)*.5, spieler.y + 1.45, spieler.z + Math.cos(spieler.h)*.5);
-  _t.copy(o).addScaledVector(_d, best);
-  schussLinie(_a, _t);
-  ton.schuss(false);
-  // Leute in der Nähe rennen weg
-  for(const p of leute) if((p.zustand === 'geht') && Math.hypot(p.x - spieler.x, p.z - spieler.z) < 40){ p.zustand = 'rennt'; p.flucht = 8; p.dir = -p.dir; }
-  if(ziel && ziel.p){
-    const p = ziel.p;
-    p.zustand = 'tot'; p.liegen = 25; ton.dumpf(.5);
-    $('fadenkreuz').classList.add('treffer'); setTimeout(() => $('fadenkreuz').classList.remove('treffer'), 150);
-    fahndung(1, 'Schüsse auf Passanten', 2);
-  } else if(ziel && ziel.f){
-    const f = ziel.f;
-    f.schaden = (f.schaden || 0) + 14;
-    $('fadenkreuz').classList.add('treffer'); setTimeout(() => $('fadenkreuz').classList.remove('treffer'), 150);
-    if(f.typ === 'polizei' && f.ki) fahndung(1, 'Auf Polizei geschossen', 3);
-    else fahndung(1, 'Schüsse in der Stadt', 1);
-  } else fahndung(1, 'Schüsse in der Stadt', 1);
+  if(w.nah){
+    // Faustschlag: wer vorne in Reichweite steht, bekommt ihn ab
+    schussPause = w.rate; schlagT = .28; ton.dumpf(.25);
+    let best = null, bd = 1.9;
+    for(const p of leute){
+      if(p.zustand === 'weg' || p.zustand === 'tot') continue;
+      const dx = p.x - spieler.x, dz = p.z - spieler.z, d = Math.hypot(dx, dz);
+      if(d < bd && (dx*Math.sin(spieler.h) + dz*Math.cos(spieler.h))/Math.max(d, .01) > .5){ bd = d; best = p; }
+    }
+    if(best){
+      ton.dumpf(.7); trefferZeigen();
+      best.x += Math.sin(spieler.h)*.6; best.z += Math.cos(spieler.h)*.6;
+      best.getroffen(w.dmg, 'faust');
+    }
+    return;
+  }
+  if(ladenT > 0) return;
+  if(inv.mag <= 0){
+    if(inv.vorrat > 0){ ladenT = w.laden; hudWaffe(); } else { ton.piepLeer(); schussPause = .3; }
+    return;
+  }
+  inv.mag--; schussPause = w.rate;
+  const o = kamera.position;
+  const t0 = Math.max(0, (spieler.x - o.x)*_d.x + (spieler.y + 1.4 - o.y)*_d.y + (spieler.z - o.z)*_d.z);
+  const mesh = handMeshes[aktiv];
+  if(mesh){ _a.copy(mesh.position).addScaledVector(_r.set(Math.sin(spieler.h), 0, Math.cos(spieler.h)), mesh.userData.laenge || .3); }
+  else _a.set(spieler.x + Math.sin(spieler.h)*.5, spieler.y + 1.45, spieler.z + Math.cos(spieler.h)*.5);
+  let getroffen = false;
+  for(let k = 0; k < w.kugeln; k++){
+    _r.copy(_d); _r.x += (Math.random() - .5)*2*w.streu; _r.y += (Math.random() - .5)*2*w.streu; _r.z += (Math.random() - .5)*2*w.streu; _r.normalize();
+    const e = schussStrahl(o, _r, t0, w.weite);
+    _t.copy(o).addScaledVector(_r, e.t);
+    schussLinie(_a, _t);
+    if(e.ziel && e.ziel.p){ e.ziel.p.getroffen(w.dmg, 'schuss'); getroffen = true; }
+    else if(e.ziel && e.ziel.f){
+      const f = e.ziel.f; f.schaden = (f.schaden || 0) + w.dmg*.4; getroffen = true;
+      if(f.typ === 'polizei' && f.ki) fahndung(1, 'Auf Polizei geschossen', 3);
+    }
+  }
+  if(getroffen) trefferZeigen();
+  ton.schuss(false, w.ton);
+  kam.wackel = Math.min(1, kam.wackel + (aktiv === 'schrot' || aktiv === 'revolver' ? .25 : .08));
+  fahndung(1, 'Schüsse in der Stadt', 1);
+  // Leute in der Nähe erschrecken
+  for(const p of leute) if(p.zustand === 'geht' && Math.hypot(p.x - spieler.x, p.z - spieler.z) < 40) p.erschrecken();
+  if(inv.mag === 0 && inv.vorrat > 0) ladenT = w.laden;
+  hudWaffe();
 }
 function waffeUpdate(dt){
-  schussPause -= dt; zielZeit -= dt; spurZeit -= dt;
+  schussPause -= dt; spurZeit -= dt; schlagT -= dt;
   if(spurZeit <= 0){ spurLinie.visible = false; muendung.intensity = 0; }
+  if(ladenT > 0){
+    ladenT -= dt;
+    if(ladenT <= 0){ const w = WAFFEN[aktiv], inv = inventar[aktiv]; const n = Math.min(w.mag - inv.mag, inv.vorrat); inv.mag += n; inv.vorrat -= n; ton.tuer(); hudWaffe(); }
+  }
   const zuFuss = spieler.modus === 'fuss' && ansicht === 'spiel';
-  $('fadenkreuz').hidden = !zuFuss;
-  if(schussGewollt && zuFuss && spieler.liegt <= 0 && schussPause <= 0) schiessen();
+  $('fadenkreuz').hidden = !zuFuss || radOffen;
+  const w = WAFFEN[aktiv];
+  const will = schussGewollt || (w.auto && (schussHalten || (mausUnten && document.pointerLockElement === leinwandEl)));
+  if(will && zuFuss && !radOffen && spieler.liegt <= 0 && schussPause <= 0) schiessen();
   schussGewollt = false;
-  if(pistole) pistole.visible = zuFuss && zielZeit > 0;
+  // Waffe in der Hand
+  for(const [typ, m] of Object.entries(handMeshes)) m.visible = false;
+  if(zuFuss && !w.nah){
+    if(!handMeshes[aktiv]){ handMeshes[aktiv] = baueWaffe(aktiv); szene.add(handMeshes[aktiv]); }
+    const m = handMeshes[aktiv]; m.visible = true;
+    kamera.getWorldDirection(_d);
+    waffeInHand(spieler.m, m, spieler.h, Math.asin(klemm(_d.y, -1, 1)));
+  }
+  // Faustschlag: kurzer Ausfallschritt nach vorn
+  spieler.m.koerper.rotation.x = schlagT > 0 ? Math.sin((1 - schlagT/.28)*Math.PI)*.35 : spieler.m.koerper.rotation.x;
   // Polizei schießt ab zwei Sternen
   if(sterne < 2 || spieler.modus === 'tot') return;
   for(const s2 of streifen){
@@ -1404,6 +1558,74 @@ function waffeUpdate(dt){
     }
   }
 }
+
+/* ── Beute: Geld, Munition, Waffen zum Aufheben ───────────────── */
+const beute = [];
+const beuteGeo = { geld: new THREE.BoxGeometry(.5, .2, .3), munition: new THREE.BoxGeometry(.4, .25, .3) };
+const beuteMat = {
+  geld: new THREE.MeshStandardMaterial({ color: 0x5fd88a, emissive: 0x1a8a4a, emissiveIntensity: .8, roughness: .5 }),
+  munition: new THREE.MeshStandardMaterial({ color: 0xc9a23a, emissive: 0x6a4a10, emissiveIntensity: .8, roughness: .4, metalness: .5 }),
+};
+function beuteFallen(x, z, art, typ, menge){
+  let m;
+  if(art === 'waffe'){ m = baueWaffe(typ, 1.6); }
+  else m = new THREE.Mesh(beuteGeo[art], beuteMat[art]);
+  m.castShadow = true; szene.add(m);
+  beute.push({ x, z, y: W.bodenY(x, z), art, typ, menge, m, t: 0 });
+}
+function beuteUpdate(dt){
+  for(let i = beute.length - 1; i >= 0; i--){
+    const b = beute[i];
+    b.t += dt;
+    b.m.position.set(b.x, b.y + .55 + Math.sin(b.t*3)*.12, b.z); b.m.rotation.set(0, b.t*2, 0);
+    let weg = b.t > 90;
+    if(spieler.modus === 'fuss' && Math.hypot(b.x - spieler.x, b.z - spieler.z) < 1.6){
+      weg = true; ton.muenze();
+      if(b.art === 'geld') geldDazu(b.menge, 'Geld aufgehoben');
+      else if(b.art === 'waffe') waffeGeben(b.typ, b.menge);
+      else { const typ = b.typ; waffeGeben(typ, b.menge); }
+    }
+    if(weg){ szene.remove(b.m); beute.splice(i, 1); }
+  }
+}
+
+/* ── Waffenrad ─────────────────────────────────────────────────── */
+let radOffen = false, radWahl = null, radX = 0, radY = 0;
+function radAuf(){
+  if(spieler.modus !== 'fuss' || ansicht !== 'spiel' || radOffen) return;
+  radOffen = true; radX = radY = 0; radWahl = aktiv;
+  const el = $('rad'); el.innerHTML = '';
+  const da = REIHE.filter(t => inventar[t]);
+  da.forEach((t, i) => {
+    const a = i/da.length*Math.PI*2 - Math.PI/2, w = WAFFEN[t], inv = inventar[t];
+    const b = document.createElement('button');
+    b.className = 'radFeld' + (t === aktiv ? ' an' : ''); b.dataset.typ = t;
+    b.style.left = `calc(50% + ${Math.cos(a)*120}px)`; b.style.top = `calc(50% + ${Math.sin(a)*120}px)`;
+    b.innerHTML = `<b>${w.name}</b><small>${w.nah ? '∞' : inv.mag + ' | ' + inv.vorrat}</small>`;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); radWahl = t; radZu(); });
+    el.appendChild(b);
+  });
+  const mitte = document.createElement('div'); mitte.className = 'radMitte'; mitte.textContent = da.length > 1 ? 'Waffe wählen' : 'Noch keine Waffe – erledigte Gegner lassen welche fallen'; el.appendChild(mitte);
+  el.classList.add('an');
+}
+function radBewegen(dx, dy){
+  if(!radOffen) return;
+  radX += dx; radY += dy;
+  const l = Math.hypot(radX, radY);
+  if(l > 30){
+    const da = REIHE.filter(t => inventar[t]);
+    let w = Math.atan2(radY, radX) + Math.PI/2; if(w < 0) w += Math.PI*2;
+    radWahl = da[Math.round(w/(Math.PI*2)*da.length) % da.length];
+    if(l > 150){ radX *= 150/l; radY *= 150/l; }
+    for(const b of $('rad').querySelectorAll('.radFeld')) b.classList.toggle('an', b.dataset.typ === radWahl);
+  }
+}
+function radZu(){
+  if(!radOffen) return;
+  radOffen = false; $('rad').classList.remove('an');
+  if(radWahl) waffeWaehlen(radWahl);
+}
+
 // Autos mit zu viel Schaden fliegen in die Luft
 function autoSchaeden(){
   for(const f of fahrzeuge){
@@ -1600,7 +1822,8 @@ const ton = (() => {
     tuer(){ piep(180, .08, 'square', .12, 90); },
     hupe(s){ piep(420, .3, 'square', .08*s); piep(520, .3, 'square', .06*s); },
     alarm(){ piep(300, .6, 'sawtooth', .15, 120); },
-    schuss(fern){ rauschen(.12, fern ? .18 : .55, fern ? 1400 : 3200); piep(fern ? 160 : 220, .08, 'square', fern ? .05 : .14, 60); },
+    schuss(fern, k = 1){ rauschen(.1 + .08/k, fern ? .18 : .5, fern ? 1400 : 2400*k); piep(fern ? 160 : 180*k, .08, 'square', fern ? .05 : .13, 50); },
+    piepLeer(){ piep(900, .03, 'square', .06); },
   };
 })();
 
@@ -1856,7 +2079,7 @@ function leuteUpdate(dt){
     if(p.zustand === 'weg'){ personEinsetzen(p, 60, 180); continue; }
     p.update(dt);
     const d = Math.hypot(p.x - spieler.px, p.z - spieler.pz);
-    if(d > 230 && p.zustand !== 'liegt'){ p.zustand = 'weg'; p.m.g.visible = false; }
+    if(d > 230 && p.zustand !== 'liegt'){ p.zustand = 'weg'; p.m.g.visible = false; if(p.wm) p.wm.visible = false; }
   }
   // Polizei fährt Leute nicht um, sie schiebt sie nur zur Seite
 }
@@ -1923,6 +2146,7 @@ function scheinwerferUpdate(){
 /* ── Hauptschleife ─────────────────────────────────────────────── */
 let laeuft = false, pausiert = false, uhr = 0, letzte = performance.now();
 function schritt(dt){
+  if(radOffen) dt *= .2; // Zeitlupe, solange das Waffenrad offen ist
   uhr += dt;
   zeitAktualisieren(dt);
   if(laeuft && !pausiert){
@@ -1939,6 +2163,7 @@ function schritt(dt){
     fahrzeugStoesse();
     leuteUpdate(dt);
     scheineUpdate(dt, uhr);
+    beuteUpdate(dt);
     auftraegeUpdate(dt);
     totUpdate(dt);
     kameraUpdate(dt);
@@ -2024,7 +2249,7 @@ function spielstand(){ return speicherLesen('autostehlen.stand', null); }
 function standSichern(){
   if(!laeuft) return;
   const x = spieler.modus === 'fuss' ? spieler.x : spieler.px, z = spieler.modus === 'fuss' ? spieler.z : spieler.pz;
-  speicherSchreiben('autostehlen.stand', { x, z, geld, stunde, zeit: Date.now() });
+  speicherSchreiben('autostehlen.stand', { x, z, geld, stunde, zeit: Date.now(), inventar, aktiv });
 }
 function menueZeigen(){
   ansicht = 'menue';
@@ -2046,6 +2271,8 @@ function spielStarten(neu){
   ton.start(); ton.wahl();
   if(neu){
     geld = 500; speicherSchreiben('autostehlen.geld', geld);
+    inventar = { faust: {} }; aktiv = 'faust';
+    for(const b of beute) szene.remove(b.m); beute.length = 0;
     stunde = 17.6; zeitAktualisieren(0, true);
     spieler.x = 120; spieler.z = 34; spieler.h = 0;
   } else {
@@ -2053,6 +2280,7 @@ function spielStarten(neu){
     if(st){
       geld = typeof st.geld === 'number' ? st.geld : geld;
       if(typeof st.stunde === 'number') { stunde = st.stunde; zeitAktualisieren(0, true); }
+      if(st.inventar && st.inventar.faust){ inventar = st.inventar; aktiv = inventar[st.aktiv] ? st.aktiv : 'faust'; }
       if(typeof st.x === 'number' && W.begehbar(st.x, st.z) && !W.kreisRaus({ x: st.x, z: st.z }, .5, 0, 2)){ spieler.x = st.x; spieler.z = st.z; }
     }
   }
@@ -2065,6 +2293,7 @@ function spielStarten(neu){
   if(auftrag){ auftrag = null; zielStrahl.visible = false; jobStrahlen.forEach(j => j.visible = true); hudAuftrag(); }
   kam.yaw = spieler.h; kam.pitch = .25; kam.hand = -9;
   spielerZeigen();
+  hudWaffe();
   geldAngezeigt = geld; geldZiel = geld; $('geld').textContent = '$' + geld.toLocaleString('de-DE');
   // Übergang: Titelkarte, dann ins Spiel
   ansicht = 'intro';
@@ -2174,5 +2403,5 @@ function simuliere(sek, schrittweite = 1/60){
   const n = Math.round(sek/schrittweite);
   for(let i = 0; i < n; i++) schritt(schrittweite);
 }
-window.__spiel = { simuliere, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
+window.__spiel = { simuliere, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
 aufbauen().catch(e => { console.error(e); $('ladetext').textContent = 'Fehler beim Aufbau: ' + e.message + ' — bitte neu laden.'; });

@@ -447,3 +447,40 @@ export async function ladeKulisse(){
   await kulisseLaden('palmeNah', 'modelle/palme_dattel.glb', 'palme');
   await kulisseLaden('palmeFern', 'modelle/palme_phoenix.glb', 'palme');
 }
+
+/* ── Waffen (CC BY 4.0, siehe Credits) ─────────────────────────────
+   Jede Waffe wird so gedreht, dass die Mündung nach +z zeigt, oben +y,
+   der Griff liegt am Ursprung; Länge in Metern.                        */
+export const WAFFEN_MODELL = {
+  pistole:  { datei: 'modelle/w_pistole.glb',  drehung: 0,           laenge: .2 },
+  revolver: { datei: 'modelle/w_revolver.glb', drehung: Math.PI/2,   laenge: .34 },
+  schrot:   { datei: 'modelle/w_schrot.glb',   drehung: -Math.PI/2,  laenge: .56 },
+  uzi:      { datei: 'modelle/w_uzi.glb',      drehung: -Math.PI/2,  laenge: .5 },
+  gewehr:   { datei: 'modelle/w_gewehr.glb',   drehung: 0,           laenge: .86 },
+};
+export const waffenVorlagen = {};
+export async function ladeWaffen(){
+  for(const [name, cfg] of Object.entries(WAFFEN_MODELL)){
+    const gltf = await lader.loadAsync(cfg.datei);
+    const w = gltf.scene; w.updateMatrixWorld(true);
+    const dreh = new THREE.Matrix4().makeRotationY(cfg.drehung);
+    const teile = [];
+    w.traverse(o => { if(o.isMesh){ const g = vereinheitlichen(o.geometry, o.matrixWorld); g.applyMatrix4(dreh); teile.push({ geo: g, mat: Array.isArray(o.material) ? o.material[0] : o.material }); } });
+    const box = new THREE.Box3(); for(const t of teile){ t.geo.computeBoundingBox(); box.union(t.geo.boundingBox); }
+    const sz = box.getSize(new THREE.Vector3());
+    const k = cfg.laenge/sz.z;
+    // Griff ungefähr im hinteren Drittel, unten
+    const m = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x)/2, -(box.min.y + box.max.y)/2, -(box.min.z + (box.max.z - box.min.z)*.3)));
+    for(const t of teile){ t.geo.applyMatrix4(m); t.geo.computeBoundingSphere(); }
+    waffenVorlagen[name] = { teile, laenge: cfg.laenge*.7 };
+  }
+}
+export function baueWaffe(name, skala = 1){
+  const v = waffenVorlagen[name];
+  const g = new THREE.Group();
+  if(!v) return g;
+  for(const t of v.teile){ const m = new THREE.Mesh(t.geo, t.mat); m.castShadow = true; g.add(m); }
+  g.scale.setScalar(skala);
+  g.userData.laenge = v.laenge*skala;
+  return g;
+}
