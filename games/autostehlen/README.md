@@ -52,6 +52,7 @@ schneller abgespielt. Die Vorwärtsdrift der Hüfte wird beim Laden entfernt.
 | Hochhäuser | „Miami style condominium“ und „Hi rise apartment building“ von aitortilla01 (Sketchfab) | CC BY 4.0 |
 | Palmen | „Date Palm“ von evolveduk, „Phoenix Palm: Cities Skylines“ von TheHyperChimp (Sketchfab) | CC BY 4.0 |
 | Waffen | „H&K USP 9mm Pistol“ (Elisei), „Revolver Navy Colt 1851 Silver“ (Johan Pindeville), „Sawed-off Shotgun“ (Matthew-David), „Low-Poly Mini Uzi“ (TastyTony), „M4A1 Rifle“ (ErhanMatur), alle Sketchfab | CC BY 4.0 |
+| Läden | „Strong Chicken“ (zixisun02), „Fast foods“ (ElectroNick), „Fast Food Poster“ (mercurio22), „Table and Chairs“ (Graham), „Cash Register“ (bretzel44), „Kitchen Counter“ (euanford12321), alle Sketchfab | CC BY 4.0 |
 | Spiegelwasser | `lib/Water.js` und `bilder/wassernormalen.jpg` aus den three.js-Beispielen | MIT |
 | Schrift | Pricedown von Ray Larabie (Typodermic Fonts) | freie Schrift |
 | three.js | three.js-Autoren | MIT |

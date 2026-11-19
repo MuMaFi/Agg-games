@@ -12,7 +12,7 @@ import { OutputPass } from './lib/postprocessing/OutputPass.js';
 import * as T from './texturen.js';
 import * as W from './welt.js';
 import { baueBoot, baueFlugzeug, baueHubschrauber } from './modelle.js';
-import { ladeWaffen, baueWaffe, ladeAlles, ladeKulisse, kulisse, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
+import { ladeWaffen, baueWaffe, ladeAlles, ladeKulisse, kulisse, kulissenStueck, baueAuto, baueFigur, animiereFigur, LACKE, MAT, lichtMats } from './fahrzeugbau.js';
 import { Water } from './lib/Water.js';
 
 const $ = id => document.getElementById(id);
@@ -190,6 +190,7 @@ function zeitAktualisieren(dt, erzwingen){
   szene.fog.color.copy(himmelUni.uHor.value).multiplyScalar(.85);
   szene.fog.density = .0009 + nacht*.0003;
   szene.environmentIntensity = 1 - nacht*.55;
+  if(drinnen){ sonne.intensity = 0; halb.intensity = .55; szene.environmentIntensity = .35; }
   // Leuchten der Stadt
   for(const n of W.neon) n.mat.color.copy(n.basis).multiplyScalar(n.tag + nacht*n.nacht);
   for(const m of W.fensterMats) m.emissiveIntensity = nacht*1.35 + glatt(.12, -.02, e)*.15;
@@ -278,6 +279,7 @@ async function aufbauen(){
     szene.add(p);
   }
   if(W.markantes.krankenhaus){
+    drinnen = null; ladenZu();
     const k = W.markantes.krankenhaus;
     const tex = T.schild('+ KRANKENHAUS', '#ff4040', '84px ' + schrift);
     const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1) });
@@ -288,6 +290,7 @@ async function aufbauen(){
   }
   zeitAktualisieren(0, true);
   aufstellen();
+  laedenBauen();
   karteVorrendern();
   aufgestellt = true;
   ladeStand(1, 'Fertig');
@@ -611,6 +614,11 @@ class Streife {
       st.lenk = klemm(-diff*2.4, -1, 1);
       if(Math.abs(diff) > 1.5 && f.vf > 9) st.gas = -.6;
       if(d < 10 && spieler.tempo < 4) st.gas = klemm((d - 5.5)/5, -.6, .5);
+      // Spieler zu Fuß: abbremsen und daneben halten statt hineinzufahren
+      if(spieler.modus === 'fuss'){
+        if(d < 26) st.gas = f.vf > 7 ? -1 : d > 12 ? .35 : f.vf > 1 ? -1 : 0;
+        if(d < 14) st.lenk = klemm(st.lenk + (winkel(soll - f.h) > 0 ? -.8 : .8), -1, 1);
+      }
     }
     if(this.rueck > 0){ this.rueck -= dt; st.gas = -1; st.lenk = -st.lenk || .8; }
     else if(st.gas > .3 && Math.abs(f.vf) < 1.3){ this.haeng += dt; if(this.haeng > 1.4){ this.haeng = 0; this.rueck = 1.1; } }
@@ -985,6 +993,7 @@ addEventListener('keydown', e => {
   const k = e.code;
   tasten.add(k); gedrueckt.add(k);
   if(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(k) && laeuft) e.preventDefault();
+  if(ladenOffen && (k === 'Escape' || k === 'KeyE' || k === 'Backspace')){ ladenZu(); gedrueckt.clear(); return; }
   if((k === 'Escape' || k === 'KeyP') && laeuft && ansicht === 'spiel' && !(pausiert && tafelOffen)) pauseUmschalten();
   if(k === 'KeyM' && laeuft && !pausiert && ansicht === 'spiel') karteUmschalten();
   if(laeuft && !pausiert && ansicht === 'spiel'){
@@ -1160,7 +1169,7 @@ function spielerFuss(dt){
     const hl = f.L/2 + .35, hb = f.W/2 + .35;
     if(Math.abs(lv) < hl && Math.abs(ls) < hb && Math.abs(f.y - spieler.y) < 2){
       const tempo = Math.hypot(f.vx, f.vz);
-      if(tempo > 6 && spieler.liegt <= 0 && f.art === 'auto'){ spieler.liegt = 1.4; spieler.vy = 4; ton.dumpf(.6); kam.wackel = .5; schaden(tempo*2.2, 'ÜBERFAHREN'); }
+      if(tempo > 6 && spieler.liegt <= 0 && f.art === 'auto'){ spieler.liegt = 1.4; spieler.vy = 4; ton.dumpf(.6); kam.wackel = .5; schaden(Math.min(55, tempo*(f.typ === 'polizei' ? 1.2 : 2)), 'ÜBERFAHREN'); }
       const pv = hl - Math.abs(lv), ps = hb - Math.abs(ls);
       if(pv < ps){ const s = Math.sign(lv) || 1; spieler.x += ffx*pv*s; spieler.z += ffz*pv*s; }
       else { const s = Math.sign(ls) || 1; spieler.x += -ffz*ps*s; spieler.z += ffx*ps*s; }
@@ -1520,7 +1529,7 @@ function waffeUpdate(dt){
     ladenT -= dt;
     if(ladenT <= 0){ const w = WAFFEN[aktiv], inv = inventar[aktiv]; const n = Math.min(w.mag - inv.mag, inv.vorrat); inv.mag += n; inv.vorrat -= n; ton.tuer(); hudWaffe(); }
   }
-  const zuFuss = spieler.modus === 'fuss' && ansicht === 'spiel';
+  const zuFuss = spieler.modus === 'fuss' && ansicht === 'spiel' && !drinnen;
   $('fadenkreuz').hidden = !zuFuss || radOffen;
   const w = WAFFEN[aktiv];
   const will = schussGewollt || (w.auto && (schussHalten || (mausUnten && document.pointerLockElement === leinwandEl)));
@@ -1641,6 +1650,144 @@ function autoSchaeden(){
   }
 }
 
+/* ── Läden: Clocking Chicken und Knallhaus ───────────────────────
+   Jeder Laden hat außen eine Tür und weit draußen einen echten Innenraum.
+   Tür berühren: hinein. Ausgang berühren: hinaus. An der Theke: E.      */
+const LADEN = {
+  huhn: { name: 'Clocking Chicken', ox: 2000, oz: 0, farbe: '#ffcc33', schild: 'CLOCKING CHICKEN', schildFarbe: '#ffb020',
+    waren: [
+      { id: 'k', name: 'Kleiner Eimer', info: '+30 Gesundheit', preis: 8, kauf(){ leben = Math.min(100, leben + 30); } },
+      { id: 'g', name: 'Großer Eimer', info: '+60 Gesundheit', preis: 15, kauf(){ leben = Math.min(100, leben + 60); } },
+      { id: 'f', name: 'Familien-Eimer', info: 'volle Gesundheit', preis: 25, kauf(){ leben = 100; } },
+      { id: 's', name: 'Clock-Shake', info: '+10 Gesundheit', preis: 3, kauf(){ leben = Math.min(100, leben + 10); } },
+    ] },
+  waffen: { name: 'Knallhaus', ox: 2100, oz: 0, farbe: '#ff5050', schild: 'KNALLHAUS · WAFFEN', schildFarbe: '#ff4040', waren: [] },
+};
+const PREISE = { pistole: [250, 40], revolver: [600, 60], schrot: [900, 70], uzi: [1400, 110], gewehr: [2500, 160] };
+for(const t of ['pistole', 'revolver', 'schrot', 'uzi', 'gewehr']){
+  const w = WAFFEN[t];
+  LADEN.waffen.waren.push({ id: t, name: w.name, info: () => inventar[t] ? 'hast du schon' : 'mit ' + w.mag*2 + ' Schuss', preis: PREISE[t][0], geht: () => !inventar[t], kauf(){ waffeGeben(t, w.mag*2); } });
+  LADEN.waffen.waren.push({ id: t + 'M', name: 'Munition ' + w.name, info: () => inventar[t] ? '+' + w.mag*2 + ' Schuss' : 'erst die Waffe kaufen', preis: PREISE[t][1], geht: () => !!inventar[t], kauf(){ waffeGeben(t, w.mag*2); } });
+}
+let drinnen = null, ladenOffen = null, tuerSperre = 0;
+const ladenListe = [];
+function innenraum(art){
+  const L = LADEN[art], ox = L.ox, oz = L.oz, B = 18, TI = 13, H = 4.6;
+  const raum = { x0: ox - B/2, x1: ox + B/2, z0: oz - TI/2, z1: oz + TI/2 };
+  W.INNENRAEUME.push(raum);
+  const g = new THREE.Group(); szene.add(g);
+  const huhn = art === 'huhn';
+  // Boden, Wände, Decke (selbst gezeichnet)
+  const c = document.createElement('canvas'); c.width = c.height = 256; const cx = c.getContext('2d');
+  for(let y = 0; y < 8; y++) for(let x = 0; x < 8; x++){ cx.fillStyle = (x + y) % 2 ? (huhn ? '#e9e2d4' : '#2c2f35') : (huhn ? '#b8302a' : '#3a3e46'); cx.fillRect(x*32, y*32, 32, 32); }
+  const bodenTex = new THREE.CanvasTexture(c); bodenTex.colorSpace = THREE.SRGBColorSpace; bodenTex.wrapS = bodenTex.wrapT = THREE.RepeatWrapping; bodenTex.repeat.set(B/4, TI/4);
+  const boden = new THREE.Mesh(new THREE.PlaneGeometry(B, TI).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({ map: bodenTex, roughness: .35, metalness: .05 }));
+  boden.position.set(ox, .01, oz); boden.receiveShadow = true; g.add(boden);
+  const wandMat = new THREE.MeshStandardMaterial({ color: huhn ? 0xfff3dc : 0x4a4f58, roughness: .8 });
+  const leiste = new THREE.MeshStandardMaterial({ color: huhn ? 0xc8352c : 0x1d1f24, roughness: .6 });
+  const wand = (w, d, x, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), wandMat); m.position.set(x, H/2, z); g.add(m);
+    const l = new THREE.Mesh(new THREE.BoxGeometry(w + .02, .9, d + .02), leiste); l.position.set(x, .45, z); g.add(l);
+    W.hindernis(x - w/2, x + w/2, z - d/2, z + d/2, -1, H + 1, 'wand'); };
+  wand(B, .3, ox, raum.z0 - .15); wand(B, .3, ox, raum.z1 + .15); wand(.3, TI, raum.x0 - .15, oz); wand(.3, TI, raum.x1 + .15, oz);
+  const decke = new THREE.Mesh(new THREE.PlaneGeometry(B, TI).rotateX(Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xd8d8d8, roughness: .9 }));
+  decke.position.set(ox, H, oz); g.add(decke);
+  for(const x of [-5, 0, 5]) for(const z of [-3, 2.5]){
+    const lampe = new THREE.Mesh(new THREE.BoxGeometry(1.6, .06, .5), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.25, 1.15) }));
+    lampe.position.set(ox + x, H - .04, oz + z); g.add(lampe);
+  }
+  for(const x of [-4.5, 4.5]){ const l = new THREE.PointLight(huhn ? 0xffe8c8 : 0xe8eeff, 14, 18, 1.5); l.position.set(ox + x, H - .4, oz); g.add(l); }
+  // Tür (innen), Theke, Kasse, Verkäufer
+  const tuer = new THREE.Mesh(new THREE.BoxGeometry(2, 2.6, .08), new THREE.MeshStandardMaterial({ color: 0x0b1117, metalness: .8, roughness: .1 }));
+  tuer.position.set(ox, 1.3, raum.z1 - .02); g.add(tuer);
+  const kasse = kulissenStueck('i_kasse', 1.25); kasse.position.set(ox, 0, raum.z0 + 2.6); g.add(kasse);
+  W.hindernis(ox - kasse.userData.breite/2, ox + kasse.userData.breite/2, raum.z0 + 2.6 - kasse.userData.tiefe/2, raum.z0 + 2.6 + kasse.userData.tiefe/2, -1, 2, 'theke');
+  for(const x of [-6, 6]){ const th = kulissenStueck('i_theke', 1.05); th.rotation.y = Math.PI/2; th.position.set(ox + x, 0, raum.z0 + .8); g.add(th); }
+  W.hindernis(raum.x0, raum.x1, raum.z0, raum.z0 + 1.4, -1, 2, 'theke');
+  const verkaeufer = baueFigur(huhn ? 4 : 6); verkaeufer.g.position.set(ox + .4, 0, raum.z0 + 1.7); verkaeufer.g.rotation.y = 0; g.add(verkaeufer.g);
+  if(huhn){
+    const essen = kulissenStueck('i_essen', .35); essen.position.set(ox - 1.4, 1.02, raum.z0 + 2.7); g.add(essen);
+    for(const [x, z] of [[-5.5, 2], [5.5, 2], [-5.5, -1.6], [5.5, -1.6]]){ const t = kulissenStueck('i_tisch', 1.15); t.position.set(ox + x, 0, oz + z); g.add(t); W.hindernis(ox + x - .7, ox + x + .7, oz + z - .7, oz + z + .7, -1, 1.2, 'tisch'); }
+    for(const x of [raum.x0 + .05, raum.x1 - .05]){ const pst = kulissenStueck('i_poster', 1.9); pst.position.set(x, 1.4, oz - 1); pst.rotation.y = x < ox ? 0 : Math.PI; g.add(pst); }
+    const statue = kulissenStueck('i_huhn', 2.2); statue.position.set(raum.x1 - 1.4, 0, raum.z1 - 1.6); statue.rotation.y = -Math.PI*.75; g.add(statue);
+  } else {
+    // Waffen an der Rückwand
+    const brett = new THREE.Mesh(new THREE.BoxGeometry(12, 2.2, .08), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: .8 }));
+    brett.position.set(ox, 2.6, raum.z0 + .06); g.add(brett);
+    ['pistole', 'revolver', 'schrot', 'uzi', 'gewehr'].forEach((t, i) => { const w = baueWaffe(t, 2.2); w.rotation.set(0, Math.PI/2, 0); w.position.set(ox - 4.8 + i*2.4, 2.6, raum.z0 + .25); g.add(w); });
+  }
+  // Schild über der Theke
+  const tex = T.schild(L.schild, L.schildFarbe, '72px ' + schrift);
+  const sch = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: new THREE.Color(.9, .9, .9) }));
+  sch.position.set(ox, 3.7, raum.z0 + .12); g.add(sch);
+  return { raum, ausgang: { x: ox, z: raum.z1 - 1.1 }, theke: { x: ox, z: raum.z0 + 3.9 }, start: { x: ox, z: raum.z1 - 2.2 } };
+}
+function laedenBauen(){
+  for(const l of W.markantes.laeden || []){
+    const L = LADEN[l.art];
+    // Schild an der Fassade und (beim Hähnchenladen) das Maskottchen auf dem Dach
+    const tex = T.schild(L.schild, L.schildFarbe, '72px ' + schrift);
+    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: new THREE.Color(1, 1, 1) });
+    W.neon.push({ mat: m, basis: new THREE.Color(1, 1, 1), tag: 1, nacht: 2.2 });
+    const sch = new THREE.Mesh(new THREE.PlaneGeometry(20, 5.5), m); sch.position.set(l.cx, 4.6, l.z1 + .3); szene.add(sch);
+    if(l.art === 'huhn'){ const h = kulissenStueck('i_huhn', 7); h.position.set(l.cx, l.dachY, l.cz); szene.add(h); }
+    const tuer = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.7, .1), new THREE.MeshStandardMaterial({ color: 0x0b1117, metalness: .8, roughness: .1, emissive: new THREE.Color(L.farbe), emissiveIntensity: .25 }));
+    tuer.position.set(l.tuerX, 1.5, l.z1 + .06); szene.add(tuer);
+    const s2 = strahl(new THREE.Color(L.farbe).multiplyScalar(1.4), .9, 3); s2.position.set(l.tuerX, W.bodenY(l.tuerX, l.tuerZ), l.tuerZ);
+    const innen = innenraum(l.art);
+    ladenListe.push({ ...l, L, innen });
+  }
+}
+const _blende = () => { const el = $('blende'); el.classList.add('an'); setTimeout(() => el.classList.remove('an'), 420); };
+function laedenUpdate(dt){
+  tuerSperre -= dt;
+  if(spieler.modus !== 'fuss' || ladenOffen) return;
+  if(!drinnen){
+    for(const l of ladenListe){
+      if(Math.hypot(spieler.x - l.tuerX, spieler.z - l.tuerZ) > 1.5 || tuerSperre > 0) continue;
+      tuerSperre = 1.2;
+      if(sterne > 0){ meldung('Mit der Polizei auf den Fersen lässt dich niemand rein'); continue; }
+      _blende(); ton.tuer();
+      drinnen = l.innen; drinnen.laden = l;
+      spieler.x = drinnen.start.x; spieler.z = drinnen.start.z; spieler.y = 0; spieler.h = Math.PI; kam.yaw = Math.PI; kam.pitch = .15;
+      meldung('Willkommen bei ' + l.L.name);
+      return;
+    }
+  } else {
+    const d = drinnen;
+    if(Math.hypot(spieler.x - d.ausgang.x, spieler.z - d.ausgang.z) < 1.1 && tuerSperre <= 0 && Math.cos(spieler.h) > 0){
+      tuerSperre = 1.2; _blende(); ton.tuer();
+      const l = d.laden; drinnen = null;
+      spieler.x = l.tuerX; spieler.z = l.tuerZ + 2.2; spieler.y = W.bodenY(spieler.x, spieler.z); spieler.h = 0; kam.yaw = 0;
+      return;
+    }
+    if(Math.hypot(spieler.x - d.theke.x, spieler.z - d.theke.z) < 1.8){
+      eingabeHinweis(d.laden.art === 'huhn' ? 'Bestellen' : 'Einkaufen');
+      if(taste('KeyE') || taste('KeyF')) ladenAuf(d.laden);
+    }
+  }
+}
+function ladenAuf(l){
+  ladenOffen = l; tasten.clear();
+  try { document.exitPointerLock && document.exitPointerLock(); } catch(_){}
+  $('ladenTitel').textContent = l.L.name;
+  ladenListeZeigen();
+  $('laden').classList.add('an');
+  setTimeout(() => { const b = $('ladenWaren').querySelector('button:not(:disabled)'); if(b) b.focus({ preventScroll: true }); }, 30);
+}
+function ladenListeZeigen(){
+  const l = ladenOffen, el = $('ladenWaren'); el.innerHTML = '';
+  $('ladenGeld').textContent = '$' + geld.toLocaleString('de-DE');
+  for(const w of l.L.waren){
+    const info = typeof w.info === 'function' ? w.info() : w.info;
+    const geht = (!w.geht || w.geht()) && geld >= w.preis;
+    const b = document.createElement('button'); b.className = 'ware'; b.disabled = !geht;
+    b.innerHTML = `<span><b>${w.name}</b><small>${info}</small></span><em>$${w.preis}</em>`;
+    b.addEventListener('click', () => { if(geld < w.preis) return; geldDazu(-w.preis); w.kauf(); ton.muenze(); ladenListeZeigen(); });
+    el.appendChild(b);
+  }
+}
+function ladenZu(){ ladenOffen = null; $('laden').classList.remove('an'); }
+
 /* ── Effekte ───────────────────────────────────────────────────── */
 const blitzLicht = new THREE.PointLight(0xff9a40, 0, 120, 1.6);
 szene.add(blitzLicht);
@@ -1700,6 +1847,7 @@ function kameraUpdate(dt){
   if(m === 'flug'){ dist = 24; hoehe = 3; grundPitch = .14; }
   if(m === 'tot'){ x = totPos.x; y = Math.max(totPos.y, W.bodenY(totPos.x, totPos.z)); z = totPos.z; dist = 14 + totZeit*4; kam.yaw += dt*.25; }
   if(m === 'fall'){ dist = 9; hoehe = 2.5; }
+  if(drinnen){ dist = 3.4; hoehe = 1.6; }
   if(kam.dx || kam.dy){
     kam.yaw -= kam.dx*.0042*einst.empf; kam.pitch = klemm(kam.pitch + kam.dy*.0032*einst.empf*(einst.umkehren ? -1 : 1), -.25, 1.25);
     kam.dx = kam.dy = 0; kam.hand = uhr;
@@ -1728,6 +1876,7 @@ function kameraUpdate(dt){
   kamera.position.set(kamZiel.x + dx*d, kamZiel.y + dy*d, kamZiel.z + dz*d);
   const bodenK = W.begehbar(kamera.position.x, kamera.position.z) ? W.bodenY(kamera.position.x, kamera.position.z) + .4 : W.WASSER_Y + .6;
   if(kamera.position.y < bodenK) kamera.position.y = bodenK;
+  if(drinnen){ const r = drinnen.raum; kamera.position.x = klemm(kamera.position.x, r.x0 + .3, r.x1 - .3); kamera.position.z = klemm(kamera.position.z, r.z0 + .3, r.z1 - .3); kamera.position.y = Math.min(kamera.position.y, 4.1); }
   if(kam.wackel > 0){
     kamera.position.x += (Math.random() - .5)*kam.wackel*.6; kamera.position.y += (Math.random() - .5)*kam.wackel*.4;
     kam.wackel = Math.max(0, kam.wackel - dt*2.2);
@@ -2150,7 +2299,7 @@ function schritt(dt){
   uhr += dt;
   zeitAktualisieren(dt);
   if(laeuft && !pausiert){
-    if(ansicht !== 'spiel'){ tasten.clear(); stick.ax = stick.ay = 0; }
+    if(ansicht !== 'spiel' || ladenOffen){ tasten.clear(); stick.ax = stick.ay = 0; }
     if(spieler.modus === 'fuss') spielerFuss(dt);
     else if(spieler.modus === 'fall') fallschirmUpdate(dt);
     else if(spieler.fz) spielerFahrzeug(dt);
@@ -2163,13 +2312,15 @@ function schritt(dt){
     fahrzeugStoesse();
     leuteUpdate(dt);
     scheineUpdate(dt, uhr);
+    laedenUpdate(dt);
     beuteUpdate(dt);
     auftraegeUpdate(dt);
     totUpdate(dt);
     kameraUpdate(dt);
     hudUpdate(dt);
     ton.update(dt);
-    miniKarte();
+    $('miniRahmen').hidden = !!drinnen;
+    if(!drinnen) miniKarte();
     if(karteOffen && Math.floor(uhr*4) !== Math.floor((uhr - dt)*4)) grosseKarte();
     speicherTakt -= dt;
     if(speicherTakt < 0){ speicherTakt = 10; speicherSchreiben('autostehlen.stunde', stunde); standSichern(); }
@@ -2248,7 +2399,8 @@ const tippTimer = setInterval(() => { if(ansicht === 'laden') tippWechseln(); el
 function spielstand(){ return speicherLesen('autostehlen.stand', null); }
 function standSichern(){
   if(!laeuft) return;
-  const x = spieler.modus === 'fuss' ? spieler.x : spieler.px, z = spieler.modus === 'fuss' ? spieler.z : spieler.pz;
+  let x = spieler.modus === 'fuss' ? spieler.x : spieler.px, z = spieler.modus === 'fuss' ? spieler.z : spieler.pz;
+  if(drinnen){ x = drinnen.laden.tuerX; z = drinnen.laden.tuerZ + 2.5; }
   speicherSchreiben('autostehlen.stand', { x, z, geld, stunde, zeit: Date.now(), inventar, aktiv });
 }
 function menueZeigen(){
@@ -2288,7 +2440,7 @@ function spielStarten(neu){
   if(totZeit >= 0 || !flieger.g.visible){ totZeit = -1; flugzeugZuruck(); }
   spieler.modus = 'fuss'; spieler.y = W.bodenY(spieler.x, spieler.z); spieler.vy = 0; spieler.liegt = 0;
   sterne = 0; festnahme = 0; hudSterne();
-  leben = 100; totZeit = -1; schirm.visible = false; spieler.m.g.rotation.x = 0;
+  leben = 100; totZeit = -1; schirm.visible = false; drinnen = null; ladenZu(); spieler.m.g.rotation.x = 0;
   for(const s2 of streifen){ s2.f.g.visible = false; s2.f.vx = s2.f.vz = 0; }
   if(auftrag){ auftrag = null; zielStrahl.visible = false; jobStrahlen.forEach(j => j.visible = true); hudAuftrag(); }
   kam.yaw = spieler.h; kam.pitch = .25; kam.hand = -9;
@@ -2363,6 +2515,7 @@ $('pauseListe').addEventListener('click', e => {
 for(const b of document.querySelectorAll('[data-zurueck]')) b.addEventListener('click', () => { ton.menue(); tafelZu(); });
 $('pauseKnopf').addEventListener('click', () => pauseUmschalten());
 $('karteZu').addEventListener('click', () => karteUmschalten());
+$('ladenZu').addEventListener('click', () => ladenZu());
 // Einstellungen
 document.querySelectorAll('[data-grafik]').forEach(b => b.addEventListener('click', () => {
   stufeName = b.dataset.grafik; Q = STUFEN[stufeName]; speicherSchreiben('autostehlen.grafik', stufeName);
