@@ -319,6 +319,9 @@ export function schild(text, farbe, schrift){
   const c = leinwand(512, 160), g = c.getContext('2d');
   g.clearRect(0, 0, 512, 160);
   g.font = schrift; g.textAlign = 'center'; g.textBaseline = 'middle';
+  // zu lange Schriftzüge verkleinern, damit nichts abgeschnitten wird
+  const breite = g.measureText(text).width;
+  if(breite > 470){ const px = parseFloat((schrift.match(/(\d+)px/) || [0, 72])[1]); g.font = schrift.replace(/\d+px/, Math.floor(px*470/breite) + 'px'); }
   g.shadowColor = farbe; g.shadowBlur = 22;
   g.fillStyle = farbe; g.fillText(text, 256, 84);
   g.shadowBlur = 6; g.fillStyle = '#ffffff'; g.globalAlpha = .75; g.fillText(text, 256, 84);

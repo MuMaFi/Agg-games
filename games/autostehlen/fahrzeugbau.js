@@ -446,6 +446,7 @@ export async function ladeKulisse(){
   await kulisseLaden('hochhaus', 'modelle/hochhaus.glb', 'turm');
   await kulisseLaden('palmeNah', 'modelle/palme_dattel.glb', 'palme');
   await kulisseLaden('palmeFern', 'modelle/palme_phoenix.glb', 'palme');
+  for(const n of ['i_huhn', 'i_essen', 'i_poster', 'i_tisch', 'i_kasse', 'i_theke']) await kulisseLaden(n, 'modelle/' + n + '.glb', 'deko');
 }
 
 /* ── Waffen (CC BY 4.0, siehe Credits) ─────────────────────────────
@@ -482,5 +483,15 @@ export function baueWaffe(name, skala = 1){
   for(const t of v.teile){ const m = new THREE.Mesh(t.geo, t.mat); m.castShadow = true; g.add(m); }
   g.scale.setScalar(skala);
   g.userData.laenge = v.laenge*skala;
+  return g;
+}
+
+// ein Kulissenmodell als normales Objekt in gewünschter Höhe
+export function kulissenStueck(name, hoehe){
+  const k = kulisse[name], g = new THREE.Group();
+  if(!k) return g;
+  for(const t of k.teile){ const m = new THREE.Mesh(t.geo, t.mat); m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  g.scale.setScalar(hoehe);
+  g.userData.breite = k.b*hoehe; g.userData.tiefe = k.t*hoehe;
   return g;
 }

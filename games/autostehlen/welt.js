@@ -32,8 +32,10 @@ export function aufBruecke(x, z){
   for(const b of BRUECKEN) if(Math.abs(z - b.z) <= 7.3) return true;
   return false;
 }
+export const INNENRAEUME = [];
 export function landAt(x, z){
   if(inRect(FESTLAND, x, z) || inRect(INSEL, x, z)) return true;
+  for(const r of INNENRAEUME) if(inRect(r, x, z)) return true;
   for(const s of STEGE) if(inRect(s, x, z)) return true;
   return false;
 }
@@ -417,6 +419,9 @@ export function baueWelt(szene, qualitaet, K){
   const arenaBlock = bloecke.find(b => b.x0 === 8 && b.z0 === 104);
   const polizeiBlock = bloecke.find(b => b.x0 === -184 && b.z0 === 200);
   const krankenBlock = bloecke.find(b => b.x0 === -184 && b.z0 === -88);
+  const huhnBlock = bloecke.find(b => b.x0 === 8 && b.z0 === -88);
+  const waffenBlock = bloecke.find(b => b.x0 === -376 && b.z0 === 104);
+  markantes.laeden = [];
   const NAMEN = ['Flamingo', 'Coral', 'Starlite', 'Paradiso', 'Bay Breeze', 'Sunset', 'Pelican', 'Tropicana', 'Neptun', 'Blue Moon', 'Riviera', 'Palmetto'];
   let hotelNr = 0;
 
@@ -443,6 +448,18 @@ export function baueWelt(szene, qualitaet, K){
     }
     // Stadtblöcke nach Lage
     if(b === arenaBlock){ platte(b, 'gehweg'); markantes.arena = { x: cx, z: cz }; hindernis(cx - 36, cx + 36, cz - 36, cz + 36, -6, 22); continue; }
+    if(b === huhnBlock || b === waffenBlock){
+      // Laden: flacher Bau, Eingang nach Norden (+z) zur Straße
+      platte(b, 'gehweg');
+      const huhn = b === huhnBlock;
+      const x0 = cx - 15, x1 = cx + 15, z0 = b.z1 - 36, z1 = b.z1 - 14, h = 7;
+      gebaeude(x0, x1, z0, z1, h, huhn ? 'haus' : 'buero', { col: farbe(huhn ? '#fff1d6' : '#c9ccd2') });
+      // Rest des Blocks: kleines Bürohaus dahinter, Palmen vorn
+      if(b.z1 - 36 - b.z0 > 30) gebaeude(b.x0 + 6, b.x1 - 6, b.z0 + 6, z0 - 6, R(18, 34), 'buero');
+      for(const x of [b.x0 + 4, b.x1 - 4]) palme(x, b.z1 - 5);
+      markantes.laeden.push({ art: huhn ? 'huhn' : 'waffen', tuerX: cx, tuerZ: z1 + 1.4, dachY: h, cx, cz: (z0 + z1)/2, z1, x0, x1 });
+      continue;
+    }
     if(b === krankenBlock){
       platte(b, 'gehweg');
       gebaeude(b.x0 + 6, b.x1 - 6, b.z0 + 6, b.z1 - 26, 28, 'buero', { col: farbe('#f4f6f8') });
