@@ -126,6 +126,15 @@ body.touch .fuss .nurMaus{ display:none }
 #leben{ width:150px; height:8px; margin-top:6px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.25); border-radius:2px; overflow:hidden }
 #leben i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#3ddc84,#8bf0b0); transition:width .25s }
 #leben.knapp i{ background:linear-gradient(90deg,#ff3a3a,#ff8a6a); animation:blink .8s steps(2) infinite }
+#waffe{ margin-top:6px; font:700 14px/1 var(--text); color:#fff; text-shadow:0 1px 3px #000; font-variant-numeric:tabular-nums }
+#waffeMuni{ color:var(--sonne); margin-left:6px }
+#rad{ position:fixed; inset:0; z-index:60; display:none; background:radial-gradient(circle, rgba(10,6,20,.55) 0, rgba(10,6,20,.25) 260px, transparent 420px) }
+#rad.an{ display:block }
+.radFeld{ position:absolute; transform:translate(-50%, -50%); width:104px; height:104px; border-radius:50%; border:2px solid rgba(255,255,255,.25);
+  background:rgba(16,10,30,.85); color:#fff; display:grid; place-content:center; gap:4px; text-align:center; cursor:pointer; font:600 13px/1.1 var(--text) }
+.radFeld small{ color:var(--sonne); font-variant-numeric:tabular-nums }
+.radFeld.an{ border-color:var(--pink); background:rgba(255,79,160,.35); transform:translate(-50%, -50%) scale(1.1) }
+.radMitte{ position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:150px; text-align:center; color:var(--grau); font:600 12px/1.35 var(--text); letter-spacing:.06em; text-transform:uppercase }
 #treffer{ position:fixed; inset:0; z-index:39; pointer-events:none; background:radial-gradient(circle, transparent 45%, rgba(220,20,30,.75) 120%); opacity:0; transition:opacity .15s }
 #treffer.an{ opacity:1 }
 #fadenkreuz{ position:fixed; left:50%; top:46%; width:22px; height:22px; margin:-11px 0 0 -11px; z-index:41; pointer-events:none }
@@ -183,6 +192,7 @@ body.touch .fuss .nurMaus{ display:none }
 #kSprung{ right:calc(118px + var(--rechts)); bottom:calc(36px + var(--unten)) }
 #kSprint{ right:calc(22px + var(--rechts)); bottom:calc(28px + var(--unten)) }
 #kSchuss{ right:calc(130px + var(--rechts)); bottom:calc(200px + var(--unten)); width:62px; height:62px; font-size:12px; border-color:rgba(255,90,90,.6) }
+#kWaffen{ right:calc(200px + var(--rechts)); bottom:calc(200px + var(--unten)); width:58px; height:58px; font-size:11px }
 #kKarte{ right:calc(130px + var(--rechts)); bottom:calc(132px + var(--unten)); width:54px; height:54px; font-size:11px }
 body.touch #miniRahmen{ bottom:auto; left:calc(12px + var(--links)); top:calc(52px + var(--oben)); width:116px; height:116px }
 body.touch #auftrag{ top:calc(52px + var(--oben)); left:calc(140px + var(--links)); max-width:min(320px, 40vw) }
@@ -249,7 +259,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
 <div class="tafel" id="tSteuerung" role="dialog" aria-label="Steuerung">
   <h2>Steuerung</h2>
   <div class="tasten nurMaus">
-    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen · Linksklick: schießen</div>
+    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen · Linksklick: schlagen oder schießen · <kbd>Tab</kbd> halten: Waffenrad · <kbd>1</kbd>–<kbd>6</kbd> Waffe · <kbd>R</kbd> nachladen</div>
     <div class="tk"><h3>Auto und Boot</h3><kbd>E</kbd> ein- und aussteigen · <kbd>W</kbd><kbd>S</kbd> Gas und Bremse · <kbd>A</kbd><kbd>D</kbd> lenken · <kbd>Leer</kbd> Handbremse · <kbd>⇧</kbd> Boost</div>
     <div class="tk"><h3>Flugzeug</h3><kbd>W</kbd><kbd>S</kbd> Schub · <kbd>A</kbd><kbd>D</kbd> Kurve · <kbd>↑</kbd> oder <kbd>Leer</kbd> steigen · <kbd>↓</kbd> sinken · erst ab 110 km/h hochziehen · <kbd>E</kbd> in der Luft: Fallschirm</div>
     <div class="tk"><h3>Sonst</h3><kbd>M</kbd> Karte · <kbd>Esc</kbd> Pause · Mausrad: Kameraabstand · Klick ins Bild fängt die Maus</div>
@@ -271,6 +281,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
     <div><b>BMW E30</b> · „(Low-poly) BMW E30 (free download)“ von KrStolorz · <a href="https://sketchfab.com/3d-models/low-poly-bmw-e30-free-download-e453bdae0ee1423ea79f1322db1c7459" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
     <div><b>Muscle-Car</b> · „LowPoly Game model“ von archer1533 · <a href="https://sketchfab.com/3d-models/lowpoly-game-model-c429b45462524c03a460ace11f596f95" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
     <div><b>Figur</b> · „Nathan Animated 003 – Walking 3D Man“ von Renderpeople · <a href="https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>Waffen</b> · „H&amp;K USP 9mm Pistol“ von Elisei, „Revolver Navy Colt 1851 Silver“ von Johan Pindeville, „Sawed-off Shotgun“ von Matthew-David, „Low-Poly Mini Uzi“ von TastyTony, „M4A1 Rifle“ von ErhanMatur · alle Sketchfab · CC BY 4.0</div>
     <div><b>Schrift</b> · Pricedown von Ray Larabie (Typodermic Fonts)</div>
     <div><b>Grafik</b> · three.js (MIT-Lizenz) · Stadt, Himmel, Boote, Flugzeug und Ton entstehen im Spiel selbst; Spiegelwasser und Wellentextur aus den three.js-Beispielen (MIT)</div>
     <div><b>Hochhäuser</b> · „Miami style condominium“ und „Hi rise apartment building“ von aitortilla01 · <a href="https://sketchfab.com/3d-models/miami-style-condominium-b3e16399830045a7b67ec8e02447fd27" target="_blank" rel="noopener">Sketchfab</a>, <a href="https://sketchfab.com/3d-models/hi-rise-apartment-building-f8c0a550cd1e441f85b46caeba6632f3" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
@@ -294,6 +305,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
     <div id="geldDelta"></div>
     <div id="sterne" aria-label="Fahndungsstufe"></div>
     <div id="leben" aria-label="Gesundheit"><i id="lebenBalken"></i></div>
+    <div id="waffe"><span id="waffeName">Faust</span> <span id="waffeMuni"></span></div>
   </div>
   <div id="auftrag">
     <div class="kopf"><span>Kurierauftrag</span><span id="auftragLohn"></span></div>
@@ -316,6 +328,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
   <button class="tknopf" id="kSprint">Rennen</button>
   <button class="tknopf" id="kAktion">Aktion</button>
   <button class="tknopf" id="kSchuss">Schuss</button>
+  <button class="tknopf" id="kWaffen">Waffen</button>
 </div>
 
 <div class="ueber" id="karteBox">
@@ -341,6 +354,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
 
 <div id="treffer"></div>
 <div id="fadenkreuz" hidden></div>
+<div id="rad" aria-label="Waffenrad"></div>
 <div id="fehler" hidden></div>
 
 <script type="importmap">

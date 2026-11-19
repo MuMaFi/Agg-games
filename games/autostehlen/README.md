@@ -51,6 +51,7 @@ schneller abgespielt. Die Vorwärtsdrift der Hüfte wird beim Laden entfernt.
 | Spielfigur | „Nathan Animated 003 – Walking 3D Man“ von Renderpeople, [Sketchfab](https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc) | CC BY 4.0 |
 | Hochhäuser | „Miami style condominium“ und „Hi rise apartment building“ von aitortilla01 (Sketchfab) | CC BY 4.0 |
 | Palmen | „Date Palm“ von evolveduk, „Phoenix Palm: Cities Skylines“ von TheHyperChimp (Sketchfab) | CC BY 4.0 |
+| Waffen | „H&K USP 9mm Pistol“ (Elisei), „Revolver Navy Colt 1851 Silver“ (Johan Pindeville), „Sawed-off Shotgun“ (Matthew-David), „Low-Poly Mini Uzi“ (TastyTony), „M4A1 Rifle“ (ErhanMatur), alle Sketchfab | CC BY 4.0 |
 | Spiegelwasser | `lib/Water.js` und `bilder/wassernormalen.jpg` aus den three.js-Beispielen | MIT |
 | Schrift | Pricedown von Ray Larabie (Typodermic Fonts) | freie Schrift |
 | three.js | three.js-Autoren | MIT |
