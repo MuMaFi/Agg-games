@@ -141,6 +141,10 @@ function schattenEinstellen(){
 szene.add(sonne, sonne.target);
 const halb = new THREE.HemisphereLight(0xbcd4ff, 0x4a3f33, 1);
 szene.add(halb);
+// Aufhelllicht aus Richtung der Kamera: hellt Figur und Autos auf (vor allem im Gegenlicht),
+// den Boden trifft es fast nur streifend
+const fuell = new THREE.DirectionalLight(0xffffff, 1);
+szene.add(fuell, fuell.target);
 szene.fog = new THREE.FogExp2(0xffffff, .0011);
 
 // Farben über der Sonnenhöhe
@@ -190,7 +194,9 @@ function zeitAktualisieren(dt, erzwingen){
   szene.fog.color.copy(himmelUni.uHor.value).multiplyScalar(.85);
   szene.fog.density = .0009 + nacht*.0003;
   szene.environmentIntensity = 1 - nacht*.55;
-  if(drinnen){ sonne.intensity = 0; halb.intensity = .55; szene.environmentIntensity = .35; }
+  fuell.color.set(0xfff4e8).lerp(_c2.set(0xa8b8ff), nacht);
+  fuell.intensity = (.85 + glatt(.25, .02, e)*.75)*(1 - nacht) + nacht*.85;
+  if(drinnen){ sonne.intensity = 0; halb.intensity = .55; szene.environmentIntensity = .35; fuell.intensity = .6; }
   // Leuchten der Stadt
   for(const n of W.neon) n.mat.color.copy(n.basis).multiplyScalar(n.tag + nacht*n.nacht);
   for(const m of W.fensterMats) m.emissiveIntensity = nacht*1.35 + glatt(.12, -.02, e)*.15;
@@ -1922,11 +1928,13 @@ function kameraUpdate(dt){
     kam.wackel = Math.max(0, kam.wackel - dt*2.2);
   }
   kamera.lookAt(kamZiel);
+  fuell.position.set(kamera.position.x, kamera.position.y + 2.5, kamera.position.z); fuell.target.position.copy(kamZiel);
   const fovSoll = 62 + (f ? Math.min(Math.abs(f.vf), 60)*.22 : 0);
   kamera.fov = daempf(kamera.fov, fovSoll, 3, dt); kamera.updateProjectionMatrix();
 }
 // Titelbild: langsamer Flug um die Innenstadt
 function titelKamera(t){
+  fuell.position.copy(kamera.position); fuell.target.position.set(30, 45, 40);
   const a = t*.04 + 1.1;
   kamera.position.set(40 + Math.cos(a)*330, 95 + Math.sin(t*.07)*20, 60 + Math.sin(a)*330);
   kamera.lookAt(30, 45, 40);
