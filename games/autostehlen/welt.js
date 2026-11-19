@@ -352,7 +352,7 @@ export function baueWelt(szene, qualitaet, K){
     if(opt.stufe && h > 60){
       const h1 = Math.round(h*R(.5, .72)/tex.tileH*10)/10*tex.tileH;
       bau(art, cx, cz).seiten(x0, x1, .15, h1, z0, z1, tex.tileW, tex.tileH, uo, col);
-      bau('dach', cx, cz).deckel(x0, x1, h1, z0, z1, 8, [1, 1, 1]);
+      bau('dach', cx, cz).deckel(x0, x1, h1, z0, z1, 5, [1, 1, 1]);
       const e = R(3, 6);
       x0 += e; x1 -= e; z0 += e; z1 -= e;
       bau(art, cx, cz).seiten(x0, x1, h1, h, z0, z1, tex.tileW, tex.tileH, uo, col);
@@ -371,7 +371,7 @@ export function baueWelt(szene, qualitaet, K){
       B.tri(c, b, g2, [0, 0], [2, 0], [1, 2], dc);
       B.tri(a, d, g1, [0, 0], [2, 0], [1, 2], dc);
     } else {
-      bau('dach', cx, cz).deckel(x0, x1, h, z0, z1, 8, [1, 1, 1]);
+      bau('dach', cx, cz).deckel(x0, x1, h, z0, z1, 5, [1, 1, 1]);
       if(h > 18 && h < 95 && x1 - x0 > 16 && Z() < .16) werbung.push({ x: cx, z: cz, y: h, rot: Math.floor(Z()*4)*Math.PI/2, breite: Math.min(x1 - x0, z1 - z0)*.8, nr: Math.floor(Z()*8) });
       // Dachaufbauten
       const n = h > 12 ? RI(1, 3) : 0;
@@ -401,7 +401,7 @@ export function baueWelt(szene, qualitaet, K){
 
   function platte(b, mat){
     const B = bau(mat, (b.x0 + b.x1)/2, (b.z0 + b.z1)/2);
-    const ts = mat === 'gras' ? 10 : 4;
+    const ts = mat === 'gras' ? 3.5 : 2;
     B.seiten(b.x0, b.x1, -.06, b.y, b.z0, b.z1, 4, 1, 0, [.85, .85, .85]);
     B.deckel(b.x0, b.x1, b.y, b.z0, b.z1, ts, [1, 1, 1]);
   }
@@ -665,7 +665,7 @@ export function baueWelt(szene, qualitaet, K){
   {
     for(const r of [FESTLAND, INSEL]){
       const B = bau('gras', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2);
-      B.quadOben([r.x0, -.06, r.z0], [r.x1, -.06, r.z0], [r.x1, -.06, r.z1], [r.x0, -.06, r.z1], [r.x0/10, r.z0/10], [r.x1/10, r.z0/10], [r.x1/10, r.z1/10], [r.x0/10, r.z1/10], [.92, .95, .9]);
+      B.quadOben([r.x0, -.06, r.z0], [r.x1, -.06, r.z0], [r.x1, -.06, r.z1], [r.x0, -.06, r.z1], [r.x0/3.5, r.z0/3.5], [r.x1/3.5, r.z0/3.5], [r.x1/3.5, r.z1/3.5], [r.x0/3.5, r.z1/3.5], [.92, .95, .9]);
       const W = bau('beton', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2), u = -6, c = [.8, .78, .74];
       W.quad([r.x0, u, r.z0], [r.x1, u, r.z0], [r.x1, 0, r.z0], [r.x0, 0, r.z0], [0, 0], [1, 0], [1, 1], [0, 1], c);
       W.quad([r.x1, u, r.z1], [r.x0, u, r.z1], [r.x0, 0, r.z1], [r.x1, 0, r.z1], [0, 0], [1, 0], [1, 1], [0, 1], c);
@@ -674,8 +674,8 @@ export function baueWelt(szene, qualitaet, K){
     }
     // Strand: Sand und flacher Abhang ins Meer
     const S = bau('sand', 560, 0);
-    S.quadOben([536, .05, -560], [570, .05, -560], [570, .05, 560], [536, .05, 560], [53.6, -56], [57, -56], [57, 56], [53.6, 56]);
-    S.quadOben([570, .05, -560], [610, -3.6, -560], [610, -3.6, 560], [570, .05, 560], [57, -56], [61, -56], [61, 56], [57, 56]);
+    S.quadOben([536, .05, -560], [570, .05, -560], [570, .05, 560], [536, .05, 560], [178.7, -186.7], [190, -186.7], [190, 186.7], [178.7, 186.7]);
+    S.quadOben([570, .05, -560], [610, -3.6, -560], [610, -3.6, 560], [570, .05, 560], [190, -186.7], [203.3, -186.7], [203.3, 186.7], [190, 186.7]);
     // Flughafen
     const P = bau('piste', -575, 0);
     P.quadOben([-695, .03, -20], [-455, .03, -20], [-455, .03, 20], [-695, .03, 20], [0, 0], [6, 0], [6, 1], [0, 1]);
