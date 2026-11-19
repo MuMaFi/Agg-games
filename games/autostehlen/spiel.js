@@ -9,6 +9,8 @@ import { EffectComposer } from './lib/postprocessing/EffectComposer.js';
 import { RenderPass } from './lib/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './lib/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './lib/postprocessing/OutputPass.js';
+import { ShaderPass } from './lib/postprocessing/ShaderPass.js';
+import { FXAAShader } from './lib/shaders/FXAAShader.js';
 import * as T from './texturen.js';
 import * as W from './welt.js';
 import { baueBoot, baueFlugzeug, baueHubschrauber } from './modelle.js';
@@ -62,7 +64,28 @@ const szene = new THREE.Scene();
 const kamera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, .4, 6000);
 kamera.position.set(300, 120, -100);
 
-let composer, bloomPass;
+let composer, bloomPass, kinoPass, fxaaPass, aufl = 1;
+// Kinolook: leichte Farbkorrektur (warme Lichter, kühle Schatten), Vignette,
+// Farbsaum am Bildrand und feines Filmkorn
+const KinoShader = {
+  uniforms: { tDiffuse: { value: null }, uZeit: { value: 0 }, uVignette: { value: .32 }, uKorn: { value: .035 }, uAufl: { value: new THREE.Vector2(1, 1) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uZeit, uVignette, uKorn; uniform vec2 uAufl; varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)))*43758.5453); }
+    void main(){
+      vec2 m = vUv - .5; float r = dot(m, m);
+      vec2 off = m*r*.012;
+      vec3 c = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
+      float l = dot(c, vec3(.2126, .7152, .0722));
+      c = mix(c, c*vec3(1.05, 1., .93), smoothstep(.45, 1., l));
+      c = mix(c, c*vec3(.93, 1., 1.07), 1. - smoothstep(0., .35, l));
+      c = (c - .5)*1.06 + .5;
+      c = mix(vec3(l), c, 1.1);
+      c *= 1. - uVignette*smoothstep(.12, .7, r*1.7);
+      c += (hash(floor(vUv*uAufl) + fract(uZeit)*61.) - .5)*uKorn;
+      gl_FragColor = vec4(clamp(c, 0., 1.), 1.);
+    }`,
+};
 function baueComposer(){
   if(composer){ composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); }
   composer = null;
@@ -75,6 +98,28 @@ function baueComposer(){
   bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .5, .45, .92);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
+  if(!Q.msaa){ fxaaPass = new ShaderPass(FXAAShader); composer.addPass(fxaaPass); } else fxaaPass = null;
+  kinoPass = new ShaderPass(KinoShader);
+  kinoPass.uniforms.uAufl.value.set(innerWidth*Q.pr, innerHeight*Q.pr);
+  composer.addPass(kinoPass);
+  auflSetzen(aufl);
+}
+// mitlaufende Auflösung: fällt die Bildrate, wird intern feiner oder gröber gerechnet
+function auflSetzen(a){
+  aufl = a; const pr = Q.pr*a;
+  renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight);
+  if(composer){ composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); }
+  if(fxaaPass) fxaaPass.material.uniforms.resolution.value.set(1/(innerWidth*pr), 1/(innerHeight*pr));
+  if(kinoPass) kinoPass.uniforms.uAufl.value.set(innerWidth*pr, innerHeight*pr);
+}
+let fpsZeit = 0, fpsBilder = 0;
+function auflRegeln(dtEcht){
+  if(!laeuft || pausiert) return;
+  fpsZeit += dtEcht; fpsBilder++;
+  if(fpsZeit < 1.5) return;
+  const fps = fpsBilder/fpsZeit; fpsZeit = 0; fpsBilder = 0;
+  if(fps < 45 && aufl > .55) auflSetzen(Math.max(.55, aufl*.85));
+  else if(fps > 57 && aufl < 1) auflSetzen(Math.min(1, aufl*1.08));
 }
 baueComposer();
 
@@ -132,7 +177,8 @@ function schattenEinstellen(){
   if(Q.schatten){
     sonne.shadow.mapSize.set(Q.schatten, Q.schatten);
     if(sonne.shadow.map){ sonne.shadow.map.dispose(); sonne.shadow.map = null; }
-    const c = sonne.shadow.camera, s = Q.schatten >= 2048 ? 85 : 65;
+    const c = sonne.shadow.camera, s = Q.schatten >= 2048 ? 62 : 50;
+    renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;
     c.left = -s; c.right = s; c.top = s; c.bottom = -s; c.near = 10; c.far = 700; c.updateProjectionMatrix();
     sonne.shadow.bias = -.0004; sonne.shadow.normalBias = .06;
   }
@@ -169,7 +215,9 @@ if(typeof stunde !== 'number' || !(stunde >= 0 && stunde < 24)) stunde = 17.6;
 const tagSekunden = () => (einst.tag || 0)*60;
 let nacht = 0;
 const sonnenRichtung = new THREE.Vector3();
+let zeitSprung = true;
 function zeitAktualisieren(dt, erzwingen){
+  if(erzwingen) zeitSprung = true;
   if(tagSekunden() > 0) stunde = (stunde + dt*24/tagSekunden()) % 24;
   const a = (stunde - 6)/12*Math.PI;
   sonnenRichtung.set(Math.cos(a)*.93, Math.sin(a), .36).normalize();
@@ -237,6 +285,17 @@ const spiegel = new Water(new THREE.PlaneGeometry(9000, 9000), {
 });
 spiegel.rotation.x = -Math.PI/2; spiegel.position.y = W.WASSER_Y; spiegel.material.uniforms.size.value = 1.6;
 szene.add(spiegel);
+const spiegelOrig = spiegel.onBeforeRender;
+spiegel.onBeforeRender = function(r, sz, kam){
+  if(bildNr % 2 === 1 && !zeitSprung) return; // jedes zweite Bild reicht für Wellen
+  // Kleinkram erscheint im Spiegelbild ohnehin kaum: weglassen spart viel
+  const weg = [];
+  for(const g of W.ortsGruppen) for(const im of g.ims) if(im.visible){ im.visible = false; weg.push(im); }
+  for(const p of leute) if(p.m.g.visible){ p.m.g.visible = false; weg.push(p.m.g); }
+  for(const f of fahrzeuge) if(f.art === 'auto' && f.g.visible && f !== spieler.fz){ f.g.visible = false; weg.push(f.g); }
+  spiegelOrig.call(this, r, sz, kam);
+  for(const o of weg) o.visible = true;
+};
 function wasserWahl(){ spiegel.visible = stufeName === 'hoch'; wasser.visible = !spiegel.visible; }
 wasserWahl();
 // Brandung am Strand
@@ -308,12 +367,18 @@ async function aufbauen(){
 
 /* ── Fahrzeuge ─────────────────────────────────────────────────── */
 const fahrzeuge = [];
+const schattenTex = T.kontaktSchatten();
+const schattenMat = new THREE.MeshBasicMaterial({ map: schattenTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+function bodenSchatten(g, breite, laenge, y = .04){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(breite, laenge).rotateX(-Math.PI/2), schattenMat);
+  m.position.y = y; m.renderOrder = 1; g.add(m); return m;
+}
 class Fz {
   constructor(art, typ, modell){
     this.art = art; this.typ = typ; this.mod = modell; this.g = modell.g;
     this.x = 0; this.z = 0; this.y = 0; this.h = 0; this.vx = 0; this.vz = 0; this.vf = 0; this.yaw = 0;
     this.lenk = 0; this.ki = null; this.fahrer = null; this.neigung = 0; this.kipp = 0; this.nick = 0;
-    if(art === 'auto'){ this.spec = modell.spec; this.L = this.spec.L; this.W = this.spec.W; }
+    if(art === 'auto'){ this.spec = modell.spec; this.L = this.spec.L; this.W = this.spec.W; bodenSchatten(this.g, this.W*1.45, this.L*1.18); }
     if(art === 'boot'){ this.spec = { vmax: 30, acc: 9, griff: 2.4, lenk: 1.25, rueck: 5 }; this.L = 9.4; this.W = 3.1; }
     if(art === 'flug'){ this.L = 11; this.W = 12; }
     if(this.spec && !this.spec.rueck) this.spec.rueck = 12;
@@ -692,7 +757,7 @@ function polizeiNachsetzen(){
 /* ── Fußgänger ─────────────────────────────────────────────────── */
 const leute = [];
 class Person {
-  constructor(){ this.m = baueFigur(leute.length + 1); szene.add(this.m.g); this.m.g.visible = false; this.zustand = 'weg'; this.x = 0; this.z = 0; this.y = 0; }
+  constructor(){ this.m = baueFigur(leute.length + 1); bodenSchatten(this.m.g, 1.1, 1.1); szene.add(this.m.g); this.m.g.visible = false; this.zustand = 'weg'; this.x = 0; this.z = 0; this.y = 0; }
   setzeAuf(b){
     this.b = b; this.rand = 2.4;
     this.w = b.x1 - b.x0 - 2*this.rand; this.d = b.z1 - b.z0 - 2*this.rand;
@@ -861,6 +926,7 @@ const umgebung = {};
 
 function aufstellen(){
   spieler.m = baueFigur();
+  bodenSchatten(spieler.m.g, 1.1, 1.1);
   spieler.m.hand = handKnochen(spieler.m);
   szene.add(spieler.m.g);
   gehwegBloecke = gehBloecke();
@@ -2287,8 +2353,11 @@ function verhaftet(){
 function leuteUpdate(dt){
   for(const p of leute){
     if(p.zustand === 'weg'){ personEinsetzen(p, 60, 180); continue; }
-    p.update(dt);
     const d = Math.hypot(p.x - spieler.px, p.z - spieler.pz);
+    const fern = d > 150 && p.zustand !== 'kampf';
+    p.m.g.visible = !fern;
+    if(fern){ if(d > 230){ p.zustand = 'weg'; if(p.wm) p.wm.visible = false; } continue; }
+    p.update(dt);
     if(d > 230 && p.zustand !== 'liegt'){ p.zustand = 'weg'; p.m.g.visible = false; if(p.wm) p.wm.visible = false; }
   }
   // Polizei fährt Leute nicht um, sie schiebt sie nur zur Seite
@@ -2339,7 +2408,7 @@ function werbungBauen(){
     szene.add(grp);
   }
 }
-let ampelTakt = 0;
+let ampelTakt = 0, viertelTakt = 0;
 function umgebungUpdate(dt, t){
   if((ampelTakt -= dt) < 0){ ampelTakt = .25; W.ampelnZeigen(uhr); }
   for(const m of moewen){
@@ -2392,7 +2461,7 @@ function schattenFolgen(){
   if(dir.y < .08) dir.y = .08;
   dir.normalize();
   // auf Schatten-Texel einrasten, damit Kanten nicht flimmern
-  const raster = (Q.schatten >= 2048 ? 170 : 130)/Math.max(Q.schatten, 1);
+  const raster = (Q.schatten >= 2048 ? 124 : 100)/Math.max(Q.schatten, 1);
   const tx = Math.round(spieler.px/raster)*raster, tz = Math.round(spieler.pz/raster)*raster;
   sonne.target.position.set(tx, 0, tz);
   sonne.position.set(tx + dir.x*300, dir.y*300, tz + dir.z*300);
@@ -2445,6 +2514,13 @@ function schritt(dt){
     titelKamera(uhr);
   }
   W.palmenNah(laeuft ? spieler.px : kamera.position.x, laeuft ? spieler.pz : kamera.position.z, dt);
+  if((viertelTakt -= dt) < 0){
+    viertelTakt = .4;
+    const px = laeuft ? spieler.px : kamera.position.x, pz = laeuft ? spieler.pz : kamera.position.z;
+    W.ortsGruppenZeigen(px, pz);
+    // ferne Autos nicht zeichnen (sie bleiben im Spiel, nur unsichtbar)
+    for(const f of fahrzeuge) if(f.art === 'auto'){ const weit = Math.hypot(f.x - px, f.z - pz) > 280; if(f.weit !== weit){ f.weit = weit; for(const c of f.g.children) c.visible = !weit; } }
+  }
   if(spiegel) spiegel.material.uniforms.time.value += dt*.55;
   umgebungUpdate(dt, uhr);
   spurUpdate(dt);
@@ -2455,7 +2531,12 @@ function schritt(dt){
   gedrueckt.clear();
 }
 let speicherTakt = 10;
+let bildNr = 0;
 function rendern(){
+  bildNr++;
+  if(Q.schatten && (bildNr % 2 === 0 || zeitSprung)) renderer.shadowMap.needsUpdate = true;
+  zeitSprung = false;
+  if(kinoPass) kinoPass.uniforms.uZeit.value = performance.now()/1000;
   if(composer) composer.render(); else renderer.render(szene, kamera);
 }
 function schleife(jetzt){
@@ -2463,6 +2544,7 @@ function schleife(jetzt){
   if(!aufgestellt) return;
   let dt = (jetzt - letzte)/1000; letzte = jetzt;
   if(!(dt > 0)) dt = 0;
+  auflRegeln(dt);
   dt = Math.min(dt, .05);
   try {
     // feste Teilschritte, damit schnelle Autos nicht durch Wände rutschen
@@ -2485,10 +2567,10 @@ requestAnimationFrame(schleife);
 void gesichert;
 
 addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
   kamera.aspect = innerWidth/innerHeight; kamera.updateProjectionMatrix();
-  if(composer){ composer.setSize(innerWidth, innerHeight); }
+  auflSetzen(aufl);
   if(bloomPass) bloomPass.resolution.set(innerWidth, innerHeight);
+  if(kinoPass) kinoPass.uniforms.uAufl.value.set(innerWidth*Q.pr, innerHeight*Q.pr);
   if(karteOffen) grosseKarte();
 });
 document.addEventListener('visibilitychange', () => { if(document.hidden && laeuft && !pausiert) pauseUmschalten(); });
@@ -2672,5 +2754,5 @@ function simuliere(sek, schrittweite = 1/60){
   const n = Math.round(sek/schrittweite);
   for(let i = 0; i < n; i++) schritt(schrittweite);
 }
-window.__spiel = { simuliere, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
+window.__spiel = { simuliere, messen(){ renderer.info.autoReset = false; renderer.info.reset(); rendern(); rendern(); const r = { aufrufe: Math.round(renderer.info.render.calls/2), dreiecke: Math.round(renderer.info.render.triangles/2) }; renderer.info.autoReset = true; const t0 = performance.now(); for(let i = 0; i < 60; i++) schritt(1/60); r.logikMs = ((performance.now() - t0)/60).toFixed(2); return r; }, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
 aufbauen().catch(e => { console.error(e); $('ladetext').textContent = 'Fehler beim Aufbau: ' + e.message + ' — bitte neu laden.'; });
