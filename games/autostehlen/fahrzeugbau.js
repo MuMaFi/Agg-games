@@ -198,14 +198,14 @@ function materialAufbereiten(t, cfg){
   // Reifen und Chrom etwas glaubwürdiger
   if(/tire|rubber/i.test(m.name)){ m.roughness = .9; m.metalness = 0; }
   if(/chrom|rim|alumin|steel/i.test(m.name)){ m.metalness = Math.max(m.metalness, .9); m.roughness = Math.min(m.roughness, .3); }
-  if(m.name === 'Body' && m.map){ m.metalness = Math.max(m.metalness, .45); m.roughness = Math.min(m.roughness, .35); }
+  if(m.name === 'Body' && m.map){ m.metalness = Math.min(Math.max(m.metalness, .2), .3); m.roughness = Math.min(m.roughness, .38); }
 }
 
 const lackCache = new Map();
 function lackMat(orig, hex){
   const k = orig.uuid + hex;
   if(!lackCache.has(k)){
-    const m = new THREE.MeshPhysicalMaterial({ color: hex, metalness: .55, roughness: .3, clearcoat: 1, clearcoatRoughness: .05, normalMap: orig.normalMap || null });
+    const m = new THREE.MeshPhysicalMaterial({ color: hex, metalness: .25, roughness: .34, clearcoat: 1, clearcoatRoughness: .05, normalMap: orig.normalMap || null });
     lackCache.set(k, m);
   }
   return lackCache.get(k);
