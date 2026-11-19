@@ -95,7 +95,7 @@ function baueComposer(){
   composer.setPixelRatio(Q.pr);
   composer.setSize(innerWidth, innerHeight);
   composer.addPass(new RenderPass(szene, kamera));
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .5, .45, .92);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .42, .4, 1.55);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
   if(!Q.msaa){ fxaaPass = new ShaderPass(FXAAShader); composer.addPass(fxaaPass); } else fxaaPass = null;
@@ -127,13 +127,13 @@ baueComposer();
 const himmelUni = {
   uZen: { value: new THREE.Color() }, uHor: { value: new THREE.Color() },
   uSonne: { value: new THREE.Vector3(0, 1, 0) }, uSonnenFarbe: { value: new THREE.Color() },
-  uZeit: { value: 0 }, uNacht: { value: 0 },
+  uZeit: { value: 0 }, uNacht: { value: 0 }, uSonnenStaerke: { value: 1 },
 };
 const himmelMat = new THREE.ShaderMaterial({
   uniforms: himmelUni, side: THREE.BackSide, depthWrite: false, fog: false,
   vertexShader: `varying vec3 vDir;
     void main(){ vDir = position; vec4 p = projectionMatrix*modelViewMatrix*vec4(position, 1.); gl_Position = p.xyww; }`,
-  fragmentShader: `uniform vec3 uZen, uHor, uSonne, uSonnenFarbe; uniform float uZeit, uNacht; varying vec3 vDir;
+  fragmentShader: `uniform vec3 uZen, uHor, uSonne, uSonnenFarbe; uniform float uZeit, uNacht, uSonnenStaerke; varying vec3 vDir;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
     float rau(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f);
       return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
@@ -143,9 +143,9 @@ const himmelMat = new THREE.ShaderMaterial({
       vec3 col = mix(uZen, uHor, pow(1. - max(h, 0.), 2.6));
       if(h < 0.) col = mix(uHor, uHor*.4 + vec3(.01, .012, .02), clamp(-h*5., 0., 1.));
       float sd = max(dot(d, uSonne), 0.);
-      col += uSonnenFarbe*(pow(sd, 900.)*12. + pow(sd, 40.)*.3 + pow(sd, 5.)*.1)*smoothstep(-.14, .02, uSonne.y);
+      col += uSonnenFarbe*(pow(sd, 900.)*12.*uSonnenStaerke + pow(sd, 40.)*.3 + pow(sd, 5.)*.1)*smoothstep(-.14, .02, uSonne.y);
       float mo = max(dot(d, -uSonne), 0.);
-      col += vec3(.85, .9, 1.)*(pow(mo, 2500.)*6. + pow(mo, 50.)*.05)*uNacht;
+      col += vec3(.85, .9, 1.)*(pow(mo, 2500.)*6.*uSonnenStaerke + pow(mo, 50.)*.05)*uNacht;
       if(h > 0.){
         vec2 sp = floor(d.xz/(h + .4)*230.); float s = hash(sp);
         col += vec3(step(.9967, s))*uNacht*(.55 + .45*sin(uZeit*3. + s*60.))*smoothstep(0., .25, h);
@@ -165,7 +165,8 @@ const himmel = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), himmelMat);
 himmel.frustumCulled = false; himmel.renderOrder = -10;
 szene.add(himmel);
 const umweltSzene = new THREE.Scene();
-umweltSzene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), himmelMat));
+const himmelUmwelt = himmelMat.clone(); himmelUmwelt.uniforms = { ...himmelUni, uSonnenStaerke: { value: .08 } };
+umweltSzene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), himmelUmwelt));
 const pmrem = new THREE.PMREMGenerator(renderer);
 let umweltRT = null, umweltE = -9, umweltZeit = 0;
 
@@ -248,6 +249,7 @@ function zeitAktualisieren(dt, erzwingen){
   // Leuchten der Stadt
   for(const n of W.neon) n.mat.color.copy(n.basis).multiplyScalar(n.tag + nacht*n.nacht);
   for(const m of W.fensterMats) m.emissiveIntensity = nacht*1.35 + glatt(.12, -.02, e)*.15;
+  scheinMat.opacity = nacht*.55; scheinMat.visible = nacht > .03;
   if(W.markantes.lichtflecken){ W.markantes.lichtflecken.opacity = nacht*.55; W.markantes.lichtflecken.visible = nacht > .02; }
   for(const m of lichtMats) m.emissiveIntensity = .15 + nacht*2.6;
   wasserMat.color.set(0x0e3a4a).lerp(_c2.set(0x050b1c), nacht);
@@ -369,6 +371,10 @@ async function aufbauen(){
 const fahrzeuge = [];
 const schattenTex = T.kontaktSchatten();
 const schattenMat = new THREE.MeshBasicMaterial({ map: schattenTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+const scheinTex = T.lichtfleck();
+const scheinMat = new THREE.MeshBasicMaterial({ map: scheinTex, color: new THREE.Color(1, .92, .78), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+const scheinGeo = new THREE.PlaneGeometry(4.2, 11).rotateX(-Math.PI/2);
+function scheinwerferKegel(g, L){ const m = new THREE.Mesh(scheinGeo, scheinMat); m.position.set(0, .05, L/2 + 5.4); m.renderOrder = 2; g.add(m); return m; }
 function bodenSchatten(g, breite, laenge, y = .04){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(breite, laenge).rotateX(-Math.PI/2), schattenMat);
   m.position.y = y; m.renderOrder = 1; g.add(m); return m;
@@ -378,7 +384,7 @@ class Fz {
     this.art = art; this.typ = typ; this.mod = modell; this.g = modell.g;
     this.x = 0; this.z = 0; this.y = 0; this.h = 0; this.vx = 0; this.vz = 0; this.vf = 0; this.yaw = 0;
     this.lenk = 0; this.ki = null; this.fahrer = null; this.neigung = 0; this.kipp = 0; this.nick = 0;
-    if(art === 'auto'){ this.spec = modell.spec; this.L = this.spec.L; this.W = this.spec.W; bodenSchatten(this.g, this.W*1.45, this.L*1.18); }
+    if(art === 'auto'){ this.spec = modell.spec; this.L = this.spec.L; this.W = this.spec.W; bodenSchatten(this.g, this.W*1.45, this.L*1.18); this.kegel = scheinwerferKegel(this.g, this.L); }
     if(art === 'boot'){ this.spec = { vmax: 30, acc: 9, griff: 2.4, lenk: 1.25, rueck: 5 }; this.L = 9.4; this.W = 3.1; }
     if(art === 'flug'){ this.L = 11; this.W = 12; }
     if(this.spec && !this.spec.rueck) this.spec.rueck = 12;
@@ -397,6 +403,7 @@ class Fz {
       const nick = Math.atan2(yv - yh, o*2);
       g.position.set(this.x, this.y, this.z);
       g.rotation.set(-nick, this.h, 0, 'YXZ');
+      if(this.kegel) this.kegel.visible = !!(this.ki || this.fahrer === 'spieler');
       const m = this.mod;
       for(const r of m.raeder) r.rotation.x += this.vf/m.spec.rad*dt;
       for(const l of m.lenkraeder) l.rotation.y = -this.lenk*.48;
@@ -1997,13 +2004,15 @@ function kameraUpdate(dt){
     kam.wackel = Math.max(0, kam.wackel - dt*2.2);
   }
   kamera.lookAt(kamZiel);
-  fuell.position.set(kamera.position.x, kamera.position.y + 2.5, kamera.position.z); fuell.target.position.copy(kamZiel);
+  // schräg von oben hinter der Kamera: hellt Figur und Autos auf, aber senkrechtes Glas
+  // spiegelt es nach unten statt direkt in die Kamera (sonst gleißende Fensterflächen)
+  fuell.position.set(kamera.position.x + dx*8, kamera.position.y + 22, kamera.position.z + dz*8); fuell.target.position.copy(kamZiel);
   const fovSoll = 62 + (f ? Math.min(Math.abs(f.vf), 60)*.22 : 0);
   kamera.fov = daempf(kamera.fov, fovSoll, 3, dt); kamera.updateProjectionMatrix();
 }
 // Titelbild: langsamer Flug um die Innenstadt
 function titelKamera(t){
-  fuell.position.copy(kamera.position); fuell.target.position.set(30, 45, 40);
+  fuell.position.set(kamera.position.x, kamera.position.y + 40, kamera.position.z); fuell.target.position.set(30, 45, 40);
   const a = t*.04 + 1.1;
   kamera.position.set(40 + Math.cos(a)*330, 95 + Math.sin(t*.07)*20, 60 + Math.sin(a)*330);
   kamera.lookAt(30, 45, 40);
@@ -2761,5 +2770,5 @@ function simuliere(sek, schrittweite = 1/60){
   const n = Math.round(sek/schrittweite);
   for(let i = 0; i < n; i++) schritt(schrittweite);
 }
-window.__spiel = { simuliere, messen(){ renderer.info.autoReset = false; renderer.info.reset(); rendern(); rendern(); const r = { aufrufe: Math.round(renderer.info.render.calls/2), dreiecke: Math.round(renderer.info.render.triangles/2) }; renderer.info.autoReset = true; const t0 = performance.now(); for(let i = 0; i < 60; i++) schritt(1/60); r.logikMs = ((performance.now() - t0)/60).toFixed(2); return r; }, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
+window.__spiel = { simuliere, get composer(){ return composer; }, szene, kamera, messen(){ renderer.info.autoReset = false; renderer.info.reset(); rendern(); rendern(); const r = { aufrufe: Math.round(renderer.info.render.calls/2), dreiecke: Math.round(renderer.info.render.triangles/2) }; renderer.info.autoReset = true; const t0 = performance.now(); for(let i = 0; i < 60; i++) schritt(1/60); r.logikMs = ((performance.now() - t0)/60).toFixed(2); return r; }, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
 aufbauen().catch(e => { console.error(e); $('ladetext').textContent = 'Fehler beim Aufbau: ' + e.message + ' — bitte neu laden.'; });
