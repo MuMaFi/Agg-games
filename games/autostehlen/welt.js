@@ -319,14 +319,16 @@ export function baueWelt(szene, qualitaet, K){
   }
   M.dach = new THREE.MeshStandardMaterial({ map: T.dach(), roughness: .9, metalness: 0, vertexColors: true });
   M.ziegel = new THREE.MeshStandardMaterial({ map: T.ziegel(), roughness: .8, vertexColors: true });
-  M.strasse = new THREE.MeshStandardMaterial({ map: T.asphaltStrasse(), roughness: .85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
-  M.kreuzung = new THREE.MeshStandardMaterial({ map: T.asphaltKreuzung(), roughness: .85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
-  M.gehweg = new THREE.MeshStandardMaterial({ map: T.gehweg(), roughness: .9, vertexColors: true });
-  M.gras = new THREE.MeshStandardMaterial({ map: T.gras(), roughness: 1, vertexColors: true });
-  M.sand = new THREE.MeshStandardMaterial({ map: T.sand(), roughness: 1, vertexColors: true });
+  const strT = T.asphaltStrasse(), kreuzT = T.asphaltKreuzung(), wegT = T.gehweg(), grasT = T.gras(), parkT = T.parkplatz(), sandT = T.sand();
+  M.strasse = new THREE.MeshStandardMaterial({ map: strT, normalMap: T.normalVon(strT.image, 2.2), roughnessMap: T.rauheitVon(strT.image, .82, .35), roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+  M.kreuzung = new THREE.MeshStandardMaterial({ map: kreuzT, normalMap: T.normalVon(kreuzT.image, 2.2), roughnessMap: T.rauheitVon(kreuzT.image, .82, .35), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+  M.gehweg = new THREE.MeshStandardMaterial({ map: wegT, normalMap: T.normalVon(wegT.image, 1.4), roughnessMap: T.rauheitVon(wegT.image, .85, .25), roughness: 1, vertexColors: true });
+  M.gras = new THREE.MeshStandardMaterial({ map: grasT, normalMap: T.normalVon(grasT.image, 1.6), roughness: 1, vertexColors: true });
+  M.sand = new THREE.MeshStandardMaterial({ map: sandT, normalMap: T.normalVon(sandT.image, 1.2), roughness: 1, vertexColors: true });
   M.beton = new THREE.MeshStandardMaterial({ color: 0xbfb9ae, roughness: .9, vertexColors: true, side: THREE.DoubleSide });
   M.piste = new THREE.MeshStandardMaterial({ map: T.piste(), roughness: .85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
-  M.parkplatz = new THREE.MeshStandardMaterial({ map: T.parkplatz(), roughness: .85, vertexColors: true });
+  M.parkplatz = new THREE.MeshStandardMaterial({ map: parkT, normalMap: T.normalVon(parkT.image, 2), roughnessMap: T.rauheitVon(parkT.image, .8, .3), roughness: 1, vertexColors: true });
+  M.wandschatten = new THREE.MeshBasicMaterial({ map: T.wandSchatten(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
   M.holz = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: .85, vertexColors: true });
   const neonFarben = { pink: '#ff2bb4', cyan: '#22e2ff', lila: '#a54dff', gruen: '#3dff9a', gold: '#ffc84a', rot: '#ff3a3a' };
   for(const [k, hex] of Object.entries(neonFarben)){
@@ -393,6 +395,7 @@ export function baueWelt(szene, qualitaet, K){
       gerueste.push({ x: cx, y: h + opt.antenne, z: cz });
     }
     hindernis(opt.hx0 ?? x0 - (opt.stufe ? 0 : 0), opt.hx1 ?? x1, opt.hz0 ?? z0, opt.hz1 ?? z1, -6, oben + (opt.antenne || 0));
+    wandFuss(opt.hx0 ?? x0, opt.hx1 ?? x1, opt.hz0 ?? z0, opt.hz1 ?? z1, Math.min(3.2, 1.2 + oben*.02));
   }
 
   function platte(b, mat){
@@ -412,6 +415,14 @@ export function baueWelt(szene, qualitaet, K){
     hindernis(cx - b*.36, cx + b*.36, cz - t*.36, cz + t*.36, -6, h);
     hindernis(cx - b/2, cx + b/2, cz - t/2, cz + t/2, -6, h*.06); // Sockel
     return true;
+  }
+  // Kontaktschatten am Fuß der Wände: Streifen, der von der Wand nach außen ausläuft
+  function wandFuss(x0, x1, z0, z1, b){
+    const B = bau('wandschatten', (x0 + x1)/2, (z0 + z1)/2), y = .17;
+    B.quadOben([x0, y, z1], [x1, y, z1], [x1 + b, y, z1 + b], [x0 - b, y, z1 + b], [0, .5], [0, .5], [1, .5], [1, .5]);
+    B.quadOben([x1, y, z0], [x0, y, z0], [x0 - b, y, z0 - b], [x1 + b, y, z0 - b], [0, .5], [0, .5], [1, .5], [1, .5]);
+    B.quadOben([x1, y, z1], [x1, y, z0], [x1 + b, y, z0 - b], [x1 + b, y, z1 + b], [0, .5], [0, .5], [1, .5], [1, .5]);
+    B.quadOben([x0, y, z0], [x0, y, z1], [x0 - b, y, z1 + b], [x0 - b, y, z0 - b], [0, .5], [0, .5], [1, .5], [1, .5]);
   }
   function palme(x, z, s = 1){ palmen.push({ x, z, s: s*R(.85, 1.2), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .35, x + .35, z - .35, z + .35, -1, 9, 'palme'); }
   function baum(x, z){ baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .4, x + .4, z - .4, z + .4, -1, 6, 'baum'); }
@@ -731,7 +742,8 @@ export function baueWelt(szene, qualitaet, K){
   for(const b of stuecke.values()){
     if(!b.vc) continue;
     const mesh = new THREE.Mesh(b.geo(), M[b.mat]);
-    mesh.receiveShadow = !b.mat.startsWith('neon');
+    mesh.receiveShadow = !b.mat.startsWith('neon') && b.mat !== 'wandschatten';
+    if(b.mat === 'wandschatten') mesh.renderOrder = 1;
     mesh.castShadow = schattenWerfer.has(b.mat);
     mesh.matrixAutoUpdate = false; mesh.updateMatrix();
     szene.add(mesh);
@@ -778,9 +790,7 @@ export function baueWelt(szene, qualitaet, K){
     if(K) turmeAufstellen(szene, K, tmp);
 
     if(K && K.s_baum){
-      const ims = instanzen(szene, K.s_baum, baeume.length);
-      baeume.forEach((b, i) => { tmp.position.set(b.x, b.y, b.z); tmp.rotation.set(0, b.r, 0); tmp.scale.setScalar(b.s*7.5); tmp.updateMatrix(); for(const im of ims) im.setMatrixAt(i, tmp.matrix); });
-      for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+      nachOrt(szene, K.s_baum, baeume, (b, t) => { t.position.set(b.x, b.y, b.z); t.rotation.set(0, b.r, 0); t.scale.setScalar(b.s*7.5); }, { weite: 420, schatten: true });
     } else {
     const baumStamm = new THREE.InstancedMesh(new THREE.CylinderGeometry(.18, .28, 3, 6).translate(0, 1.5, 0), new THREE.MeshStandardMaterial({ color: 0x6b4f37, roughness: .9 }), baeume.length);
     const laubGeo = new THREE.IcosahedronGeometry(2.4, 1).translate(0, 4.2, 0);
@@ -883,6 +893,30 @@ export function mergeSimple(geos){
 }
 
 /* ── Modelle aufstellen ────────────────────────────────────────── */
+/* Instanzen nach Stadtviertel (200 m) getrennt: so fallen unsichtbare Viertel aus dem Bild
+   (Frustum-Culling) und ferne Viertel werden gar nicht erst gezeichnet. */
+export const ortsGruppen = [];
+function nachOrt(szene, modell, liste, setze, { weite = 250, schatten = false } = {}){
+  const viertel = new Map(), t = new THREE.Object3D();
+  for(const e of liste){
+    const k = Math.floor(e.x/200) + ',' + Math.floor(e.z/200);
+    if(!viertel.has(k)) viertel.set(k, []);
+    viertel.get(k).push(e);
+  }
+  for(const teile of viertel.values()){
+    const ims = modell.teile.map(tl => { const im = new THREE.InstancedMesh(tl.geo, tl.mat, teile.length); im.castShadow = schatten; im.receiveShadow = true; szene.add(im); return im; });
+    let cx = 0, cz = 0;
+    teile.forEach((e, i) => { setze(e, t); t.updateMatrix(); for(const im of ims) im.setMatrixAt(i, t.matrix); cx += e.x; cz += e.z; });
+    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.computeBoundingBox(); }
+    ortsGruppen.push({ ims, x: cx/teile.length, z: cz/teile.length, weite });
+  }
+}
+export function ortsGruppenZeigen(px, pz){
+  for(const g of ortsGruppen){
+    const an = Math.hypot(g.x - px, g.z - pz) < g.weite + 100;
+    for(const im of g.ims) im.visible = an;
+  }
+}
 function instanzen(szene, modell, n, schatten = true){
   return modell.teile.map(t => {
     const im = new THREE.InstancedMesh(t.geo, t.mat, Math.max(1, n));
@@ -904,7 +938,7 @@ function turmeAufstellen(szene, K, tmp){
   }
 }
 // Palmen: alle als leichte Phoenix-Palme, die nächsten 90 als detaillierte Dattelpalme
-const NAH_MAX = 90;
+const NAH_MAX = 45;
 let palmFern = null, palmNah = null, palmNahIdx = [], palmIstNah = null;
 const _m = new THREE.Matrix4(), _null = new THREE.Matrix4().makeScale(0, 0, 0);
 function palmMatrix(p, nah, out){
@@ -927,7 +961,7 @@ export function palmenNah(px, pz, dt){
   const kand = [];
   for(let i = 0; i < palmen.length; i++){
     const p = palmen[i], d = (p.x - px)**2 + (p.z - pz)**2;
-    if(d < 150*150) kand.push([d, i]);
+    if(d < 110*110) kand.push([d, i]);
   }
   kand.sort((a, b) => a[0] - b[0]);
   const neu = new Uint8Array(palmen.length);
@@ -951,26 +985,21 @@ function moebelAufstellen(szene, K, tmp){
   const hoehe = { s_bank: .9, s_eimer: 1.05, s_container: 1.6, s_bistro: 1.05 };
   for(const [name, liste] of Object.entries(moebel)){
     if(!liste.length || !K[name]) continue;
-    const ims = instanzen(szene, K[name], liste.length);
-    liste.forEach((m, i) => { tmp.position.set(m.x, m.y, m.z); tmp.rotation.set(0, m.rot, 0); tmp.scale.setScalar(hoehe[name]); tmp.updateMatrix(); for(const im of ims) im.setMatrixAt(i, tmp.matrix); });
-    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+    nachOrt(szene, K[name], liste, (m, t) => { t.position.set(m.x, m.y, m.z); t.rotation.set(0, m.rot, 0); t.scale.setScalar(hoehe[name]); }, { weite: name === 's_container' ? 260 : 170, schatten: false });
   }
   // Ampelmasten (Modell) und eigene Lampen darüber
   if(ampeln.length && K.s_ampel){
     const H = 4.2;
-    const ims = instanzen(szene, K.s_ampel, ampeln.length);
+    nachOrt(szene, K.s_ampel, ampeln, (a, t) => { t.position.set(a.x, .15, a.z); t.rotation.set(0, a.rot, 0); t.scale.setScalar(H); }, { weite: 280, schatten: false });
     const lampe = new THREE.InstancedMesh(new THREE.SphereGeometry(.13, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), ampeln.length*3);
     const c = new THREE.Color(.05, .05, .05);
     ampeln.forEach((a, i) => {
-      tmp.position.set(a.x, .15, a.z); tmp.rotation.set(0, a.rot, 0); tmp.scale.setScalar(H); tmp.updateMatrix();
-      for(const im of ims) im.setMatrixAt(i, tmp.matrix);
       const fx = Math.sin(a.rot), fz = Math.cos(a.rot), rx = Math.cos(a.rot), rz = -Math.sin(a.rot);
       [.925, .81, .68].forEach((hy, k) => {
         tmp.position.set(a.x + fx*H*.085 - rx*H*.05, .15 + hy*H, a.z + fz*H*.085 - rz*H*.05); tmp.scale.setScalar(1); tmp.updateMatrix();
         lampe.setMatrixAt(i*3 + k, tmp.matrix); lampe.setColorAt(i*3 + k, c);
       });
     });
-    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
     lampe.instanceMatrix.needsUpdate = true; lampe.computeBoundingSphere();
     szene.add(lampe);
     markantes.ampelLampen = lampe;

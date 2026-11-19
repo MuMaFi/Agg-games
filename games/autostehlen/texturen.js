@@ -147,8 +147,9 @@ export function fassade(art, seed){
 
 /* ── Boden ─────────────────────────────────────────────────────── */
 export function asphaltStrasse(){
-  // 16 m breit, 32 m lang
-  const c = leinwand(256, 512), g = c.getContext('2d'), z = mulberry32(7);
+  // 16 m breit, 32 m lang; doppelt aufgelöst gemalt (Koordinaten bleiben 256 × 512)
+  const c = leinwand(512, 1024), g = c.getContext('2d'), z = mulberry32(7);
+  g.scale(2, 2);
   g.fillStyle = '#34363b'; g.fillRect(0, 0, 256, 512);
   rauschen(g, 256, 512, 9000, '#3e4045', '#2a2c30', z);
   // Flicken und Fahrspuren
@@ -165,7 +166,8 @@ export function asphaltStrasse(){
   return alsTextur(c);
 }
 export function asphaltKreuzung(){
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(8);
+  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(8);
+  g.scale(2, 2);
   g.fillStyle = '#34363b'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 5000, '#3e4045', '#2a2c30', z);
   g.fillStyle = '#e8e6df';
@@ -179,7 +181,8 @@ export function asphaltKreuzung(){
 }
 export function gehweg(){
   // 4 × 4 m
-  const c = leinwand(256, 256), g = c.getContext('2d'), z = mulberry32(9);
+  const c = leinwand(512, 512), g = c.getContext('2d'), z = mulberry32(9);
+  g.scale(2, 2);
   g.fillStyle = '#9f9a91'; g.fillRect(0, 0, 256, 256);
   rauschen(g, 256, 256, 7000, '#aca79e', '#8f8a82', z);
   g.globalAlpha = .12; g.fillStyle = '#5d5953';
@@ -354,4 +357,55 @@ export function arenaFassade(){
   for(let i = 0; i <= 16; i++){ const x = i*64; g.beginPath(); g.moveTo(x, 128); g.lineTo(x + 32, 0); g.lineTo(x + 64, 128); g.stroke(); }
   rauschen(g, 1024, 128, 2500, 'rgba(255,255,255,.4)', 'rgba(0,0,0,.05)', z);
   return alsTextur(c);
+}
+
+/* Reliefkarte aus einer Leinwand: Helligkeit gilt als Höhe (Sobel-Filter).
+   Fugen und Risse sind dunkel, also tiefer, Farbe auf der Straße hell, also leicht erhaben. */
+export function normalVon(quelle, staerke = 2){
+  const w = quelle.width, h = quelle.height;
+  const g = quelle.getContext('2d');
+  const d = g.getImageData(0, 0, w, h).data;
+  const hoehe = new Float32Array(w*h);
+  for(let i = 0; i < w*h; i++) hoehe[i] = (d[i*4] + d[i*4 + 1] + d[i*4 + 2])/765;
+  const c = leinwand(w, h), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
+  const H = (x, y) => hoehe[((y + h) % h)*w + ((x + w) % w)];
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
+    const dx = (H(x + 1, y - 1) + 2*H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2*H(x - 1, y) + H(x - 1, y + 1));
+    const dy = (H(x - 1, y + 1) + 2*H(x, y + 1) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2*H(x, y - 1) + H(x + 1, y - 1));
+    let nx = -dx*staerke, ny = dy*staerke, nz = 1;
+    const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    const i = (y*w + x)*4;
+    o[i] = (nx*.5 + .5)*255; o[i + 1] = (ny*.5 + .5)*255; o[i + 2] = (nz*.5 + .5)*255; o[i + 3] = 255;
+  }
+  gc.putImageData(img, 0, 0);
+  return alsTextur(c, { srgb: false });
+}
+/* Rauheit aus Helligkeit: dunkle, glatt gefahrene Stellen glänzen mehr */
+export function rauheitVon(quelle, basis = .8, spanne = .3){
+  const w = quelle.width, h = quelle.height, d = quelle.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = leinwand(w, h), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
+  for(let i = 0; i < w*h; i++){
+    const l = (d[i*4] + d[i*4 + 1] + d[i*4 + 2])/765;
+    const r = Math.max(0, Math.min(1, basis - spanne*.5 + l*spanne));
+    o[i*4] = 0; o[i*4 + 1] = r*255; o[i*4 + 2] = 0; o[i*4 + 3] = 255;
+  }
+  gc.putImageData(img, 0, 0);
+  return alsTextur(c, { srgb: false });
+}
+/* weicher Kontaktschatten: innen dunkel, nach außen auslaufend */
+export function kontaktSchatten(){
+  const c = leinwand(128, 128), g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(.55, 'rgba(0,0,0,.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return alsTextur(c, { wiederholen: false });
+}
+/* Verlauf für den Schatten am Fuß von Hauswänden (u: 0 an der Wand, 1 außen) */
+export function wandSchatten(){
+  const c = leinwand(64, 4), g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 64, 0);
+  gr.addColorStop(0, 'rgba(0,0,0,.6)'); gr.addColorStop(.35, 'rgba(0,0,0,.25)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 4);
+  const t = alsTextur(c, { wiederholen: false }); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
 }
