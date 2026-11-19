@@ -34,9 +34,9 @@ function speicherSchreiben(k, v){ try { localStorage.setItem(k, JSON.stringify(v
 
 /* ── Grafik ────────────────────────────────────────────────────── */
 const STUFEN = {
-  hoch:    { pr: Math.min(devicePixelRatio || 1, 2), schatten: 2048, bloom: true, msaa: 4, verkehr: 30, leute: 18 },
-  mittel:  { pr: Math.min(devicePixelRatio || 1, 1.4), schatten: 1024, bloom: true, msaa: 0, verkehr: 22, leute: 12 },
-  niedrig: { pr: Math.min(devicePixelRatio || 1, 1), schatten: 0, bloom: false, msaa: 0, verkehr: 14, leute: 7 },
+  hoch:    { pr: Math.min(devicePixelRatio || 1, 2), schatten: 2048, bloom: true, msaa: 4, verkehr: 36, leute: 28 },
+  mittel:  { pr: Math.min(devicePixelRatio || 1, 1.4), schatten: 1024, bloom: true, msaa: 0, verkehr: 26, leute: 18 },
+  niedrig: { pr: Math.min(devicePixelRatio || 1, 1), schatten: 0, bloom: false, msaa: 0, verkehr: 16, leute: 10 },
 };
 let stufeName = speicherLesen('autostehlen.grafik', TOUCH ? 'mittel' : 'hoch');
 if(!STUFEN[stufeName]) stufeName = 'mittel';
@@ -98,7 +98,7 @@ const himmelMat = new THREE.ShaderMaterial({
       vec3 col = mix(uZen, uHor, pow(1. - max(h, 0.), 2.6));
       if(h < 0.) col = mix(uHor, uHor*.4 + vec3(.01, .012, .02), clamp(-h*5., 0., 1.));
       float sd = max(dot(d, uSonne), 0.);
-      col += uSonnenFarbe*(pow(sd, 900.)*16. + pow(sd, 40.)*.55 + pow(sd, 5.)*.2)*smoothstep(-.14, .02, uSonne.y);
+      col += uSonnenFarbe*(pow(sd, 900.)*12. + pow(sd, 40.)*.3 + pow(sd, 5.)*.1)*smoothstep(-.14, .02, uSonne.y);
       float mo = max(dot(d, -uSonne), 0.);
       col += vec3(.85, .9, 1.)*(pow(mo, 2500.)*6. + pow(mo, 50.)*.05)*uNacht;
       if(h > 0.){
@@ -520,6 +520,14 @@ class Verkehr {
     const f = this.f;
     const fx = Math.sin(f.h), fz = Math.cos(f.h), rx = -fz, rz = fx;
     let ziel = this.dreht && this.st.eng ? 7 : this.wunsch;
+    if(!this.dreht){
+      const A = W.knoten[this.von], B = W.knoten[this.nach];
+      const achse = Math.abs(B.x - A.x) > Math.abs(B.z - A.z) ? 'x' : 'z';
+      const licht = W.ampelZustand(this.nach, achse, uhr);
+      const rest = this.st.len - this.s;
+      // bei Rot halten; bei Gelb nur, wenn noch genug Platz zum Bremsen ist
+      if(licht === 'rot' || (licht === 'gelb' && rest > 12)) ziel = Math.min(ziel, Math.max(0, (rest - 1.5)*1.1));
+    }
     // Vorausschau
     const pruefe = (x, z, breite) => {
       const dx = x - f.x, dz = z - f.z;
@@ -695,6 +703,15 @@ class Person {
   update(dt){
     const g = this.m.g;
     if(this.zustand === 'kampf') return this.kampf(dt);
+    if(this.zustand === 'steht'){
+      // steht herum, schaut sich um, geht irgendwann weiter
+      animiereFigur(this.m, 0, dt);
+      if(Math.random() < dt*.15) this.blick = Math.random()*Math.PI*2;
+      if(this.blick !== undefined) g.rotation.y = daempfW(g.rotation.y, this.blick, 2, dt);
+      if((this.stehen -= dt) < 0) this.zustand = 'geht';
+      g.position.set(this.x, this.y, this.z);
+      return;
+    }
     if(this.zustand === 'geht' || this.zustand === 'rennt'){
       const v = this.zustand === 'rennt' ? 4.6 : this.tempo;
       this.s += this.dir*v*dt;
@@ -723,7 +740,7 @@ class Person {
     }
     g.position.set(this.x, this.y, this.z);
   }
-  erschrecken(){ if(this.zustand === 'geht'){ this.zustand = 'rennt'; this.flucht = 8; this.dir = -this.dir; } }
+  erschrecken(){ if(this.zustand === 'geht' || this.zustand === 'steht'){ this.zustand = 'rennt'; this.flucht = 8; this.dir = -this.dir; } }
   getroffen(dmg, wie){
     if(this.zustand === 'tot' || this.zustand === 'weg') return;
     this.leben -= dmg;
@@ -798,7 +815,12 @@ class Person {
   }
 }
 const _q = {};
-const gehBloecke = () => W.bloecke.filter(b => b.art === 'stadt' || b.art === 'hotel' || b.art === 'promenade');
+const gehBloecke = () => {
+  const l = W.bloecke.filter(b => b.art === 'stadt' || b.art === 'hotel' || b.art === 'promenade');
+  // Strand: lange schmale Wege im Sand, mehrfach, damit dort viel los ist
+  for(let z = -500; z < 500; z += 125) for(let k = 0; k < 2; k++) l.push({ x0: 538, x1: 566, z0: z, z1: z + 110, art: 'strand', y: .05 });
+  return l;
+};
 let gehwegBloecke = [];
 function personEinsetzen(p, min, max){
   for(let i = 0; i < 30; i++){
@@ -806,6 +828,7 @@ function personEinsetzen(p, min, max){
     const d = Math.hypot((b.x0 + b.x1)/2 - spieler.x, (b.z0 + b.z1)/2 - spieler.z);
     if(d < min || d > max) continue;
     p.setzeAuf(b);
+    if(Z() < .22){ p.zustand = 'steht'; p.stehen = R(12, 40); }
     return;
   }
 }
@@ -867,7 +890,7 @@ function aufstellen(){
     const bucht = i < 2;
     umgebung.boote.push({ m: b, bucht, t: R(0, 6.28), v: bucht ? .045 : .02, cx: bucht ? 275 : 760, cz: bucht ? 40 : R(-300, 300), rx: bucht ? 62 : 120, rz: bucht ? 180 : 260 });
   }
-  geldScheine(); jobsAufstellen();
+  geldScheine(); jobsAufstellen(); moewenBauen(); werbungBauen();
   spielerZeigen();
 }
 function flugzeugZuruck(){
@@ -1895,7 +1918,7 @@ function titelKamera(t){
 
 /* ── Ton (alles synthetisch) ───────────────────────────────────── */
 const ton = (() => {
-  let ctx = null, master = null, motor = null, sirene = null, wellen = null, an = speicherLesen('autostehlen.ton', true);
+  let ctx = null, master = null, motor = null, sirene = null, wellen = null, an = speicherLesen('autostehlen.ton', true), geraeuschT = 2;
   function start(){
     if(ctx) { if(ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
     try {
@@ -1963,6 +1986,19 @@ const ton = (() => {
       sirene.sg.gain.setTargetAtTime(sl, t, .2);
       sirene.so.frequency.setTargetAtTime(760 + Math.sin(t*5.5)*260, t, .02);
       wellen.gain.setTargetAtTime(pausiert || !laeuft ? .03 : .1, t, .5);
+      // Stadtgeräusche: tags Vögel und ferne Hupen, nachts Grillen, am Wasser Möwen
+      if(!pausiert && laeuft && an && !drinnen){
+        geraeuschT -= dt;
+        if(geraeuschT < 0){
+          geraeuschT = .6 + Math.random()*2.2;
+          const amWasser = !W.begehbar(spieler.px + 40, spieler.pz) || !W.begehbar(spieler.px - 40, spieler.pz) || spieler.px > 520;
+          const r = Math.random();
+          if(nacht > .5){ if(r < .7){ for(let i = 0; i < 3; i++) setTimeout(() => piep(4200 + Math.random()*300, .04, 'sine', .015), i*90); } }
+          else if(amWasser && r < .5){ piep(1500 + Math.random()*300, .5, 'sawtooth', .025, 900); }
+          else if(r < .45){ const f = 2600 + Math.random()*1400; piep(f, .07, 'sine', .02, f*1.3); setTimeout(() => piep(f*1.1, .06, 'sine', .018, f*.9), 110); }
+          else if(r < .55){ piep(360 + Math.random()*80, .35, 'square', .012); }
+        }
+      }
     },
     muenze(){ piep(988, .08, 'square', .12); setTimeout(() => piep(1318, .18, 'square', .12), 70); },
     erfolg(){ [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => piep(f, .2, 'square', .1), i*110)); },
@@ -2232,7 +2268,62 @@ function leuteUpdate(dt){
   }
   // Polizei fährt Leute nicht um, sie schiebt sie nur zur Seite
 }
+const moewen = [];
+function moewenBauen(){
+  const fluegel = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, .15, 0, 0, -.12, .7, .05, 0], 3));
+  fluegel.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, side: THREE.DoubleSide, roughness: .8 });
+  const koerperGeo = new THREE.SphereGeometry(.12, 6, 4).scale(1, .8, 2.6);
+  for(let i = 0; i < 22; i++){
+    const g = new THREE.Group();
+    const k = new THREE.Mesh(koerperGeo, mat); g.add(k);
+    const l = new THREE.Mesh(fluegel, mat), r = new THREE.Mesh(fluegel, mat); r.scale.x = -1;
+    g.add(l, r); g.scale.setScalar(1.6); szene.add(g);
+    const bucht = i < 14;
+    moewen.push({ g, l, r, cx: bucht ? R(180, 380) : R(540, 640), cz: R(-450, 450), rad: R(25, 70), hoehe: R(14, 40), w: R(0, 6.28), v: R(.12, .25)*(Z() < .5 ? -1 : 1), flap: R(0, 6) });
+  }
+}
+const werbeTexte = [
+  ['CLOCKING CHICKEN', 'Gackert nie. Schmeckt immer.', '#ffb020'], ['PALMA BAY FM 98,6', 'Neon, Palmen, Synthwave', '#ff4fd0'],
+  ['FLAMINGO LIMO', 'Die Rosa unter den Limonaden', '#ff6fa8'], ['KNALLHAUS', 'Seit 1987 in Palma Bay', '#ff4040'],
+  ['SONNENSTUDIO 24/7', 'Braun werden ohne Strand', '#ffd24a'], ['HOTEL PARADISO', 'Zimmer mit Meerblick', '#3ee8ff'],
+  ['AUTOHAUS KÖNIG', 'Kaufen ist auch eine Option', '#7dffb0'], ['PALMA BAY ZOO', 'Jetzt mit Alligatoren', '#8f6bff'],
+];
+function werbungBauen(){
+  const pfosten = new THREE.MeshStandardMaterial({ color: 0x2c3036, metalness: .6, roughness: .5 });
+  const texCache = {};
+  for(const w of W.werbung){
+    const [titel, unter, farbe] = werbeTexte[w.nr % werbeTexte.length];
+    let tex = texCache[w.nr];
+    if(!tex){
+      const c = document.createElement('canvas'); c.width = 1024; c.height = 384; const g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 0, 384); gr.addColorStop(0, '#1a1030'); gr.addColorStop(1, '#2d1748'); g.fillStyle = gr; g.fillRect(0, 0, 1024, 384);
+      g.strokeStyle = farbe; g.lineWidth = 10; g.strokeRect(14, 14, 996, 356);
+      g.textAlign = 'center'; g.fillStyle = farbe; g.shadowColor = farbe; g.shadowBlur = 24;
+      g.font = '120px ' + schrift; let b = g.measureText(titel).width; if(b > 940) g.font = Math.floor(120*940/b) + 'px ' + schrift;
+      g.fillText(titel, 512, 200); g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.font = '600 48px system-ui, sans-serif'; g.fillText(unter, 512, 300);
+      tex = texCache[w.nr] = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    }
+    const breite = Math.min(22, w.breite), hoehe = breite*.375;
+    const grp = new THREE.Group(); grp.position.set(w.x, w.y, w.z); grp.rotation.y = w.rot;
+    const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: .4, roughness: .6 });
+    W.fensterMats.push(m);
+    const tafel = new THREE.Mesh(new THREE.PlaneGeometry(breite, hoehe), m); tafel.position.y = 3 + hoehe/2; grp.add(tafel);
+    const rueck = new THREE.Mesh(new THREE.BoxGeometry(breite + .4, hoehe + .4, .3), pfosten); rueck.position.set(0, 3 + hoehe/2, -.2); grp.add(rueck);
+    for(const x of [-breite*.35, breite*.35]){ const p = new THREE.Mesh(new THREE.BoxGeometry(.3, 3.2, .3), pfosten); p.position.set(x, 1.6, -.2); grp.add(p); }
+    szene.add(grp);
+  }
+}
+let ampelTakt = 0;
 function umgebungUpdate(dt, t){
+  if((ampelTakt -= dt) < 0){ ampelTakt = .25; W.ampelnZeigen(uhr); }
+  for(const m of moewen){
+    m.w += m.v*dt; m.flap += dt*(6 + Math.sin(t*.7 + m.cx)*2);
+    const x = m.cx + Math.cos(m.w)*m.rad, z = m.cz + Math.sin(m.w)*m.rad;
+    m.g.position.set(x, m.hoehe + Math.sin(t*.5 + m.cz)*2, z);
+    m.g.rotation.set(0, Math.atan2(-Math.sin(m.w)*Math.sign(m.v), Math.cos(m.w)*Math.sign(m.v)), Math.sign(m.v)*.25);
+    const f = Math.sin(m.flap)*.6; m.l.rotation.z = f; m.r.rotation.z = -f;
+  }
   // Linienflieger zieht große Kreise
   const lf = umgebung.flieger;
   const a = t*.022;

@@ -447,6 +447,7 @@ export async function ladeKulisse(){
   await kulisseLaden('palmeNah', 'modelle/palme_dattel.glb', 'palme');
   await kulisseLaden('palmeFern', 'modelle/palme_phoenix.glb', 'palme');
   for(const n of ['i_huhn', 'i_essen', 'i_poster', 'i_tisch', 'i_kasse', 'i_theke']) await kulisseLaden(n, 'modelle/' + n + '.glb', 'deko');
+  for(const n of ['s_ampel', 's_bank', 's_eimer', 's_container', 's_bistro', 's_baum']) await kulisseLaden(n, 'modelle/' + n + '.glb', n === 's_baum' ? 'palme' : 'deko');
 }
 
 /* ── Waffen (CC BY 4.0, siehe Credits) ─────────────────────────────

@@ -294,6 +294,10 @@ export const markantes = {};
 export let gerueste = [];
 
 export const modellHaeuser = [];
+export const ampeln = [];      // { knoten, achse, x, z, rot } je Ampelmast
+export const ampelKnoten = new Map(); // Knoten → Phasenversatz
+export const moebel = { s_bank: [], s_eimer: [], s_container: [], s_bistro: [] };
+export const werbung = [];
 export function baueWelt(szene, qualitaet, K){
   const Z = T.mulberry32(20261118);
   const R = (a, b) => a + (b - a)*Z();
@@ -365,6 +369,7 @@ export function baueWelt(szene, qualitaet, K){
       B.tri(a, d, g1, [0, 0], [2, 0], [1, 2], dc);
     } else {
       bau('dach', cx, cz).deckel(x0, x1, h, z0, z1, 8, [1, 1, 1]);
+      if(h > 18 && h < 95 && x1 - x0 > 16 && Z() < .16) werbung.push({ x: cx, z: cz, y: h, rot: Math.floor(Z()*4)*Math.PI/2, breite: Math.min(x1 - x0, z1 - z0)*.8, nr: Math.floor(Z()*8) });
       // Dachaufbauten
       const n = h > 12 ? RI(1, 3) : 0;
       for(let i = 0; i < n; i++){
@@ -566,7 +571,49 @@ export function baueWelt(szene, qualitaet, K){
     }
   }
   for(const kn of knoten){
+    if(kn.nb.length === 4 && Z() < .55 && Math.abs(kn.x - 96) > 1){
+      ampelKnoten.set(kn.id, Z()*20);
+      // vier Masten an den Ecken; jeder zeigt dem ankommenden Verkehr entgegen
+      for(const [dx, dz, rot, achse] of [[-1, -1, 0, 'z'], [1, 1, Math.PI, 'z'], [1, -1, -Math.PI/2, 'x'], [-1, 1, Math.PI/2, 'x']]){
+        const x = kn.x + dx*9.2, z = kn.z + dz*9.2;
+        ampeln.push({ knoten: kn.id, achse, x, z, rot });
+        hindernis(x - .2, x + .2, z - .2, z + .2, -1, 5, 'mast');
+      }
+    }
+  }
+  for(const kn of knoten){
     bau('kreuzung', kn.x, kn.z).quadOben([kn.x - SB, .035, kn.z - SB], [kn.x + SB, .035, kn.z - SB], [kn.x + SB, .035, kn.z + SB], [kn.x - SB, .035, kn.z + SB], [0, 0], [1, 0], [1, 1], [0, 1]);
+  }
+
+  /* Straßenmöbel: Bänke, Mülleimer, Container, Bistrotische */
+  for(const b of bloecke){
+    if(b.art !== 'stadt' && b.art !== 'hotel' && b.art !== 'promenade') continue;
+    const y = b.y;
+    // Bänke und Mülleimer am Gehwegrand, mit Blick zur Straße
+    for(const [kante, rot] of [['z0', Math.PI], ['z1', 0], ['x0', -Math.PI/2], ['x1', Math.PI/2]]){
+      const laenge = kante[0] === 'z' ? b.x1 - b.x0 : b.z1 - b.z0;
+      for(let t = 14; t < laenge - 10; t += 34){
+        if(Z() < .45) continue;
+        const r = 1.1;
+        let x = kante === 'x0' ? b.x0 + r : kante === 'x1' ? b.x1 - r : b.x0 + t;
+        let z = kante === 'z0' ? b.z0 + r : kante === 'z1' ? b.z1 - r : b.z0 + t;
+        if(b.art === 'promenade' && kante !== 'x1') continue;
+        if(inHindernis(x, 1, z)) continue;
+        moebel.s_bank.push({ x, z, y, rot });
+        hindernis(x - .9, x + .9, z - .9, z + .9, -1, .9, 'bank');
+        const ex = x + (kante[0] === 'z' ? 2 : 0), ez = z + (kante[0] === 'x' ? 2 : 0);
+        if(!inHindernis(ex, 1, ez)){ moebel.s_eimer.push({ x: ex, z: ez, y, rot }); hindernis(ex - .3, ex + .3, ez - .3, ez + .3, -1, 1.1, 'eimer'); }
+      }
+    }
+    // Container in Hinterhöfen
+    if(b.art === 'stadt' && Z() < .5){
+      const x = R(b.x0 + 6, b.x1 - 6), z = R(b.z0 + 6, b.z1 - 6);
+      if(!inHindernis(x, 1, z) && !inHindernis(x + 1.2, 1, z) && !inHindernis(x - 1.2, 1, z)){ moebel.s_container.push({ x, z, y, rot: Math.floor(Z()*4)*Math.PI/2 }); hindernis(x - 1.1, x + 1.1, z - 1.1, z + 1.1, -1, 1.7, 'container'); }
+    }
+    // Straßencafés vor Hotels
+    if(b.art === 'hotel'){
+      for(let i = 0; i < 4; i++){ const x = b.x1 - 3.5, z = (b.z0 + b.z1)/2 - 12 + i*8; if(!inHindernis(x, 1, z)){ moebel.s_bistro.push({ x, z, y, rot: 0 }); hindernis(x - .4, x + .4, z - .4, z + .4, -1, 1.1, 'tisch'); } }
+    }
   }
 
   /* Brücken */
@@ -730,6 +777,11 @@ export function baueWelt(szene, qualitaet, K){
     }
     if(K) turmeAufstellen(szene, K, tmp);
 
+    if(K && K.s_baum){
+      const ims = instanzen(szene, K.s_baum, baeume.length);
+      baeume.forEach((b, i) => { tmp.position.set(b.x, b.y, b.z); tmp.rotation.set(0, b.r, 0); tmp.scale.setScalar(b.s*7.5); tmp.updateMatrix(); for(const im of ims) im.setMatrixAt(i, tmp.matrix); });
+      for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+    } else {
     const baumStamm = new THREE.InstancedMesh(new THREE.CylinderGeometry(.18, .28, 3, 6).translate(0, 1.5, 0), new THREE.MeshStandardMaterial({ color: 0x6b4f37, roughness: .9 }), baeume.length);
     const laubGeo = new THREE.IcosahedronGeometry(2.4, 1).translate(0, 4.2, 0);
     const laub = new THREE.InstancedMesh(laubGeo, new THREE.MeshStandardMaterial({ color: 0x4f8a3a, roughness: .85, flatShading: true }), baeume.length);
@@ -741,6 +793,8 @@ export function baueWelt(szene, qualitaet, K){
     });
     baumStamm.castShadow = laub.castShadow = true;
     szene.add(baumStamm, laub);
+    }
+    if(K) moebelAufstellen(szene, K, tmp);
 
     // Laternen
     const mast = mergeSimple([
@@ -891,4 +945,52 @@ export function palmenNah(px, pz, dt){
   idx.forEach((i, n) => { palmMatrix(palmen[i], true, _m); for(const im of palmNah) im.setMatrixAt(n, _m); });
   for(const im of palmNah){ im.count = idx.length; im.instanceMatrix.needsUpdate = true; }
   for(const im of palmFern) im.instanceMatrix.needsUpdate = true;
+}
+
+function moebelAufstellen(szene, K, tmp){
+  const hoehe = { s_bank: .9, s_eimer: 1.05, s_container: 1.6, s_bistro: 1.05 };
+  for(const [name, liste] of Object.entries(moebel)){
+    if(!liste.length || !K[name]) continue;
+    const ims = instanzen(szene, K[name], liste.length);
+    liste.forEach((m, i) => { tmp.position.set(m.x, m.y, m.z); tmp.rotation.set(0, m.rot, 0); tmp.scale.setScalar(hoehe[name]); tmp.updateMatrix(); for(const im of ims) im.setMatrixAt(i, tmp.matrix); });
+    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+  }
+  // Ampelmasten (Modell) und eigene Lampen darüber
+  if(ampeln.length && K.s_ampel){
+    const H = 4.2;
+    const ims = instanzen(szene, K.s_ampel, ampeln.length);
+    const lampe = new THREE.InstancedMesh(new THREE.SphereGeometry(.13, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), ampeln.length*3);
+    const c = new THREE.Color(.05, .05, .05);
+    ampeln.forEach((a, i) => {
+      tmp.position.set(a.x, .15, a.z); tmp.rotation.set(0, a.rot, 0); tmp.scale.setScalar(H); tmp.updateMatrix();
+      for(const im of ims) im.setMatrixAt(i, tmp.matrix);
+      const fx = Math.sin(a.rot), fz = Math.cos(a.rot), rx = Math.cos(a.rot), rz = -Math.sin(a.rot);
+      [.925, .81, .68].forEach((hy, k) => {
+        tmp.position.set(a.x + fx*H*.085 - rx*H*.05, .15 + hy*H, a.z + fz*H*.085 - rz*H*.05); tmp.scale.setScalar(1); tmp.updateMatrix();
+        lampe.setMatrixAt(i*3 + k, tmp.matrix); lampe.setColorAt(i*3 + k, c);
+      });
+    });
+    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
+    lampe.instanceMatrix.needsUpdate = true; lampe.computeBoundingSphere();
+    szene.add(lampe);
+    markantes.ampelLampen = lampe;
+  }
+}
+// Ampelphase: 20 s Umlauf. 0–8 grün für Nord-Süd (z), 8–10 gelb, 10–18 grün für Ost-West (x), 18–20 gelb
+export function ampelZustand(knotenId, achse, zeit){
+  const v = ampelKnoten.get(knotenId);
+  if(v === undefined) return 'gruen';
+  const t = ((zeit + v) % 20 + 20) % 20;
+  if(achse === 'z') return t < 8 ? 'gruen' : t < 10 ? 'gelb' : 'rot';
+  return t < 10 ? 'rot' : t < 18 ? 'gruen' : 'gelb';
+}
+const _farben = { rot: [new THREE.Color(6, .2, .1), 0], gelb: [new THREE.Color(6, 3.6, .2), 1], gruen: [new THREE.Color(.2, 5, 1.2), 2] };
+const _aus = new THREE.Color(.04, .04, .04);
+export function ampelnZeigen(zeit){
+  const l = markantes.ampelLampen; if(!l) return;
+  ampeln.forEach((a, i) => {
+    const z = ampelZustand(a.knoten, a.achse, zeit), [farbe, k] = _farben[z];
+    for(let j = 0; j < 3; j++) l.setColorAt(i*3 + j, j === k ? farbe : _aus);
+  });
+  l.instanceColor.needsUpdate = true;
 }
