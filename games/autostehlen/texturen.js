@@ -18,9 +18,16 @@ export function mulberry32(a){
 let ANISO = 4;
 export function setzeAniso(n){ ANISO = n; }
 
-function leinwand(w, h){
+// Auf Tablets und Handys wird jede große Leinwand halb so groß angelegt (iPad-Safari hat ein hartes
+// Limit für Canvas-Speicher). Gezeichnet wird weiter in den vollen Koordinaten, der Kontext skaliert.
+let FAKTOR = 1;
+export function setzeFaktor(f){ FAKTOR = f; }
+export const faktor = () => FAKTOR;
+function leinwand(w, h, roh = false){
   const c = document.createElement('canvas');
-  c.width = w; c.height = h;
+  const f = !roh && FAKTOR < 1 && Math.max(w, h) >= 1024 ? FAKTOR : 1;
+  c.width = Math.round(w*f); c.height = Math.round(h*f);
+  if(f !== 1) c.getContext('2d').scale(f, f);
   return c;
 }
 function alsTextur(c, { srgb = true, wiederholen = true } = {}){
@@ -30,6 +37,8 @@ function alsTextur(c, { srgb = true, wiederholen = true } = {}){
   t.anisotropy = ANISO;
   t.generateMipmaps = true;
   t.minFilter = THREE.LinearMipmapLinearFilter;
+  // Tablets/Handys: nach dem Hochladen auf die Grafikkarte die Leinwand freigeben (spart Canvas-Speicher)
+  if(FAKTOR < 1 && Math.max(c.width, c.height) >= 256) t.onUpdate = () => { t.onUpdate = null; c.width = c.height = 1; };
   return t;
 }
 // feines Korn auf Pixelebene: gibt Flächen aus der Nähe Struktur statt Matsch
@@ -411,7 +420,7 @@ export function normalVon(quelle, staerke = 2){
   const d = g.getImageData(0, 0, w, h).data;
   const hoehe = new Float32Array(w*h);
   for(let i = 0; i < w*h; i++) hoehe[i] = (d[i*4] + d[i*4 + 1] + d[i*4 + 2])/765;
-  const c = leinwand(w, h), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
+  const c = leinwand(w, h, true), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
   const H = (x, y) => hoehe[((y + h) % h)*w + ((x + w) % w)];
   for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
     const dx = (H(x + 1, y - 1) + 2*H(x + 1, y) + H(x + 1, y + 1)) - (H(x - 1, y - 1) + 2*H(x - 1, y) + H(x - 1, y + 1));
@@ -427,7 +436,7 @@ export function normalVon(quelle, staerke = 2){
 /* Rauheit aus Helligkeit: dunkle, glatt gefahrene Stellen glänzen mehr */
 export function rauheitVon(quelle, basis = .8, spanne = .3){
   const w = quelle.width, h = quelle.height, d = quelle.getContext('2d').getImageData(0, 0, w, h).data;
-  const c = leinwand(w, h), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
+  const c = leinwand(w, h, true), gc = c.getContext('2d'), img = gc.createImageData(w, h), o = img.data;
   for(let i = 0; i < w*h; i++){
     const l = (d[i*4] + d[i*4 + 1] + d[i*4 + 2])/765;
     const r = Math.max(0, Math.min(1, basis - spanne*.5 + l*spanne));

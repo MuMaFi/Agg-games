@@ -29,6 +29,8 @@ const R = (a, b) => a + (b - a)*Z();
 const wahl = l => l[Math.floor(Z()*l.length)];
 
 const TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+// Tablets/Handys (v. a. iPad-Safari) haben wenig Grafik- und Canvas-Speicher: Texturen dort halb so groß
+T.setzeFaktor(TOUCH ? .5 : 1);
 document.body.classList.toggle('touch', TOUCH);
 
 function speicherLesen(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } }
@@ -46,7 +48,18 @@ let Q = STUFEN[stufeName];
 
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
+  const opt = { antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true };
+  if(TOUCH){
+    // Modelltexturen (Figur, Bäume, Autos) beim Hochladen auf höchstens 1024 px verkleinern
+    const cv = document.createElement('canvas');
+    const gl = cv.getContext('webgl2', { antialias: true, powerPreference: 'high-performance', alpha: false, depth: true, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false });
+    if(gl){
+      const orig = gl.getParameter.bind(gl);
+      gl.getParameter = p => p === gl.MAX_TEXTURE_SIZE ? Math.min(1024, orig(p)) : orig(p);
+      opt.canvas = cv; opt.context = gl;
+    }
+  }
+  renderer = new THREE.WebGLRenderer(opt);
 } catch(e){
   $('ladetext').textContent = 'Dein Gerät kann kein WebGL. Ohne WebGL läuft das Spiel leider nicht.';
   throw e;
@@ -2650,7 +2663,7 @@ function werbungBauen(){
     const [titel, unter, farbe] = werbeTexte[w.nr % werbeTexte.length];
     let tex = texCache[w.nr];
     if(!tex){
-      const c = document.createElement('canvas'); c.width = 1024; c.height = 384; const g = c.getContext('2d');
+      const c = document.createElement('canvas'), fk = TOUCH ? .5 : 1; c.width = 1024*fk; c.height = 384*fk; const g = c.getContext('2d'); g.scale(fk, fk);
       const gr = g.createLinearGradient(0, 0, 0, 384); gr.addColorStop(0, '#1a1030'); gr.addColorStop(1, '#2d1748'); g.fillStyle = gr; g.fillRect(0, 0, 1024, 384);
       g.strokeStyle = farbe; g.lineWidth = 10; g.strokeRect(14, 14, 996, 356);
       g.textAlign = 'center'; g.fillStyle = farbe; g.shadowColor = farbe; g.shadowBlur = 24;

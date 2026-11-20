@@ -12,6 +12,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../bloxrot/lib/jsm/loaders/GLTFLoader.js';
 import { clone as skelettKlon } from '../bloxrot/lib/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from './lib/BufferGeometryUtils.js';
+// Tablets/Handys: kleinere Leinwände (iPad-Safari hat wenig Canvas-Speicher)
+const KLEIN = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
 
 export const MODELLE = {
   fox:     { datei: 'modelle/fox.glb',     drehung: Math.PI/2, laenge: 4.75, lack: 'body', glas: ['glass'], licht: ['lights'], radName: /wheel/i },
@@ -39,6 +41,28 @@ export const MAT = {
 };
 
 const lader = new GLTFLoader();
+// Auf Tablets/Handys Modelltexturen gleich nach dem Laden verkleinern: spart dort den knappen Speicher
+async function sparen(gltf, max = 512){
+  if(!KLEIN) return gltf;
+  const fertig = new Set();
+  const mats = [];
+  gltf.scene.traverse(o => { if(o.material) mats.push(...[].concat(o.material)); });
+  for(const m of mats) for(const k in m){
+    const t = m[k];
+    if(!t || !t.isTexture || fertig.has(t) || !t.image) continue;
+    fertig.add(t);
+    const bild = t.image, w = bild.width, h = bild.height;
+    if(!w || !h || Math.max(w, h) <= max) continue;
+    const f = max/Math.max(w, h), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w*f)); c.height = Math.max(1, Math.round(h*f));
+    c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
+    let neu = c;
+    try { if(typeof createImageBitmap === 'function'){ neu = await createImageBitmap(c); c.width = c.height = 0; } } catch(e){ neu = c; }
+    if(bild.close) bild.close();
+    t.image = neu; t.needsUpdate = true;
+  }
+  return gltf;
+}
 
 /* Geometrie auf Position/Normale/UV reduzieren, ohne Index, im Ziel-Raum */
 function vereinheitlichen(geo, matrix){
@@ -82,7 +106,7 @@ const quadrant = (x, z) => (x > 0 ? 'l' : 'r') + (z > 0 ? 'v' : 'h');
 
 async function vorlageLaden(name){
   const cfg = MODELLE[name];
-  const gltf = await lader.loadAsync(cfg.datei);
+  const gltf = await sparen(await lader.loadAsync(cfg.datei));
   const wurzel = gltf.scene;
   wurzel.updateMatrixWorld(true);
   wurzel.traverse(o => { if(o.isSkinnedMesh) o.skeleton.update(); });
@@ -258,7 +282,7 @@ export function baueAuto(typ, farbeHex){
 /* ── Spielfigur: Nathan (Renderpeople) ─────────────────────────── */
 let figur = null;
 async function ladeFigur(){
-  const gltf = await lader.loadAsync('modelle/nathan.glb');
+  const gltf = await sparen(await lader.loadAsync('modelle/nathan.glb'), 1024);
   const wurzel = gltf.scene;
   const box = new THREE.Box3().setFromObject(wurzel);
   const k = 1.78/(box.max.y - box.min.y);
@@ -326,7 +350,7 @@ function outfitMaterial(n){
   let mat = basis;
   try {
     const o = OUTFITS[n % OUTFITS.length];
-    const S = 1024, c = document.createElement('canvas'); c.width = c.height = S;
+    const S = KLEIN ? 512 : 1024, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d'); g.drawImage(bild, 0, 0, S, S);
     const d = g.getImageData(0, 0, S, S), p = d.data;
     const farbe = h => { const x = new THREE.Color(h); return [x.r*255, x.g*255, x.b*255]; };
@@ -387,7 +411,7 @@ export function animiereFigur(f, tempo, dt){
    mit InstancedMesh beliebig oft und in jeder Größe aufstellen.        */
 export const kulisse = {};
 async function kulisseLaden(name, datei, art){
-  const gltf = await lader.loadAsync(datei);
+  const gltf = await sparen(await lader.loadAsync(datei));
   const w = gltf.scene; w.updateMatrixWorld(true);
   const proMat = new Map();
   w.traverse(o => { if(o.isMesh){ const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!proMat.has(m)) proMat.set(m, []); proMat.get(m).push(vereinheitlichen(o.geometry, o.matrixWorld)); } });
@@ -412,7 +436,7 @@ function nachtfenster(mat){
   const bild = mat.map && mat.map.image;
   if(!bild) return;
   try {
-    const w = Math.min(1024, bild.width), h = Math.min(1024, bild.height);
+    const w = Math.min(KLEIN ? 512 : 1024, bild.width), h = Math.min(KLEIN ? 512 : 1024, bild.height);
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const g = c.getContext('2d'); g.drawImage(bild, 0, 0, w, h);
     const d = g.getImageData(0, 0, w, h), p = d.data;
@@ -464,7 +488,7 @@ export const WAFFEN_MODELL = {
 export const waffenVorlagen = {};
 export async function ladeWaffen(){
   for(const [name, cfg] of Object.entries(WAFFEN_MODELL)){
-    const gltf = await lader.loadAsync(cfg.datei);
+    const gltf = await sparen(await lader.loadAsync(cfg.datei));
     const w = gltf.scene; w.updateMatrixWorld(true);
     const dreh = new THREE.Matrix4().makeRotationY(cfg.drehung);
     const teile = [];
