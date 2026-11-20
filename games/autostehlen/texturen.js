@@ -28,6 +28,7 @@ function leinwand(w, h, roh = false){
   const f = !roh && FAKTOR < 1 && Math.max(w, h) >= 1024 ? FAKTOR : 1;
   c.width = Math.round(w*f); c.height = Math.round(h*f);
   if(f !== 1) c.getContext('2d').scale(f, f);
+  c.faktor = f;
   return c;
 }
 function alsTextur(c, { srgb = true, wiederholen = true } = {}){
@@ -37,8 +38,6 @@ function alsTextur(c, { srgb = true, wiederholen = true } = {}){
   t.anisotropy = ANISO;
   t.generateMipmaps = true;
   t.minFilter = THREE.LinearMipmapLinearFilter;
-  // Tablets/Handys: nach dem Hochladen auf die Grafikkarte die Leinwand freigeben (spart Canvas-Speicher)
-  if(FAKTOR < 1 && Math.max(c.width, c.height) >= 256) t.onUpdate = () => { t.onUpdate = null; c.width = c.height = 1; };
   return t;
 }
 // feines Korn auf Pixelebene: gibt Flächen aus der Nähe Struktur statt Matsch
@@ -416,6 +415,8 @@ export function arenaFassade(){
    Fugen und Risse sind dunkel, also tiefer, Farbe auf der Straße hell, also leicht erhaben. */
 export function normalVon(quelle, staerke = 2){
   const w = quelle.width, h = quelle.height;
+  // halb so große Leinwand: gleiche Kanten liegen auf halb so vielen Pixeln, also Relief entsprechend abschwächen
+  staerke *= quelle.faktor || 1;
   const g = quelle.getContext('2d');
   const d = g.getImageData(0, 0, w, h).data;
   const hoehe = new Float32Array(w*h);

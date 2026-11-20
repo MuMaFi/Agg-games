@@ -175,6 +175,9 @@ body.touch .fuss .nurMaus{ display:none }
   background:var(--panel); border:1px solid var(--kante); border-left:3px solid #ff4fd0; padding:8px 12px; border-radius:4px; display:none; backdrop-filter:blur(4px) }
 #mission.an{ display:block }
 #auftrag.an ~ #mission{ top:calc(150px + var(--oben)) }
+body.touch #mission{ top:calc(52px + var(--oben)); left:calc(140px + var(--links)); max-width:min(320px, 40vw) }
+body.touch #auftrag.an ~ #mission{ top:calc(150px + var(--oben)) }
+@media (max-width: 600px){ body.touch #mission{ left:calc(12px + var(--links)); top:calc(230px + var(--oben)); max-width:calc(100vw - 24px) } }
 #mission .kopf{ display:flex; justify-content:space-between; gap:12px; font:600 11px/1 var(--text); letter-spacing:.16em; text-transform:uppercase; color:#ff4fd0 }
 #missionVon{ color:#e9edf5; opacity:.7 }
 #missionText{ font-size:15px; line-height:1.35; margin-top:5px }
@@ -212,6 +215,10 @@ body.touch #telKnopf{ bottom:auto; top:calc(176px + var(--oben)); left:calc(12px
 #telefonListe{ position:absolute; pointer-events:auto; right:calc(16px + var(--rechts)); top:50%; transform:translate(calc(100% + 40px), -50%); width:min(330px, 86vw); height:min(560px, 76vh);
   background:#0d0f18; border:3px solid #2a2e3c; border-radius:30px; box-shadow:0 12px 40px rgba(0,0,0,.6); display:flex; flex-direction:column; transition:transform .35s; overflow:hidden }
 #telefonListe.an{ transform:translate(0, -50%) }
+/* Handy offen: die Touch-Fläche darf es nicht verdecken */
+body.handyAuf #touch{ pointer-events:none }
+body.handyAuf #touch *{ pointer-events:none }
+#hud{ z-index:40 } body.handyAuf #hud{ z-index:46 }
 #telefonListe header{ display:flex; justify-content:space-between; align-items:center; padding:18px 18px 10px; font:700 17px/1 var(--text); border-bottom:1px solid rgba(255,255,255,.08) }
 #telefonListe header button{ background:none; border:0; color:#e9edf5; font-size:22px; cursor:pointer; line-height:1 }
 #telefonListe .liste2{ flex:1; overflow-y:auto; padding:8px 12px 16px }

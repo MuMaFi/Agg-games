@@ -1134,7 +1134,7 @@ addEventListener('keydown', e => {
 for(const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', e => { if(e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault(); }, { passive: false });
 let letzterTipp = 0;
-document.addEventListener('touchend', e => { const t = Date.now(); if(t - letzterTipp < 320 && !e.target.closest('input')) e.preventDefault(); letzterTipp = t; }, { passive: false });
+document.addEventListener('touchend', e => { const t = Date.now(); if(t - letzterTipp < 320 && !e.target.closest('input, a, button')) e.preventDefault(); letzterTipp = t; }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 addEventListener('wheel', e => { if(e.ctrlKey || e.metaKey) e.preventDefault(); }, { passive: false });
 addEventListener('keydown', e => { if((e.ctrlKey || e.metaKey) && ['Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract', 'Digit0', 'Numpad0', 'BracketRight', 'Slash'].includes(e.code)) e.preventDefault(); }, { capture: true });
@@ -1162,9 +1162,26 @@ const stick = { id: null, x: 0, y: 0, ax: 0, ay: 0 };
 const blick = { id: null, x: 0, y: 0 };
 const knopf = { aktion: false, sprung: false, sprint: false };
 let schussGewollt = false;
+// Knöpfe der Anzeige (Pause, Handy …) liegen unter den Touch-Flächen: Tipp an sie weiterreichen
+let weiter = null;
+function tippWeiter(e){
+  const drunter = document.elementsFromPoint(e.clientX, e.clientY).find(el => !el.closest('#touch') && el.closest('button, a'));
+  if(!drunter) return false;
+  const ziel = drunter.closest('button, a');
+  e.preventDefault(); weiter = { ziel, t: performance.now() }; ziel.click();
+  return true;
+}
+// der echte Klick des Browsers nach dem Loslassen darf denselben Knopf nicht ein zweites Mal auslösen
+document.addEventListener('click', e => {
+  if(weiter && e.isTrusted && performance.now() - weiter.t < 2500 && weiter.ziel.contains(e.target)){ e.stopPropagation(); e.preventDefault(); }
+  if(e.isTrusted) weiter = null;
+}, true);
+// jede neue Berührung beginnt ohne Merker (tippWeiter setzt ihn danach neu)
+document.addEventListener('pointerdown', () => { weiter = null; }, true);
 if(TOUCH){
   const zone = $('stickZone'), griff = $('stickGriff');
   zone.addEventListener('pointerdown', e => {
+    if(tippWeiter(e)) return;
     stick.id = e.pointerId; stick.x = e.clientX; stick.y = e.clientY;
     try { zone.setPointerCapture(e.pointerId); } catch(_){}
     $('stick').style.left = (e.clientX - 60) + 'px'; $('stick').style.top = (e.clientY - 60) + 'px';
@@ -1182,6 +1199,7 @@ if(TOUCH){
   zone.addEventListener('pointerup', stickLos); zone.addEventListener('pointercancel', stickLos);
   const flaeche = $('blickZone');
   flaeche.addEventListener('pointerdown', e => {
+    if(tippWeiter(e)) return;
     const r = $('miniRahmen').getBoundingClientRect();
     if(!$('miniRahmen').hidden && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom){ miniKarteGetippt(); return; }
     blick.id = e.pointerId; blick.x = e.clientX; blick.y = e.clientY; try { flaeche.setPointerCapture(e.pointerId); } catch(_){} });
@@ -1999,6 +2017,7 @@ function telefonUpdate(dt){
 function telefonUmschalten(){
   telefonOffen = !telefonOffen;
   $('telefonListe').classList.toggle('an', telefonOffen);
+  document.body.classList.toggle('handyAuf', telefonOffen);
   $('telKnopf').classList.remove('neu');
   if(telefonOffen){
     const l = $('telefonListe').querySelector('.liste2'); l.innerHTML = '';
