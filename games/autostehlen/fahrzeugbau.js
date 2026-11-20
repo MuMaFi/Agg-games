@@ -44,23 +44,27 @@ const lader = new GLTFLoader();
 // Auf Tablets/Handys Modelltexturen gleich nach dem Laden verkleinern: spart dort den knappen Speicher
 async function sparen(gltf, max = 512){
   if(!KLEIN) return gltf;
-  const fertig = new Set();
-  const mats = [];
-  gltf.scene.traverse(o => { if(o.material) mats.push(...[].concat(o.material)); });
-  for(const m of mats) for(const k in m){
-    const t = m[k];
-    if(!t || !t.isTexture || fertig.has(t) || !t.image) continue;
-    fertig.add(t);
-    const bild = t.image, w = bild.width, h = bild.height;
-    if(!w || !h || Math.max(w, h) <= max) continue;
-    const f = max/Math.max(w, h), c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(w*f)); c.height = Math.max(1, Math.round(h*f));
-    c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
-    let neu = c;
-    try { if(typeof createImageBitmap === 'function'){ neu = await createImageBitmap(c); c.width = c.height = 0; } } catch(e){ neu = c; }
-    if(bild.close) bild.close();
-    t.image = neu; t.needsUpdate = true;
-  }
+  // Bilder, die sich mehrere Texturen teilen, nur einmal verkleinern und überall ersetzen.
+  // Die verkleinerte Leinwand bleibt die Quelle (nichts schließen oder freigeben: Safari zeigt sonst fremde Grafikdaten).
+  const ersatz = new Map();
+  gltf.scene.traverse(o => {
+    if(!o.material) return;
+    for(const m of [].concat(o.material)) for(const k in m){
+      const t = m[k];
+      if(!t || !t.isTexture || !t.image) continue;
+      const bild = t.image;
+      if(!ersatz.has(bild)){
+        const w = bild.width, h = bild.height;
+        if(!w || !h || Math.max(w, h) <= max){ ersatz.set(bild, bild); continue; }
+        const f = max/Math.max(w, h), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w*f)); c.height = Math.max(1, Math.round(h*f));
+        c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
+        ersatz.set(bild, c);
+      }
+      const neu = ersatz.get(bild);
+      if(neu !== bild){ t.image = neu; t.needsUpdate = true; }
+    }
+  });
   return gltf;
 }
 
@@ -414,7 +418,15 @@ async function kulisseLaden(name, datei, art){
   const gltf = await sparen(await lader.loadAsync(datei));
   const w = gltf.scene; w.updateMatrixWorld(true);
   const proMat = new Map();
-  w.traverse(o => { if(o.isMesh){ const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!proMat.has(m)) proMat.set(m, []); proMat.get(m).push(vereinheitlichen(o.geometry, o.matrixWorld)); } });
+  // Ampel: die fest eingefärbten Lichtscheiben weglassen (sie wirken immer an), ihre Mitte merken – dort sitzen später die echten Lampen
+  const lampen = [];
+  if(name === 's_ampel') w.traverse(o => {
+    if(o.isMesh && /^lichtanimation/i.test(o.name || (o.parent && o.parent.name) || '')){
+      const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()); c.z = b.max.z;
+      lampen.push(c); o.userData.weg = true;
+    }
+  });
+  w.traverse(o => { if(o.isMesh && !o.userData.weg){ const m = Array.isArray(o.material) ? o.material[0] : o.material; if(!proMat.has(m)) proMat.set(m, []); proMat.get(m).push(vereinheitlichen(o.geometry, o.matrixWorld)); } });
   const box = new THREE.Box3();
   for(const gs of proMat.values()) for(const g of gs){ g.computeBoundingBox(); box.union(g.boundingBox); }
   const groesse = box.getSize(new THREE.Vector3());
@@ -429,6 +441,7 @@ async function kulisseLaden(name, datei, art){
     teile.push({ geo, mat });
   }
   kulisse[name] = { teile, b: groesse.x*k, t: groesse.z*k };
+  if(lampen.length === 3){ lampen.sort((a, b) => b.y - a.y); kulisse[name].lampen = lampen.map(p => p.applyMatrix4(m4)); }
 }
 // Nachtfenster: dunkle, bläuliche Stellen der Fassade werden zu Fenstern, ein Teil davon leuchtet
 export const turmMats = [];

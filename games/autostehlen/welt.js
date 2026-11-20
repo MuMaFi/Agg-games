@@ -1108,12 +1108,15 @@ function moebelAufstellen(szene, K, tmp){
   if(ampeln.length && K.s_ampel){
     const H = 4.2;
     nachOrt(szene, K.s_ampel, ampeln, (a, t) => { t.position.set(a.x, .15, a.z); t.rotation.set(0, a.rot, 0); t.scale.setScalar(H); }, { weite: 280, schatten: false });
-    const lampe = new THREE.InstancedMesh(new THREE.SphereGeometry(.13, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), ampeln.length*3);
+    const lampe = new THREE.InstancedMesh(new THREE.SphereGeometry(.19, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), ampeln.length*3);
     const c = new THREE.Color(.05, .05, .05);
+    // Lampenpositionen aus dem Modell (rot, gelb, grün von oben nach unten), sonst Schätzung
+    const lp = K.s_ampel.lampen || [new THREE.Vector3(0, .91, .085), new THREE.Vector3(0, .795, .085), new THREE.Vector3(0, .678, .085)];
     ampeln.forEach((a, i) => {
-      const fx = Math.sin(a.rot), fz = Math.cos(a.rot), rx = Math.cos(a.rot), rz = -Math.sin(a.rot);
-      [.925, .81, .68].forEach((hy, k) => {
-        tmp.position.set(a.x + fx*H*.085 - rx*H*.05, .15 + hy*H, a.z + fz*H*.085 - rz*H*.05); tmp.scale.setScalar(1); tmp.updateMatrix();
+      const cs = Math.cos(a.rot), sn = Math.sin(a.rot);
+      lp.forEach((p, k) => {
+        const x = p.x*H, y = p.y*H, z = p.z*H;
+        tmp.position.set(a.x + x*cs + z*sn, .15 + y, a.z - x*sn + z*cs); tmp.rotation.set(0, a.rot, 0); tmp.scale.set(1, 1, .45); tmp.updateMatrix();
         lampe.setMatrixAt(i*3 + k, tmp.matrix); lampe.setColorAt(i*3 + k, c);
       });
     });
