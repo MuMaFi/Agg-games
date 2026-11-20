@@ -833,12 +833,14 @@ class Person {
     this.leben -= dmg;
     ton.dumpf(.4);
     if(this.leben <= 0) return this.sterben(wie);
+    if(this.mission && this.mission.getroffen(this)) return;
     if(this.bewaffnet || this.kaempfer){ this.zustand = 'kampf'; this.schussT = .8; this.schlagT = .6; }
     else { this.zustand = 'rennt'; this.flucht = 10; }
     if(wie === 'faust') fahndung(1, 'Schlägerei', 0);
   }
   sterben(wie){
     this.zustand = 'tot'; this.liegen = 25;
+    if(this.mission){ this.mission.tot(this); return; }
     if(this.wm) this.wm.visible = false;
     fahndung(1, wie === 'faust' ? 'Passant niedergeschlagen' : 'Passant erschossen', wie === 'faust' ? 1 : 2);
     // Beute: Waffe, Geld oder Munition
@@ -1109,6 +1111,7 @@ addEventListener('keydown', e => {
   if(k === 'KeyM' && laeuft && !pausiert && ansicht === 'spiel') karteUmschalten();
   if(laeuft && !pausiert && ansicht === 'spiel'){
     if(k === 'Tab'){ e.preventDefault(); radAuf(); }
+    if(k === 'KeyT') telefonUmschalten();
     const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'].indexOf(k);
     if(n >= 0) waffeWaehlen(REIHE[n]);
     if(k === 'KeyR' && !WAFFEN[aktiv].nah && ladenT <= 0 && inventar[aktiv].mag < WAFFEN[aktiv].mag && inventar[aktiv].vorrat > 0){ ladenT = WAFFEN[aktiv].laden; hudWaffe(); }
@@ -1167,7 +1170,7 @@ if(TOUCH){
   const flaeche = $('blickZone');
   flaeche.addEventListener('pointerdown', e => {
     const r = $('miniRahmen').getBoundingClientRect();
-    if(!$('miniRahmen').hidden && Math.hypot(e.clientX - (r.left + r.width/2), e.clientY - (r.top + r.height/2)) < r.width/2){ miniKarteGetippt(); return; }
+    if(!$('miniRahmen').hidden && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom){ miniKarteGetippt(); return; }
     blick.id = e.pointerId; blick.x = e.clientX; blick.y = e.clientY; try { flaeche.setPointerCapture(e.pointerId); } catch(_){} });
   flaeche.addEventListener('pointermove', e => {
     if(e.pointerId !== blick.id) return;
@@ -1461,6 +1464,7 @@ function totUpdate(dt){
     sterne = 0; hudSterne();
     for(const s2 of streifen){ s2.f.g.visible = false; s2.f.vx = s2.f.vz = 0; }
     if(auftrag) auftragEnde(false);
+    if(mission) missionEnde(false, 'Du bist im Krankenhaus gelandet.');
     const k = W.markantes.krankenhaus;
     spieler.x = k.x; spieler.z = k.z; spieler.y = W.bodenY(k.x, k.z); spieler.h = k.h; spieler.vy = 0;
     spieler.modus = 'fuss'; leben = 100; spieler.liegt = 0; spieler.m.g.rotation.x = 0;
@@ -1700,6 +1704,7 @@ const beuteMat = {
 function beuteFallen(x, z, art, typ, menge){
   let m;
   if(art === 'waffe'){ m = baueWaffe(typ, 1.6); }
+  else if(art === 'umschlag') m = new THREE.Mesh(new THREE.BoxGeometry(.4, .06, .25), new THREE.MeshStandardMaterial({ color: 0xf2e6c8, emissive: 0x806020, emissiveIntensity: .6 }));
   else m = new THREE.Mesh(beuteGeo[art], beuteMat[art]);
   m.castShadow = true; szene.add(m);
   beute.push({ x, z, y: W.bodenY(x, z), art, typ, menge, m, t: 0 });
@@ -1709,10 +1714,11 @@ function beuteUpdate(dt){
     const b = beute[i];
     b.t += dt;
     b.m.position.set(b.x, b.y + .55 + Math.sin(b.t*3)*.12, b.z); b.m.rotation.set(0, b.t*2, 0);
-    let weg = b.t > 90;
+    let weg = b.t > (b.art === 'umschlag' ? 1e9 : 90);
     if(spieler.modus === 'fuss' && Math.hypot(b.x - spieler.x, b.z - spieler.z) < 1.6){
       weg = true; ton.muenze();
-      if(b.art === 'geld') geldDazu(b.menge, 'Geld aufgehoben');
+      if(b.art === 'umschlag'){ meldung('Umschlag mit $' + b.menge + ' eingesteckt'); }
+      else if(b.art === 'geld') geldDazu(b.menge, 'Geld aufgehoben');
       else if(b.art === 'waffe') waffeGeben(b.typ, b.menge);
       else { const typ = b.typ; waffeGeben(typ, b.menge); }
     }
@@ -1909,6 +1915,235 @@ function ladenListeZeigen(){
   }
 }
 function ladenZu(){ ladenOffen = null; $('laden').classList.remove('an'); }
+
+/* ── Untertitel ────────────────────────────────────────────────── */
+let untertitelT;
+function untertitel(wer, text, s = 3.5, farbe = '#ffc233'){
+  const el = $('untertitel'); el.innerHTML = '';
+  if(wer){ const b = document.createElement('b'); b.textContent = wer + ': '; b.style.color = farbe; el.appendChild(b); }
+  el.appendChild(document.createTextNode(text)); el.classList.add('an');
+  clearTimeout(untertitelT); untertitelT = setTimeout(() => el.classList.remove('an'), s*1000);
+}
+
+/* ── Polizeileiste: Kompass oben, zeigt, woher die Streifen kommen ── */
+const leisteEl = () => $('polizeiLeiste');
+function polizeiLeiste(){
+  const el = leisteEl();
+  const an = sterne > 0 && ansicht === 'spiel';
+  el.classList.toggle('an', an);
+  if(!an) return;
+  const marken = el.querySelector('.marken'); marken.innerHTML = '';
+  // Blickwinkel −120°…+120° auf die Breite verteilen
+  const setze = (winkelRel, html, klasse, amRand) => {
+    let w = winkel(winkelRel);
+    if(Math.abs(w) > 2.1){ if(!amRand) return; w = Math.sign(w)*2.1; klasse += ' hinten'; }
+    const d = document.createElement('span'); d.className = klasse; d.innerHTML = html;
+    d.style.left = (50 - w/2.1*50) + '%'; marken.appendChild(d);
+  };
+  for(const [txt, ww] of [['N', Math.PI], ['O', Math.PI/2], ['S', 0], ['W', -Math.PI/2]]) setze(ww - kam.yaw, txt, 'himmel');
+  let n = 0;
+  for(const s2 of streifen){
+    const f = s2.f; if(!f.g.visible) continue;
+    const d = Math.hypot(f.x - spieler.px, f.z - spieler.pz);
+    const ww = Math.atan2(f.x - spieler.px, f.z - spieler.pz) - kam.yaw;
+    setze(ww, '', 'streife' + (d < 60 ? ' nah' : '') + (Math.floor(uhr*5 + n) % 2 ? ' blau' : ''), true);
+    n++;
+  }
+  el.querySelector('.zahl').textContent = n ? n + (n === 1 ? ' Streife' : ' Streifen') : 'Fahndung';
+}
+
+/* ── Handy: Textnachrichten ────────────────────────────────────── */
+const nachrichten = [];
+let telefonT = 25, telefonOffen = false;
+const KONTAKTE = { Rico: '#ff4fa0', 'Big Manni': '#ffb347', 'Tante Gisela': '#7dffb0', Mama: '#3ee8ff', 'Palma Bay FM': '#b77bff', Unbekannt: '#9aa3b5', Werkstatt: '#ffd24a' };
+function sms(von, text){
+  nachrichten.unshift({ von, text, zeit: uhrText() });
+  if(nachrichten.length > 40) nachrichten.pop();
+  const el = $('telefon');
+  el.querySelector('.von').textContent = von; el.querySelector('.von').style.color = KONTAKTE[von] || '#fff';
+  el.querySelector('.text').textContent = text; el.querySelector('.zeit').textContent = uhrText();
+  el.querySelector('.ava').textContent = von[0]; el.querySelector('.ava').style.background = KONTAKTE[von] || '#666';
+  el.classList.add('an'); clearTimeout(sms.t); sms.t = setTimeout(() => el.classList.remove('an'), 7000);
+  $('telKnopf').classList.add('neu');
+  ton.sms();
+}
+const FLOSKELN = [
+  ['Mama', 'Hast du heute schon was Richtiges gegessen? Nicht nur Clocking Chicken!'],
+  ['Mama', 'Ruf mal wieder an. Und fahr vorsichtig!'],
+  ['Palma Bay FM', 'Heute Nacht: Synthwave bis zum Sonnenaufgang. Bleibt dran, Palma Bay!'],
+  ['Unbekannt', 'Ich hab gesehen, was du gestern mit dem Taxi gemacht hast.'],
+  ['Tante Gisela', 'Im Sumpf soll es wieder Alligatoren geben. Pass auf dich auf!'],
+  ['Big Manni', 'Wenn du Arbeit brauchst, ich hab immer was für dich.'],
+  ['Unbekannt', 'Glückwunsch! Sie haben ein Auto gewonnen. Klicken Sie hier. (Ist bestimmt seriös.)'],
+];
+function telefonUpdate(dt){
+  if(ansicht !== 'spiel') return;
+  telefonT -= dt;
+  if(telefonT > 0) return;
+  if(!mission && spieler.modus !== 'tot'){ missionAnbieten(); telefonT = 150 + Math.random()*90; }
+  else { const [v, t] = FLOSKELN[Math.floor(Math.random()*FLOSKELN.length)]; sms(v, t); telefonT = 90 + Math.random()*120; }
+}
+function telefonUmschalten(){
+  telefonOffen = !telefonOffen;
+  $('telefonListe').classList.toggle('an', telefonOffen);
+  $('telKnopf').classList.remove('neu');
+  if(telefonOffen){
+    const l = $('telefonListe').querySelector('.liste2'); l.innerHTML = '';
+    if(!nachrichten.length){ l.innerHTML = '<p class="leer">Noch keine Nachrichten.</p>'; }
+    for(const n of nachrichten){
+      const d = document.createElement('div'); d.className = 'nachricht';
+      d.innerHTML = `<span class="ava"></span><div><b></b><small></small><p></p></div>`;
+      d.querySelector('.ava').textContent = n.von[0]; d.querySelector('.ava').style.background = KONTAKTE[n.von] || '#666';
+      d.querySelector('b').textContent = n.von; d.querySelector('small').textContent = n.zeit; d.querySelector('p').textContent = n.text;
+      l.appendChild(d);
+    }
+  }
+}
+
+/* ── Missionen per SMS: Schulden eintreiben, Auto besorgen ────────── */
+let mission = null;
+const SCHULDNER = ['Dennis', 'Kevin', 'Uwe', 'Jacqueline', 'Marco', 'Chantal', 'Sascha', 'Ronny'];
+const AUSREDEN = ['Geht gerade nicht, Bruder! Komm nächste Woche.', 'Welches Geld? Ich kenn keinen CHEF.', 'Ich hab nix! Siehst du doch!', 'Sag CHEF, er kriegt es morgen. Ehrlich!'];
+const ERGEBEN = ['Okay, okay! Hier ist die Kohle!', 'Hör auf! Nimm es, nimm alles!', 'Schon gut! Hier, da ist der Umschlag!'];
+const missionStrahl = { a: null, b: null };
+function strahlFuer(farbe){ const s2 = strahl(farbe, 1.4, 30); s2.visible = false; return s2; }
+function zufallsOrt(min, max){
+  for(let i = 0; i < 80; i++){
+    const b = gehwegBloecke[Math.floor(Math.random()*gehwegBloecke.length)];
+    if(b.art === 'strand') continue;
+    const x = b.x0 + 2.4, z = (b.z0 + b.z1)/2;
+    const d = Math.hypot(x - spieler.px, z - spieler.pz);
+    if(d > min && d < max && W.begehbar(x, z) && !W.inHindernis(x, 1, z)) return { x, z, y: W.bodenY(x, z), b };
+  }
+  // notfalls irgendein Gehweg, egal wie weit
+  const b = gehwegBloecke.find(b => b.art !== 'strand') || gehwegBloecke[0];
+  return { x: b.x0 + 2.4, z: (b.z0 + b.z1)/2, y: W.bodenY(b.x0 + 2.4, (b.z0 + b.z1)/2), b };
+}
+function missionsPerson(ort, variante){
+  const frei = l => !l.mission && (!mission || (l !== mission.schuldner && l !== mission.kontakt));
+  const p = leute.find(l => frei(l) && l.zustand === 'weg') || leute.find(l => frei(l) && l.zustand !== 'kampf' && l.zustand !== 'tot' && l.zustand !== 'liegt');
+  if(!p) return null;
+  if(ort.b){ p.setzeAuf(ort.b); ort.x = p.x; ort.z = p.z; ort.y = p.y; }
+  p.mission = null; p.zustand = 'steht'; p.stehen = Infinity; p.leben = 100; p.bewaffnet = null; p.kaempfer = true;
+  p.x = ort.x; p.z = ort.z; p.y = ort.y; p.m.g.visible = true; p.m.g.rotation.set(0, Math.random()*6, 0);
+  if(p.wm) p.wm.visible = false;
+  return p;
+}
+function missionAnbieten(art){
+  if(art ? art === 'eintreiben' : Math.random() < .6){
+    const chef = Math.random() < .5 ? 'Rico' : 'Big Manni', wer = SCHULDNER[Math.floor(Math.random()*SCHULDNER.length)];
+    const summe = 400 + Math.floor(Math.random()*8)*100;
+    const ort = zufallsOrt(220, 650), treff = zufallsOrt(150, 500);
+    const schuldner = missionsPerson(ort);
+    if(!schuldner){ telefonT = 20; return; }
+    mission = { art: 'eintreiben', chef, wer, summe, phase: 'hin', schuldner, treff, kontakt: null, wut: false };
+    schuldner.leben = 170; schuldner.kaempfer = Math.random() < .65;
+    schuldner.mission = {
+      getroffen(p){ if(!mission || mission.schuldner !== p) return false;
+        if(!mission.wut){ mission.wut = true; }
+        if(p.leben <= 45 && mission.phase !== 'umschlag'){ ergeben(p); return true; }
+        if(!p.kaempfer){ p.zustand = 'rennt'; p.flucht = 30; return true; }
+        p.zustand = 'kampf'; p.schlagT = .5; return true; },
+      tot(p){ if(mission && mission.schuldner === p && mission.phase !== 'umschlag'){ umschlagFallen(p); fahndung(1, 'Schuldner erledigt', 2); } p.mission = null; },
+    };
+    sms(chef, `${wer} schuldet mir $${summe}. Hol das Geld und bring es mir. Er hängt in der Stadt rum, ich hab dir den Ort markiert.`);
+  } else {
+    const werkstatt = zufallsOrt(300, 900);
+    mission = { art: 'auto', typ: 'e30', phase: 'suchen', werkstatt, lohn: 700 + Math.floor(Math.random()*6)*50 };
+    sms('Werkstatt', `Ich brauch einen BMW E30, Farbe egal. Bring ihn zu mir, die Garage ist markiert. Ich zahl $${mission.lohn}.`);
+  }
+  missionHud();
+}
+function ergeben(p){
+  untertitel(mission.wer, ERGEBEN[Math.floor(Math.random()*ERGEBEN.length)], 3.5, '#ff8a6a');
+  p.zustand = 'steht'; p.stehen = 8; p.mission = null;
+  umschlagFallen(p);
+}
+function umschlagFallen(p){
+  mission.phase = 'umschlag';
+  beuteFallen(p.x + .8, p.z + .5, 'umschlag', null, mission.summe);
+  missionHud();
+}
+function missionBlips(l){
+  if(!mission) return;
+  const blink = Math.floor(uhr*3) % 2 ? '#ff4fd0' : '#ffffff';
+  if(mission.art === 'eintreiben'){
+    if(mission.phase === 'hin' && mission.schuldner) l.push({ x: mission.schuldner.x, z: mission.schuldner.z, c: '#ff4fd0', r: 6, form: 'ziel', rand: true });
+    if(mission.phase === 'umschlag'){ const b = beute.find(b => b.art === 'umschlag'); if(b) l.push({ x: b.x, z: b.z, c: '#7dffb0', r: 6, form: 'ziel', rand: true }); }
+    if(mission.phase === 'liefern') l.push({ x: mission.treff.x, z: mission.treff.z, c: blink, r: 7, form: 'ziel', rand: true });
+  } else {
+    if(mission.phase === 'suchen') for(const f of fahrzeuge) if(f.typ === mission.typ && f.g.visible && f !== spieler.fz && Math.hypot(f.x - spieler.px, f.z - spieler.pz) < 400) l.push({ x: f.x, z: f.z, c: '#ffd24a', r: 4.5 });
+    l.push({ x: mission.werkstatt.x, z: mission.werkstatt.z, c: blink, r: 7, form: 'ziel', rand: true });
+  }
+}
+function missionHud(){
+  const el = $('mission');
+  if(!mission){ el.classList.remove('an'); return; }
+  el.classList.add('an');
+  let t = '';
+  if(mission.art === 'eintreiben'){
+    t = mission.phase === 'hin' ? `Treib bei ${mission.wer} $${mission.summe} ein.` : mission.phase === 'umschlag' ? 'Heb den Umschlag mit dem Geld auf.' : `Bring das Geld zu ${mission.chef}.`;
+  } else t = mission.phase === 'suchen' ? 'Klau einen BMW E30 (gelb auf der Karte).' : 'Bring den BMW in die Werkstatt.';
+  $('missionText').textContent = t;
+  $('missionVon').textContent = mission.art === 'eintreiben' ? mission.chef : 'Werkstatt';
+}
+function missionEnde(ok, grund){
+  if(!mission) return;
+  missionStrahl.a && (missionStrahl.a.visible = false); missionStrahl.b && (missionStrahl.b.visible = false);
+  if(mission.schuldner){ mission.schuldner.mission = null; if(mission.schuldner.zustand === 'steht') mission.schuldner.stehen = 5; }
+  if(mission.kontakt){ mission.kontakt.mission = null; mission.kontakt.stehen = 5; }
+  if(!ok){ grossText('MISSION GESCHEITERT', grund || '', 3); }
+  for(let i = beute.length - 1; i >= 0; i--) if(beute[i].art === 'umschlag'){ szene.remove(beute[i].m); beute.splice(i, 1); }
+  mission = null; missionHud(); telefonT = Math.min(telefonT, 60);
+}
+function missionUpdate(dt){
+  if(!mission) return;
+  if(!missionStrahl.a){ missionStrahl.a = strahlFuer(new THREE.Color(2, .4, 1.4)); missionStrahl.b = strahlFuer(new THREE.Color(.4, 2, 1)); }
+  const A = missionStrahl.a, B = missionStrahl.b;
+  A.visible = B.visible = false;
+  if(mission.art === 'eintreiben'){
+    const p = mission.schuldner;
+    if(mission.phase === 'hin'){
+      A.visible = true; A.position.set(p.x, p.y, p.z);
+      const d = Math.hypot(p.x - spieler.px, p.z - spieler.pz);
+      if(d < 5 && !mission.angesprochen){
+        mission.angesprochen = true;
+        p.m.g.rotation.y = Math.atan2(spieler.x - p.x, spieler.z - p.z);
+        untertitel(mission.wer, AUSREDEN[Math.floor(Math.random()*AUSREDEN.length)].replace('CHEF', mission.chef), 4, '#ff8a6a');
+        setTimeout(() => { if(mission && mission.phase === 'hin') meldung('Er will nicht zahlen. Überzeug ihn – mit der Faust.'); }, 1800);
+      }
+      if(p.zustand === 'tot' || p.zustand === 'weg'){ /* über tot() erledigt */ }
+    } else if(mission.phase === 'umschlag'){
+      const b = beute.find(b => b.art === 'umschlag');
+      if(b){ B.visible = true; B.position.set(b.x, b.y, b.z); }
+      else { mission.phase = 'liefern'; untertitel(null, `Du hast $${mission.summe}. Bring das Geld zu ${mission.chef}.`, 3.5); missionHud();
+        mission.kontakt = missionsPerson(mission.treff); }
+    } else if(mission.phase === 'liefern'){
+      A.visible = true; A.position.set(mission.treff.x, mission.treff.y, mission.treff.z);
+      if(mission.kontakt){ const k = mission.kontakt; k.x = mission.treff.x; k.z = mission.treff.z; k.m.g.visible = true; k.zustand = 'steht'; k.stehen = Infinity; k.mission = { getroffen(){ return false; }, tot(){} }; }
+      if(Math.hypot(mission.treff.x - spieler.px, mission.treff.z - spieler.pz) < 4 && spieler.modus === 'fuss'){
+        const anteil = Math.round(mission.summe*.4/10)*10;
+        untertitel(mission.chef, `Sauber. ${mission.wer} wird es sich merken. Dein Anteil: $${anteil}.`, 4);
+        geldDazu(anteil, 'Mission erledigt'); grossText('MISSION ERLEDIGT', '+$' + anteil, 3); ton.erfolg();
+        setTimeout(() => sms(mission ? mission.chef : 'Rico', 'Gute Arbeit. Ich melde mich wieder.'), 6000);
+        missionEnde(true);
+      }
+    }
+  } else {
+    const w = mission.werkstatt;
+    A.visible = true; A.position.set(w.x, w.y, w.z);
+    const f = spieler.fz;
+    if(mission.phase === 'suchen' && f && f.typ === mission.typ){ mission.phase = 'liefern'; untertitel(null, 'Das ist der richtige Wagen. Ab in die Werkstatt!', 3); missionHud(); }
+    if(mission.phase === 'liefern' && (!f || f.typ !== mission.typ)){ mission.phase = 'suchen'; missionHud(); }
+    if(mission.phase === 'liefern' && f && Math.hypot(w.x - f.x, w.z - f.z) < 7 && Math.abs(f.vf) < 3){
+      geldDazu(mission.lohn, 'Wagen abgeliefert'); grossText('MISSION ERLEDIGT', '+$' + mission.lohn, 3); ton.erfolg();
+      untertitel('Werkstatt', 'Schönes Teil. Lass ihn stehen, ich kümmere mich drum.', 3.5);
+      aussteigen(); f.g.visible = false; f.zerstoert = uhr;
+      if(f.ki) f.ki = null;
+      missionEnde(true);
+    }
+  }
+}
 
 /* ── Effekte ───────────────────────────────────────────────────── */
 const blitzLicht = new THREE.PointLight(0xff9a40, 0, 120, 1.6);
@@ -2112,6 +2347,7 @@ const ton = (() => {
     alarm(){ piep(300, .6, 'sawtooth', .15, 120); },
     schuss(fern, k = 1){ rauschen(.1 + .08/k, fern ? .18 : .5, fern ? 1400 : 2400*k); piep(fern ? 160 : 180*k, .08, 'square', fern ? .05 : .13, 50); },
     piepLeer(){ piep(900, .03, 'square', .06); },
+    sms(){ piep(1320, .07, 'sine', .1); setTimeout(() => piep(1760, .09, 'sine', .09), 110); },
   };
 })();
 
@@ -2192,10 +2428,11 @@ function hudUpdate(dt){
     $('leben').classList.toggle('knapp', leben < 30);
   }
   hudModus();
+  polizeiLeiste();
 }
 
 /* ── Karte ─────────────────────────────────────────────────────── */
-const KARTE = 1024, WELTK = 1800;
+const KARTE = 2048, WELTK = 3300;
 const kartePre = document.createElement('canvas'); kartePre.width = kartePre.height = KARTE;
 const km = v => (v + WELTK/2)/WELTK*KARTE;
 function karteVorrendern(){
@@ -2203,6 +2440,13 @@ function karteVorrendern(){
   g.fillStyle = '#16324f'; g.fillRect(0, 0, KARTE, KARTE);
   const rect = (r, c) => { g.fillStyle = c; g.fillRect(km(r.x0), km(r.z0), km(r.x1) - km(r.x0), km(r.z1) - km(r.z0)); };
   rect(W.FESTLAND, '#33413f'); rect(W.INSEL, '#33413f');
+  // Sumpf: Gelände und Wasser aus der Höhenfunktion abgetastet
+  { const S = W.SUMPF, st = 6, px = st/WELTK*KARTE + .6;
+    for(let z = S.z0; z < S.z1; z += st) for(let x = S.x0; x < S.x1; x += st){
+      const h = W.sumpfHoehe(x, z);
+      g.fillStyle = h < W.WASSER_Y + .2 ? '#2c4038' : h < 1.5 ? '#2f4a2c' : h < 4 ? '#365531' : '#3f6036';
+      g.fillRect(km(x), km(z), px, px);
+    } }
   rect({ x0: 536, x1: 570, z0: -560, z1: 560 }, '#cdb47e');
   for(const b of W.bloecke) rect(b, b.art === 'park' ? '#2f5b3a' : '#4a5658');
   for(const h of W.hindernisse) if(h.art === 'haus' && h.y1 > 2) rect(h, '#2b3335');
@@ -2219,6 +2463,7 @@ function blips(){
   if(auftrag) l.push({ x: auftrag.ziel.x, z: auftrag.ziel.z, c: '#ff4fd0', r: 7, form: 'ziel', rand: true });
   for(const s of streifen) if(s.f.g.visible) l.push({ x: s.f.x, z: s.f.z, c: Math.floor(uhr*6) % 2 ? '#3a7bff' : '#ff3a3a', r: 4.5 });
   if(spieler.modus !== 'flug' && flieger.g.visible) l.push({ x: flieger.x, z: flieger.z, c: '#e9edf5', r: 4, form: 'f' });
+  missionBlips(l);
   return l;
 }
 function miniKarte(){
@@ -2227,7 +2472,7 @@ function miniKarte(){
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, S, S);
   g.save();
-  g.beginPath(); g.arc(c, c, c - 2, 0, Math.PI*2); g.clip();
+  g.beginPath(); g.rect(2, 2, S - 4, S - 4); g.clip();
   g.fillStyle = '#16324f'; g.fillRect(0, 0, S, S);
   const f = spieler.fz;
   const tempo = f ? Math.abs(f.art === 'flug' ? f.flug.tempo : f.vf) : 0;
@@ -2241,7 +2486,7 @@ function miniKarte(){
   g.setTransform(1, 0, 0, 1, 0, 0);
   for(const p of blips()){
     let sx = a*(p.x - px) + cc*(p.z - pz), sy = b*(p.x - px) + d*(p.z - pz);
-    const l = Math.hypot(sx, sy), max = c - 9;
+    const l = Math.max(Math.abs(sx), Math.abs(sy)), max = c - 9;
     if(l > max){ if(!p.rand && !p.form) continue; sx = sx/l*max; sy = sy/l*max; }
     zeichneBlip(g, c + sx, c + sy, p);
   }
@@ -2253,13 +2498,14 @@ function miniKarte(){
   g.restore();
   g.restore();
   g.strokeStyle = sterne > 0 ? (Math.floor(uhr*4) % 2 ? '#ff3a3a' : '#3a7bff') : 'rgba(255,255,255,.55)';
-  g.lineWidth = 3; g.beginPath(); g.arc(c, c, c - 2, 0, Math.PI*2); g.stroke();
+  g.lineWidth = 4; g.strokeRect(2, 2, S - 4, S - 4);
   // Norden
   const nx = c + (b*0 + d*-1)*0, ny = 0;
   const nwx = -cc, nwy = -d; // Richtung -z (Norden)
-  const nl = Math.hypot(nwx, nwy) || 1;
-  g.fillStyle = '#ffffff'; g.font = 'bold 12px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('N', c + nwx/nl*(c - 12), c + nwy/nl*(c - 12));
+  const nl = Math.max(Math.abs(nwx), Math.abs(nwy)) || 1;
+  g.fillStyle = '#ffffff'; g.font = 'bold 13px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.strokeStyle = '#0b0d12'; g.lineWidth = 3;
+  g.strokeText('N', c + nwx/nl*(c - 12), c + nwy/nl*(c - 12)); g.fillText('N', c + nwx/nl*(c - 12), c + nwy/nl*(c - 12));
   void nx; void ny;
 }
 function zeichneBlip(g, x, y, p){
@@ -2285,7 +2531,7 @@ function grosseKarte(){
   g.drawImage(kartePre, 0, 0, gross.width, gross.height);
   const zu = (x, z) => [(x + WELTK/2)*k, (z + WELTK/2)*k];
   g.font = `bold ${13*dpr}px system-ui, sans-serif`; g.textAlign = 'center';
-  const namen = [['Innenstadt', 20, 40], ['Flughafen', -580, 0], ['Die Bucht', 275, -40], ['Strandinsel', 485, 150], ['Wohnviertel', -400, -520], ['Wohnviertel', -400, 450]];
+  const namen = [['Innenstadt', 20, 40], ['Flughafen', -580, 0], ['Die Bucht', 275, -40], ['Strandinsel', 485, 150], ['Wohnviertel', -400, -520], ['Wohnviertel', -400, 450], ['Sumpf', -260, -1150]];
   g.fillStyle = 'rgba(255,255,255,.8)';
   for(const [n, x, z] of namen){ const [sx, sy] = zu(x, z); g.fillText(n, sx, sy); }
   for(const p of blips()){ const [sx, sy] = zu(p.x, p.z); zeichneBlip(g, sx, sy, { ...p, r: p.r*dpr }); }
@@ -2360,10 +2606,12 @@ function verhaftet(){
   spieler.x = p.x; spieler.z = p.z - 22; spieler.y = W.bodenY(spieler.x, spieler.z); spieler.h = Math.PI;
   for(const s of streifen){ s.f.g.visible = false; s.f.vx = s.f.vz = 0; }
   if(auftrag) auftragEnde(false);
+  if(mission) missionEnde(false, 'Du wurdest verhaftet.');
   kam.yaw = Math.PI; spielerZeigen();
 }
 function leuteUpdate(dt){
   for(const p of leute){
+    if(p.mission){ p.update(dt); continue; }
     if(p.zustand === 'weg'){ personEinsetzen(p, 60, 180); continue; }
     const d = Math.hypot(p.x - spieler.px, p.z - spieler.pz);
     const fern = d > 150 && p.zustand !== 'kampf';
@@ -2512,6 +2760,8 @@ function schritt(dt){
     laedenUpdate(dt);
     beuteUpdate(dt);
     auftraegeUpdate(dt);
+    missionUpdate(dt);
+    telefonUpdate(dt);
     totUpdate(dt);
     kameraUpdate(dt);
     hudUpdate(dt);
@@ -2650,7 +2900,8 @@ function spielStarten(neu){
   if(totZeit >= 0 || !flieger.g.visible){ totZeit = -1; flugzeugZuruck(); }
   spieler.modus = 'fuss'; spieler.y = W.bodenY(spieler.x, spieler.z); spieler.vy = 0; spieler.liegt = 0;
   sterne = 0; festnahme = 0; hudSterne();
-  leben = 100; totZeit = -1; schirm.visible = false; drinnen = null; ladenZu(); spieler.m.g.rotation.x = 0;
+  leben = 100; totZeit = -1; schirm.visible = false; drinnen = null; ladenZu();
+  if(mission) missionEnde(true); telefonT = 25; spieler.m.g.rotation.x = 0;
   for(const s2 of streifen){ s2.f.g.visible = false; s2.f.vx = s2.f.vz = 0; }
   if(auftrag){ auftrag = null; zielStrahl.visible = false; jobStrahlen.forEach(j => j.visible = true); hudAuftrag(); }
   kam.yaw = spieler.h; kam.pitch = .25; kam.hand = -9;
@@ -2725,6 +2976,8 @@ $('pauseListe').addEventListener('click', e => {
 for(const b of document.querySelectorAll('[data-zurueck]')) b.addEventListener('click', () => { ton.menue(); tafelZu(); });
 $('pauseKnopf').addEventListener('click', () => pauseUmschalten());
 $('karteZu').addEventListener('click', () => karteUmschalten());
+$('telKnopf').addEventListener('click', () => { if(laeuft && ansicht === 'spiel') telefonUmschalten(); });
+$('telefonZu').addEventListener('click', () => telefonUmschalten());
 // Minikarte anklicken öffnet die große Karte, ein Klick auf die große Karte schließt sie
 function miniKarteGetippt(){ if(laeuft && !pausiert && ansicht === 'spiel' && !drinnen && !karteOffen){ ton.menue(); karteUmschalten(); } }
 $('miniRahmen').addEventListener('click', e => { e.stopPropagation(); miniKarteGetippt(); });
@@ -2770,5 +3023,5 @@ function simuliere(sek, schrittweite = 1/60){
   const n = Math.round(sek/schrittweite);
   for(let i = 0; i < n; i++) schritt(schrittweite);
 }
-window.__spiel = { simuliere, get composer(){ return composer; }, szene, kamera, messen(){ renderer.info.autoReset = false; renderer.info.reset(); rendern(); rendern(); const r = { aufrufe: Math.round(renderer.info.render.calls/2), dreiecke: Math.round(renderer.info.render.triangles/2) }; renderer.info.autoReset = true; const t0 = performance.now(); for(let i = 0; i < 60; i++) schritt(1/60); r.logikMs = ((performance.now() - t0)/60).toFixed(2); return r; }, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; } };
+window.__spiel = { simuliere, get composer(){ return composer; }, szene, kamera, messen(){ renderer.info.autoReset = false; renderer.info.reset(); rendern(); rendern(); const r = { aufrufe: Math.round(renderer.info.render.calls/2), dreiecke: Math.round(renderer.info.render.triangles/2) }; renderer.info.autoReset = true; const t0 = performance.now(); for(let i = 0; i < 60; i++) schritt(1/60); r.logikMs = ((performance.now() - t0)/60).toFixed(2); return r; }, get inventar(){ return inventar; }, get aktiv(){ return aktiv; }, waffeGeben, waffeWaehlen, radAuf, radZu, beute, WAFFEN, schuss: () => { schussPause = 0; schiessen(); }, get leben(){ return leben; }, get flieger(){ return flieger; }, streifen, verkehr, leute, get geld(){ return geld; }, get auftrag(){ return auftrag; }, spieler, fahrzeuge, W, get sterne(){ return sterne; }, fahndung, einsteigen, aussteigen, kam, setzeStunde: h => { stunde = h; zeitAktualisieren(0, true); }, tasten, gedrueckt, get laeuft(){ return laeuft; }, get mission(){ return mission; }, missionAnbieten, sms, telefonUmschalten, polizeiLeiste };
 aufbauen().catch(e => { console.error(e); $('ladetext').textContent = 'Fehler beim Aufbau: ' + e.message + ' — bitte neu laden.'; });

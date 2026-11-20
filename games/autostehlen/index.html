@@ -170,8 +170,59 @@ body.touch .fuss .nurMaus{ display:none }
 #auftragText{ font-size:15px; line-height:1.35; margin-top:5px }
 #auftragZeit{ font-family:var(--titel); font-size:26px; color:var(--sonne); margin-top:3px; font-variant-numeric:tabular-nums; -webkit-text-stroke:1px #000; paint-order:stroke fill }
 
+/* Mission per SMS */
+#mission{ position:absolute; top:calc(54px + var(--oben)); left:calc(12px + var(--links)); max-width:min(360px,58vw);
+  background:var(--panel); border:1px solid var(--kante); border-left:3px solid #ff4fd0; padding:8px 12px; border-radius:4px; display:none; backdrop-filter:blur(4px) }
+#mission.an{ display:block }
+#auftrag.an ~ #mission{ top:calc(150px + var(--oben)) }
+#mission .kopf{ display:flex; justify-content:space-between; gap:12px; font:600 11px/1 var(--text); letter-spacing:.16em; text-transform:uppercase; color:#ff4fd0 }
+#missionVon{ color:#e9edf5; opacity:.7 }
+#missionText{ font-size:15px; line-height:1.35; margin-top:5px }
+/* Untertitel */
+#untertitel{ position:absolute; left:50%; bottom:calc(92px + var(--unten)); transform:translate(-50%, 8px); max-width:min(720px, 86vw); text-align:center;
+  font:600 19px/1.35 var(--text); color:#fff; text-shadow:0 2px 4px #000, 0 0 12px rgba(0,0,0,.8); opacity:0; transition:opacity .25s, transform .25s; pointer-events:none }
+#untertitel.an{ opacity:1; transform:translate(-50%, 0) }
+/* Polizeileiste */
+#polizeiLeiste{ position:absolute; top:calc(10px + var(--oben)); left:50%; width:min(520px, 56vw); height:34px; transform:translate(-50%, -60px);
+  background:linear-gradient(90deg, transparent, rgba(8,10,18,.78) 12%, rgba(8,10,18,.78) 88%, transparent); border-top:2px solid rgba(255,58,58,.8); border-bottom:2px solid rgba(58,123,255,.8);
+  transition:transform .35s cubic-bezier(.2,.9,.3,1.2); overflow:hidden; pointer-events:none }
+#polizeiLeiste.an{ transform:translate(-50%, 0) }
+#polizeiLeiste .marken{ position:absolute; inset:0 }
+#polizeiLeiste .marken span{ position:absolute; top:50%; transform:translate(-50%, -50%) }
+#polizeiLeiste .himmel{ font:700 12px/1 var(--text); color:rgba(255,255,255,.75); letter-spacing:.05em }
+#polizeiLeiste .streife{ width:12px; height:12px; border-radius:50%; background:#ff3a3a; box-shadow:0 0 10px #ff3a3a, 0 0 0 2px #0b0d12 }
+#polizeiLeiste .streife.blau{ background:#3a7bff; box-shadow:0 0 10px #3a7bff, 0 0 0 2px #0b0d12 }
+#polizeiLeiste .streife.nah{ width:17px; height:17px }
+#polizeiLeiste .streife.hinten{ opacity:.6; width:9px; height:9px }
+#polizeiLeiste::after{ content:""; position:absolute; left:50%; top:0; width:2px; height:8px; background:#fff; transform:translateX(-50%) }
+#polizeiLeiste .zahl{ position:absolute; left:50%; bottom:-1px; transform:translateX(-50%); font:700 9px/1 var(--text); letter-spacing:.18em; text-transform:uppercase; color:#ffb0b0; opacity:.85 }
+/* Handy */
+#telefon{ position:absolute; right:calc(16px + var(--rechts)); top:calc(38% + var(--oben)); width:min(300px, 72vw); display:flex; gap:10px; align-items:flex-start;
+  background:rgba(14,16,26,.9); border:1px solid rgba(255,255,255,.14); border-radius:14px; padding:10px 12px; box-shadow:0 8px 28px rgba(0,0,0,.55);
+  transform:translateX(calc(100% + 40px)); transition:transform .4s cubic-bezier(.2,.9,.3,1.15); pointer-events:none }
+#telefon.an{ transform:none }
+#telefon .ava, #telefonListe .ava{ flex:0 0 34px; height:34px; border-radius:50%; display:grid; place-items:center; font:800 15px/1 var(--text); color:#0b0d12 }
+#telefon .kopfzeile{ display:flex; justify-content:space-between; gap:8px; font:700 13px/1.2 var(--text) }
+#telefon .zeit{ font-weight:500; opacity:.55; font-size:11px }
+#telefon .text{ font-size:14px; line-height:1.35; margin-top:3px; color:#e9edf5 }
+#telKnopf{ position:absolute; pointer-events:auto; left:calc(16px + var(--links)); bottom:calc(210px + var(--unten)); width:38px; height:38px; border-radius:10px;
+  border:2px solid rgba(255,255,255,.22); background:rgba(10,8,18,.72); color:#e9edf5; cursor:pointer; font-size:18px; display:grid; place-items:center }
+#telKnopf.neu::after{ content:""; position:absolute; top:-4px; right:-4px; width:12px; height:12px; border-radius:50%; background:#ff4fa0; box-shadow:0 0 0 2px #0b0d12; animation:blink 1s infinite }
+body.touch #telKnopf{ bottom:auto; top:calc(176px + var(--oben)); left:calc(12px + var(--links)) }
+#telefonListe{ position:absolute; pointer-events:auto; right:calc(16px + var(--rechts)); top:50%; transform:translate(calc(100% + 40px), -50%); width:min(330px, 86vw); height:min(560px, 76vh);
+  background:#0d0f18; border:3px solid #2a2e3c; border-radius:30px; box-shadow:0 12px 40px rgba(0,0,0,.6); display:flex; flex-direction:column; transition:transform .35s; overflow:hidden }
+#telefonListe.an{ transform:translate(0, -50%) }
+#telefonListe header{ display:flex; justify-content:space-between; align-items:center; padding:18px 18px 10px; font:700 17px/1 var(--text); border-bottom:1px solid rgba(255,255,255,.08) }
+#telefonListe header button{ background:none; border:0; color:#e9edf5; font-size:22px; cursor:pointer; line-height:1 }
+#telefonListe .liste2{ flex:1; overflow-y:auto; padding:8px 12px 16px }
+#telefonListe .nachricht{ display:flex; gap:10px; padding:10px 4px; border-bottom:1px solid rgba(255,255,255,.06) }
+#telefonListe .nachricht b{ font-size:14px } #telefonListe .nachricht small{ margin-left:8px; opacity:.5; font-size:11px }
+#telefonListe .nachricht p{ margin:3px 0 0; font-size:14px; line-height:1.35; color:#cfd5e2 }
+#telefonListe .leer{ opacity:.5; text-align:center; margin-top:40px }
+@media (max-width: 600px){ #polizeiLeiste{ width:62vw; top:calc(54px + var(--oben)) } #untertitel{ font-size:16px } }
+
 #miniRahmen{ position:absolute; left:calc(16px + var(--links)); bottom:calc(16px + var(--unten)); width:184px; height:184px;
-  border-radius:50%; box-shadow:0 4px 18px rgba(0,0,0,.5) }
+  border-radius:4px; overflow:hidden; box-shadow:0 4px 18px rgba(0,0,0,.5) }
 #mini{ width:100%; height:100%; display:block }
 #miniRahmen{ pointer-events:auto; cursor:pointer }
 #miniRahmen:hover{ box-shadow:0 4px 18px rgba(0,0,0,.5), 0 0 0 3px rgba(255,255,255,.35) }
@@ -277,7 +328,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
 <div class="tafel" id="tSteuerung" role="dialog" aria-label="Steuerung">
   <h2>Steuerung</h2>
   <div class="tasten nurMaus">
-    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen · Linksklick: schlagen oder schießen · <kbd>Tab</kbd> halten: Waffenrad · <kbd>1</kbd>–<kbd>6</kbd> Waffe · <kbd>R</kbd> nachladen</div>
+    <div class="tk"><h3>Zu Fuß</h3><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>⇧</kbd> rennen · <kbd>Leer</kbd> springen · Maus: umsehen · Linksklick: schlagen oder schießen · <kbd>Tab</kbd> halten: Waffenrad · <kbd>1</kbd>–<kbd>6</kbd> Waffe · <kbd>R</kbd> nachladen · <kbd>T</kbd> Handy</div>
     <div class="tk"><h3>Auto und Boot</h3><kbd>E</kbd> ein- und aussteigen · <kbd>W</kbd><kbd>S</kbd> Gas und Bremse · <kbd>A</kbd><kbd>D</kbd> lenken · <kbd>Leer</kbd> Handbremse · <kbd>⇧</kbd> Boost</div>
     <div class="tk"><h3>Flugzeug</h3><kbd>W</kbd><kbd>S</kbd> Schub · <kbd>A</kbd><kbd>D</kbd> Kurve · <kbd>↑</kbd> oder <kbd>Leer</kbd> steigen · <kbd>↓</kbd> sinken · erst ab 110 km/h hochziehen · <kbd>E</kbd> in der Luft: Fallschirm</div>
     <div class="tk"><h3>Sonst</h3><kbd>M</kbd> Karte · <kbd>Esc</kbd> Pause · Mausrad: Kameraabstand · Klick ins Bild fängt die Maus</div>
@@ -299,6 +350,7 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
     <div><b>BMW E30</b> · „(Low-poly) BMW E30 (free download)“ von KrStolorz · <a href="https://sketchfab.com/3d-models/low-poly-bmw-e30-free-download-e453bdae0ee1423ea79f1322db1c7459" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
     <div><b>Muscle-Car</b> · „LowPoly Game model“ von archer1533 · <a href="https://sketchfab.com/3d-models/lowpoly-game-model-c429b45462524c03a460ace11f596f95" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
     <div><b>Figur</b> · „Nathan Animated 003 – Walking 3D Man“ von Renderpeople · <a href="https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc" target="_blank" rel="noopener">Sketchfab</a> · CC BY 4.0</div>
+    <div><b>Sumpf &amp; Bäume</b> · „Cypress Tree – Low Poly“ von Alan Zimmerman (<a href="https://sketchfab.com/3d-models/cypress-tree-low-poly-2c596282c551468ea6c6a129405e6b68" target="_blank" rel="noopener">Sketchfab</a>), „Fern Bush“ von patriciateal880 (<a href="https://sketchfab.com/3d-models/fern-bush-0237b39ed63741c1a802d33811fdaaa8" target="_blank" rel="noopener">Sketchfab</a>), „Plant Bush“ von Batuhan13 (<a href="https://sketchfab.com/3d-models/plant-bush-42cb7fad10ba44ecbc9ae9cf5fdd63b6" target="_blank" rel="noopener">Sketchfab</a>) · CC BY 4.0 · „Island Tree 02“ (<a href="https://polyhaven.com/a/island_tree_02" target="_blank" rel="noopener">Poly Haven</a>) · CC0</div>
     <div><b>Waffen</b> · „H&amp;K USP 9mm Pistol“ von Elisei, „Revolver Navy Colt 1851 Silver“ von Johan Pindeville, „Sawed-off Shotgun“ von Matthew-David, „Low-Poly Mini Uzi“ von TastyTony, „M4A1 Rifle“ von ErhanMatur · alle Sketchfab · CC BY 4.0</div>
     <div><b>Läden</b> · „Strong Chicken“ von zixisun02, „Fast foods“ von ElectroNick, „Fast Food Poster“ von mercurio22, „Table and Chairs“ von Graham, „Cash Register“ von bretzel44, „Kitchen Counter“ von euanford12321 · alle Sketchfab · CC BY 4.0</div>
     <div><b>Straße</b> · „traffic light + animation“ von Daniel Brück, „Bench_1“ von sirenko, „super heavy duty square trash“ von Henry VIII, „Dumpster“ von Romain PERRONE, „Bar Table“ von CommonSpence, „Free Tree 1“ von Giimann · alle Sketchfab · CC BY 4.0</div>
@@ -332,6 +384,12 @@ body.touch #hinweis{ bottom:calc(220px + var(--unten)) }
     <div id="auftragText"></div>
     <div id="auftragZeit"></div>
   </div>
+  <div id="mission"><div class="kopf"><span>Mission</span><span id="missionVon"></span></div><div id="missionText"></div></div>
+  <div id="polizeiLeiste"><div class="marken"></div><div class="zahl"></div></div>
+  <div id="untertitel"></div>
+  <div id="telefon"><span class="ava"></span><div style="flex:1"><div class="kopfzeile"><span class="von"></span><span class="zeit"></span></div><div class="text"></div></div></div>
+  <button id="telKnopf" title="Handy (T)" aria-label="Handy">&#128241;</button>
+  <div id="telefonListe"><header><span>Nachrichten</span><button id="telefonZu" aria-label="Schließen">&times;</button></header><div class="liste2"></div></div>
   <div id="miniRahmen"><canvas id="mini" width="240" height="240"></canvas></div>
   <div id="tacho"><div id="tachoZahl">0</div><small>km/h</small><div id="hoehe"></div></div>
   <div id="hinweis"></div>
