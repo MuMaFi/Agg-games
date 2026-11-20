@@ -17,7 +17,32 @@ export const STEGE = [
   { x0: 150, x1: 194, z0: 18, z1: 22 },
   { x0: 150, x1: 194, z0: 78, z1: 82 },
 ];
-export const RAND = 1500; // weiter draußen ist Schluss
+export const RAND = 1650; // weiter draußen ist Schluss
+// Sumpfgebiet südlich der Stadt: Hügel, ein gewundener Fluss, Tümpel, Dammstraßen
+export const SUMPF = { x0: -712, x1: 150, z0: -1520, z1: -712 };
+export const SUMPF_STRASSEN = [-384, -96]; // Nord-Süd-Dämme (x), dazu ein Querdamm bei z = -1056
+const glattS = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a)/(b - a))); return t*t*(3 - 2*t); };
+export function flussX(z){ return -250 + 165*Math.sin((z + 712)*.0085) + 55*Math.sin(z*.021 + 1); }
+export function sumpfHoehe(x, z){
+  // sanfte Hügel aus überlagerten Wellen
+  let h = 1.5 + 2.4*Math.sin(x*.0105 + 1.3)*Math.sin(z*.0125) + 1.5*Math.sin(x*.029 + z*.017) + .9*Math.sin(x*.067 - z*.049 + 2) + .45*Math.sin(x*.19 + z*.23);
+  // Tümpel: wo die Wellen tief liegen
+  h -= 1.6*Math.max(0, Math.sin(x*.023 + 2.1)*Math.sin(z*.027 + .7) - .55)*2.2;
+  // der Fluss
+  if(z < -735){ const df = Math.abs(x - flussX(z)); h = h*glattS(9, 30, df) + (-2.8)*(1 - glattS(9, 30, df)); }
+  // zum Meer hin abfallen (Westen, Süden, Osten), zur Stadt hin flach auslaufen
+  const rand = Math.min(x - SUMPF.x0, z - SUMPF.z0, SUMPF.x1 - x);
+  h = h*glattS(0, 70, rand) + (-3.2)*(1 - glattS(0, 70, rand));
+  const nord = SUMPF.z1 - z; h *= glattS(0, 40, nord);
+  // Dämme: Straßen liegen eben auf Höhe 0
+  let dd = Infinity;
+  if(z > -1356) dd = Math.min(dd, Math.abs(x + 384));
+  if(z > -1068) dd = Math.min(dd, Math.abs(x + 96));
+  if(x > -392 && x < -88) dd = Math.min(dd, Math.abs(z + 1056));
+  if(dd < 26) h = h*glattS(10, 26, dd);
+  return h;
+}
+const imSumpf = (x, z) => x >= SUMPF.x0 && x <= SUMPF.x1 && z >= SUMPF.z0 && z < SUMPF.z1;
 
 const klemm = (v, a, b) => v < a ? a : v > b ? b : v;
 const inRect = (r, x, z) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
@@ -35,6 +60,7 @@ export function aufBruecke(x, z){
 export const INNENRAEUME = [];
 export function landAt(x, z){
   if(inRect(FESTLAND, x, z) || inRect(INSEL, x, z)) return true;
+  if(imSumpf(x, z)) return sumpfHoehe(x, z) > WASSER_Y + .2;
   for(const r of INNENRAEUME) if(inRect(r, x, z)) return true;
   for(const s of STEGE) if(inRect(s, x, z)) return true;
   return false;
@@ -61,6 +87,7 @@ function plattformRein(p){
 }
 export function bodenY(x, z){
   if(aufBruecke(x, z)) return brueckeH(x);
+  if(imSumpf(x, z)) return Math.max(sumpfHoehe(x, z), WASSER_Y);
   const l = plattGitter.get(Math.floor(x/PG)*4096 + Math.floor(z/PG));
   if(l) for(const p of l) if(inRect(p, x, z)) return p.y;
   return 0;
@@ -166,6 +193,15 @@ for(let j = 0; j < IZ.length; j++){
   }
 }
 for(const b of BRUECKEN) verbinde(knotenBei(96, b.z), knotenBei(448, b.z), true);
+// Dammstraßen in den Sumpf: x = -384 bis z = -1344, x = -96 bis z = -1056, Querdamm bei z = -1056
+{
+  let vor = knotenBei(-384, -672);
+  for(let z = -768; z >= -1344; z -= 96){ const k = knotenRein(-384, z); verbinde(vor, k); vor = k; }
+  vor = knotenBei(-96, -672);
+  for(let z = -768; z >= -1056; z -= 96){ const k = knotenRein(-96, z); verbinde(vor, k); vor = k; }
+  vor = knotenBei(-384, -1056);
+  for(let x = -288; x <= -96; x += 96){ const k = knotenRein(x, -1056); verbinde(vor, k); vor = k; }
+}
 
 export function naechsterKnoten(x, z){
   let best = 0, bd = Infinity;
@@ -426,7 +462,7 @@ export function baueWelt(szene, qualitaet, K){
     B.quadOben([x0, y, z0], [x0, y, z1], [x0 - b, y, z1 + b], [x0 - b, y, z0 - b], [0, .5], [0, .5], [1, .5], [1, .5]);
   }
   function palme(x, z, s = 1){ palmen.push({ x, z, s: s*R(.85, 1.2), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .35, x + .35, z - .35, z + .35, -1, 9, 'palme'); }
-  function baum(x, z){ baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z) }); hindernis(x - .4, x + .4, z - .4, z + .4, -1, 6, 'baum'); }
+  function baum(x, z, typ){ baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z), typ: typ || (Z() < .55 ? 'n_laubbaum' : 's_baum') }); hindernis(x - .4, x + .4, z - .4, z + .4, -1, 6, 'baum'); }
   function inPlatz(b, rand, n, f){
     for(let i = 0; i < n; i++) f(R(b.x0 + rand, b.x1 - rand), R(b.z0 + rand, b.z1 - rand));
   }
@@ -444,7 +480,7 @@ export function baueWelt(szene, qualitaet, K){
 
   for(const b of bloecke){
     const cx = (b.x0 + b.x1)/2, cz = (b.z0 + b.z1)/2;
-    if(b.art === 'park'){ platte(b, 'gras'); inPlatz(b, 3, Math.floor((b.x1 - b.x0)*(b.z1 - b.z0)/500), (x, z) => Z() < .5 ? palme(x, z) : baum(x, z)); continue; }
+    if(b.art === 'park'){ platte(b, 'gras'); inPlatz(b, 3, Math.floor((b.x1 - b.x0)*(b.z1 - b.z0)/220), (x, z) => Z() < .35 ? palme(x, z) : Z() < .8 ? baum(x, z) : baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z), typ: 'n_busch' })); continue; }
     if(b.art === 'promenade'){
       platte(b, 'gehweg');
       const x = b.x1 - 6;
@@ -496,7 +532,7 @@ export function baueWelt(szene, qualitaet, K){
     const zone = d < 240 ? 'mitte' : d < 430 ? 'rand' : 'vorort';
     const r = Z();
     if(zone !== 'mitte' && r < .12){
-      platte(b, 'gras'); inPlatz(b, 4, RI(8, 14), (x, z) => Z() < .55 ? palme(x, z) : baum(x, z));
+      platte(b, 'gras'); inPlatz(b, 4, RI(20, 32), (x, z) => Z() < .35 ? palme(x, z) : Z() < .8 ? baum(x, z) : baeume.push({ x, z, s: R(.8, 1.3), r: R(0, 6.28), y: bodenY(x, z), typ: 'n_busch' }));
       continue;
     }
     if(zone !== 'vorort' && r > .93 || zone === 'vorort' && r > .95){
@@ -543,11 +579,13 @@ export function baueWelt(szene, qualitaet, K){
       // Wohnviertel: 3 × 3 Häuser mit Garten und Einfahrt
       for(let i = 0; i < 3; i++) for(let j = 0; j < 3; j++){
         const lx = b.x0 + i*26.7, lz = b.z0 + j*26.7;
-        if(i === 1 && j === 1){ baum(lx + 13, lz + 13); palme(lx + 8, lz + 18); continue; }
+        if(i === 1 && j === 1){ baum(lx + 13, lz + 13); palme(lx + 8, lz + 18); baum(lx + 20, lz + 6); continue; }
         const w = R(10, 14), dd = R(9, 13);
         const x0 = lx + R(3, 26.7 - w - 3), z0 = lz + R(3, 26.7 - dd - 3);
         gebaeude(x0, x0 + w, z0, z0 + dd, Z() < .3 ? 6.4 : 3.2 + R(0, .4), 'haus', { spitz: Z() < .7, dachfarbe: wahl([[1, 1, 1], [.75, .78, .8], [1, .85, .75]]) });
         if(Z() < .6) palme(lx + R(2, 24), lz + R(2, 24) < z0 ? lz + 2 : lz + 24);
+        // Gartenbaum an der freien Ecke des Grundstücks
+        if(Z() < .7){ const bx = x0 > lx + 13 ? lx + 3 : lx + 23.7, bz = z0 > lz + 13 ? lz + 3 : lz + 23.7; if(!inHindernis(bx, 1, bz)) baum(bx, bz); }
         if(Z() < .22){
           // Auto in der Einfahrt, wo Platz ist
           const px = i === 0 ? lx + 4 : i === 2 ? lx + 22.7 : null;
@@ -574,6 +612,7 @@ export function baueWelt(szene, qualitaet, K){
         [0, v0], [1, v0], [1, v1], [0, v1]);
     }
     // Laternen am Rand
+    if(Math.min(A.z, B.z) < -700) continue; // im Sumpf keine Laternen
     for(let t = 16; t < k.len - 12; t += 32){
       for(const seite of [-1, 1]){
         const px = A.x + dx*t + rx*seite*(k.bruecke ? 7.6 : 9.4), pz = A.z + dz*t + rz*seite*(k.bruecke ? 7.6 : 9.4);
@@ -667,7 +706,7 @@ export function baueWelt(szene, qualitaet, K){
       const B = bau('gras', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2);
       B.quadOben([r.x0, -.06, r.z0], [r.x1, -.06, r.z0], [r.x1, -.06, r.z1], [r.x0, -.06, r.z1], [r.x0/3.5, r.z0/3.5], [r.x1/3.5, r.z0/3.5], [r.x1/3.5, r.z1/3.5], [r.x0/3.5, r.z1/3.5], [.92, .95, .9]);
       const W = bau('beton', (r.x0 + r.x1)/2, (r.z0 + r.z1)/2), u = -6, c = [.8, .78, .74];
-      W.quad([r.x0, u, r.z0], [r.x1, u, r.z0], [r.x1, 0, r.z0], [r.x0, 0, r.z0], [0, 0], [1, 0], [1, 1], [0, 1], c);
+      if(r !== FESTLAND) W.quad([r.x0, u, r.z0], [r.x1, u, r.z0], [r.x1, 0, r.z0], [r.x0, 0, r.z0], [0, 0], [1, 0], [1, 1], [0, 1], c);
       W.quad([r.x1, u, r.z1], [r.x0, u, r.z1], [r.x0, 0, r.z1], [r.x1, 0, r.z1], [0, 0], [1, 0], [1, 1], [0, 1], c);
       W.quad([r.x0, u, r.z1], [r.x0, u, r.z0], [r.x0, 0, r.z0], [r.x0, 0, r.z1], [0, 0], [1, 0], [1, 1], [0, 1], c);
       if(r !== INSEL) W.quad([r.x1, u, r.z0], [r.x1, u, r.z1], [r.x1, 0, r.z1], [r.x1, 0, r.z0], [0, 0], [1, 0], [1, 1], [0, 1], c);
@@ -740,6 +779,50 @@ export function baueWelt(szene, qualitaet, K){
     szene.add(wand, kuppel);
   }
 
+  /* Sumpf: Gelände als Gitter, trübes Wasser, viele Bäume und Büsche */
+  {
+    const S = SUMPF, schritt = 2.5;
+    const nx = Math.round((S.x1 - S.x0)/schritt), nz = Math.round((S.z1 - S.z0)/schritt);
+    const pos = [], col = [], uv = [], idx = [];
+    // Tönung (linear) über der Grastextur: Schlamm am Wasser, dunkles Grün in Senken, helleres auf Hügeln
+    const c = new THREE.Color(), schlamm = new THREE.Color().setRGB(.62, .48, .32), dunkel = new THREE.Color().setRGB(.4, .5, .34), hell = new THREE.Color().setRGB(.7, .8, .6);
+    for(let j = 0; j <= nz; j++) for(let i = 0; i <= nx; i++){
+      const x = S.x0 + i*schritt, z = S.z0 + j*schritt;
+      const h = sumpfHoehe(x, z);
+      pos.push(x, h, z); uv.push(x/3.5, z/3.5);
+      c.copy(schlamm).lerp(dunkel, glattS(WASSER_Y + .2, WASSER_Y + 1.2, h)).lerp(hell, Math.max(0, Math.min(1, (h - 1)/6)));
+      const v = .88 + .12*Math.sin(x*.31 + z*.27); col.push(c.r*v, c.g*v, c.b*v);
+    }
+    for(let j = 0; j < nz; j++) for(let i = 0; i < nx; i++){
+      const a = j*(nx + 1) + i, b = a + 1, d = a + nx + 1, e = d + 1;
+      idx.push(a, d, b, b, d, e);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+    const gelaende = new THREE.Mesh(g, M.gras); gelaende.receiveShadow = true; szene.add(gelaende);
+    // Sumpfwasser: bräunlich-grüner Schleier über dem Wasser
+    const sumpfWasser = new THREE.Mesh(new THREE.PlaneGeometry(S.x1 - S.x0 - 60, S.z1 - S.z0 - 40).rotateX(-Math.PI/2),
+      new THREE.MeshStandardMaterial({ color: 0x283020, roughness: .3, metalness: 0, envMapIntensity: .55 }));
+    sumpfWasser.position.set((S.x0 + S.x1)/2, WASSER_Y + .2, (S.z0 + S.z1)/2 - 10); sumpfWasser.receiveShadow = true;
+    szene.add(sumpfWasser);
+    // Bewuchs: dicht, am Wasser vor allem Zypressen, auf Hügeln Laubbäume, dazwischen Büsche und Farn
+    for(let n = 0; n < 9000 && baeume.length < 4200; n++){
+      const x = R(S.x0 + 20, S.x1 - 20), z = R(S.z0 + 20, S.z1 - 6);
+      const h = sumpfHoehe(x, z);
+      if(h < WASSER_Y + .25 || h > 9) continue;
+      let dd = Math.min(Math.abs(x + 384), Math.abs(x + 96) + (z < -1068 ? 1e9 : 0), x > -392 && x < -88 ? Math.abs(z + 1056) : 1e9);
+      if(dd < 14) continue;
+      const nahWasser = h < .6 || Math.abs(x - flussX(z)) < 45;
+      const r = Z();
+      if(r < .38){ const typ = nahWasser || Z() < .45 ? 'n_zypresse' : 'n_laubbaum'; baeume.push({ x, z, s: R(.75, 1.35), r: R(0, 6.28), y: h, typ }); hindernis(x - .45, x + .45, z - .45, z + .45, -2, 10, 'baum'); }
+      else if(r < .44) palme(x, z);
+      else baeume.push({ x, z, s: R(.7, 1.4), r: R(0, 6.28), y: h, typ: Z() < .5 ? 'n_farn' : 'n_busch' });
+    }
+  }
+
   /* Meshes aus den Baukästen */
   const schattenWerfer = new Set(['glas', 'dunkel', 'buero', 'deko', 'haus', 'ziegel', 'dach', 'beton']);
   for(const b of stuecke.values()){
@@ -793,7 +876,16 @@ export function baueWelt(szene, qualitaet, K){
     if(K) turmeAufstellen(szene, K, tmp);
 
     if(K && K.s_baum){
-      nachOrt(szene, K.s_baum, baeume, (b, t) => { t.position.set(b.x, b.y, b.z); t.rotation.set(0, b.r, 0); t.scale.setScalar(b.s*7.5); }, { weite: 420, schatten: true });
+      const hoeheBaum = { s_baum: 7.5, n_laubbaum: 9, n_zypresse: 11, n_farn: 1.3, n_busch: 1.6 };
+      const fernBaum = baumFernstufen();
+      // die Low-Poly-Zypresse ist von Haus aus sehr dunkel
+      if(K.n_zypresse) for(const tl of K.n_zypresse.teile) if(tl.mat.color && !tl.mat.userData.aufgehellt){ tl.mat.color.multiplyScalar(1.7); tl.mat.userData.aufgehellt = true; }
+      for(const typ of Object.keys(hoeheBaum)){
+        const liste = baeume.filter(b => (b.typ || 's_baum') === typ);
+        const klein = hoeheBaum[typ] < 2;
+        if(liste.length && K[typ]) nachOrt(szene, K[typ], liste, (b, t) => { t.position.set(b.x, b.y - .1, b.z); t.rotation.set(0, b.r, 0); t.scale.setScalar(b.s*hoeheBaum[typ]); },
+          klein ? { weite: 110, zelle: 100 } : { weite: 230, zelle: 100, schatten: true, fern: fernBaum[typ === 'n_zypresse' ? 'zypresse' : 'laub'], fernWeite: 1100 });
+      }
     } else {
     const baumStamm = new THREE.InstancedMesh(new THREE.CylinderGeometry(.18, .28, 3, 6).translate(0, 1.5, 0), new THREE.MeshStandardMaterial({ color: 0x6b4f37, roughness: .9 }), baeume.length);
     const laubGeo = new THREE.IcosahedronGeometry(2.4, 1).translate(0, 4.2, 0);
@@ -899,25 +991,47 @@ export function mergeSimple(geos){
 /* Instanzen nach Stadtviertel (200 m) getrennt: so fallen unsichtbare Viertel aus dem Bild
    (Frustum-Culling) und ferne Viertel werden gar nicht erst gezeichnet. */
 export const ortsGruppen = [];
-function nachOrt(szene, modell, liste, setze, { weite = 250, schatten = false } = {}){
+// Billige Ersatzbäume für die Ferne (Höhe 1, wird wie das echte Modell skaliert)
+function baumFernstufen(){
+  const stamm = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: .95 });
+  const laub = new THREE.MeshStandardMaterial({ color: 0x34502a, roughness: .9, flatShading: true });
+  const dunkel = new THREE.MeshStandardMaterial({ color: 0x26402a, roughness: .9, flatShading: true });
+  return {
+    laub: [
+      { geo: new THREE.CylinderGeometry(.025, .04, .5, 5).translate(0, .25, 0), mat: stamm },
+      { geo: new THREE.IcosahedronGeometry(.36, 0).scale(1, .78, 1).translate(0, .66, 0), mat: laub },
+    ],
+    zypresse: [
+      { geo: new THREE.CylinderGeometry(.02, .03, .2, 5).translate(0, .1, 0), mat: stamm },
+      { geo: new THREE.ConeGeometry(.15, .88, 6).translate(0, .56, 0), mat: dunkel },
+    ],
+  };
+}
+function nachOrt(szene, modell, liste, setze, { weite = 250, schatten = false, zelle = 200, fern = null, fernWeite = 0 } = {}){
   const viertel = new Map(), t = new THREE.Object3D();
   for(const e of liste){
-    const k = Math.floor(e.x/200) + ',' + Math.floor(e.z/200);
+    const k = Math.floor(e.x/zelle) + ',' + Math.floor(e.z/zelle);
     if(!viertel.has(k)) viertel.set(k, []);
     viertel.get(k).push(e);
   }
   for(const teile of viertel.values()){
     const ims = modell.teile.map(tl => { const im = new THREE.InstancedMesh(tl.geo, tl.mat, teile.length); im.castShadow = schatten; im.receiveShadow = true; szene.add(im); return im; });
+    // Fernstufe: einfache Ersatzform, die weit weg statt des echten Modells gezeigt wird
+    const fims = fern ? fern.map(tl => { const im = new THREE.InstancedMesh(tl.geo, tl.mat, teile.length); im.receiveShadow = true; im.visible = false; szene.add(im); return im; }) : [];
     let cx = 0, cz = 0;
-    teile.forEach((e, i) => { setze(e, t); t.updateMatrix(); for(const im of ims) im.setMatrixAt(i, t.matrix); cx += e.x; cz += e.z; });
-    for(const im of ims){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.computeBoundingBox(); }
-    ortsGruppen.push({ ims, x: cx/teile.length, z: cz/teile.length, weite });
+    teile.forEach((e, i) => { setze(e, t); t.updateMatrix(); for(const im of ims) im.setMatrixAt(i, t.matrix); for(const im of fims) im.setMatrixAt(i, t.matrix); cx += e.x; cz += e.z; });
+    for(const im of [...ims, ...fims]){ im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.computeBoundingBox(); }
+    ortsGruppen.push({ ims, fims, x: cx/teile.length, z: cz/teile.length, weite, fernWeite, schatten, halb: zelle*.5 });
   }
 }
 export function ortsGruppenZeigen(px, pz){
   for(const g of ortsGruppen){
-    const an = Math.hypot(g.x - px, g.z - pz) < g.weite + 100;
-    for(const im of g.ims) im.visible = an;
+    const d = Math.hypot(g.x - px, g.z - pz), an = d < g.weite + g.halb;
+    // Schatten nur in der Nähe – weiter weg sieht man sie ohnehin kaum
+    const schatten = g.schatten && d < 200 + g.halb;
+    for(const im of g.ims){ im.visible = an; im.castShadow = schatten; }
+    const fan = !an && d < g.fernWeite;
+    for(const im of g.fims) im.visible = fan;
   }
 }
 function instanzen(szene, modell, n, schatten = true){

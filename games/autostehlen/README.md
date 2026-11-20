@@ -48,6 +48,10 @@ schneller abgespielt. Die Vorwärtsdrift der Hüfte wird beim Laden entfernt.
 | Limousine | „Low poly Foxbody sedan“ von Daniel Zhabotinsky, [Sketchfab](https://sketchfab.com/3d-models/low-poly-foxbody-sedan-3d4f0d584c6945c8b14d081968073586) | CC BY 4.0 |
 | BMW E30 | „(Low-poly) BMW E30 (free download)“ von KrStolorz, [Sketchfab](https://sketchfab.com/3d-models/low-poly-bmw-e30-free-download-e453bdae0ee1423ea79f1322db1c7459) | CC BY 4.0 |
 | Muscle-Car | „LowPoly Game model“ von archer1533, [Sketchfab](https://sketchfab.com/3d-models/lowpoly-game-model-c429b45462524c03a460ace11f596f95) | CC BY 4.0 |
+| Zypresse | „Cypress Tree – Low Poly“ von Alan Zimmerman, [Sketchfab](https://sketchfab.com/3d-models/cypress-tree-low-poly-2c596282c551468ea6c6a129405e6b68) | CC BY 4.0 |
+| Laubbaum | „Island Tree 02“, [Poly Haven](https://polyhaven.com/a/island_tree_02) | CC0 |
+| Farn | „Fern Bush“ von patriciateal880, [Sketchfab](https://sketchfab.com/3d-models/fern-bush-0237b39ed63741c1a802d33811fdaaa8) | CC BY 4.0 |
+| Busch | „Plant Bush“ von Batuhan13, [Sketchfab](https://sketchfab.com/3d-models/plant-bush-42cb7fad10ba44ecbc9ae9cf5fdd63b6) | CC BY 4.0 |
 | Spielfigur | „Nathan Animated 003 – Walking 3D Man“ von Renderpeople, [Sketchfab](https://sketchfab.com/3d-models/nathan-animated-003-walking-3d-man-143a2b1ea5eb4385ae90a73657aca3bc) | CC BY 4.0 |
 | Hochhäuser | „Miami style condominium“ und „Hi rise apartment building“ von aitortilla01 (Sketchfab) | CC BY 4.0 |
 | Palmen | „Date Palm“ von evolveduk, „Phoenix Palm: Cities Skylines“ von TheHyperChimp (Sketchfab) | CC BY 4.0 |
