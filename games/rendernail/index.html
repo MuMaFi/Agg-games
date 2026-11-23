@@ -41,7 +41,7 @@ header.top{flex:none;background:#232323;border-bottom:1px solid var(--line)}
 .nav a{display:flex;align-items:center;color:var(--muted);text-decoration:none;font-weight:500;padding:0 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
 .nav a:hover{color:var(--fg)}
 .nav a[aria-current="page"]{color:var(--fg);border-bottom-color:#cfcfcf}
-.hstat{margin-left:auto;color:var(--dim);font-size:11.5px}
+.hstat{margin-left:auto;margin-right:4px;color:var(--dim);font-size:11.5px}
 main{flex:1;min-height:0;position:relative}
 .view{position:absolute;inset:0;overflow:auto;-webkit-overflow-scrolling:touch}
 .view.fixed{overflow:hidden}
@@ -311,6 +311,67 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:11.5px;text-align:rig
 }
 @media (min-width:761px){ #dock-toggle{display:none} }
 
+/* Start-Animation, Modus-Wahl, Einstellungen */
+.splash{position:fixed;inset:0;z-index:110;background:#1b1b1b;display:grid;place-items:center}
+.splash-in{display:flex;flex-direction:column;align-items:center;gap:14px;opacity:0}
+.splash-in svg{width:86px;height:86px}
+.splash-in b{font-size:22px;font-weight:700;letter-spacing:.01em}
+.splash.go .splash-in{animation:rnpop 1.4s cubic-bezier(.2,.9,.25,1) both}
+@keyframes rnpop{0%{transform:scale(.3);opacity:0}20%{transform:scale(1.12);opacity:1}32%{transform:scale(.97)}40%{transform:scale(1)}72%{transform:scale(1);opacity:1}82%{transform:scale(1.1);opacity:1}100%{transform:scale(.2);opacity:0}}
+@media (prefers-reduced-motion: reduce){.splash.go .splash-in{animation:rnfade 1.4s ease both}@keyframes rnfade{0%,100%{opacity:0}25%,75%{opacity:1}}}
+.gate-card.wide{width:min(640px,100%)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 16px}
+.mode{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid #444;border-radius:8px;background:var(--panel2)}
+.mode:hover,.mode[aria-pressed="true"]{border-color:#bdbdbd;background:#303030}
+.mode:focus-visible{outline:1px solid #f2f2f2}
+.mode b{font-size:14.5px}
+.mode b+span{font-size:12px;color:var(--muted);line-height:1.45}
+.mock{display:grid;height:86px;border-radius:5px;background:#1c1c1c;border:1px solid #3a3a3a;padding:6px;gap:5px;margin-bottom:4px}
+.mock i{display:block;background:#3a3a3a;border-radius:3px}
+.mock.simple{grid-template-columns:22% 1fr}.mock.simple i:nth-child(1){grid-row:span 2}.mock.simple i:nth-child(2){background:#4a4a4a}.mock.simple i:nth-child(3){height:14px;align-self:end;width:60%;justify-self:center;border-radius:7px}
+.mock.pro{grid-template-columns:8% 1fr 24%;grid-template-rows:9px 1fr}.mock.pro i:nth-child(1){grid-column:1/-1;height:9px}.mock.pro i:nth-child(2){grid-column:2;background:#4a4a4a}.mock.pro i:nth-child(3){grid-column:3}
+.modes.small .mock{height:60px}
+.center{text-align:center}
+.setdlg{width:min(520px,calc(100vw - 32px));padding:0}
+.set-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.set-head h2{margin:0;font-size:15px}
+.set-sec{padding:14px;border-bottom:1px solid #353535;display:flex;flex-direction:column;gap:10px}
+.set-sec:last-child{border-bottom:0}
+.set-sec h3{margin:0;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+@media (max-width:560px){.modes{grid-template-columns:1fr}}
+/* Simpel-Modus: frühere Anordnung, große Knöpfe, gleiche Farben */
+body.simple{--r:7px;font-size:14px}
+body.simple .btn{height:34px;padding:0 14px;font-size:13.5px}
+body.simple .btn.sm{height:30px;padding:0 11px;font-size:12.5px}
+body.simple .btn.icon{width:34px;padding:0}
+body.simple .menus,body.simple .doctabs,body.simple .xf-grp,body.simple .field .lab .num{display:none}
+body.simple .ed-top{height:46px}
+body.simple .optbar{height:46px}
+body.simple .opt-sel .btn.ic{width:auto;padding:0 12px}
+body.simple .opt-sel .btn.ic span{display:inline}
+body.simple .ed-body{grid-template-columns:76px 300px minmax(0,1fr)}
+body.simple .rail{gap:4px;padding:8px 6px}
+body.simple .rail button{width:64px;height:auto;padding:9px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:500}
+body.simple .rail button span{position:static;width:auto;height:auto;clip:auto;overflow:visible}
+body.simple .rail svg{width:21px;height:21px}
+body.simple .side .dock-layers{flex:0 0 38%;min-height:120px}
+body.simple .dock{position:absolute;right:12px;top:12px;width:300px;max-height:calc(100% - 64px);border:1px solid #444;border-radius:10px;box-shadow:0 16px 40px -14px rgb(0 0 0 / .85);z-index:4;overflow:hidden}
+body.simple .dock.noselect{display:none}
+body.simple .dock-props{flex:1 1 auto;min-height:0}
+body.simple .dock-props .panel-head{display:none}
+body.simple .props{padding:14px}
+body.simple .layer{padding:5px 6px;border-radius:7px}
+body.simple .tile .ti,body.simple .fmt,body.simple .pcard .pv,body.simple .packbox{border-radius:10px}
+body.simple .start{grid-template-columns:1fr}
+body.simple .start-nav{display:none}
+body.simple .start-main .home{padding:40px max(16px,env(safe-area-inset-left,0px)) 60px}
+body.simple .home h1{font-size:clamp(30px,5vw,50px);letter-spacing:-.03em}
+body.simple .home .lead{font-size:16px}
+body.simple .fmt{min-height:150px;padding:18px}
+body.simple .statusbar{left:50%;transform:translateX(-50%);bottom:12px;border:1px solid #3a3a3a;border-radius:10px;height:40px}
+body.simple .st-status{height:50px}
+@media (max-width:1100px){body.simple .ed-body{grid-template-columns:76px minmax(0,1fr)}body.simple .side{left:76px}}
+@media (max-width:760px){body.simple .dock{left:8px;right:8px;width:auto;top:auto;bottom:64px;max-height:48%}}
 /* Minecraft-Figuren */
 .skinadd{margin-bottom:8px}
 .skin-tile{width:calc((100% - 12px)/3);align-items:center}
@@ -387,6 +448,7 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:11.5px;text-align:rig
         <a href="../../">AGG Games</a>
       </nav>
       <span class="hstat" id="savestate" role="status"></span>
+      <button class="btn ghost sm icon" id="set-open" type="button" aria-label="Einstellungen" title="Einstellungen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button>
     </div>
   </header>
 
@@ -510,6 +572,19 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:11.5px;text-align:rig
   </main>
 </div>
 
+<div class="splash" id="splash" hidden><div class="splash-in"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 10 16 17 3 10Z" fill="#d9d9d9"/><path d="M3 10 16 17V30L3 23Z" fill="#9a9a9a"/><path d="M29 10 16 17V30L29 23Z" fill="#6b6b6b"/></svg><b>Rendernail</b></div></div>
+<div class="gate" id="chooser" hidden>
+  <div class="gate-card wide" role="dialog" aria-modal="true" aria-labelledby="ch-h">
+    <h1 id="ch-h">Wie möchtest du arbeiten?</h1>
+    <p>Beide können dasselbe: Thumbnails gestalten, Minecraft-Skins hinzufügen, Figuren posieren.</p>
+    <div class="modes">
+      <button class="mode" type="button" data-mode="simple"><span class="mock simple"><i></i><i></i><i></i></span><b>Simpel</b><span>Große Knöpfe, nur das Wichtigste. Gut zum schnellen Loslegen.</span></button>
+      <button class="mode" type="button" data-mode="pro"><span class="mock pro"><i></i><i></i><i></i></span><b>Professionell</b><span>Wie Photoshop: Menüs, Zahlenfelder, feste Bedienfelder für Eigenschaften und Ebenen.</span></button>
+    </div>
+    <p class="sub center">Das kannst du jederzeit in den Einstellungen ändern (Zahnrad oben rechts).</p>
+  </div>
+</div>
+<dialog id="settings" class="setdlg" aria-labelledby="set-h"><div class="set-head"><h2 id="set-h">Einstellungen</h2><button class="btn ghost sm icon" id="set-close" type="button" aria-label="Schließen">×</button></div><div id="set-body"></div></dialog>
 <div class="gate" id="gate" hidden>
   <div class="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-h">
     <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 10 16 17 3 10Z" fill="#d9d9d9"/><path d="M3 10 16 17V30L3 23Z" fill="#9a9a9a"/><path d="M29 10 16 17V30L29 23Z" fill="#6b6b6b"/></svg>Rendernail</div>
@@ -559,6 +634,7 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:11.5px;text-align:rig
 <script src="rk-studio.js"></script>
 <script src="rk-figure.js"></script>
 <script src="rk-app.js"></script>
+<script src="rk-shell.js"></script>
 
 </body>
 </html>

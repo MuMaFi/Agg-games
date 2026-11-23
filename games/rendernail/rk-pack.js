@@ -131,7 +131,7 @@ async function runPackLoad(make){
   try{const data=await make(packStatus);await applyPack(data,packStatus);ok=true;
     const kept=await packKV.set('pack',data).then(()=>true,()=>false);try{localStorage.removeItem('rk-pack')}catch{}
     const nb=packBlockBases().length,ni=Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).length,ns=Object.keys(PACK.skins).length;
-    {const g=document.getElementById('gate');if(g)g.hidden=true}
+    {const g=document.getElementById('gate');if(g&&!g.hidden){g.hidden=true;if(typeof onGateClosed==='function')setTimeout(onGateClosed,0)}}
     packStatus('');toast(`Geladen: ${nb} Blöcke, ${ni} Gegenstände${ns?`, ${ns} Skins`:''}.`+(kept?'':' Es bleibt nur bis zum Neuladen, weil der Browser-Speicher voll ist.'))}
   catch(e){packStatus('Das hat nicht geklappt: '+(e&&e.message?e.message:'unbekannter Fehler'))}
   finally{PACK_BUSY=false;packUI()}
@@ -141,18 +141,18 @@ const loadPackFile=file=>runPackLoad(st=>{st('Datei wird gelesen …');return re
 const loadPackMojang=()=>runPackLoad(packFromMojang);
 const loadPackPocketcraft=()=>runPackLoad(st=>{st('Pocketcraft-Texturen werden übernommen …');return packFromPocketcraft()});
 function removePack(){try{localStorage.removeItem('rk-pack')}catch{}packKV.del('pack').catch(()=>{});applyPack(null);toast('Eigene Grafiken sind wieder aktiv.')}
-(async function(){try{const d=await packKV.get('pack');if(d&&d.v===2){PACK_BUSY=true;await applyPack(d);PACK_BUSY=false;packUI();return}}catch{PACK_BUSY=false}
-  const saved=store.get('rk-pack',null);if(saved&&saved.tex){await applyPack(saved);return}
+(async function(){const ready=()=>{if(typeof shellPackState==='function')shellPackState(true)};try{const d=await packKV.get('pack');if(d&&d.v===2){PACK_BUSY=true;await applyPack(d);PACK_BUSY=false;packUI();ready();return}}catch{PACK_BUSY=false}
+  const saved=store.get('rk-pack',null);if(saved&&saved.tex){await applyPack(saved);ready();return}
   gateOpen()})();
 /* ================= Installation beim ersten Start ================= */
 function gateOpen(){
   const g=$('#gate'),go=$('#gate-go'),alt=$('#gate-alt'),st=$('#gate-st');g.hidden=false;
   const altBtn=(t,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn ghost sm';b.textContent=t;b.addEventListener('click',fn);alt.append(b);return b};
-  const done=()=>{g.hidden=true;toast('Minecraft-Texturen sind installiert.')};
+  const done=()=>{g.hidden=true;toast('Minecraft-Texturen sind installiert.');if(typeof onGateClosed==='function')onGateClosed()};
   const fill=()=>{alt.innerHTML='';
     if(!window.RK_LOCAL)altBtn('client.jar herunterladen',()=>window.open('https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar','_blank','noopener'));
     altBtn(window.RK_LOCAL?'Eigene .jar auswählen':'Texturpaket auswählen',()=>$('#f-pack').click());
-    altBtn('Ohne Texturen starten',()=>{g.hidden=true})};
+    altBtn('Ohne Texturen starten',()=>{g.hidden=true;if(typeof onGateClosed==='function')onGateClosed()})};
   if(window.RK_LOCAL){go.textContent='Installieren';go.onclick=async()=>{go.disabled=true;st.textContent='';if(await runPackLoad(packFromMojang))done();else{go.disabled=false;go.textContent='Nochmal versuchen'}}}
   else{$('#gate-p').textContent='Rendernail braucht einmalig die Original-Texturen aus Minecraft. Lade die client.jar von Mojang herunter und wähle sie hier aus.';
     $('#gate-list').lastElementChild.textContent='Bleibt in diesem Browser';go.textContent='client.jar auswählen';go.onclick=()=>$('#f-pack').click()}

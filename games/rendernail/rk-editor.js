@@ -395,7 +395,7 @@ function buildPropsMulti(P,SL){
   fRange(e,'Schatten',()=>SL[0].shadow||0,v=>all('shadow',v),0,80,1,v=>v+' px');
   fRange(e,'Leuchten',()=>SL[0].glow||0,v=>all('glow',v),0,120,1,v=>v+' px');fColor(e,'Leuchtfarbe',()=>SL[0].glc||'#ffd36b',v=>all('glc',v))}
 function buildProps(){
-  const P=$('#props'),SL=selLayers(),L=SL.length===1?SL[0]:null;propSync=[];P.hidden=false;P.innerHTML='';
+  const P=$('#props'),SL=selLayers(),L=SL.length===1?SL[0]:null;propSync=[];P.hidden=false;P.innerHTML='';$('#dock').classList.toggle('noselect',!SL.length);
   if(!SL.length){const n=document.createElement('p');n.className='none';n.textContent=ED.p?`${(FORMATS[ED.p.format]||{n:'Design'}).n} · ${ED.p.w} × ${ED.p.h} px. Wähle eine Ebene aus, um sie hier zu bearbeiten.`:'';P.append(n);return}
   if(!L){buildPropsMulti(P,SL);return}
   const h=document.createElement('h3');const hs=document.createElement('span');hs.textContent=layerName(L);h.append(hs);
@@ -448,7 +448,7 @@ function buildProps(){
     fSelect(fg,'In der rechten Hand',items,()=>f.item||'',v=>{f.item=v;refitFigure(L)});
     const sr=document.createElement('form');sr.className='btnrow';sr.innerHTML='<input class="num" style="flex:1;width:auto;text-align:left;font-family:inherit" type="text" maxlength="16" placeholder="Anderer Ingame-Name" aria-label="Anderer Ingame-Name"><button class="btn sm" type="submit">Skin wechseln</button>';
     sr.addEventListener('submit',async e=>{e.preventDefault();const n=sr.querySelector('input').value.trim();if(!n)return;try{const r=await fetchSkinByName(n);skinCanvasCache.set(r.data,r.canvas);f.skin=r.data;f.slim=r.slim;f.name=n;L.name=n;upd();commit();buildProps();toast('Skin gewechselt.')}catch(err){toast(err.message||'Skin nicht gefunden.')}});fg.append(sr)}
-  const xg=grp('Transformieren'),xb=document.createElement('div');xb.className='xf';xg.append(xb);
+  const xg=grp('Transformieren'),xb=document.createElement('div');xg.classList.add('xf-grp');xb.className='xf';xg.append(xb);
   const nf=(lab,title,get,set)=>{const l=document.createElement('label');l.innerHTML='<span></span><input class="num" type="number" inputmode="decimal" step="1">';l.firstChild.textContent=lab;const n=l.querySelector('input');n.setAttribute('aria-label',title);
     const up=()=>{n.value=Math.round(get())};up();n.addEventListener('change',()=>{const v=+n.value;if(isNaN(v)){up();return}set(v);up();requestRender();commit();syncProps()});propSync.push(up);xb.append(l)};
   nf('X','Position X',()=>L.x,v=>{L.x=v;relayoutBuild(L)});nf('Y','Position Y',()=>L.y,v=>{L.y=v;relayoutBuild(L)});
