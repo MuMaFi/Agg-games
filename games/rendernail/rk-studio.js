@@ -24,7 +24,7 @@ let R3=null;
 let USER_SKINS=store.get('rk-skins',[]);if(!Array.isArray(USER_SKINS))USER_SKINS=[];
 const userSkinCanvas=[];
 function loadUserSkins(){USER_SKINS.forEach((s,i)=>{if(userSkinCanvas[i]||!s||!/^data:image\/png;base64,/.test(s.data||''))return;loadSkinFile(s.data).then(c=>{userSkinCanvas[i]=c;ST.models.forEach(m=>{if(m.skin==='u'+i)buildModel(m)})}).catch(()=>{})})}
-function skinCanvasFor(m){if(String(m.skin).startsWith('k:')&&PACK&&PACK.skins[m.skin.slice(2)])return PACK.skins[m.skin.slice(2)];if(String(m.skin).startsWith('u')){const c=userSkinCanvas[+m.skin.slice(1)];if(c)return c}const i=+String(m.skin).slice(1);return PRESET_SKINS[i]||PRESET_SKINS[0]}
+function skinCanvasFor(m){if(m.skin==='fig'&&typeof FIGEDIT!=='undefined'&&FIGEDIT&&FIGEDIT.skin)return FIGEDIT.skin;if(String(m.skin).startsWith('k:')&&PACK&&PACK.skins[m.skin.slice(2)])return PACK.skins[m.skin.slice(2)];if(String(m.skin).startsWith('u')){const c=userSkinCanvas[+m.skin.slice(1)];if(c)return c}const i=+String(m.skin).slice(1);return PRESET_SKINS[i]||PRESET_SKINS[0]}
 function modelData(m){return{name:m.name,skin:m.skin,slim:!!m.slim,item:m.item||'',pose:m.pose||{},rootY:m.rootY||0,x:m.x||0,z:m.z||0,ry:m.ry||0}}
 function stSnap(){return JSON.stringify({models:ST.models.map(modelData),skyTime:ST.skyTime,bg:ST.bg,bgColor:ST.bgColor,ground:ST.ground,light:ST.light})}
 function stCommit(){const s=stSnap();if(ST.hist[ST.hist.length-1]===s)return;ST.hist.push(s);if(ST.hist.length>60)ST.hist.shift();ST.fut=[];store.set('rk-studio',JSON.parse(s));updStUndo()}
@@ -57,8 +57,13 @@ function itemMesh(key){const g=ITEM16[key]||(String(key).startsWith('pi_')&&type
   inst.castShadow=true;inst.scale.setScalar(.7);inst.position.set(5.5*.7,5.5*.7,0);const grp=new T.Group();grp.add(inst);grp.rotation.y=-Math.PI/2;return grp}
 function disposeModel(m){if(!m.group)return;R3&&R3.scene.remove(m.group);m.group.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){[].concat(o.material).forEach(x=>{if(x.map)x.map.dispose();x.dispose()})}});m.group=null}
 function buildModel(m){
-  if(!R3)return;const T=THREE;const keepTc=R3.tc.object&&m.group&&R3.tc.object.parent&&ST.models[ST.cur]===m;disposeModel(m);
-  const skin=fixSkin(skinCanvasFor(m)),TW=skin.width,TH=skin.height,legacy=TH===32,aw=m.slim?3:4;
+  if(!R3)return;const keepTc=R3.tc.object&&m.group&&R3.tc.object.parent&&ST.models[ST.cur]===m;disposeModel(m);
+  const root=buildRig(m,skinCanvasFor(m));
+  m.group=root;R3.scene.add(root);applyPose(m);
+  if(keepTc&&ST.bone&&m.bones[ST.bone])R3.tc.attach(m.bones[ST.bone])}
+/* Figur mit Gelenken aus einem Skin bauen (auch für Figuren im Editor) */
+function buildRig(m,skinSrc){const T=THREE;
+  const skin=fixSkin(skinSrc),TW=skin.width,TH=skin.height,legacy=TH===32,aw=m.slim?3:4;
   const tex=new T.CanvasTexture(skin);tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.generateMipmaps=false;tex.encoding=T.sRGBEncoding;
   const mat=new T.MeshLambertMaterial({map:tex,alphaTest:.1}),matO=new T.MeshLambertMaterial({map:tex,transparent:true,alphaTest:.45,side:T.DoubleSide});
   const root=new T.Group();m.bones={};m.meshes=[];
@@ -74,8 +79,7 @@ function buildModel(m){
     part('leg'+side+'Low',up,[0,-6,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[6,12]},ov&&{s:[4.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[4,12,4],r:[6,12],ov:1}])};
   leg('R',[0,16],legacy?null:[0,32]);leg('L',legacy?[0,16]:[16,48],legacy?null:[0,48]);
   if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5,.5);holder.add(im);handR.add(holder)}}
-  m.group=root;R3.scene.add(root);applyPose(m);
-  if(keepTc&&ST.bone&&m.bones[ST.bone])R3.tc.attach(m.bones[ST.bone])}
+  return root}
 function applyPose(m){if(!m.group)return;for(const[b]of BONES){const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
   m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R}
 
@@ -170,7 +174,7 @@ function buildSide3(){
   // Figur
   const fs=sec('Figur & Skin','fig',true);
   const skinField=document.createElement('div');skinField.className='field';skinField.innerHTML='<div class="lab"><label for="st-skin">Skin</label></div><select id="st-skin"></select>';const ss=skinField.querySelector('select');
-  PRESETS.forEach((p,i)=>ss.append(new Option('Beispiel: '+p.name,'p'+i)));if(PACK)Object.keys(PACK.skins).forEach(k=>ss.append(new Option('Paket: '+k.slice(2).replace(/_/g,' '),'k:'+k)));USER_SKINS.forEach((u,i)=>ss.append(new Option(u.name||('Eigener Skin '+(i+1)),'u'+i)));ss.value=m.skin;
+  if(m.skin==='fig'&&typeof FIGEDIT!=='undefined'&&FIGEDIT)ss.append(new Option('Aus dem Design: '+FIGEDIT.name,'fig'));PRESETS.forEach((p,i)=>ss.append(new Option('Beispiel: '+p.name,'p'+i)));if(PACK)Object.keys(PACK.skins).forEach(k=>ss.append(new Option('Paket: '+k.slice(2).replace(/_/g,' '),'k:'+k)));USER_SKINS.forEach((u,i)=>ss.append(new Option(u.name||('Eigener Skin '+(i+1)),'u'+i)));ss.value=m.skin;
   ss.addEventListener('change',()=>{m.skin=ss.value;if(ss.value.startsWith('k:'))m.slim=ss.value.startsWith('k:s:');buildModel(m);stCommit();buildSide3()});fs.append(skinField);
   const ub=document.createElement('button');ub.type='button';ub.className='btn sm';ub.textContent='Eigenen Skin hochladen (PNG)';ub.addEventListener('click',()=>$('#f-skin').click());fs.append(ub);
   if(window.RK_LOCAL){const ig=document.createElement('div');ig.className='btnrow';const ii=document.createElement('input');ii.type='text';ii.maxLength=16;ii.placeholder='Spielername (IGN)';ii.setAttribute('aria-label','Spielername');ii.autocomplete='off';ii.spellcheck=false;
@@ -231,14 +235,16 @@ packWatchers.push(()=>{if(ST.ready){ST.models.forEach(buildModel);buildSide3();s
 /* Skin über den Spielernamen (Java-Edition). Mojangs eigene Schnittstellen erlauben Webseiten keinen
    Zugriff, darum über mc-heads.net, ersatzweise minotar.net; beide liefern den aktuellen Skin. */
 function loadCORSImage(u){return new Promise((ok,no)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>ok(i);i.onerror=()=>no(new Error('img'));i.src=u})}
-async function skinFromIGN(name,m){
+async function fetchSkinByName(name){
   if(!/^[A-Za-z0-9_]{3,16}$/.test(name))throw new Error('Spielernamen haben 3 bis 16 Zeichen: Buchstaben, Zahlen und _.');
   let im=null;for(const u of[`https://mc-heads.net/skin/${encodeURIComponent(name)}`,`https://minotar.net/skin/${encodeURIComponent(name)}`]){try{im=await loadCORSImage(u);break}catch{}}
-  if(!im)throw new Error('Den Skin konnte ich nicht laden. Bist du online?');
+  if(!im)throw new Error(window.RK_LOCAL?'Den Skin konnte ich nicht laden. Bist du online?':'Skins per Name gehen nur in der AGG-Games-Fassung. Wähle stattdessen eine Skin-Datei.');
   const w=im.naturalWidth,h=im.naturalHeight;if(w!==64||(h!==64&&h!==32))throw new Error('Der Skin hat ein unbekanntes Format.');
   const c=mk(64,h);c.getContext('2d').drawImage(im,0,0);
   const slim=h===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0;
-  const data=c.toDataURL('image/png');let i=USER_SKINS.findIndex(s=>s.name===name);
+  return{canvas:c,slim,data:c.toDataURL('image/png')}}
+async function skinFromIGN(name,m){
+  const{canvas:c,slim,data}=await fetchSkinByName(name);let i=USER_SKINS.findIndex(s=>s.name===name);
   if(i<0){USER_SKINS.push({name,data});if(USER_SKINS.length>12){USER_SKINS.shift();userSkinCanvas.shift()}i=USER_SKINS.length-1}else USER_SKINS[i].data=data;
   store.set('rk-skins',USER_SKINS);userSkinCanvas[i]=c;
   if(m){m.skin='u'+i;m.slim=slim;m.name=name;buildModel(m);stCommit();buildModelsBar()}buildSide3();toast(`Skin von ${name} geladen.`)}

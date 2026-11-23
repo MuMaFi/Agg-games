@@ -202,10 +202,10 @@ function shVs(col){const c=mk(560,360),x=c.getContext('2d');x.textAlign='center'
 /* ================= Bibliothek ================= */
 const CATS_A=[['items','Gegenstände'],['blocks','Blöcke'],['mobs','Mobs'],['hud','HUD'],['effects','Effekte'],['shapes','Formen']];
 const LIB=[];const LIBK={};
-function lib(key,cat,name,gen,o={}){const a={key,cat,name,gen,pixel:!!o.pixel,color:o.color||null,font:!!o.font,cover:!!o.cover,bk:o.bk||null};LIB.push(a);LIBK[key]=a}
+function lib(key,cat,name,gen,o={}){const a={key,cat,name,gen,pixel:!!o.pixel,color:o.color||null,font:!!o.font,cover:!!o.cover,bk:o.bk||null,hidden:!!o.hidden};LIB.push(a);LIBK[key]=a}
 for(const[k,n]of ITEM_DEFS)lib('it_'+k,'items',n,()=>{const g=ITEM16[k];return gridCanvas(g,Math.max(1,Math.round(256/g.length)))},{pixel:true});
 for(const[k,n]of BLOCK_DEFS)lib('bl_'+k,'blocks',n,()=>blockCanvas(k),{bk:k});
-for(const[k,n,i,pose]of FIGURES)lib(k,'mobs',n,()=>renderTight(buildChar(PRESET_IMGS[i],{pose,face:'left',slim:i===5}),10));
+for(const[k,n,i,pose]of FIGURES)lib(k,'mobs',n,()=>renderTight(buildChar(PRESET_IMGS[i],{pose,face:'left',slim:i===5}),10),{hidden:k.startsWith('fig_')});
 lib('mob_pig','mobs','Schwein',()=>renderTight(mobPig(),10));
 lib('mob_sheep','mobs','Schaf',()=>renderTight(mobSheep(),10));
 lib('mob_chicken','mobs','Huhn',()=>renderTight(mobChicken(),12));

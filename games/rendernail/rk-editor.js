@@ -35,7 +35,7 @@ onCaps(async k=>{
 
 /* ================= Editor-Zustand ================= */
 const ED={rot3d:false,ghost:null,multi:false,snap:true,marquee:null,snapT:null,showN:90,p:null,sel:[],z:1,fit:true,panX:0,panY:0,hist:[],fut:[],tab:'assets',cat:'items',q:'',drag:null,guides:null,propsOpen:true,ptrs:new Map()};
-const TYPE_LABEL={asset:'Element',text:'Text',image:'Bild',backdrop:'Hintergrund'};
+const TYPE_LABEL={asset:'Element',text:'Text',image:'Bild',backdrop:'Hintergrund',figure:'Minecraft-Figur'};
 const CAT_LABEL_A=Object.fromEntries(CATS_A);
 function newProject(format,o={}){const f=FORMATS[format]||FORMATS.yt;const n=[...PROJECTS.values()].length+1;
   return{id:'p'+uid(),name:o.name||`Design ${n}`,format,w:o.w||f.w,h:o.h||f.h,layers:o.layers||[],created:new Date().toISOString(),updated:new Date().toISOString(),preview:''}}
@@ -74,6 +74,7 @@ function refitText(L){const c=textCanvas(L);L.w=c.width;L.h=c.height}
 function sourceOf(L){
   if(L.type==='asset'){const a=LIBK[L.key];if(a&&a.bk)return{c:blockCanvas(a.bk,L.yaw??-45,L.pitch??30,L.roll??0),pixel:false};const c=libCanvas(L.key,L.color);return c?{c,pixel:a.pixel}:null}
   if(L.type==='text')return{c:textCanvas(L),pixel:false};
+  if(L.type==='figure'){const c=typeof figureCanvas==='function'?figureCanvas(L):null;return c?{c,pixel:false}:null}
   if(L.type==='image'){const e=getImg(srcUrl(L.src));return e&&e.ok?{c:e.img,pixel:!!L.pixel}:null}
   return null}
 const srcIds=new WeakMap();let srcN=0;const sid=o=>{let v=srcIds.get(o);if(!v){v=++srcN;srcIds.set(o,v)}return v};
@@ -437,6 +438,16 @@ function buildProps(){
     if(L.build){const n=buildMembers(L.build).length;const bp=document.createElement('p');bp.className='sub';bp.textContent=`Teil eines Bauwerks aus ${n} Blöcken: Drehen und Größe gelten für alle, vorne und hinten wird automatisch sortiert.`;g3.append(bp)}
     fBtns(g3,[['Schräg',setR(-45,30,0)],['Vorne',setR(0,0,0)],['Von oben',setR(-45,70,0)],['Von unten',setR(-45,-30,0)]])}
   if(L.type==='asset'&&LIBK[L.key]&&LIBK[L.key].color){fColor(grp('Farbe'),'Farbe',()=>L.color||LIBK[L.key].color,v=>{L.color=v})}
+  if(L.type==='figure'){const f=L.fig,fg=grp('Minecraft-Figur'),pg=document.createElement('div');pg.className='posegrid';fg.append(pg);
+    const upd=()=>{refitFigure(L);requestRender();renderLayers()};
+    for(const[k,[n,p,ry]]of Object.entries(POSES)){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=n;b.addEventListener('click',()=>{f.pose=JSON.parse(JSON.stringify(p));f.rootY=ry||0;upd();commit()});pg.append(b)}
+    fBtns(fg,[['Im Pose-Studio bearbeiten',()=>editFigureInStudio(L),'primary']]);
+    fRange(fg,'Figur drehen',()=>f.ry||0,v=>{f.ry=v;refitFigure(L)},-180,180,1,v=>v+'°');
+    fSeg(fg,'Arme',[['0','Klassisch'],['1','Schmal']],()=>f.slim?'1':'0',v=>{f.slim=v==='1';refitFigure(L)});
+    const items=ST_ITEMS.map(([k,n])=>[k,n]).concat(PACK?Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort().map(k=>['pi_'+k.slice(2),prettyName(k.slice(2))]):[]);
+    fSelect(fg,'In der rechten Hand',items,()=>f.item||'',v=>{f.item=v;refitFigure(L)});
+    const sr=document.createElement('form');sr.className='btnrow';sr.innerHTML='<input class="num" style="flex:1;width:auto;text-align:left;font-family:inherit" type="text" maxlength="16" placeholder="Anderer Ingame-Name" aria-label="Anderer Ingame-Name"><button class="btn sm" type="submit">Skin wechseln</button>';
+    sr.addEventListener('submit',async e=>{e.preventDefault();const n=sr.querySelector('input').value.trim();if(!n)return;try{const r=await fetchSkinByName(n);skinCanvasCache.set(r.data,r.canvas);f.skin=r.data;f.slim=r.slim;f.name=n;L.name=n;upd();commit();buildProps();toast('Skin gewechselt.')}catch(err){toast(err.message||'Skin nicht gefunden.')}});fg.append(sr)}
   const xg=grp('Transformieren'),xb=document.createElement('div');xb.className='xf';xg.append(xb);
   const nf=(lab,title,get,set)=>{const l=document.createElement('label');l.innerHTML='<span></span><input class="num" type="number" inputmode="decimal" step="1">';l.firstChild.textContent=lab;const n=l.querySelector('input');n.setAttribute('aria-label',title);
     const up=()=>{n.value=Math.round(get())};up();n.addEventListener('change',()=>{const v=+n.value;if(isNaN(v)){up();return}set(v);up();requestRender();commit();syncProps()});propSync.push(up);xb.append(l)};
@@ -493,10 +504,11 @@ function panelAssets(s){
   const inp=document.createElement('input');inp.type='search';inp.className='search-in';inp.placeholder='Alle Elemente durchsuchen';inp.setAttribute('aria-label','Elemente durchsuchen');inp.value=ED.q;s.append(inp);
   const cats=document.createElement('div');cats.className='cats';cats.setAttribute('role','group');cats.setAttribute('aria-label','Kategorie');s.append(cats);
   for(const[k,l]of CATS_A){const b=document.createElement('button');b.type='button';b.textContent=l;b.setAttribute('aria-pressed',ED.cat===k);b.addEventListener('click',()=>{ED.cat=k;ED.q='';ED.showN=90;buildSide()});cats.append(b)}
+  const skinBox=document.createElement('div');s.append(skinBox);
   const grid=document.createElement('div');grid.className='agrid';s.append(grid);
-  const fill=()=>{grid.innerHTML='';const q=ED.q.trim().toLowerCase();cats.hidden=!!q;
+  const fill=()=>{grid.innerHTML='';const q=ED.q.trim().toLowerCase();cats.hidden=!!q;skinBox.innerHTML='';if(ED.cat==='mobs'&&!q&&typeof skinAddBlock==='function')skinBox.append(skinAddBlock());
     const usePack=c=>!!PACK&&LIB.some(a=>a.pack&&a.cat===c),ok=a=>!['blocks','items'].includes(a.cat)||!!a.pack===usePack(a.cat);
-    const full=(q?LIB.filter(a=>ok(a)&&a.name.toLowerCase().includes(q)):LIB.filter(a=>a.cat===ED.cat&&ok(a)));const list=full.slice(0,ED.showN);
+    const full=(q?LIB.filter(a=>!a.hidden&&ok(a)&&a.name.toLowerCase().includes(q)):LIB.filter(a=>!a.hidden&&a.cat===ED.cat&&ok(a)));const list=full.slice(0,ED.showN);
     if(!list.length){const p=document.createElement('p');p.className='sub';p.style.gridColumn='1/-1';p.textContent=`Nichts gefunden für „${ED.q}“.`;grid.append(p)}
     for(const a of list)grid.append(tileFrom(libCanvas(a.key),a.name,a.pixel,()=>addAsset(a.key)));
     if(full.length>list.length){const mb=document.createElement('button');mb.type='button';mb.className='btn sm';mb.style.gridColumn='1/-1';mb.textContent=`Mehr anzeigen (${full.length-list.length} weitere)`;mb.addEventListener('click',()=>{ED.showN+=90;fill()});grid.append(mb)}
