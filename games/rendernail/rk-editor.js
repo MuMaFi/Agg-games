@@ -81,10 +81,10 @@ const srcIds=new WeakMap();let srcN=0;const sid=o=>{let v=srcIds.get(o);if(!v){v
 const fxCache=new Map();
 function fxOf(L,src){
   const sw=src.c.naturalWidth||src.c.width,sh=src.c.naturalHeight||src.c.height;
-  if(!(L.ol>0)&&!L.shade)return{c:src.c,pad:0,cw:sw,ch:sh};
+  if(!(L.ol>0)&&!L.shade&&!(L.blur>0))return{c:src.c,pad:0,cw:sw,ch:sh};
   const s0=Math.min(1,1600/Math.max(sw,sh)),cw=Math.max(1,Math.round(sw*s0)),ch=Math.max(1,Math.round(sh*s0));
   const os=(L.ol||0)*cw/Math.max(1,L.w),pad=Math.ceil(os)+2;
-  const key=[sid(src.c),cw,ch,Math.round(os*4),L.olc,L.shade,src.pixel?1:0].join('|');let hit=fxCache.get(key);if(hit)return hit;
+  const br=(L.blur||0)*cw/Math.max(1,L.w),key=[sid(src.c),cw,ch,Math.round(os*4),L.olc,L.shade,src.pixel?1:0,Math.round(br*4)].join('|');let hit=fxCache.get(key);if(hit)return hit;
   let base=src.c;
   if(s0<1||L.shade){base=mk(cw,ch);const b=base.getContext('2d');b.imageSmoothingEnabled=!src.pixel;b.drawImage(src.c,0,0,cw,ch);
     if(L.shade){b.globalCompositeOperation='source-atop';b.fillStyle=L.shade<0?`rgba(0,0,0,${-L.shade})`:`rgba(255,255,255,${L.shade})`;b.fillRect(0,0,cw,ch)}}
@@ -93,7 +93,19 @@ function fxOf(L,src){
     const rings=os>6?[[os,32],[os*.66,22],[os*.33,12]]:[[os,24],[os*.5,12]];
     for(const[r,n]of rings)for(let i=0;i<n;i++){const a=i/n*Math.PI*2;x.drawImage(sil,pad+Math.cos(a)*r,pad+Math.sin(a)*r)}}
   x.drawImage(base,pad,pad,cw,ch);
-  const out={c,pad,cw,ch};if(fxCache.size>80)fxCache.clear();fxCache.set(key,out);return out}
+  let out={c,pad,cw,ch};if(br>0)out=blurFx(out,br);if(fxCache.size>80)fxCache.clear();fxCache.set(key,out);return out}
+/* Weichzeichnen: dreifacher Box-Blur (≈ Gauß), bei starker Unschärfe in kleinerer Auflösung */
+function blurFx(o,r){const ex=Math.ceil(r*2.2)+2,W0=o.c.width+ex*2,H0=o.c.height+ex*2,d=Math.min(1,8/r),w=Math.max(1,Math.round(W0*d)),h=Math.max(1,Math.round(H0*d)),rr=Math.max(1,Math.round(r*d*.58));
+  const t=mk(w,h),x=t.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(o.c,ex*d,ex*d,o.c.width*d,o.c.height*d);
+  const im=x.getImageData(0,0,w,h),p=im.data,n=w*h,ch=[0,1,2,3].map(()=>new Float32Array(n));
+  for(let i=0;i<n;i++){const a=p[i*4+3]/255;ch[3][i]=a;ch[0][i]=p[i*4]*a;ch[1][i]=p[i*4+1]*a;ch[2][i]=p[i*4+2]*a}
+  const tmp=new Float32Array(n),pass=(s,len,cnt,step,lstep)=>{for(let l=0;l<cnt;l++){const o0=l*lstep;let acc=0;const win=rr*2+1;
+      for(let k=-rr;k<=rr;k++)acc+=s[o0+clamp(k,0,len-1)*step];
+      for(let i=0;i<len;i++){tmp[o0+i*step]=acc/win;acc+=s[o0+Math.min(len-1,i+rr+1)*step]-s[o0+Math.max(0,i-rr)*step]}}
+    s.set(tmp)};
+  for(const s of ch)for(let k=0;k<3;k++){pass(s,w,h,1,w);pass(s,h,w,w,1)}
+  for(let i=0;i<n;i++){const a=ch[3][i];p[i*4+3]=a*255;if(a>0){p[i*4]=ch[0][i]/a;p[i*4+1]=ch[1][i]/a;p[i*4+2]=ch[2][i]/a}}
+  x.putImageData(im,0,0);return{c:t,pad:o.pad+ex,cw:o.cw,ch:o.ch,sc:1/d}}
 const bdCache=new Map();
 function backdropCanvas(L,W,H){
   const url=L.mode==='image'?srcUrl(L.src):'',e=url?getImg(url):null;
@@ -443,6 +455,8 @@ function buildProps(){
     for(const[k,[n,p,ry]]of Object.entries(POSES)){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=n;b.addEventListener('click',()=>{f.pose=JSON.parse(JSON.stringify(p));f.rootY=ry||0;upd();commit()});pg.append(b)}
     fBtns(fg,[['Im Pose-Studio bearbeiten',()=>editFigureInStudio(L),'primary']]);
     fRange(fg,'Figur drehen',()=>f.ry||0,v=>{f.ry=v;refitFigure(L)},-180,180,1,v=>v+'°');
+    const zg=grp('Körperteile: Größe');for(const[k,n]of SIZE_PARTS)fRange(zg,n,()=>(f.size||{})[k]||100,v=>{f.size=cleanSize({...(f.size||{}),[k]:v});refitFigure(L)},30,300,5,v=>Math.round(v)+' %');
+    fBtns(zg,[['Normale Größe',()=>{f.size={};upd();commit();buildProps()}]]);
     fSeg(fg,'Arme',[['0','Klassisch'],['1','Schmal']],()=>f.slim?'1':'0',v=>{f.slim=v==='1';refitFigure(L)});
     const items=ST_ITEMS.map(([k,n])=>[k,n]).concat(PACK?Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort().map(k=>['pi_'+k.slice(2),prettyName(k.slice(2))]):[]);
     fSelect(fg,'In der rechten Hand',items,()=>f.item||'',v=>{f.item=v;refitFigure(L)});
@@ -457,6 +471,7 @@ function buildProps(){
   nf('B','Breite',()=>L.w,setW);nf('H','Höhe',()=>L.h,setH);nf('∠','Winkel',()=>L.rot||0,v=>{L.rot=((v+180)%360+360)%360-180});
   const g=grp('Darstellung');
   fRange(g,'Deckkraft',()=>L.opacity??1,v=>{L.opacity=v},0,1,.01,pct);
+  fRange(g,'Unschärfe',()=>L.blur||0,v=>{L.blur=v},0,40,1,v=>v+' px');
   fRange(g,'Helligkeit',()=>L.shade||0,v=>{L.shade=v},-.8,.8,.05,v=>(v>0?'+':'')+Math.round(v*100)+' %');
   if(L.type!=='text')fCheck(g,'Frei verzerren (ohne Seitenverhältnis)',()=>L.free,v=>{L.free=v});
   if(L.type==='image')fCheck(g,'Pixelig darstellen',()=>L.pixel,v=>{L.pixel=v});

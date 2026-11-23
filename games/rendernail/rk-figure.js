@@ -15,9 +15,9 @@ function figRenderer(){if(FR!==null)return FR;if(!window.THREE)return null;
 const figCache=new Map();
 function figureCanvas(L){
   const fig=L.fig||{},skin=figSkin(fig);if(!skin)return null;const F=figRenderer();if(!F)return null;
-  const key=JSON.stringify([fig.skin?fig.skin.length+':'+fig.skin.slice(-48):'grau',!!fig.slim,fig.item||'',fig.pose||{},fig.ry||0,fig.rootY||0,packTick]);
+  const key=JSON.stringify([fig.skin?fig.skin.length+':'+fig.skin.slice(-48):'grau',!!fig.slim,fig.item||'',fig.pose||{},fig.size||{},fig.ry||0,fig.rootY||0,packTick]);
   let c=figCache.get(key);if(c)return c;
-  const T=THREE,m={id:'fig',slim:!!fig.slim,item:fig.item||'',pose:fig.pose||{},rootY:fig.rootY||0,x:0,z:0,ry:fig.ry||0};
+  const T=THREE,m={id:'fig',slim:!!fig.slim,item:fig.item||'',pose:fig.pose||{},size:fig.size||{},rootY:fig.rootY||0,x:0,z:0,ry:fig.ry||0};
   const root=buildRig(m,skin);m.group=root;F.sc.add(root);applyPose(m);root.updateMatrixWorld(true);
   const box=new T.Box3().setFromObject(root),ctr=box.getCenter(new T.Vector3()),sz=box.getSize(new T.Vector3());
   const rad=Math.max(sz.x,sz.y,sz.z)*.62+2,dist=rad/Math.tan(T.MathUtils.degToRad(F.cam.fov/2))*1.05,dir=new T.Vector3(-.55,.3,.78).normalize();
@@ -57,7 +57,7 @@ let FIGEDIT=null;
 function editFigureInStudio(L){
   saveNow();const f=L.fig||{},prev=ST.ready?stSnap():JSON.stringify(store.get('rk-studio',{})||{});
   FIGEDIT={pid:ED.p.id,lid:L.id,prev,skin:figSkin(f)||GRAY_SKIN,name:L.name||'Figur'};
-  const state={models:[{name:L.name||'Figur',skin:'fig',slim:!!f.slim,item:f.item||'',pose:f.pose||{},rootY:f.rootY||0,ry:f.ry||0}],bg:ST.bg||'sky',skyTime:ST.skyTime||'day',ground:true,light:ST.light||1};
+  const state={models:[{name:L.name||'Figur',skin:'fig',slim:!!f.slim,item:f.item||'',pose:f.pose||{},size:f.size||{},rootY:f.rootY||0,ry:f.ry||0}],bg:ST.bg||'sky',skyTime:ST.skyTime||'day',ground:true,light:ST.light||1};
   if(ST.ready){applyStudioState(state);ST.hist=[stSnap()];updStUndo()}else store.set('rk-studio',state);
   location.hash='renders';figBar();setTimeout(()=>{if(R3){setCamera('left');buildSide3()}},60)}
 function figBar(){let bar=$('#st-figbar');const opt=$('.st-opt');
@@ -68,7 +68,7 @@ function figBar(){let bar=$('#st-figbar');const opt=$('.st-opt');
   const no=document.createElement('button');no.type='button';no.className='btn ghost sm';no.textContent='Abbrechen';no.addEventListener('click',()=>finishFigEdit(false));bar.append(ok,no)}
 function finishFigEdit(apply){if(!FIGEDIT)return;const E=FIGEDIT,m=ST.models[0];
   if(apply&&m){if(!ED.p||ED.p.id!==E.pid){const d=PROJECTS.get(E.pid);if(d)openProject(d)}const L=ED.p&&ED.p.layers.find(l=>l.id===E.lid);
-    if(L){L.fig.pose=JSON.parse(JSON.stringify(m.pose||{}));L.fig.rootY=m.rootY||0;L.fig.ry=m.ry||0;L.fig.slim=!!m.slim;L.fig.item=m.item||'';refitFigure(L);select(L.id);commit();toast('Pose übernommen.')}}
+    if(L){L.fig.pose=JSON.parse(JSON.stringify(m.pose||{}));L.fig.size=cleanSize(m.size);L.fig.rootY=m.rootY||0;L.fig.ry=m.ry||0;L.fig.slim=!!m.slim;L.fig.item=m.item||'';refitFigure(L);select(L.id);commit();toast('Pose übernommen.')}}
   FIGEDIT=null;figBar();try{const o=JSON.parse(E.prev);applyStudioState(o);store.set('rk-studio',o);ST.hist=[stSnap()];updStUndo()}catch{}
   location.hash='editor'}
 window.addEventListener('hashchange',()=>{if(FIGEDIT&&location.hash==='#renders')figBar()});

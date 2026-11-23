@@ -25,14 +25,14 @@ let USER_SKINS=store.get('rk-skins',[]);if(!Array.isArray(USER_SKINS))USER_SKINS
 const userSkinCanvas=[];
 function loadUserSkins(){USER_SKINS.forEach((s,i)=>{if(userSkinCanvas[i]||!s||!/^data:image\/png;base64,/.test(s.data||''))return;loadSkinFile(s.data).then(c=>{userSkinCanvas[i]=c;ST.models.forEach(m=>{if(m.skin==='u'+i)buildModel(m)})}).catch(()=>{})})}
 function skinCanvasFor(m){if(m.skin==='fig'&&typeof FIGEDIT!=='undefined'&&FIGEDIT&&FIGEDIT.skin)return FIGEDIT.skin;if(String(m.skin).startsWith('k:')&&PACK&&PACK.skins[m.skin.slice(2)])return PACK.skins[m.skin.slice(2)];if(String(m.skin).startsWith('u')){const c=userSkinCanvas[+m.skin.slice(1)];if(c)return c}const i=+String(m.skin).slice(1);return PRESET_SKINS[i]||PRESET_SKINS[0]}
-function modelData(m){return{name:m.name,skin:m.skin,slim:!!m.slim,item:m.item||'',pose:m.pose||{},rootY:m.rootY||0,x:m.x||0,z:m.z||0,ry:m.ry||0}}
+function modelData(m){return{name:m.name,skin:m.skin,slim:!!m.slim,item:m.item||'',pose:m.pose||{},size:cleanSize(m.size),rootY:m.rootY||0,x:m.x||0,z:m.z||0,ry:m.ry||0}}
 function stSnap(){return JSON.stringify({models:ST.models.map(modelData),skyTime:ST.skyTime,bg:ST.bg,bgColor:ST.bgColor,ground:ST.ground,light:ST.light})}
 function stCommit(){const s=stSnap();if(ST.hist[ST.hist.length-1]===s)return;ST.hist.push(s);if(ST.hist.length>60)ST.hist.shift();ST.fut=[];store.set('rk-studio',JSON.parse(s));updStUndo()}
 function updStUndo(){$('#st-undo').disabled=ST.hist.length<2;$('#st-redo').disabled=!ST.fut.length}
 function stRestore(s){const o=JSON.parse(s);applyStudioState(o);store.set('rk-studio',o);updStUndo()}
 function applyStudioState(o){
   ST.models.forEach(disposeModel);ST.models=[];
-  (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item]||/^pi_[a-z0-9_]+$/.test(d.item))?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
+  (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item]||/^pi_[a-z0-9_]+$/.test(d.item))?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},size:cleanSize(d.size),rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
   ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#3a3a3a';ST.ground=o.ground!==false;ST.skyTime=['day','sunset','night'].includes(o.skyTime)?o.skyTime:'day';ST.light=+o.light||1;
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
@@ -62,23 +62,25 @@ function buildModel(m){
   m.group=root;R3.scene.add(root);applyPose(m);
   if(keepTc&&ST.bone&&m.bones[ST.bone])R3.tc.attach(m.bones[ST.bone])}
 /* Figur mit Gelenken aus einem Skin bauen (auch für Figuren im Editor) */
-function buildRig(m,skinSrc){const T=THREE;
+const SIZE_PARTS=[['head','Kopf'],['body','Oberkörper'],['arms','Arme'],['legs','Beine']];
+function cleanSize(z){const o={};if(z&&typeof z==='object')for(const[k]of SIZE_PARTS){const v=+z[k];if(v&&v!==100)o[k]=clamp(Math.round(v),30,300)}return o}
+function buildRig(m,skinSrc){const T=THREE;const Z=m.size||{},sH=(Z.head||100)/100,sB=(Z.body||100)/100,sA=(Z.arms||100)/100,sL=(Z.legs||100)/100;
   const skin=fixSkin(skinSrc),TW=skin.width,TH=skin.height,legacy=TH===32,aw=m.slim?3:4;
   const tex=new T.CanvasTexture(skin);tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.generateMipmaps=false;tex.encoding=T.sRGBEncoding;
   const mat=new T.MeshLambertMaterial({map:tex,alphaTest:.1}),matO=new T.MeshLambertMaterial({map:tex,transparent:true,alphaTest:.45,side:T.DoubleSide});
   const root=new T.Group();m.bones={};m.meshes=[];
-  const part=(name,parent,pivot,boxes)=>{const g=new T.Group();g.position.set(...pivot);parent.add(g);m.bones[name]=g;
-    for(const b of boxes){if(!b)continue;const mesh=new T.Mesh(boxGeo(b,TW,TH),b.ov?matO:mat);mesh.position.set(...b.off);mesh.castShadow=true;mesh.userData={model:m.id,bone:name};g.add(mesh);m.meshes.push(mesh)}return g};
-  const body=part('body',root,[0,12,0],[{s:[8,12,4],off:[0,6,0],uv:[16,16],d:[8,12,4],r:[0,12]},!legacy&&{s:[8.5,12.5,4.5],off:[0,6,0],uv:[16,32],d:[8,12,4],r:[0,12],ov:1}]);
-  part('head',body,[0,12,0],[{s:[8,8,8],off:[0,4,0],uv:[0,0],d:[8,8,8],r:[0,8]},{s:[9,9,9],off:[0,4,0],uv:[32,0],d:[8,8,8],r:[0,8],ov:1}]);
-  const arm=(side,uv,ov)=>{const sx=side==='R'?-(4+aw/2):(4+aw/2);
-    const up=part('arm'+side,body,[sx,10,0],[{s:[aw,6,4],off:[0,-1,0],uv,d:[aw,12,4],r:[0,6]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-.9,0],uv:ov,d:[aw,12,4],r:[0,6],ov:1}]);
-    return part('arm'+side+'Low',up,[0,-4,0],[{s:[aw,6,4],off:[0,-3,0],uv,d:[aw,12,4],r:[6,12]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[aw,12,4],r:[6,12],ov:1}])};
+  const part=(name,parent,pivot,boxes,k=1)=>{const g=new T.Group();g.position.set(...pivot);parent.add(g);m.bones[name]=g;
+    for(const b of boxes){if(!b)continue;const mesh=new T.Mesh(boxGeo(b,TW,TH),b.ov?matO:mat);mesh.position.set(b.off[0]*k,b.off[1]*k,b.off[2]*k);mesh.scale.setScalar(k);mesh.castShadow=true;mesh.userData={model:m.id,bone:name};g.add(mesh);m.meshes.push(mesh)}return g};
+  const body=part('body',root,[0,12*sL,0],[{s:[8,12,4],off:[0,6,0],uv:[16,16],d:[8,12,4],r:[0,12]},!legacy&&{s:[8.5,12.5,4.5],off:[0,6,0],uv:[16,32],d:[8,12,4],r:[0,12],ov:1}],sB);
+  part('head',body,[0,12*sB,0],[{s:[8,8,8],off:[0,4,0],uv:[0,0],d:[8,8,8],r:[0,8]},{s:[9,9,9],off:[0,4,0],uv:[32,0],d:[8,8,8],r:[0,8],ov:1}],sH);
+  const arm=(side,uv,ov)=>{const sx=(side==='R'?-1:1)*(4*sB+aw/2*sA);
+    const up=part('arm'+side,body,[sx,12*sB-2*sA,0],[{s:[aw,6,4],off:[0,-1,0],uv,d:[aw,12,4],r:[0,6]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-.9,0],uv:ov,d:[aw,12,4],r:[0,6],ov:1}],sA);
+    return part('arm'+side+'Low',up,[0,-4*sA,0],[{s:[aw,6,4],off:[0,-3,0],uv,d:[aw,12,4],r:[6,12]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[aw,12,4],r:[6,12],ov:1}],sA)};
   const handR=arm('R',[40,16],legacy?null:[40,32]);arm('L',legacy?[40,16]:[32,48],legacy?null:[48,48]);
-  const leg=(side,uv,ov)=>{const up=part('leg'+side,root,[side==='R'?-2:2,12,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[0,6]},ov&&{s:[4.5,6.25,4.5],off:[0,-2.9,0],uv:ov,d:[4,12,4],r:[0,6],ov:1}]);
-    part('leg'+side+'Low',up,[0,-6,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[6,12]},ov&&{s:[4.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[4,12,4],r:[6,12],ov:1}])};
+  const leg=(side,uv,ov)=>{const up=part('leg'+side,root,[(side==='R'?-2:2)*sL,12*sL,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[0,6]},ov&&{s:[4.5,6.25,4.5],off:[0,-2.9,0],uv:ov,d:[4,12,4],r:[0,6],ov:1}],sL);
+    part('leg'+side+'Low',up,[0,-6*sL,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[6,12]},ov&&{s:[4.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[4,12,4],r:[6,12],ov:1}],sL)};
   leg('R',[0,16],legacy?null:[0,32]);leg('L',legacy?[0,16]:[16,48],legacy?null:[0,48]);
-  if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5,.5);holder.add(im);handR.add(holder)}}
+  if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5*sA,.5*sA);holder.scale.setScalar(sA);holder.add(im);handR.add(holder)}}
   return root}
 function applyPose(m){if(!m.group)return;for(const[b]of BONES){const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
   m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R}
@@ -193,6 +195,9 @@ function buildSide3(){
   fs.append(rng('Position vorne/hinten',()=>m.z||0,v=>{m.z=v;applyPose(m)},-70,70,''));
   fs.append(rng('Drehung',()=>m.ry||0,v=>{m.ry=v;applyPose(m)},-180,180,'°'));
   fs.append(rng('Höhe',()=>m.rootY||0,v=>{m.rootY=v;applyPose(m)},-20,40,''));
+  const zs=sec('Körperteile: Größe','size',false);
+  for(const[k,n]of SIZE_PARTS)zs.append(rng(n,()=>(m.size||{})[k]||100,v=>{m.size={...(m.size||{}),[k]:v};buildModel(m)},30,300,' %'));
+  const zr=document.createElement('button');zr.type='button';zr.className='btn sm';zr.textContent='Normale Größe';zr.addEventListener('click',()=>{m.size={};buildModel(m);stCommit();buildSide3()});zs.append(zr);
   if(ST.models.length>1){const rm=document.createElement('button');rm.type='button';rm.className='btn sm danger';rm.textContent=m.name+' entfernen';rm.addEventListener('click',removeModel);fs.append(rm)}
   // Szene
   const sc=sec('Szene & Licht','scene',false);
