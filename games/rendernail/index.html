@@ -316,6 +316,11 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:11.5px;text-align:rig
 .splash-in{display:flex;flex-direction:column;align-items:center;gap:14px;opacity:0}
 .splash-in svg{width:86px;height:86px}
 .splash-in b{font-size:22px;font-weight:700;letter-spacing:.01em}
+.splash.wait{cursor:pointer}
+.splash.wait .splash-in{opacity:1}
+.splash-hint{display:none;font-size:12.5px;color:var(--muted);margin-top:6px;animation:rnhint 1.6s ease-in-out infinite}
+.splash.wait .splash-hint{display:block}
+@keyframes rnhint{50%{opacity:.35}}
 .splash.go .splash-in{animation:rnpop 1.4s cubic-bezier(.2,.9,.25,1) both}
 @keyframes rnpop{0%{transform:scale(.3);opacity:0}20%{transform:scale(1.12);opacity:1}32%{transform:scale(.97)}40%{transform:scale(1)}72%{transform:scale(1);opacity:1}82%{transform:scale(1.1);opacity:1}100%{transform:scale(.2);opacity:0}}
 @media (prefers-reduced-motion: reduce){.splash.go .splash-in{animation:rnfade 1.4s ease both}@keyframes rnfade{0%,100%{opacity:0}25%,75%{opacity:1}}}
@@ -572,7 +577,7 @@ body.simple .st-status{height:50px}
   </main>
 </div>
 
-<div class="splash" id="splash" hidden><div class="splash-in"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 10 16 17 3 10Z" fill="#d9d9d9"/><path d="M3 10 16 17V30L3 23Z" fill="#9a9a9a"/><path d="M29 10 16 17V30L29 23Z" fill="#6b6b6b"/></svg><b>Rendernail</b></div></div>
+<div class="splash" id="splash" hidden tabindex="-1" aria-label="Rendernail starten"><div class="splash-in"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 10 16 17 3 10Z" fill="#d9d9d9"/><path d="M3 10 16 17V30L3 23Z" fill="#9a9a9a"/><path d="M29 10 16 17V30L29 23Z" fill="#6b6b6b"/></svg><b>Rendernail</b><span class="splash-hint">Zum Starten tippen</span></div></div>
 <div class="gate" id="chooser" hidden>
   <div class="gate-card wide" role="dialog" aria-modal="true" aria-labelledby="ch-h">
     <h1 id="ch-h">Wie möchtest du arbeiten?</h1>
