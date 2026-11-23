@@ -19,21 +19,21 @@ const POSES={
 };
 const ST_ITEMS=[['','Nichts'],['sw_diamond','Diamantschwert'],['sw_iron','Eisenschwert'],['sw_gold','Goldschwert'],['sw_dark','Obsidianschwert'],['pk_diamond','Spitzhacke'],['axe','Axt'],['bow','Bogen'],['torch','Fackel'],['apple','Apfel'],['gapple','Goldapfel'],['diamond','Diamant'],['shield','Schild'],['potion_red','Heiltrank']];
 const D2R=Math.PI/180;
-const ST={open:{},ready:false,failed:false,models:[],cur:0,bone:null,sym:false,bg:'sky',bgColor:'#3a3a3a',ground:true,light:1,hist:[],fut:[],running:false,tcUsed:false};
+const ST={skyTime:'day',open:{},ready:false,failed:false,models:[],cur:0,bone:null,sym:false,bg:'sky',bgColor:'#3a3a3a',ground:true,light:1,hist:[],fut:[],running:false,tcUsed:false};
 let R3=null;
 let USER_SKINS=store.get('rk-skins',[]);if(!Array.isArray(USER_SKINS))USER_SKINS=[];
 const userSkinCanvas=[];
 function loadUserSkins(){USER_SKINS.forEach((s,i)=>{if(userSkinCanvas[i]||!s||!/^data:image\/png;base64,/.test(s.data||''))return;loadSkinFile(s.data).then(c=>{userSkinCanvas[i]=c;ST.models.forEach(m=>{if(m.skin==='u'+i)buildModel(m)})}).catch(()=>{})})}
 function skinCanvasFor(m){if(String(m.skin).startsWith('k:')&&PACK&&PACK.skins[m.skin.slice(2)])return PACK.skins[m.skin.slice(2)];if(String(m.skin).startsWith('u')){const c=userSkinCanvas[+m.skin.slice(1)];if(c)return c}const i=+String(m.skin).slice(1);return PRESET_SKINS[i]||PRESET_SKINS[0]}
 function modelData(m){return{name:m.name,skin:m.skin,slim:!!m.slim,item:m.item||'',pose:m.pose||{},rootY:m.rootY||0,x:m.x||0,z:m.z||0,ry:m.ry||0}}
-function stSnap(){return JSON.stringify({models:ST.models.map(modelData),bg:ST.bg,bgColor:ST.bgColor,ground:ST.ground,light:ST.light})}
+function stSnap(){return JSON.stringify({models:ST.models.map(modelData),skyTime:ST.skyTime,bg:ST.bg,bgColor:ST.bgColor,ground:ST.ground,light:ST.light})}
 function stCommit(){const s=stSnap();if(ST.hist[ST.hist.length-1]===s)return;ST.hist.push(s);if(ST.hist.length>60)ST.hist.shift();ST.fut=[];store.set('rk-studio',JSON.parse(s));updStUndo()}
 function updStUndo(){$('#st-undo').disabled=ST.hist.length<2;$('#st-redo').disabled=!ST.fut.length}
 function stRestore(s){const o=JSON.parse(s);applyStudioState(o);store.set('rk-studio',o);updStUndo()}
 function applyStudioState(o){
   ST.models.forEach(disposeModel);ST.models=[];
   (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item]||/^pi_[a-z0-9_]+$/.test(d.item))?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
-  ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#3a3a3a';ST.ground=o.ground!==false;ST.light=+o.light||1;
+  ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#3a3a3a';ST.ground=o.ground!==false;ST.skyTime=['day','sunset','night'].includes(o.skyTime)?o.skyTime:'day';ST.light=+o.light||1;
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
 /* ---------- Geometrie mit Skin-UV ---------- */
@@ -104,12 +104,13 @@ function initStudio(){
   new ResizeObserver(resize3).observe(wrap);
   ST.ready=true;loadUserSkins();
   applyStudioState(store.get('rk-studio',{})||{});ST.hist=[stSnap()];updStUndo();setCamera('left');resize3()}
-function resize3(){if(!R3)return;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix()}
+let skyT=0;function resize3(){if(!R3)return;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
 function loop3(){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);R3.controls.update();R3.renderer.render(R3.scene,R3.camera)}
 function startStudio(){initStudio();if(R3&&!ST.running){ST.running=true;resize3();loop3()}}
-let skyTex=null;
+let skyTex=null,skyKey='';
 function setBackground(){if(!R3)return;const T=THREE;$('#st-stage').classList.toggle('transparent',ST.bg==='none');
-  if(ST.bg==='sky'){if(!skyTex){const c=mk(4,256),x=c.getContext('2d'),g=x.createLinearGradient(0,0,0,256);g.addColorStop(0,'#5d9fe0');g.addColorStop(.6,'#a8d2f2');g.addColorStop(1,'#dcecf7');x.fillStyle=g;x.fillRect(0,0,4,256);skyTex=new T.CanvasTexture(c);skyTex.encoding=T.sRGBEncoding}R3.scene.background=skyTex}
+  if(ST.bg==='sky'){const w=R3.wrap.clientWidth||1280,h=R3.wrap.clientHeight||720,W=1600,H=Math.max(200,Math.round(W*h/w)),key=[ST.skyTime,W,H,packTick].join('|');
+    if(!skyTex||skyKey!==key){if(skyTex)skyTex.dispose();const c=mk(W,H);drawMcSky(c,ST.skyTime,7);skyTex=new T.CanvasTexture(c);skyTex.encoding=T.sRGBEncoding;skyKey=key}R3.scene.background=skyTex}
   else if(ST.bg==='color')R3.scene.background=new T.Color(ST.bgColor).convertSRGBToLinear();
   else R3.scene.background=null;
   R3.ground.visible=ST.ground;R3.hemi.intensity=.75*ST.light;R3.dir.intensity=.85*ST.light}
@@ -191,12 +192,13 @@ function buildSide3(){
   if(ST.models.length>1){const rm=document.createElement('button');rm.type='button';rm.className='btn sm danger';rm.textContent=m.name+' entfernen';rm.addEventListener('click',removeModel);fs.append(rm)}
   // Szene
   const sc=sec('Szene & Licht','scene',false);
-  sc.append(seg('Hintergrund',[['sky','Himmel'],['color','Farbe'],['none','Transparent']],()=>ST.bg,v=>{ST.bg=v;setBackground();stCommit();buildSide3()}));
+  sc.append(seg('Hintergrund',[['sky','Minecraft-Himmel'],['color','Farbe'],['none','Transparent']],()=>ST.bg,v=>{ST.bg=v;setBackground();stCommit();buildSide3()}));
+  if(ST.bg==='sky')sc.append(seg('Tageszeit',[['day','Tag'],['sunset','Abend'],['night','Nacht']],()=>ST.skyTime,v=>{ST.skyTime=v;setBackground();stCommit()}));
   if(ST.bg==='color'){const r=document.createElement('label');r.className='row';r.innerHTML='<span>Farbe</span><input type="color" id="st-bgc">';const ci=r.querySelector('input');ci.value=ST.bgColor;ci.addEventListener('input',()=>{ST.bgColor=ci.value;setBackground()});ci.addEventListener('change',stCommit);sc.append(r)}
   const gr=document.createElement('label');gr.className='row check';gr.innerHTML='<input type="checkbox" id="st-ground"><span>Schatten am Boden</span>';gr.querySelector('input').checked=ST.ground;gr.querySelector('input').addEventListener('change',e=>{ST.ground=e.target.checked;setBackground();stCommit()});sc.append(gr);
   const lt=rng('Licht',()=>Math.round(ST.light*100),v=>{ST.light=v/100;setBackground()},30,170,' %');sc.append(lt);
   const hint=document.createElement('p');hint.className='sub';hint.textContent=ST.bg==='none'?'Transparent: Der Render wird freigestellt und lässt sich direkt ins Thumbnail setzen.':'Tipp: Mit „Transparent“ bekommst du eine freigestellte Figur fürs Thumbnail.';sc.append(hint);
-  const help=document.createElement('p');help.className='sub';help.textContent='Ziehen dreht die Kamera. Zwei Finger oder Mausrad zoomen. Rechte Maustaste oder zwei Finger verschieben.';s.append(help)}
+  const help=document.createElement('p');help.className='sub st-help';help.textContent='Ziehen dreht die Kamera. Zwei Finger oder Mausrad zoomen. Rechte Maustaste oder zwei Finger verschieben.';s.append(help)}
 $('#f-skin').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
   blobToDataURL(f).then(loadSkinFile).then(c=>{const data=c.toDataURL('image/png');USER_SKINS.push({name:(f.name||'Eigener Skin').replace(/\.png$/i,'').slice(0,30),data});if(USER_SKINS.length>12){USER_SKINS.shift();userSkinCanvas.shift()}
     store.set('rk-skins',USER_SKINS);const i=USER_SKINS.length-1;userSkinCanvas[i]=c;const m=curModel();if(m){m.skin='u'+i;buildModel(m);stCommit()}buildSide3();toast('Skin geladen.')}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
@@ -224,7 +226,7 @@ $('#st-render').addEventListener('click',async()=>{
       {label:'Ins Thumbnail einfügen',primary:!DL,run:async()=>{const src=await keep();dlg.close();insertImageIntoDesign(src,out.width,out.height,'Render',{fitH:.85,x:.72})},fail:()=>'Einfügen hat nicht geklappt.'},
       ASSETS&&{label:'In Uploads speichern',run:async()=>{await keep();return'Gespeichert. Du findest den Render im Editor unter Uploads und in der Galerie unter „Meine Renders“.'},fail:e=>e&&e.code==='quota_or_state'?'Der Speicher ist voll.':'Speichern hat nicht geklappt.'}]})});
 
-packWatchers.push(()=>{if(ST.ready){ST.models.forEach(buildModel);buildSide3()}});
+packWatchers.push(()=>{if(ST.ready){ST.models.forEach(buildModel);buildSide3();setBackground()}});
 
 /* Skin über den Spielernamen (Java-Edition). Mojangs eigene Schnittstellen erlauben Webseiten keinen
    Zugriff, darum über mc-heads.net, ersatzweise minotar.net; beide liefern den aktuellen Skin. */

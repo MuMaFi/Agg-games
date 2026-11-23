@@ -135,3 +135,5 @@ if(document.fonts&&document.fonts.load){
     fontsTick++;txtCache.clear();clearFontAssets();fxCache.clear();
     if(ED.p){ED.p.layers.filter(L=>L.type==='text').forEach(refitText)}
     if(view==='editor'){requestRender();renderLayers();if(['text','templates','assets'].includes(ED.tab))buildSide()}})}
+
+$('#start-new').addEventListener('click',()=>createAndOpen('yt'));$('#start-open').addEventListener('click',()=>$('#f-project').click());

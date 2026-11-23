@@ -31,10 +31,11 @@ const pngURL=ab=>blobToDataURL(new Blob([ab],{type:'image/png'})).then(u=>u.repl
 /* Alle Block- und Gegenstand-Texturen aus einer Quelle sammeln (Pfade relativ zu assets/minecraft/textures/) */
 async function collectPack(src,name,status=()=>{}){
   const out={v:2,name:String(name||'Texturpaket').slice(0,60),files:{},skins:{}};
-  const re=/^(block|blocks|item|items)\/([a-z0-9_]+)\.png$/,sk=/^entity\/(?:player\/(wide|slim)\/)?([a-z0-9_]+)\.png$/;
-  const list=src.names();let n=0;const todo=list.filter(p=>re.test(p)||sk.test(p));
-  for(const p of todo){const ab=await src.read(p).catch(()=>null);if(++n%60===0)status(`Texturen werden entpackt … ${n} von ${todo.length}`);if(!ab)continue;const blob=new Blob([ab],{type:'image/png'});
-    let m=p.match(re);if(m){out.files[(m[1][0]==='b'?'b/':'i/')+m[2]]=blob;continue}
+  const env=/^environment\/(?:celestial\/)?(sun|clouds|moon_phases|moon\/full_moon)\.png$/,re=/^(block|blocks|item|items)\/([a-z0-9_]+)\.png$/,sk=/^entity\/(?:player\/(wide|slim)\/)?([a-z0-9_]+)\.png$/;
+  const list=src.names();let n=0;const todo=list.filter(p=>re.test(p)||sk.test(p)||env.test(p));
+  for(const p of todo){const ab=await src.read(p).catch(()=>null);if(++n%60===0)status(`Texturen werden entpackt … ${n} von ${todo.length}`,n/todo.length);if(!ab)continue;const blob=new Blob([ab],{type:'image/png'});
+    let m=p.match(env);if(m){out.files['e/'+(m[1]==='moon/full_moon'?'moon':m[1])]=blob;continue}
+    m=p.match(re);if(m){out.files[(m[1][0]==='b'?'b/':'i/')+m[2]]=blob;continue}
     m=p.match(sk);if(m&&(m[1]||['steve','alex'].includes(m[2]))&&Object.keys(out.skins).length<24)out.skins[(m[1]==='slim'||m[2]==='alex'?'s:':'w:')+m[2]]=blob}
   if(!Object.keys(out.files).length&&!Object.keys(out.skins).length)throw new Error('In der Datei wurden keine Minecraft-Texturen gefunden.');
   return out}
@@ -104,7 +105,7 @@ function registerPackLib(){
   for(const k of Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort()){const n=k.slice(2),im=PACK.imgs[k];
     PACK_LIB.push({key:'pi_'+n,cat:'items',name:prettyName(n),gen:()=>upscale(im,Math.max(1,Math.round(256/im.width))),pixel:true,color:null,font:false,cover:false,bk:null,pack:true})}
   for(const a of PACK_LIB){LIB.push(a);LIBK[a.key]=a}}
-function packChanged(){packTick++;libCache.clear();cubeCache.clear();blockTexCache.clear();registerPackLib();packWatchers.forEach(f=>{try{f()}catch{}})}
+function packChanged(){packTick++;cloudMapCache=null;libCache.clear();cubeCache.clear();blockTexCache.clear();registerPackLib();packWatchers.forEach(f=>{try{f()}catch{}})}
 /* Speicher: IndexedDB (die Dateien sind zu groß für localStorage) */
 const packKV={_p:null,open(){if(this._p)return this._p;this._p=new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error('kein Speicher'));const r=indexedDB.open('renderkammer-pack',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});this._p.catch(()=>{this._p=null});return this._p},
   async get(k){const d=await this.open();return new Promise((ok,no)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
@@ -115,7 +116,7 @@ async function applyPack(data,status=()=>{}){
   if(!data){PACK=null;Object.assign(ITEM16,ORIG_ITEM16);packChanged();return}
   const imgs={},skins={};
   if(data.v===2){const ents=Object.entries(data.files||{});let n=0;
-    for(let i=0;i<ents.length;i+=48){await Promise.all(ents.slice(i,i+48).map(async([k,b])=>{try{imgs[k]=await decodeTex(b)}catch{}}));n=Math.min(ents.length,i+48);status(`Texturen werden vorbereitet … ${n} von ${ents.length}`)}
+    for(let i=0;i<ents.length;i+=48){await Promise.all(ents.slice(i,i+48).map(async([k,b])=>{try{imgs[k]=await decodeTex(b,k.startsWith('e/'))}catch{}}));n=Math.min(ents.length,i+48);status(`Texturen werden vorbereitet … ${n} von ${ents.length}`,n/ents.length)}
     for(const[k,b]of Object.entries(data.skins||{})){try{const c=await decodeTex(b,true);if(c.width===64&&(c.height===64||c.height===32))skins[k]=c}catch{}}}
   else{for(const[k,u]of Object.entries(data.tex||{})){if(typeof u!=='string'||!/^data:image\/png;base64,/.test(u))continue;try{const im=await loadImage(u),w=im.naturalWidth,c=mk(w,Math.min(w,im.naturalHeight));c.getContext('2d').drawImage(im,0,0);imgs[k]=c}catch{}}
     for(const[k,u]of Object.entries(data.skins||{})){if(typeof u!=='string'||!/^data:image\/png;base64,/.test(u))continue;try{const im=await loadImage(u);if(im.naturalWidth===64&&(im.naturalHeight===64||im.naturalHeight===32)){const c=mk(64,im.naturalHeight);c.getContext('2d').drawImage(im,0,0);skins[k]=c}}catch{}}}
@@ -123,20 +124,39 @@ async function applyPack(data,status=()=>{}){
   Object.assign(ITEM16,ORIG_ITEM16);for(const[k,names]of Object.entries(PACK_ITEMS)){const im=packItemImg(names);if(im)ITEM16[k]=gridFromImage(im)}
   packChanged()}
 let PACK_BUSY=false,PACK_STATUS='';
-function packStatus(t){PACK_STATUS=t;const el=document.getElementById('pack-status');if(el)el.textContent=t}
+function packStatus(t,f){PACK_STATUS=t;const el=document.getElementById('pack-status');if(el)el.textContent=t;const gs=document.getElementById('gate-st');if(gs&&!$('#gate').hidden){gs.textContent=t;const b=$('#gate-bar');b.hidden=false;if(f!=null)b.firstElementChild.style.width=Math.round(f*100)+'%'}}
 async function runPackLoad(make){
   if(PACK_BUSY)return;PACK_BUSY=true;packUI();
-  try{const data=await make(packStatus);await applyPack(data,packStatus);
+  let ok=false;
+  try{const data=await make(packStatus);await applyPack(data,packStatus);ok=true;
     const kept=await packKV.set('pack',data).then(()=>true,()=>false);try{localStorage.removeItem('rk-pack')}catch{}
     const nb=packBlockBases().length,ni=Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).length,ns=Object.keys(PACK.skins).length;
+    {const g=document.getElementById('gate');if(g)g.hidden=true}
     packStatus('');toast(`Geladen: ${nb} Blöcke, ${ni} Gegenstände${ns?`, ${ns} Skins`:''}.`+(kept?'':' Es bleibt nur bis zum Neuladen, weil der Browser-Speicher voll ist.'))}
   catch(e){packStatus('Das hat nicht geklappt: '+(e&&e.message?e.message:'unbekannter Fehler'))}
-  finally{PACK_BUSY=false;packUI()}}
+  finally{PACK_BUSY=false;packUI()}
+  return ok}
 function packUI(){if(typeof buildSide==='function'&&view==='editor'&&ED.p&&ED.tab==='assets')buildSide()}
 const loadPackFile=file=>runPackLoad(st=>{st('Datei wird gelesen …');return readPack(file,null,st)});
 const loadPackMojang=()=>runPackLoad(packFromMojang);
 const loadPackPocketcraft=()=>runPackLoad(st=>{st('Pocketcraft-Texturen werden übernommen …');return packFromPocketcraft()});
 function removePack(){try{localStorage.removeItem('rk-pack')}catch{}packKV.del('pack').catch(()=>{});applyPack(null);toast('Eigene Grafiken sind wieder aktiv.')}
 (async function(){try{const d=await packKV.get('pack');if(d&&d.v===2){PACK_BUSY=true;await applyPack(d);PACK_BUSY=false;packUI();return}}catch{PACK_BUSY=false}
-  const saved=store.get('rk-pack',null);if(saved&&saved.tex)applyPack(saved)})();
+  const saved=store.get('rk-pack',null);if(saved&&saved.tex){await applyPack(saved);return}
+  gateOpen()})();
+/* ================= Installation beim ersten Start ================= */
+function gateOpen(){
+  const g=$('#gate'),go=$('#gate-go'),alt=$('#gate-alt'),st=$('#gate-st');g.hidden=false;
+  const altBtn=(t,fn)=>{const b=document.createElement('button');b.type='button';b.className='btn ghost sm';b.textContent=t;b.addEventListener('click',fn);alt.append(b);return b};
+  const done=()=>{g.hidden=true;toast('Minecraft-Texturen sind installiert.')};
+  const fill=()=>{alt.innerHTML='';
+    if(!window.RK_LOCAL)altBtn('client.jar herunterladen',()=>window.open('https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar','_blank','noopener'));
+    altBtn(window.RK_LOCAL?'Eigene .jar auswählen':'Texturpaket auswählen',()=>$('#f-pack').click());
+    altBtn('Ohne Texturen starten',()=>{g.hidden=true})};
+  if(window.RK_LOCAL){go.textContent='Installieren';go.onclick=async()=>{go.disabled=true;st.textContent='';if(await runPackLoad(packFromMojang))done();else{go.disabled=false;go.textContent='Nochmal versuchen'}}}
+  else{$('#gate-p').textContent='Rendernail braucht einmalig die Original-Texturen aus Minecraft. Lade die client.jar von Mojang herunter und wähle sie hier aus.';
+    $('#gate-list').lastElementChild.textContent='Bleibt in diesem Browser';go.textContent='client.jar auswählen';go.onclick=()=>$('#f-pack').click()}
+  fill();pocketcraftTextures().then(t=>{if(t&&!g.hidden)altBtn('Aus Pocketcraft übernehmen',async()=>{if(await runPackLoad(st2=>{st2('Pocketcraft-Texturen werden übernommen …');return packFromPocketcraft()}))done()})}).catch(()=>{});
+  packWatchers.push(()=>{if(PACK&&!g.hidden&&!PACK_BUSY)done()});
+  setTimeout(()=>go.focus(),50)}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='f-pack'){const f=e.target.files[0];e.target.value='';if(f)loadPackFile(f)}});

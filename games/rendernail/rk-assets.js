@@ -249,3 +249,34 @@ function clearFontAssets(){for(const k of[...libCache.keys()]){const a=LIBK[k.sp
 /* ================= Hintergründe & Schriften ================= */
 const GRADS={sunset:['Abendrot',['#3b2a6b','#e5866a','#f6d49c']],night:['Nacht',['#060914','#1c2a5c','#3c4f8f']],nether:['Unterwelt',['#1a0606','#5c1a12','#c4421a']],ocean:['Ozean',['#04263f','#0e6b8a','#5fd0d6']],forest:['Wald',['#0d2414','#2f6b34','#9ed36a']],gold:['Gold',['#3a2402','#c98a12','#ffe27a']],candy:['Bonbon',['#4b1d6b','#d24c9c','#ffb37a']],steel:['Stahl',['#0f1216','#2b333e','#5c6878']]};
 const FONTS={luckiest:['Luckiest Guy','"Luckiest Guy", Impact, sans-serif',400],bungee:['Bungee','"Bungee", Impact, sans-serif',400],lilita:['Lilita One','"Lilita One", Impact, sans-serif',400],bangers:['Bangers','"Bangers", Impact, sans-serif',400],pixel:['Pixelify Sans','"Pixelify Sans", monospace',700],press:['Press Start 2P','"Press Start 2P", monospace',400],inter:['Inter Black','"Inter", "Arial Black", sans-serif',900]};
+
+/* ================= Minecraft-Himmel =================
+   Farben wie in Minecraft (Ebene, Tag: Himmel #78A7FF, Dunst #C0D8FF). Mit installierten
+   Texturen kommen Sonne, Mond und Wolkenkarte aus Minecraft, sonst eigene Annäherungen. */
+const MC_SKY={day:{top:'#78a7ff',hz:'#c0d8ff',cloud:'#ffffff',cloudSide:'#e4e9f4'},sunset:{top:'#5a6fb8',hz:'#f3b585',cloud:'#ffe6d2',cloudSide:'#e9c1a8'},night:{top:'#05070f',hz:'#121a33',cloud:'#3a4258',cloudSide:'#2c3346'}};
+let cloudMapCache=null;
+function mcCloudMap(){const key=(typeof PACK!=='undefined'&&PACK&&PACK.imgs['e/clouds'])?'pack':'own';if(cloudMapCache&&cloudMapCache.key===key)return cloudMapCache;
+  let n,a;
+  if(key==='pack'){const c=PACK.imgs['e/clouds'];n=c.width;const d=c.getContext('2d').getImageData(0,0,n,n).data;a=new Uint8Array(n*n);for(let i=0;i<n*n;i++)a[i]=d[i*4+3]>30?1:0}
+  else{n=128;a=new Uint8Array(n*n);const r=mulberry32(77),blobs=[];for(let i=0;i<230;i++)blobs.push([r()*n,r()*n,.5+r()*2.6,.4+r()*1.4]);
+    for(let y=0;y<n;y++)for(let x=0;x<n;x++){for(const[bx,by,rw,rh]of blobs){let dx=Math.abs(x-bx),dy=Math.abs(y-by);dx=Math.min(dx,n-dx);dy=Math.min(dy,n-dy);if(dx<=rw&&dy<=rh){a[y*n+x]=1;break}}}}
+  return cloudMapCache={key,n,a}}
+function mcSun(time){const P=typeof PACK!=='undefined'&&PACK;
+  if(time==='night'){if(P&&P.imgs['e/moon'])return P.imgs['e/moon'];const m=P&&P.imgs['e/moon_phases'];if(m){const fw=m.width/4,fh=m.height/2,c=mk(fw,fh);c.getContext('2d').drawImage(m,0,0,fw,fh,0,0,fw,fh);return c}
+    const c=mk(32,32),x=c.getContext('2d');x.fillStyle='#e8ecf5';x.fillRect(8,8,16,16);x.fillStyle='#c7cddb';x.fillRect(11,12,3,3);x.fillRect(18,17,4,3);return c}
+  const s=P&&P.imgs['e/sun'];if(s)return s;
+  const c=mk(32,32),x=c.getContext('2d');x.fillStyle='rgba(255,246,190,.18)';x.fillRect(2,2,28,28);x.fillStyle='rgba(255,246,190,.35)';x.fillRect(5,5,22,22);x.fillStyle='#fff6c4';x.fillRect(8,8,16,16);x.fillStyle='#fffdf0';x.fillRect(10,10,12,12);return c}
+function hexMix(a,b,t){const A=hexRgb(a),B=hexRgb(b);return`rgb(${A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')})`}
+function drawMcSky(cv,time='day',seed=1){
+  const W=cv.width,H=cv.height,x=cv.getContext('2d'),C=MC_SKY[time]||MC_SKY.day,hz=H*.72,r=mulberry32(seed*13+5);
+  const g=x.createLinearGradient(0,0,0,hz);g.addColorStop(0,C.top);g.addColorStop(.7,hexMix(C.top,C.hz,.55));g.addColorStop(1,C.hz);x.fillStyle=g;x.fillRect(0,0,W,hz+1);x.fillStyle=C.hz;x.fillRect(0,hz,W,H-hz);
+  if(time==='night'){x.fillStyle='#ffffff';for(let i=0;i<Math.round(W*H/2600);i++){x.globalAlpha=.25+r()*.7;const s=r()<.1?2:1;x.fillRect(Math.floor(r()*W),Math.floor(r()*hz*.95),s*Math.max(1,W/1280),s*Math.max(1,W/1280))}x.globalAlpha=1}
+  const sun=mcSun(time),sz=Math.min(W,H)*(time==='night'?.13:.2),sx=W*(time==='sunset'?.2:.72),sy=time==='sunset'?hz-sz*.75:H*.1;
+  x.save();x.imageSmoothingEnabled=false;if(time!=='night')x.globalCompositeOperation='lighter';x.drawImage(sun,sx,sy,sz,sz);x.restore();
+  const map=mcCloudMap(),n=map.n,f=W*.55,ch=2.4,c=1.05,th=.36,ox=Math.floor(r()*n),oz=Math.floor(r()*n),zmin=1.8,zmax=19;
+  const has=(i,j)=>map.a[(((j+oz)%n+n)%n)*n+(((i+ox)%n+n)%n)];
+  const P=(X,Y,Z)=>[W/2+f*X/Z,hz-f*Y/Z];
+  for(let j=Math.floor(zmax/c);j>=Math.ceil(zmin/c);j--){const z0=j*c,z1=z0+c,span=Math.ceil((W/2*z1/f)/c)+1,fog=clamp((z0-5)/(zmax-5),0,1)*.85;
+    for(let i=-span;i<=span;i++){if(!has(i,j))continue;const x0=i*c,x1=x0+c;
+      const q=[P(x0,ch,z0),P(x1,ch,z0),P(x1,ch,z1),P(x0,ch,z1)];x.fillStyle=x.strokeStyle=hexMix(C.cloudSide,C.hz,fog);x.lineWidth=1;x.beginPath();x.moveTo(...q[0]);for(let k=1;k<4;k++)x.lineTo(...q[k]);x.closePath();x.fill();x.stroke();
+      if(!has(i,j-1)){const t=[P(x0,ch,z0),P(x1,ch,z0),P(x1,ch+th,z0),P(x0,ch+th,z0)];x.fillStyle=x.strokeStyle=hexMix(C.cloud,C.hz,fog);x.beginPath();x.moveTo(...t[0]);for(let k=1;k<4;k++)x.lineTo(...t[k]);x.closePath();x.fill();x.stroke()}}}}
