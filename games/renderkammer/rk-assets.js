@@ -106,9 +106,13 @@ function cubeCanvas(t,yaw=-45,pitch=30,roll=0){
   if(t.alpha)faces.filter(f=>f.rn[2]<=1e-4).forEach(draw);
   faces.filter(f=>f.rn[2]>1e-4).forEach(draw);
   return c}
+/* Bildschirm-Versatz eines Würfels um je einen Block entlang x, y, z: [dx, dy, Tiefe] in Würfel-Einheiten */
+function cubeAxes(yaw=-45,pitch=30,roll=0){const A=yaw*Math.PI/180,Bp=pitch*Math.PI/180,R=roll*Math.PI/180,ca=Math.cos(A),sa=Math.sin(A),cb=Math.cos(Bp),sb=Math.sin(Bp),cr=Math.cos(R),sr=Math.sin(R);
+  const rot=([X,Y,Z])=>{const x1=X*cr-Y*sr,y1=X*sr+Y*cr,z1=Z;const x2=x1*ca+z1*sa,z2=-x1*sa+z1*ca;return[x2,y1*cb-z2*sb,y1*sb+z2*cb]};
+  return[[2,0,0],[0,2,0],[0,0,2]].map(v=>{const r=rot(v);return[r[0],-r[1],r[2]]})}
 const ownTex=new Map(),blockTexCache=new Map();let packTick=0;
 function ownBlockTex(k){let t=ownTex.get(k);if(!t){const d=BLOCK_DEFS.find(b=>b[0]===k);t=d?d[2]():{};if(k==='grass')t.bottom=ownBlockTex('dirt').top;ownTex.set(k,t)}return t}
-function blockTex(k){let t=blockTexCache.get(k);if(!t){t=(typeof packBlockTex==='function'&&packBlockTex(k))||ownBlockTex(k);blockTexCache.set(k,t)}return t}
+function blockTex(k){let t=blockTexCache.get(k);if(!t){t=k.startsWith('pk:')?((typeof packDynTex==='function'&&packDynTex(k.slice(3)))||{}):((typeof packBlockTex==='function'&&packBlockTex(k))||ownBlockTex(k));blockTexCache.set(k,t)}return t}
 const cubeCache=new Map();
 function blockCanvas(k,yaw=-45,pitch=30,roll=0){const key=[k,Math.round(yaw*2),Math.round(pitch*2),Math.round(roll*2),packTick].join('|');let c=cubeCache.get(key);if(!c){if(cubeCache.size>160)cubeCache.clear();c=cubeCanvas(blockTex(k),yaw,pitch,roll);cubeCache.set(key,c)}return c}
 

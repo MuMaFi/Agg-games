@@ -247,6 +247,8 @@ function buildChar(img,o){
       S.set(pos[0],pos[1],pos[2],{ft:faces['0,1,0'],fx:faces['1,0,0'],fz:faces['0,0,1'],j:0})}}
   S.shade=o.face==='right'?[1,.95,.78]:[1,.78,.95];
   return S}
+/* Wie Minecraft: ist die Hut-Ebene komplett deckend (alte Skins), wird sie ignoriert */
+function fixSkin(c){try{const x=c.getContext('2d'),d=x.getImageData(32,0,32,16).data;for(let i=3;i<d.length;i+=4)if(d[i]<255)return c;x.clearRect(32,0,32,16)}catch{}return c}
 function loadSkinFile(url){
   return loadImage(url).then(im=>{const w=im.naturalWidth,h=im.naturalHeight;
     if(w<64||w%64||!(h===w||h*2===w))throw new Error('Der Skin muss 64×64 oder 64×32 Pixel groß sein (oder ein Vielfaches davon).');

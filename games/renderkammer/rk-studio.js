@@ -32,7 +32,7 @@ function updStUndo(){$('#st-undo').disabled=ST.hist.length<2;$('#st-redo').disab
 function stRestore(s){const o=JSON.parse(s);applyStudioState(o);store.set('rk-studio',o);updStUndo()}
 function applyStudioState(o){
   ST.models.forEach(disposeModel);ST.models=[];
-  (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item])?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
+  (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item]||/^pi_[a-z0-9_]+$/.test(d.item))?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
   ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#2b3340';ST.ground=o.ground!==false;ST.light=+o.light||1;
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
@@ -50,7 +50,7 @@ function boxGeo(b,TW,TH){
   F.forEach(([tl,tr,bl,br,[x,y,rw,rh],n])=>{const base=pos.length/3;[tl,tr,bl,br].forEach(p=>{pos.push(...p);nor.push(...n)});
     const e=.0005,u0=x/TW+e,u1=(x+rw)/TW-e,v0=1-y/TH-e,v1=1-(y+rh)/TH+e;uv.push(u0,v0,u1,v0,u0,v1,u1,v1);idx.push(base,base+2,base+1,base+1,base+2,base+3)});
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);return g}
-function itemMesh(key){const g=ITEM16[key];if(!g)return null;const T=THREE,cells=[];
+function itemMesh(key){const g=ITEM16[key]||(String(key).startsWith('pi_')&&typeof packItemGrid==='function'?packItemGrid(key.slice(3)):null);if(!g)return null;const T=THREE,cells=[];
   const n=g.length,k=16/n;for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(g[y][x])cells.push([x,y,g[y][x]]);
   const inst=new T.InstancedMesh(new T.BoxGeometry(k,k,1.2),new T.MeshLambertMaterial({color:0xffffff}),cells.length),M=new T.Matrix4(),col=new T.Color();
   cells.forEach(([x,y,c],i)=>{M.makeTranslation((x-(n-1)/2)*k,((n-1)/2-y)*k,0);inst.setMatrixAt(i,M);col.set(c);col.convertSRGBToLinear();inst.setColorAt(i,col)});
@@ -58,7 +58,7 @@ function itemMesh(key){const g=ITEM16[key];if(!g)return null;const T=THREE,cells
 function disposeModel(m){if(!m.group)return;R3&&R3.scene.remove(m.group);m.group.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){[].concat(o.material).forEach(x=>{if(x.map)x.map.dispose();x.dispose()})}});m.group=null}
 function buildModel(m){
   if(!R3)return;const T=THREE;const keepTc=R3.tc.object&&m.group&&R3.tc.object.parent&&ST.models[ST.cur]===m;disposeModel(m);
-  const skin=skinCanvasFor(m),TW=skin.width,TH=skin.height,legacy=TH===32,aw=m.slim?3:4;
+  const skin=fixSkin(skinCanvasFor(m)),TW=skin.width,TH=skin.height,legacy=TH===32,aw=m.slim?3:4;
   const tex=new T.CanvasTexture(skin);tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.generateMipmaps=false;tex.encoding=T.sRGBEncoding;
   const mat=new T.MeshLambertMaterial({map:tex,alphaTest:.1}),matO=new T.MeshLambertMaterial({map:tex,transparent:true,alphaTest:.45,side:T.DoubleSide});
   const root=new T.Group();m.bones={};m.meshes=[];
@@ -172,11 +172,16 @@ function buildSide3(){
   PRESETS.forEach((p,i)=>ss.append(new Option('Beispiel: '+p.name,'p'+i)));if(PACK)Object.keys(PACK.skins).forEach(k=>ss.append(new Option('Paket: '+k.slice(2).replace(/_/g,' '),'k:'+k)));USER_SKINS.forEach((u,i)=>ss.append(new Option(u.name||('Eigener Skin '+(i+1)),'u'+i)));ss.value=m.skin;
   ss.addEventListener('change',()=>{m.skin=ss.value;if(ss.value.startsWith('k:'))m.slim=ss.value.startsWith('k:s:');buildModel(m);stCommit();buildSide3()});fs.append(skinField);
   const ub=document.createElement('button');ub.type='button';ub.className='btn sm';ub.textContent='Eigenen Skin hochladen (PNG)';ub.addEventListener('click',()=>$('#f-skin').click());fs.append(ub);
-  const note=document.createElement('p');note.className='sub';note.textContent='Normaler Minecraft-Skin, 64×64 oder 64×32 Pixel. Laden per Spielername geht hier nicht.';fs.append(note);
+  if(window.RK_LOCAL){const ig=document.createElement('div');ig.className='btnrow';const ii=document.createElement('input');ii.type='text';ii.maxLength=16;ii.placeholder='Spielername (IGN)';ii.setAttribute('aria-label','Spielername');ii.autocomplete='off';ii.spellcheck=false;
+    ii.style.cssText='flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:6px 9px';
+    const ib=document.createElement('button');ib.type='button';ib.className='btn sm primary';ib.textContent='Skin laden';
+    const go=async()=>{ib.disabled=true;ib.textContent='Lädt …';try{await skinFromIGN(ii.value.trim(),m)}catch(e){toast(e.message||'Skin nicht gefunden.')}finally{ib.disabled=false;ib.textContent='Skin laden'}};
+    ib.addEventListener('click',go);ii.addEventListener('keydown',e=>{if(e.key==='Enter')go()});ig.append(ii,ib);fs.append(ig)}
+  const note=document.createElement('p');note.className='sub';note.textContent=window.RK_LOCAL?'Spielername eintippen oder eine Skin-Datei (64×64 PNG) hochladen.':'Normaler Minecraft-Skin, 64×64 oder 64×32 Pixel. Laden per Spielername geht nur in der AGG-Games-Fassung.';fs.append(note);
   const seg=(label,opts,get,set)=>{const w=document.createElement('div');w.className='field';w.innerHTML='<div class="lab"><span></span></div><div class="seg" role="group"></div>';w.querySelector('span').textContent=label;const g=w.querySelector('.seg');g.setAttribute('aria-label',label);
     for(const[v,l]of opts){const b=document.createElement('button');b.type='button';b.textContent=l;b.setAttribute('aria-pressed',String(get())===String(v));b.addEventListener('click',()=>{set(v);g.querySelectorAll('button').forEach(z=>z.setAttribute('aria-pressed',z===b))});g.append(b)}return w};
   fs.append(seg('Arme',[['0','Klassisch (4 px)'],['1','Schmal (3 px)']],()=>m.slim?'1':'0',v=>{m.slim=v==='1';buildModel(m);stCommit()}));
-  const itf=document.createElement('div');itf.className='field';itf.innerHTML='<div class="lab"><label for="st-item">In der rechten Hand</label></div><select id="st-item"></select>';const is=itf.querySelector('select');ST_ITEMS.forEach(([k,n])=>is.append(new Option(n,k)));is.value=m.item||'';is.addEventListener('change',()=>{m.item=is.value;buildModel(m);stCommit()});fs.append(itf);
+  const itf=document.createElement('div');itf.className='field';itf.innerHTML='<div class="lab"><label for="st-item">In der rechten Hand</label></div><select id="st-item"></select>';const is=itf.querySelector('select');ST_ITEMS.forEach(([k,n])=>is.append(new Option(n,k)));if(PACK){const og=document.createElement('optgroup');og.label='Aus '+PACK.name;Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort().forEach(k=>og.append(new Option(prettyName(k.slice(2)),'pi_'+k.slice(2))));is.append(og)}is.value=m.item||'';is.addEventListener('change',()=>{m.item=is.value;buildModel(m);stCommit()});fs.append(itf);
   const rng=(label,get,set,min,max,unit)=>{const w=document.createElement('div');w.className='field';const id='st-'+uid();w.innerHTML=`<div class="lab"><label for="${id}"></label><output></output></div><input type="range" id="${id}" min="${min}" max="${max}" step="1">`;w.querySelector('label').textContent=label;
     const i=w.querySelector('input'),o=w.querySelector('output');i.value=get();o.textContent=get()+unit;i.addEventListener('input',()=>{set(+i.value);o.textContent=i.value+unit});i.addEventListener('change',stCommit);return w};
   fs.append(rng('Position links/rechts',()=>m.x||0,v=>{m.x=v;applyPose(m)},-70,70,''));
@@ -220,3 +225,18 @@ $('#st-render').addEventListener('click',async()=>{
       ASSETS&&{label:'In Uploads speichern',run:async()=>{await keep();return'Gespeichert. Du findest den Render im Editor unter Uploads und in der Galerie unter „Meine Renders“.'},fail:e=>e&&e.code==='quota_or_state'?'Der Speicher ist voll.':'Speichern hat nicht geklappt.'}]})});
 
 packWatchers.push(()=>{if(ST.ready){ST.models.forEach(buildModel);buildSide3()}});
+
+/* Skin über den Spielernamen (Java-Edition). Mojangs eigene Schnittstellen erlauben Webseiten keinen
+   Zugriff, darum über mc-heads.net, ersatzweise minotar.net; beide liefern den aktuellen Skin. */
+function loadCORSImage(u){return new Promise((ok,no)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>ok(i);i.onerror=()=>no(new Error('img'));i.src=u})}
+async function skinFromIGN(name,m){
+  if(!/^[A-Za-z0-9_]{3,16}$/.test(name))throw new Error('Spielernamen haben 3 bis 16 Zeichen: Buchstaben, Zahlen und _.');
+  let im=null;for(const u of[`https://mc-heads.net/skin/${encodeURIComponent(name)}`,`https://minotar.net/skin/${encodeURIComponent(name)}`]){try{im=await loadCORSImage(u);break}catch{}}
+  if(!im)throw new Error('Den Skin konnte ich nicht laden. Bist du online?');
+  const w=im.naturalWidth,h=im.naturalHeight;if(w!==64||(h!==64&&h!==32))throw new Error('Der Skin hat ein unbekanntes Format.');
+  const c=mk(64,h);c.getContext('2d').drawImage(im,0,0);
+  const slim=h===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0;
+  const data=c.toDataURL('image/png');let i=USER_SKINS.findIndex(s=>s.name===name);
+  if(i<0){USER_SKINS.push({name,data});if(USER_SKINS.length>12){USER_SKINS.shift();userSkinCanvas.shift()}i=USER_SKINS.length-1}else USER_SKINS[i].data=data;
+  store.set('rk-skins',USER_SKINS);userSkinCanvas[i]=c;
+  if(m){m.skin='u'+i;m.slim=slim;m.name=name;buildModel(m);stCommit();buildModelsBar()}buildSide3();toast(`Skin von ${name} geladen.`)}
