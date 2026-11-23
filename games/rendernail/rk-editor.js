@@ -191,7 +191,11 @@ cv.addEventListener('pointerdown',e=>{
   ED.ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);try{cv.setPointerCapture(e.pointerId)}catch{}
   const m=metrics();
   if(ED.ptrs.size===2){const[a,b]=[...ED.ptrs.values()];ED.marquee=null;ED.drag={mode:'pinch',d0:dist(a,b),z0:m.z,mid:[(a[0]+b[0])/2,(a[1]+b[1])/2],px:ED.panX,py:ED.panY};return}
-  const P=[e.offsetX,e.offsetY],d=toDesign(P[0],P[1],m),tol=e.pointerType==='touch'?24:12,SL=selLayers().filter(l=>l.type!=='backdrop'&&!l.hidden),additive=e.shiftKey||e.metaKey||e.ctrlKey||ED.multi;
+  if(e.button===2)return;
+  const P=[e.offsetX,e.offsetY],d=toDesign(P[0],P[1],m);
+  if(ED.area){const A=ED.p.layers.find(l=>l.id===ED.area);if(A){ED.drag={mode:'area',L:A,made:[],sx:P[0],sy:P[1]};return}ED.area=null}
+  clearTimeout(ED.lpT);if(e.pointerType!=='mouse'){const h0=hitLayer(d);if(h0&&isBlock(h0))ED.lpT=setTimeout(()=>{if(ED.drag&&!ED.drag.moved){ED.drag=null;blockMenu(h0,e.clientX,e.clientY)}},560)}
+  const tol=e.pointerType==='touch'?24:12,SL=selLayers().filter(l=>l.type!=='backdrop'&&!l.hidden),additive=e.shiftKey||e.metaKey||e.ctrlKey||ED.multi;
   const pan=()=>({mode:'pan',sx:P[0],sy:P[1],px:ED.panX,py:ED.panY});
   if(SL.length===1&&!SL[0].locked){const L=SL[0];
     if(dist(P,rotHandle(L,m))<tol){ED.drag={mode:'rot',L};return}
@@ -219,6 +223,24 @@ function blockSnap(L,nx,ny){let best=null;
   return best}
 /* Bauwerke: eingerastete Blöcke kennen ihren Platz im 3D-Raster (cell) */
 const blockDepth=(c,A)=>c[0]*A[0][2]+c[1]*A[1][2]+c[2]*A[2][2];
+/* Fläche: vom Block aus aufziehen, es entstehen Blöcke im selben Raster */
+function startArea(L){if(!L||!isBlock(L))return;select(L.id);ED.area=L.id;$('#ed-canvas').classList.add('areamode');buildSelbar();toast('Zieh vom Block weg, um die Fläche aufzuziehen.')}
+function areaDrag(D,d){const L=D.L,ls=ED.p.layers;
+  for(const o of D.made){const i=ls.indexOf(o);if(i>=0)ls.splice(i,1)}D.made=[];
+  if(!L.build||!L.cell){L.build='b'+uid();L.cell=[0,0,0]}
+  const A=cubeAxes(L.yaw??-45,L.pitch??30,L.roll??0),k=L.w/3.6,ax=A.map(a=>[a[0]*k,a[1]*k]),det=(p,q)=>p[0]*q[1]-p[1]*q[0];
+  const pairs=[[0,2],[0,1],[1,2]],dets=pairs.map(([a,b])=>Math.abs(det(ax[a],ax[b]))),mx=Math.max(...dets),[pa,pb]=pairs[dets[0]>=mx*.35?0:dets.indexOf(mx)];
+  const v=[d[0]-L.x,d[1]-L.y],D0=det(ax[pa],ax[pb]);if(Math.abs(D0)<1e-6)return;
+  const ni=clamp(Math.round(det(v,ax[pb])/D0),-23,23),nj=clamp(Math.round(det(ax[pa],v)/D0),-23,23);
+  const occ=new Set(buildMembers(L.build).map(o=>o.cell.join(','))),at=ls.indexOf(L)+1,grp=L.group||null;
+  for(let i=0;Math.abs(i)<=Math.abs(ni);i+=Math.sign(ni)||1){for(let j=0;Math.abs(j)<=Math.abs(nj);j+=Math.sign(nj)||1){if(!i&&!j){if(!nj)break;continue}
+      const c=[...L.cell];c[pa]+=i;c[pb]+=j;if(occ.has(c.join(',')))continue;
+      const n=JSON.parse(JSON.stringify(L));n.id='l'+uid();n.cell=c;n.locked=false;if(grp)n.group=grp;D.made.push(n);if(!nj)break}if(!ni)break}
+  ls.splice(at,0,...D.made);relayoutBuild(L)}
+function blockMenu(L,x,y){select(L.id);closeMenu();const el=document.createElement('div');el.className='menu';el.setAttribute('role','menu');
+  for(const[label,fn]of[['Als Fläche verwenden',()=>startArea(L)],['Kopie',dup],['Löschen',del]]){const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitem');b.innerHTML='<span></span><kbd></kbd>';b.firstChild.textContent=label;b.addEventListener('click',()=>{closeMenu();fn()});el.append(b)}
+  document.body.append(el);el.style.left=Math.max(6,Math.min(x,innerWidth-el.offsetWidth-6))+'px';el.style.top=Math.max(6,Math.min(y,innerHeight-el.offsetHeight-6))+'px';openMenu={el,btn:document.createElement('button')};el.querySelector('button').focus({preventScroll:true})}
+cv.addEventListener('contextmenu',e=>{if(!ED.p)return;e.preventDefault();const r=cv.getBoundingClientRect(),d=toDesign(e.clientX-r.left,e.clientY-r.top,metrics()),h=hitLayer(d);if(h&&isBlock(h)){ED.drag=null;blockMenu(h,e.clientX,e.clientY)}});
 function buildMembers(b){return ED.p.layers.filter(l=>l.build===b&&l.cell&&isBlock(l))}
 function sortBuild(b){const ls=ED.p.layers,mem=buildMembers(b);if(mem.length<2)return;
   const A=cubeAxes(mem[0].yaw??-45,mem[0].pitch??30,mem[0].roll??0),slots=mem.map(l=>ls.indexOf(l)).sort((x,y)=>x-y);
@@ -238,12 +260,16 @@ function autoOrderFree(L){const ls=ED.p.layers,b=selBox([L]),ov=ls.filter(o=>o!=
 cv.addEventListener('pointermove',e=>{
   if(ED.ptrs.has(e.pointerId))ED.ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);
   const D=ED.drag;if(!D)return;const m=metrics(),W=ED.p.w,H=ED.p.h,P=[e.offsetX,e.offsetY],d=toDesign(P[0],P[1],m);
-  if(!D.moved&&D.tap&&dist(P,[D.sx,D.sy])<5)return;D.moved=true;
+  if(!D.moved&&D.tap&&dist(P,[D.sx,D.sy])<5)return;if(D.sx!=null&&dist(P,[D.sx,D.sy])>8)clearTimeout(ED.lpT);D.moved=true;
+  if(D.mode==='area'){areaDrag(D,d);requestRender();return}
   if(D.mode==='pinch'){if(ED.ptrs.size<2)return;const[a,b]=[...ED.ptrs.values()];ED.fit=false;ED.z=clamp(D.z0*dist(a,b)/D.d0,.05,4);const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];ED.panX=D.px+mid[0]-D.mid[0];ED.panY=D.py+mid[1]-D.mid[1]}
   else if(D.mode==='move'){let dx=d[0]-D.sx,dy=d[1]-D.sy;const th=8/m.z,cxn=D.c0[0]+dx,cyn=D.c0[1]+dy;ED.guides={v:Math.abs(cxn-W/2)<th,h:Math.abs(cyn-H/2)<th};if(ED.guides.v)dx=W/2-D.c0[0];if(ED.guides.h)dy=H/2-D.c0[1];
     D.snap=null;ED.snapT=null;
     ED.ghost=null;
     if(ED.snap&&D.ls.length===1&&isBlock(D.ls[0])){const L=D.ls[0],sn=Math.hypot(d[0]-D.sx,d[1]-D.sy)<4/m.z?null:blockSnap(L,D.start[0][0]+d[0]-D.sx,D.start[0][1]+d[1]-D.sy);if(sn){ED.guides=null;D.snap=sn;ED.snapT=sn.T;ED.ghost={...L,x:sn.x,y:sn.y,w:sn.T.w,h:sn.T.h,yaw:sn.T.yaw,pitch:sn.T.pitch,roll:sn.T.roll,opacity:.5,ol:0,shadow:0,glow:0}}}
+    if(ED.snap&&D.ls.length>1&&D.ls.every(l=>isBlock(l)&&l.build&&l.cell&&l.build===D.ls[0].build)&&Math.hypot(d[0]-D.sx,d[1]-D.sy)>=4/m.z){let best=null;
+      D.ls.forEach((l,i)=>{const sn=blockSnap(l,D.start[i][0]+dx,D.start[i][1]+dy);if(sn&&(!best||sn.d<best.sn.d))best={sn,i}});
+      if(best&&best.sn.T.w===D.ls[0].w&&best.sn.T.yaw===D.ls[0].yaw&&best.sn.T.pitch===D.ls[0].pitch&&best.sn.T.roll===D.ls[0].roll){ED.guides=null;dx=best.sn.x-D.start[best.i][0];dy=best.sn.y-D.start[best.i][1];D.gsnap=best;ED.snapT=best.sn.T}else D.gsnap=null}
     D.ls.forEach((l,i)=>{l.x=D.start[i][0]+dx;l.y=D.start[i][1]+dy})}
   else if(D.mode==='size'){const L=D.L,a=(L.rot||0)*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),vx=d[0]-D.opp[0],vy=d[1]-D.opp[1],lx=vx*ca+vy*sa,ly=-vx*sa+vy*ca;
     let w,h;const free=L.type!=='text'&&(L.free!==e.shiftKey);
@@ -261,10 +287,15 @@ cv.addEventListener('pointermove',e=>{
     const r=ED.marquee,ids=new Set(D.base);for(const l of ED.p.layers){if(l.type==='backdrop'||l.hidden)continue;const b=selBox([l]);if(b.x1>=r.x0&&b.x0<=r.x1&&b.y1>=r.y0&&b.y0<=r.y1)groupOf(l).forEach(g=>ids.add(g.id))}
     ED.sel=[...ids];renderLayers();buildSelbar()}
   requestRender();if(!['pan','pinch','marquee'].includes(D.mode))syncProps()});
-function endPtr(e){ED.ptrs.delete(e.pointerId);const D=ED.drag;if(!D)return;if(D.mode==='pinch'&&ED.ptrs.size){ED.drag=null;return}
+function endPtr(e){clearTimeout(ED.lpT);ED.ptrs.delete(e.pointerId);const D=ED.drag;if(!D)return;if(D.mode==='pinch'&&ED.ptrs.size){ED.drag=null;return}
   ED.drag=null;ED.guides=null;ED.snapT=null;ED.ghost=null;
   if(D.mode==='marquee'){ED.marquee=null;select(ED.sel[0]?ED.sel[0]:null,'keep');requestRender();return}
   if(D.moved&&D.mode==='move'&&D.ls.length===1&&isBlock(D.ls[0])){const L=D.ls[0];if(D.snap){const T=D.snap.T;Object.assign(L,{x:D.snap.x,y:D.snap.y,w:T.w,h:T.h,yaw:T.yaw,pitch:T.pitch,roll:T.roll});attachToBuild(L,T,D.snap.off)}else{detachFromBuild(L);autoOrderFree(L)}}
+  if(D.moved&&D.mode==='move'&&D.gsnap){const{sn,i}=D.gsnap,ref=D.ls[i],T=sn.T;if(!T.build||!T.cell){T.build='b'+uid();T.cell=[0,0,0]}
+    const base=[T.cell[0]+sn.off[0],T.cell[1]+sn.off[1],T.cell[2]+sn.off[2]],rc=[...ref.cell];
+    for(const l of D.ls){l.cell=[base[0]+l.cell[0]-rc[0],base[1]+l.cell[1]-rc[1],base[2]+l.cell[2]-rc[2]];l.build=T.build}relayoutBuild(T)}
+  else if(D.moved&&D.mode==='move'&&D.ls.length>1)D.ls.filter(l=>isBlock(l)&&!l.build).forEach(autoOrderFree);
+  if(D.mode==='area'){ED.area=null;$('#ed-canvas').classList.remove('areamode');if(D.made.length){toast(`Fläche mit ${D.made.length+1} Blöcken erstellt.`);commit()}buildSelbar();requestRender();return}
   if(D.moved&&['rot3d','size'].includes(D.mode)&&D.L&&D.L.build)relayoutBuild(D.L);
   if(D.moved&&['move','size','rot','rot3d','msize','mrot'].includes(D.mode))commit();requestRender()}
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
@@ -367,7 +398,7 @@ function buildSelbar(){const bar=$('#selbar'),SL=selLayers(),L=SL.length===1?SL[
   const sep=()=>{const s=document.createElement('span');s.className='sep';bar.append(s)};
   if(SL.length>1){const sp=document.createElement('span');sp.className='sub';sp.style.padding='0 8px';sp.textContent=SL.length+' ausgewählt';bar.append(sp);
     const g=SL[0].group,same=g&&SL.every(l=>l.group===g);if(!same)b('Gruppieren',ICON.group,groupSel);else b('Gruppe lösen',ICON.ungroup,ungroupSel);sep()}
-  if(L&&isBlock(L)){b('3D drehen',ICON.rot3d,()=>{ED.rot3d=!ED.rot3d;buildSelbar();if(ED.rot3d)toast('Zieh auf dem Block, um ihn zu drehen. Zum Verschieben wieder ausschalten.')},{pressed:ED.rot3d});sep()}
+  if(L&&isBlock(L)){b('Fläche',ICON.group,()=>startArea(L),{pressed:ED.area===L.id});b('3D drehen',ICON.rot3d,()=>{ED.rot3d=!ED.rot3d;buildSelbar();if(ED.rot3d)toast('Zieh auf dem Block, um ihn zu drehen. Zum Verschieben wieder ausschalten.')},{pressed:ED.rot3d});sep()}
   if(L&&L.group)b('Ganze Gruppe',ICON.group,()=>select(L.id));
   if(!L||L.type!=='backdrop'){b('Kopie',ICON.copy,dup);if(L)b('Spiegeln',ICON.flip,()=>{L.flip=!L.flip;commit();requestRender()},{ic:1});b('Nach vorne',ICON.front,()=>moveLayer(1),{ic:1});b('Nach hinten',ICON.back,()=>moveLayer(-1),{ic:1})}
   const allL=SL.every(l=>l.locked);b(allL?'Entsperren':'Sperren',ICON.lk,()=>{SL.forEach(l=>{l.locked=!allL});commit();buildSelbar();requestRender()},{pressed:allL,ic:1});
@@ -676,7 +707,7 @@ document.addEventListener('keydown',e=>{if(view!=='editor'||!ED.p||dlg.open)retu
   const SL=selLayers();if(!SL.length)return;
   if(mod&&k==='d'){e.preventDefault();dup();return}
   if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();del();return}
-  if(e.key==='Escape'){select(null);return}
+  if(e.key==='Escape'){if(ED.area){ED.area=null;cv.classList.remove('areamode');buildSelbar();return}select(null);return}
   const st=e.shiftKey?10:1,mv={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
   if(mv){const ms=SL.filter(l=>!l.locked&&l.type!=='backdrop');if(ms.length){e.preventDefault();ms.forEach(l=>{l.x+=mv[0];l.y+=mv[1]});requestRender();softCommit()}}});
 /* Werkzeug-Schalter in der Zoom-Leiste */

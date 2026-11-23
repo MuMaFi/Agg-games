@@ -86,6 +86,15 @@ function packBlockBases(){if(pkBases)return pkBases;if(!PACK)return[];const has=
   return pkBases=[...set].sort()}
 function pkFace(n){const c=PACK.imgs['b/'+n];if(!c)return null;let o=PK_TINT[n]?tintCanvas(c,PK_TINT[n]):c;
   if(n==='grass_block_side'&&PACK.imgs['b/grass_block_side_overlay']){const oc=tintCanvas(PACK.imgs['b/grass_block_side_overlay'],'#91bd59'),cc=mk(o.width,o.height),x=cc.getContext('2d');x.drawImage(o,0,0);x.drawImage(oc,0,0,o.width,o.height);o=cc}return o}
+/* Pflanzen, Fackeln, Schienen usw. sind in Minecraft keine Würfel (z. B. zwei gekreuzte Flächen).
+   Sie werden flach wie im Inventar gezeigt statt als falscher Block. */
+const PK_FLAT=/(flower|sapling|tulip|orchid|allium|bluet|daisy|poppy|dandelion|cornflower|lily_of_the_valley|wither_rose|rose_bush|peony|lilac|sunflower|fern|^short_grass|^tall_grass|^grass$|seagrass|_bush$|^bush$|dead_bush|(?<!_block)_mushroom$|^(red|brown)_mushroom$|fungus$|_roots$|sprouts|nether_wart$|_stage\d|_stem$|attached_|vine|kelp|coral(?!_block)|_fan$|torch|lantern|^chain$|rail|ladder|lever|cobweb|sugar_cane|bamboo_stage|^bamboo$|pointed_dripstone|propagule|pitcher_crop|pitcher_plant|spore_blossom|hanging_roots|glow_lichen|sculk_vein|_carpet_overlay|lily_pad|frogspawn|small_dripleaf|big_dripleaf_stem|cave_vines|weeping|twisting|tripwire|redstone_dust|repeater|comparator|_door_|_door$|iron_bars|_pane|sweet_berry|beetroots|carrots|potatoes|wheat|cocoa|melon_stem|pumpkin_stem|firefly|leaf_litter|wildflowers|cactus_flower|eyeblossom)/;
+const flatMemo=new Map();
+function pkFlat(b){if(flatMemo.has(b))return flatMemo.get(b);let v=PK_FLAT.test(b);
+  if(!v&&PACK.imgs['b/'+b]&&![b+'_side',b+'_top',b+'_front',b+'_end'].some(n=>PACK.imgs['b/'+n])){const c=PACK.imgs['b/'+b],w=c.width,h=Math.min(w,c.height),d=c.getContext('2d').getImageData(0,0,w,h).data;
+    let tr=0,edge=0,en=0;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const t=d[(y*w+x)*4+3]<30;if(t)tr++;if(x===0||x===w-1){en++;if(t)edge++}}
+    v=tr/(w*h)>.3&&edge/en>.5}
+  flatMemo.set(b,v);return v}
 function packDynTex(b){if(!PACK)return null;const has=n=>!!PACK.imgs['b/'+n];
   const side=[b,b+'_side',b+'_front',b+'_top'].find(has);if(!side)return null;
   const top=[b+'_top',b+'_end',side].find(has),bottom=[PK_BOTTOM[b],b+'_bottom',top].filter(Boolean).find(has),front=[b+'_front',side].find(has);
@@ -99,9 +108,11 @@ function packItemGrid(n){if(!PACK||!PACK.imgs['i/'+n])return null;let g=pkGrid.g
 const prettyName=n=>{const s=n.replace(/_/g,' ');return s[0].toUpperCase()+s.slice(1)};
 let PACK_LIB=[];
 function registerPackLib(){
-  for(const a of PACK_LIB){delete LIBK[a.key];const i=LIB.indexOf(a);if(i>=0)LIB.splice(i,1)}PACK_LIB=[];pkBases=null;pkGrid.clear();
+  for(const a of PACK_LIB){delete LIBK[a.key];const i=LIB.indexOf(a);if(i>=0)LIB.splice(i,1)}PACK_LIB=[];pkBases=null;pkGrid.clear();flatMemo.clear();
   if(!PACK)return;
-  for(const b of packBlockBases()){const a={key:'pb_'+b,cat:'blocks',name:prettyName(b),gen:()=>blockCanvas('pk:'+b),pixel:false,color:null,font:false,cover:false,bk:'pk:'+b,pack:true};PACK_LIB.push(a)}
+  for(const b of packBlockBases()){const flat=pkFlat(b);
+    const a=flat?{key:'pb_'+b,cat:'blocks',name:prettyName(b),gen:()=>{const f=[b,b+'_front',b+'_side',b+'_top',b+'_bottom'].map(pkFace).find(Boolean)||mk(16,16);return upscale(f,Math.max(1,Math.round(256/f.width)))},pixel:true,color:null,font:false,cover:false,bk:null,pack:true}
+      :{key:'pb_'+b,cat:'blocks',name:prettyName(b),gen:()=>blockCanvas('pk:'+b),pixel:false,color:null,font:false,cover:false,bk:'pk:'+b,pack:true};PACK_LIB.push(a)}
   for(const k of Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort()){const n=k.slice(2),im=PACK.imgs[k];
     PACK_LIB.push({key:'pi_'+n,cat:'items',name:prettyName(n),gen:()=>upscale(im,Math.max(1,Math.round(256/im.width))),pixel:true,color:null,font:false,cover:false,bk:null,pack:true})}
   for(const a of PACK_LIB){LIB.push(a);LIBK[a.key]=a}}

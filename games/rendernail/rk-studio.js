@@ -37,7 +37,7 @@ function applyStudioState(o){
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
 /* ---------- Geometrie mit Skin-UV ---------- */
-function boxGeo(b,TW,TH){
+function boxGeo(b,TW,TH,skip=-1){
   const T=THREE,[w,h,d]=b.s,[u,v]=b.uv,[tw,th,td]=b.d,[r0,r1]=b.r,a=w/2,bb=h/2,c=d/2,rows=r1-r0;
   const F=[
     [[a,bb,c],[a,bb,-c],[a,-bb,c],[a,-bb,-c],[u+td+tw,v+td+r0,td,rows],[1,0,0]],
@@ -47,7 +47,7 @@ function boxGeo(b,TW,TH){
     [[-a,bb,c],[a,bb,c],[-a,-bb,c],[a,-bb,c],[u+td,v+td+r0,tw,rows],[0,0,1]],
     [[a,bb,-c],[-a,bb,-c],[a,-bb,-c],[-a,-bb,-c],[u+2*td+tw,v+td+r0,tw,rows],[0,0,-1]]];
   const pos=[],uv=[],nor=[],idx=[];
-  F.forEach(([tl,tr,bl,br,[x,y,rw,rh],n])=>{const base=pos.length/3;[tl,tr,bl,br].forEach(p=>{pos.push(...p);nor.push(...n)});
+  F.forEach(([tl,tr,bl,br,[x,y,rw,rh],n],fi)=>{if(fi===skip)return;const base=pos.length/3;[tl,tr,bl,br].forEach(p=>{pos.push(...p);nor.push(...n)});
     const e=.0005,u0=x/TW+e,u1=(x+rw)/TW-e,v0=1-y/TH-e,v1=1-(y+rh)/TH+e;uv.push(u0,v0,u1,v0,u0,v1,u1,v1);idx.push(base,base+2,base+1,base+1,base+2,base+3)});
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);return g}
 function itemMesh(key){const g=ITEM16[key]||(String(key).startsWith('pi_')&&typeof packItemGrid==='function'?packItemGrid(key.slice(3)):null);if(!g)return null;const T=THREE,cells=[];
@@ -73,17 +73,40 @@ function buildRig(m,skinSrc){const T=THREE;const Z=m.size||{},sH=(Z.head||100)/1
     for(const b of boxes){if(!b)continue;const mesh=new T.Mesh(boxGeo(b,TW,TH),b.ov?matO:mat);mesh.position.set(b.off[0]*k,b.off[1]*k,b.off[2]*k);mesh.scale.setScalar(k);mesh.castShadow=true;mesh.userData={model:m.id,bone:name};g.add(mesh);m.meshes.push(mesh)}return g};
   const body=part('body',root,[0,12*sL,0],[{s:[8,12,4],off:[0,6,0],uv:[16,16],d:[8,12,4],r:[0,12]},!legacy&&{s:[8.5,12.5,4.5],off:[0,6,0],uv:[16,32],d:[8,12,4],r:[0,12],ov:1}],sB);
   part('head',body,[0,12*sB,0],[{s:[8,8,8],off:[0,4,0],uv:[0,0],d:[8,8,8],r:[0,8]},{s:[9,9,9],off:[0,4,0],uv:[32,0],d:[8,8,8],r:[0,8],ov:1}],sH);
-  const arm=(side,uv,ov)=>{const sx=(side==='R'?-1:1)*(4*sB+aw/2*sA);
-    const up=part('arm'+side,body,[sx,12*sB-2*sA,0],[{s:[aw,6,4],off:[0,-1,0],uv,d:[aw,12,4],r:[0,6]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-.9,0],uv:ov,d:[aw,12,4],r:[0,6],ov:1}],sA);
-    return part('arm'+side+'Low',up,[0,-4*sA,0],[{s:[aw,6,4],off:[0,-3,0],uv,d:[aw,12,4],r:[6,12]},ov&&{s:[aw+.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[aw,12,4],r:[6,12],ov:1}],sA)};
+  /* Arme und Beine: Ober- und Unterteil treffen sich auf der Winkelhalbierenden (Gehrung).
+     Keine Lücke, keine Überlappung, kein Flimmern; die Flächen bleiben eben, das Licht stimmt. */
+  m.limbs=[];
+  const limb=(name,parent,pivot,top,uv,ov,w,k)=>{const J=top-6;
+    const up=new T.Group();up.position.set(...pivot);parent.add(up);m.bones[name]=up;
+    const low=new T.Group();low.position.set(0,J*k,0);up.add(low);m.bones[name+'Low']=low;
+    const L={up,low,J:J*k,lim:6*k,parts:[]};
+    const sec=(bone,isUp,b,mt)=>{const g=boxGeo(b,TW,TH,isUp?3:2);g.translate(...b.off);g.scale(k,k,k);
+      const mesh=new T.Mesh(g,mt);mesh.castShadow=true;mesh.userData={model:m.id,bone:isUp?name:name+'Low'};bone.add(mesh);m.meshes.push(mesh);
+      const pa=g.attributes.position,base=Float32Array.from(pa.array),cy=b.off[1]*k,end=[];for(let i=0;i<pa.count;i++)end.push(isUp?base[i*3+1]<cy:base[i*3+1]>cy);
+      L.parts.push({isUp,g,pa,base,end})};
+    sec(up,true,{s:[w,6,4],off:[0,top-3,0],uv,d:[w,12,4],r:[0,6]},mat);
+    if(ov)sec(up,true,{s:[w+.5,6.25,4.5],off:[0,top-2.9,0],uv:ov,d:[w,12,4],r:[0,6],ov:1},matO);
+    sec(low,false,{s:[w,6,4],off:[0,-3,0],uv,d:[w,12,4],r:[6,12]},mat);
+    if(ov)sec(low,false,{s:[w+.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[w,12,4],r:[6,12],ov:1},matO);
+    m.limbs.push(L);return low};
+  const arm=(side,uv,ov)=>limb('arm'+side,body,[(side==='R'?-1:1)*(4*sB+aw/2*sA),12*sB-2*sA,0],2,uv,ov,aw,sA);
   const handR=arm('R',[40,16],legacy?null:[40,32]);arm('L',legacy?[40,16]:[32,48],legacy?null:[48,48]);
-  const leg=(side,uv,ov)=>{const up=part('leg'+side,root,[(side==='R'?-2:2)*sL,12*sL,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[0,6]},ov&&{s:[4.5,6.25,4.5],off:[0,-2.9,0],uv:ov,d:[4,12,4],r:[0,6],ov:1}],sL);
-    part('leg'+side+'Low',up,[0,-6*sL,0],[{s:[4,6,4],off:[0,-3,0],uv,d:[4,12,4],r:[6,12]},ov&&{s:[4.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[4,12,4],r:[6,12],ov:1}],sL)};
+  const leg=(side,uv,ov)=>limb('leg'+side,root,[(side==='R'?-2:2)*sL,12*sL,0],0,uv,ov,4,sL);
   leg('R',[0,16],legacy?null:[0,32]);leg('L',legacy?[0,16]:[16,48],legacy?null:[0,48]);
   if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5*sA,.5*sA);holder.scale.setScalar(sA);holder.add(im);handR.add(holder)}}
   return root}
+function miterRig(m){if(!m||!m.limbs)return;const T=THREE;
+  for(const L of m.limbs){const q=L.low.quaternion,key=q.x+','+q.y+','+q.z+','+q.w;if(L.key===key)continue;L.key=key;
+    const lu=new T.Vector3(0,-1,0).applyQuaternion(q),mU=new T.Vector3(0,1,0).sub(lu),ok=mU.lengthSq()>1e-4;mU.normalize();
+    const uL=new T.Vector3(0,1,0).applyQuaternion(q.clone().invert()),mL=uL.add(new T.Vector3(0,1,0)).normalize();
+    for(const P of L.parts){const a=P.pa.array,b=P.base;
+      for(let i=0;i<P.pa.count;i++){const x=b[i*3],z=b[i*3+2];let y=b[i*3+1];
+        if(ok){if(P.isUp){const d=x*mU.x+(y-L.J)*mU.y+z*mU.z;if(P.end[i]||d<0)y+=clamp(-d/Math.max(mU.y,.05),-L.lim,L.lim)}
+          else{const d=x*mL.x+y*mL.y+z*mL.z;if(P.end[i]||d>0)y-=clamp(d/Math.max(mL.y,.05),-L.lim,L.lim)}}
+        a[i*3+1]=y}
+      P.pa.needsUpdate=true;P.g.computeBoundingSphere();P.g.computeBoundingBox()}}}
 function applyPose(m){if(!m.group)return;for(const[b]of BONES){const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
-  m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R}
+  m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R;miterRig(m)}
 
 /* ---------- Szene ---------- */
 function initStudio(){
@@ -111,7 +134,7 @@ function initStudio(){
   ST.ready=true;loadUserSkins();
   applyStudioState(store.get('rk-studio',{})||{});ST.hist=[stSnap()];updStUndo();setCamera('left');resize3()}
 let skyT=0;function resize3(){if(!R3)return;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
-function loop3(){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);R3.controls.update();R3.renderer.render(R3.scene,R3.camera)}
+function loop3(){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);R3.controls.update();for(const mm of ST.models)miterRig(mm);R3.renderer.render(R3.scene,R3.camera)}
 function startStudio(){initStudio();if(R3&&!ST.running){ST.running=true;resize3();loop3()}}
 let skyTex=null,skyKey='';
 function setBackground(){if(!R3)return;const T=THREE;$('#st-stage').classList.toggle('transparent',ST.bg==='none');
