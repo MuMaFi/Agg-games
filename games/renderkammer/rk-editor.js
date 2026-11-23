@@ -199,8 +199,28 @@ function blockSnap(L,nx,ny){let best=null;
   for(const T of ED.p.layers){if(T===L||T.hidden||!isBlock(T)||ED.sel.includes(T.id))continue;const A=cubeAxes(T.yaw??-45,T.pitch??30,T.roll??0),k=T.w/3.6,th=T.w*.28;
     for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)for(let l=-1;l<=1;l++){if(!i&&!j&&!l)continue;
       const px=T.x+(i*A[0][0]+j*A[1][0]+l*A[2][0])*k,py=T.y+(i*A[0][1]+j*A[1][1]+l*A[2][1])*k,dd=Math.hypot(px-nx,py-ny);
-      if(dd<th&&(!best||dd<best.d))best={d:dd,x:px,y:py,T,depth:i*A[0][2]+j*A[1][2]+l*A[2][2]}}}
+      if(dd>=th||(best&&dd>=best.d))continue;
+      if(T.build&&T.cell){const c=[T.cell[0]+i,T.cell[1]+j,T.cell[2]+l];if(ED.p.layers.some(o=>o!==L&&o.build===T.build&&o.cell&&o.cell[0]===c[0]&&o.cell[1]===c[1]&&o.cell[2]===c[2]))continue}
+      best={d:dd,x:px,y:py,T,off:[i,j,l]}}}
   return best}
+/* Bauwerke: eingerastete Blöcke kennen ihren Platz im 3D-Raster (cell) */
+const blockDepth=(c,A)=>c[0]*A[0][2]+c[1]*A[1][2]+c[2]*A[2][2];
+function buildMembers(b){return ED.p.layers.filter(l=>l.build===b&&l.cell&&isBlock(l))}
+function sortBuild(b){const ls=ED.p.layers,mem=buildMembers(b);if(mem.length<2)return;
+  const A=cubeAxes(mem[0].yaw??-45,mem[0].pitch??30,mem[0].roll??0),slots=mem.map(l=>ls.indexOf(l)).sort((x,y)=>x-y);
+  const sorted=[...mem].sort((a,c)=>blockDepth(a.cell,A)-blockDepth(c.cell,A)||a.cell[1]-c.cell[1]);slots.forEach((i,n)=>{ls[i]=sorted[n]})}
+function relayoutBuild(anchor){if(!anchor||!anchor.build||!anchor.cell)return;const mem=buildMembers(anchor.build),A=cubeAxes(anchor.yaw??-45,anchor.pitch??30,anchor.roll??0),k=anchor.w/3.6;
+  for(const l of mem){if(l===anchor)continue;const o=[l.cell[0]-anchor.cell[0],l.cell[1]-anchor.cell[1],l.cell[2]-anchor.cell[2]];
+    l.x=anchor.x+(o[0]*A[0][0]+o[1]*A[1][0]+o[2]*A[2][0])*k;l.y=anchor.y+(o[0]*A[0][1]+o[1]*A[1][1]+o[2]*A[2][1])*k;l.w=anchor.w;l.h=anchor.h;l.yaw=anchor.yaw;l.pitch=anchor.pitch;l.roll=anchor.roll;l.rot=anchor.rot||0}
+  sortBuild(anchor.build)}
+function attachToBuild(L,T,off){if(!T.build||!T.cell){T.build='b'+uid();T.cell=[0,0,0]}L.build=T.build;L.cell=[T.cell[0]+off[0],T.cell[1]+off[1],T.cell[2]+off[2]];sortBuild(T.build)}
+function detachFromBuild(L){const b=L.build;delete L.build;delete L.cell;if(b){const mem=buildMembers(b);if(mem.length===1){delete mem[0].build;delete mem[0].cell}}}
+/* Freie Blöcke: wer weiter unten im Bild steht, liegt vorne */
+function autoOrderFree(L){const ls=ED.p.layers,b=selBox([L]),ov=ls.filter(o=>o!==L&&!o.hidden&&isBlock(o)&&!(o.build&&o.build===L.build)&&(()=>{const c=selBox([o]);return c.x1>b.x0&&c.x0<b.x1&&c.y1>b.y0&&c.y0<b.y1})());
+  if(!ov.length)return;const behind=ov.filter(o=>o.y+o.h/2<=L.y+L.h/2),front=ov.filter(o=>o.y+o.h/2>L.y+L.h/2);
+  ls.splice(ls.indexOf(L),1);let at;
+  if(behind.length)at=Math.max(...behind.map(o=>ls.indexOf(o)))+1;else at=Math.min(...front.map(o=>ls.indexOf(o)));
+  ls.splice(at,0,L)}
 cv.addEventListener('pointermove',e=>{
   if(ED.ptrs.has(e.pointerId))ED.ptrs.set(e.pointerId,[e.offsetX,e.offsetY]);
   const D=ED.drag;if(!D)return;const m=metrics(),W=ED.p.w,H=ED.p.h,P=[e.offsetX,e.offsetY],d=toDesign(P[0],P[1],m);
@@ -214,14 +234,14 @@ cv.addEventListener('pointermove',e=>{
     let w,h;const free=L.type!=='text'&&(L.free!==e.shiftKey);
     if(free){w=Math.max(8,lx*D.sx);h=Math.max(8,ly*D.sy)}
     else{const s=Math.max(.03,Math.max(lx*D.sx/D.w0,ly*D.sy/D.h0));w=D.w0*s;h=D.h0*s;if(L.type==='text'){L.size=Math.round(Math.max(6,D.size0*s));const c=textCanvas(L);w=c.width;h=c.height}}
-    L.w=w;L.h=h;const cxl=D.sx*w/2,cyl=D.sy*h/2;L.x=D.opp[0]+cxl*ca-cyl*sa;L.y=D.opp[1]+cxl*sa+cyl*ca}
+    L.w=w;L.h=h;const cxl=D.sx*w/2,cyl=D.sy*h/2;L.x=D.opp[0]+cxl*ca-cyl*sa;L.y=D.opp[1]+cxl*sa+cyl*ca;if(L.build)relayoutBuild(L)}
   else if(D.mode==='msize'){const ex=Math.abs(D.c0[0]-D.opp[0])||1,ey=Math.abs(D.c0[1]-D.opp[1])||1,s=Math.max(.05,Math.max(Math.abs(d[0]-D.opp[0])/ex,Math.abs(d[1]-D.opp[1])/ey));
     for(const o of D.st){const l=o.l;l.x=D.opp[0]+(o.x-D.opp[0])*s;l.y=D.opp[1]+(o.y-D.opp[1])*s;if(l.type==='text'){l.size=Math.max(6,Math.round(o.size*s));refitText(l)}else{l.w=o.w*s;l.h=o.h*s}}}
   else if(D.mode==='mrot'){let da=Math.atan2(d[1]-D.c[1],d[0]-D.c[0])-D.a0,deg=da*180/Math.PI;if(!e.shiftKey){const sn=Math.round(deg/15)*15;if(Math.abs(sn-deg)<4){deg=sn;da=deg*Math.PI/180}}
     const c=Math.cos(da),sn=Math.sin(da);for(const o of D.st){const vx=o.x-D.c[0],vy=o.y-D.c[1];o.l.x=D.c[0]+vx*c-vy*sn;o.l.y=D.c[1]+vx*sn+vy*c;let r=o.rot+deg;r=((r+180)%360+360)%360-180;o.l.rot=Math.round(r*10)/10}}
   else if(D.mode==='rot'){let ang=Math.atan2(d[1]-D.L.y,d[0]-D.L.x)*180/Math.PI+90;if(!e.shiftKey){const sn=Math.round(ang/15)*15;if(Math.abs(sn-ang)<4)ang=sn}if(ang>180)ang-=360;D.L.rot=Math.round(ang*10)/10}
   else if(D.mode==='pan'){ED.panX=D.px+P[0]-D.sx;ED.panY=D.py+P[1]-D.sy}
-  else if(D.mode==='rot3d'){let y=D.y0+(P[0]-D.sx)*.6;y=((y+180)%360+360)%360-180;D.L.yaw=Math.round(y);D.L.pitch=Math.round(clamp(D.p0+(P[1]-D.sy)*.6,-90,90))}
+  else if(D.mode==='rot3d'){let y=D.y0+(P[0]-D.sx)*.6;y=((y+180)%360+360)%360-180;D.L.yaw=Math.round(y);D.L.pitch=Math.round(clamp(D.p0+(P[1]-D.sy)*.6,-90,90));if(D.L.build)relayoutBuild(D.L)}
   else if(D.mode==='marquee'){const a=D.a;ED.marquee={x0:Math.min(a[0],d[0]),y0:Math.min(a[1],d[1]),x1:Math.max(a[0],d[0]),y1:Math.max(a[1],d[1])};
     const r=ED.marquee,ids=new Set(D.base);for(const l of ED.p.layers){if(l.type==='backdrop'||l.hidden)continue;const b=selBox([l]);if(b.x1>=r.x0&&b.x0<=r.x1&&b.y1>=r.y0&&b.y0<=r.y1)groupOf(l).forEach(g=>ids.add(g.id))}
     ED.sel=[...ids];renderLayers();buildSelbar()}
@@ -229,7 +249,8 @@ cv.addEventListener('pointermove',e=>{
 function endPtr(e){ED.ptrs.delete(e.pointerId);const D=ED.drag;if(!D)return;if(D.mode==='pinch'&&ED.ptrs.size){ED.drag=null;return}
   ED.drag=null;ED.guides=null;ED.snapT=null;
   if(D.mode==='marquee'){ED.marquee=null;select(ED.sel[0]?ED.sel[0]:null,'keep');requestRender();return}
-  if(D.moved&&D.snap){const L=D.ls[0],ls=ED.p.layers;ls.splice(ls.indexOf(L),1);const t=ls.indexOf(D.snap.T);ls.splice(D.snap.depth>0?t+1:t,0,L)}
+  if(D.moved&&D.mode==='move'&&D.ls.length===1&&isBlock(D.ls[0])){const L=D.ls[0];if(D.snap)attachToBuild(L,D.snap.T,D.snap.off);else{detachFromBuild(L);autoOrderFree(L)}}
+  if(D.moved&&['rot3d','size'].includes(D.mode)&&D.L&&D.L.build)relayoutBuild(D.L);
   if(D.moved&&['move','size','rot','rot3d','msize','mrot'].includes(D.mode))commit();requestRender()}
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('wheel',e=>{if(!ED.p)return;e.preventDefault();const m=metrics();
@@ -277,7 +298,7 @@ function setBackdrop(props){let L=getBackdrop();
   if(!L){L=baseLayer('backdrop',{name:'Hintergrund',locked:true,w:ED.p.w,h:ED.p.h,mode:'color',scene:'island',time:'sunset',seed:31,zoom:1.25,grad:'sunset',color:'#1b2433',blur:0,dim:0,vig:0});ED.p.layers.unshift(L)}
   Object.assign(L,props);select(L.id);commit();requestRender()}
 function dup(){const ls=selLayers().filter(l=>l.type!=='backdrop');if(!ls.length)return;const gm={},ids=[];
-  for(const L of ls){const c=JSON.parse(JSON.stringify(L));c.id='l'+uid();c.x+=24;c.y+=24;c.locked=false;if(c.group)c.group=gm[c.group]||(gm[c.group]='g'+uid());ED.p.layers.push(c);ids.push(c.id)}
+  for(const L of ls){const c=JSON.parse(JSON.stringify(L));c.id='l'+uid();c.x+=24;c.y+=24;c.locked=false;if(c.build&&ls.length===1){delete c.build;delete c.cell}if(c.build)c.build=gm['B'+c.build]||(gm['B'+c.build]='b'+uid());if(c.group)c.group=gm[c.group]||(gm[c.group]='g'+uid());ED.p.layers.push(c);ids.push(c.id)}
   ED.sel=ids;select(ids[0],'keep');commit()}
 function del(){const s=new Set(ED.sel);if(!s.size)return;ED.p.layers=ED.p.layers.filter(l=>!s.has(l.id));select(null);commit()}
 function moveLayer(dir){const ls=ED.p.layers,s=new Set(selLayers().filter(l=>l.type!=='backdrop').map(l=>l.id)),min=getBackdrop()?1:0;if(!s.size)return;let ch=false;
@@ -400,16 +421,17 @@ function buildProps(){
     fRange(g,'3D-Tiefe',()=>L.depth||0,v=>{L.depth=v;rt()},0,30,1,v=>v+' px');
     fSeg(g,'Ausrichtung',[['left','Links'],['center','Mitte'],['right','Rechts']],()=>L.align||'center',v=>{L.align=v;rt()})}
   if(isBlock(L)){const g3=grp('3D-Drehung');
-    fRange(g3,'Drehen',()=>L.yaw??-45,v=>{L.yaw=v},-180,180,1,v=>v+'°');
-    fRange(g3,'Kippen',()=>L.pitch??30,v=>{L.pitch=v},-90,90,1,v=>v+'°');
-    fRange(g3,'Rollen',()=>L.roll??0,v=>{L.roll=v},-180,180,1,v=>v+'°');
-    const setR=(y,p,r)=>()=>{L.yaw=y;L.pitch=p;L.roll=r;commit();requestRender();buildProps()};
+    fRange(g3,'Drehen',()=>L.yaw??-45,v=>{L.yaw=v;relayoutBuild(L)},-180,180,1,v=>v+'°');
+    fRange(g3,'Kippen',()=>L.pitch??30,v=>{L.pitch=v;relayoutBuild(L)},-90,90,1,v=>v+'°');
+    fRange(g3,'Rollen',()=>L.roll??0,v=>{L.roll=v;relayoutBuild(L)},-180,180,1,v=>v+'°');
+    const setR=(y,p,r)=>()=>{L.yaw=y;L.pitch=p;L.roll=r;relayoutBuild(L);commit();requestRender();buildProps()};
+    if(L.build){const n=buildMembers(L.build).length;const bp=document.createElement('p');bp.className='sub';bp.textContent=`Teil eines Bauwerks aus ${n} Blöcken: Drehen und Größe gelten für alle, vorne und hinten wird automatisch sortiert.`;g3.append(bp)}
     fBtns(g3,[['Schräg',setR(-45,30,0)],['Vorne',setR(0,0,0)],['Von oben',setR(-45,70,0)],['Von unten',setR(-45,-30,0)]])}
   if(L.type==='asset'&&LIBK[L.key]&&LIBK[L.key].color){fColor(grp('Farbe'),'Farbe',()=>L.color||LIBK[L.key].color,v=>{L.color=v})}
   const g=grp('Darstellung');
   fRange(g,'Deckkraft',()=>L.opacity??1,v=>{L.opacity=v},0,1,.01,pct);
   fRange(g,'Drehung',()=>Math.round(L.rot||0),v=>{L.rot=v},-180,180,1,v=>v+'°');
-  if(L.type!=='text')fRange(g,'Größe',()=>Math.round(L.w),v=>{const r=L.h/L.w;L.w=v;L.h=v*r},10,Math.max(W,H)*2,1,v=>Math.round(v)+' px');
+  if(L.type!=='text')fRange(g,'Größe',()=>Math.round(L.w),v=>{const r=L.h/L.w;L.w=v;L.h=v*r;relayoutBuild(L)},10,Math.max(W,H)*2,1,v=>Math.round(v)+' px');
   fRange(g,'Helligkeit',()=>L.shade||0,v=>{L.shade=v},-.8,.8,.05,v=>(v>0?'+':'')+Math.round(v*100)+' %');
   if(L.type!=='text')fCheck(g,'Frei verzerren (ohne Seitenverhältnis)',()=>L.free,v=>{L.free=v});
   if(L.type==='image')fCheck(g,'Pixelig darstellen',()=>L.pixel,v=>{L.pixel=v});
