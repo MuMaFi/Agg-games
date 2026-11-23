@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Renderkammer — AGG Games</title>
+<title>Rendernail — AGG Games</title>
 <meta name="description" content="Minecraft-Figuren in 3D posieren und Thumbnails gestalten, direkt im Browser.">
 <link rel="icon" href="../../bilder/app/symbol-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,14 +13,14 @@
 /* Layout: app shell = header + full-height views; studio = 3D stage + side panel; editor = rail | asset panel | artboard stage with floating bars */
 :root{
   color-scheme:dark;
-  --bg:#0c0f13; --panel:#13171d; --panel2:#1a1f27; --panel3:#242b35; --line:#29303b; --line2:#36404d;
-  --fg:#e9edf2; --muted:#8f9aa9; --dim:#667180;
-  --accent:#4cc38a; --accent-h:#62d39d; --accent-fg:#06200f; --accent-soft:rgba(76,195,138,.15);
+  --bg:#1c1c1c; --panel:#252525; --panel2:#2d2d2d; --panel3:#393939; --line:#333333; --line2:#454545;
+  --fg:#eeeeee; --muted:#a6a6a6; --dim:#7d7d7d;
+  --accent:#3fbf7f; --accent-h:#55cc90; --accent-fg:#06200f; --accent-soft:rgba(63,191,127,.16);
   --danger:#f07079; --heart:#ef6f7c;
-  --font-display:"Pixelify Sans","Inter",system-ui,sans-serif;
+  --font-display:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
-  --checker:repeating-conic-gradient(#20252d 0 25%, #171b21 0 50%) 0 0/18px 18px;
+  --checker:repeating-conic-gradient(#2f2f2f 0 25%, #272727 0 50%) 0 0/18px 18px;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -34,7 +34,7 @@ header.top{flex:none;background:var(--panel);border-bottom:1px solid var(--line)
 .hbar{display:flex;align-items:center;gap:8px 20px;padding-block:9px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--fg)}
 .brand svg{width:30px;height:30px;flex:none}
-.brand b{font-family:var(--font-display);font-weight:600;font-size:22px}
+.brand b{font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.02em}
 .nav{display:flex;gap:2px;flex-wrap:wrap}
 .nav a{color:var(--muted);text-decoration:none;font-weight:500;padding:7px 12px;border-radius:7px}
 .nav a:hover{color:var(--fg)}
@@ -59,6 +59,18 @@ main{flex:1;min-height:0;position:relative}
 .btn.like-btn[aria-pressed="true"]{color:var(--heart);border-color:var(--heart)}
 .btn.like-btn[aria-pressed="true"] svg path{fill:currentColor}
 .tool[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.btn.icon{padding:7px}
+.btn.icon svg{width:18px;height:18px}
+.selbar .btn svg{width:17px;height:17px}
+.selbar .btn.ic{padding:7px}
+.selbar .btn.ic span{display:none}
+.stsec{border-top:1px solid var(--line);padding-top:12px}
+.stsec:first-child{border-top:0;padding-top:0}
+.stsec>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:2px 0 10px}
+.stsec>summary::-webkit-details-marker{display:none}
+.stsec>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(45deg) translateY(-2px);transition:transform .15s}
+.stsec[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+@media (max-width:760px){.selbar .btn span{display:none}.selbar .btn{padding:7px}}
 .sep{width:1px;align-self:stretch;background:var(--line2);margin:4px 2px}
 .sub{font-size:12px;color:var(--muted);margin:0}
 .lbl{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
@@ -81,7 +93,7 @@ main{flex:1;min-height:0;position:relative}
 
 /* Home */
 .home{padding-block:40px 60px}
-.home h1{font-family:var(--font-display);font-weight:700;font-size:clamp(30px,5vw,54px);line-height:1.05;margin:0 0 10px;text-wrap:balance}
+.home h1{font-family:var(--font-display);font-weight:800;letter-spacing:-.03em;font-size:clamp(30px,5vw,54px);line-height:1.05;margin:0 0 10px;text-wrap:balance}
 .home .lead{color:var(--muted);font-size:17px;margin:0 0 30px;max-width:60ch}
 .fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
 .fmt{all:unset;cursor:pointer;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:28px;min-height:160px}
@@ -89,10 +101,10 @@ main{flex:1;min-height:0;position:relative}
 .fmt:focus-visible{outline:2px solid var(--accent)}
 .fmt .ic{width:46px;height:46px;border-radius:10px;background:var(--panel3);display:grid;place-items:center}
 .fmt .ic i{display:block;border:2px solid var(--muted);border-radius:3px}
-.fmt.main{background:linear-gradient(140deg,#16352a,var(--panel) 70%);border-color:#2a5a44}
+.fmt.main{background:var(--panel2);border-color:var(--accent)}
 .fmt.main .ic{background:var(--accent);color:var(--accent-fg);font-size:26px;font-weight:600}
 .fmt b{display:block;font-size:16px}
-.fmt span{color:var(--muted);font-size:13px;font-family:var(--font-mono)}
+.fmt b+span{display:block;color:var(--muted);font-size:13px;font-family:var(--font-mono);margin-top:2px}
 .home h2{font-size:22px;margin:44px 0 16px;display:flex;justify-content:space-between;align-items:baseline}
 .home h2 small{color:var(--muted);font-weight:500;font-size:13px;font-family:var(--font-mono)}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
@@ -155,15 +167,15 @@ main{flex:1;min-height:0;position:relative}
 .ib:hover{background:var(--panel3);color:var(--fg)}
 .ib svg{width:16px;height:16px}
 .ib.off{opacity:.45}
-.stagewrap{position:relative;min-width:0;min-height:0;background:#080a0d;overflow:hidden}
+.stagewrap{position:relative;min-width:0;min-height:0;background:#171717;overflow:hidden}
 #ed-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-.floatbar{position:absolute;display:flex;gap:2px;background:rgba(26,31,39,.96);border:1px solid var(--line2);border-radius:11px;padding:4px;box-shadow:0 10px 30px -12px rgb(0 0 0 / .7);flex-wrap:wrap;align-items:center;z-index:3}
+.floatbar{position:absolute;display:flex;gap:2px;background:rgba(45,45,45,.97);border:1px solid var(--line2);border-radius:11px;padding:4px;box-shadow:0 10px 30px -12px rgb(0 0 0 / .7);flex-wrap:wrap;align-items:center;z-index:3}
 .selbar{top:12px;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100% - 24px);justify-content:center}
 .selbar .btn{padding:6px 9px;font-size:12.5px}
 .zoombar{bottom:12px;left:0;right:0;margin-inline:auto;width:max-content;gap:6px;padding:5px 8px;max-width:calc(100% - 24px);justify-content:center}
 .zoombar input{width:120px;accent-color:var(--accent)}
 .zoombar output{font-family:var(--font-mono);font-size:12px;min-width:44px;text-align:right}
-.props{position:absolute;top:64px;right:12px;width:280px;max-height:calc(100% - 132px);overflow-y:auto;background:rgba(26,31,39,.97);border:1px solid var(--line2);border-radius:12px;padding:14px;z-index:3;box-shadow:0 14px 40px -14px rgb(0 0 0 / .8)}
+.props{position:absolute;top:64px;right:12px;width:280px;max-height:calc(100% - 132px);overflow-y:auto;background:rgba(45,45,45,.98);border:1px solid var(--line2);border-radius:12px;padding:14px;z-index:3;box-shadow:0 14px 40px -14px rgb(0 0 0 / .8)}
 .props h3{margin:0 0 12px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .props .grp{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:11px}
 .exportmenu{position:absolute;top:50px;right:10px;z-index:6;background:var(--panel2);border:1px solid var(--line2);border-radius:11px;padding:6px;min-width:240px;box-shadow:0 14px 40px -12px rgb(0 0 0 / .8);display:flex;flex-direction:column}
@@ -181,7 +193,7 @@ main{flex:1;min-height:0;position:relative}
 
 /* Studio */
 .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:100%}
-.st-stage{position:relative;min-width:0;min-height:0;background:#1c2027}
+.st-stage{position:relative;min-width:0;min-height:0;background:#222222}
 .st-stage.transparent{background:var(--checker)}
 #st-wrap{position:absolute;inset:0}
 #st-wrap canvas{display:block;width:100%;height:100%;touch-action:none}
@@ -189,13 +201,13 @@ main{flex:1;min-height:0;position:relative}
 .st-top>*{pointer-events:auto}
 .st-bottom{bottom:12px;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100% - 24px);justify-content:center}
 .st-fail{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted)}
-.st-side{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:22px;min-width:0}
+.st-side{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
 .posegrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .posegrid .btn{padding:8px 4px;font-size:12.5px;font-weight:500}
 .boneline{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:start}
 .bonemap{width:92px;display:block}
 .bonemap rect{fill:var(--panel3);stroke:var(--line2);stroke-width:1;cursor:pointer}
-.bonemap rect:hover{fill:#2e3744}
+.bonemap rect:hover{fill:#4a4a4a}
 .bonemap rect.on{fill:var(--accent);stroke:var(--accent)}
 .saved{display:flex;flex-direction:column;gap:4px;margin-top:8px}
 .saved div{display:flex;gap:4px}
@@ -236,12 +248,12 @@ main{flex:1;min-height:0;position:relative}
 
 /* Dialog, Toast */
 dialog{border:1px solid var(--line2);border-radius:12px;padding:0;background:var(--panel);color:var(--fg);width:min(1120px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto}
-dialog::backdrop{background:rgb(4 6 9 / .78)}
+dialog::backdrop{background:rgb(0 0 0 / .72)}
 .dlg{display:grid;grid-template-columns:minmax(0,1fr) 330px}
 .dlg-img{background:var(--checker);display:flex;align-items:center;justify-content:center;position:relative;min-height:220px}
 .dlg-img img{display:block;max-width:100%;max-height:calc(100dvh - 34px);height:auto}
 .dlg-side{padding:20px 22px 22px;display:flex;flex-direction:column;gap:16px;min-width:0}
-.dlg-side h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:24px;line-height:1.15;overflow-wrap:anywhere;padding-right:8px}
+.dlg-side h2{margin:0;font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;font-size:24px;line-height:1.15;overflow-wrap:anywhere;padding-right:8px}
 .close{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:8px;border:0;background:rgb(0 0 0 / .6);color:#fff;font-size:20px;cursor:pointer;line-height:1}
 dl.spec{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
 dl.spec dt{color:var(--muted)}
@@ -277,9 +289,9 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:12.5px;text-align:rig
 <div class="app">
   <header class="top">
     <div class="hbar">
-      <a class="brand" href="#thumbnails" aria-label="Renderkammer, Startseite">
+      <a class="brand" href="#thumbnails" aria-label="Rendernail, Startseite">
         <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 10 16 17 3 10Z" fill="#6fae4a"/><path d="M3 10 16 17V30L3 23Z" fill="#7d5a3e"/><path d="M29 10 16 17V30L29 23Z" fill="#5e432e"/></svg>
-        <b>Renderkammer</b>
+        <b>Rendernail</b>
       </a>
       <nav class="nav" aria-label="Bereiche">
         <a href="#renders" data-r="studio">Renders</a>
@@ -300,8 +312,8 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:12.5px;text-align:rig
           <div class="st-top">
             <div class="floatbar" style="position:static" id="st-models"></div>
             <div class="floatbar" style="position:static">
-              <button class="btn ghost sm" id="st-undo" type="button">↶ Rückgängig</button>
-              <button class="btn ghost sm" id="st-redo" type="button">↷ Wiederholen</button>
+              <button class="btn ghost sm" id="st-undo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Rückgängig</button>
+              <button class="btn ghost sm" id="st-redo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>Wiederholen</button>
               <span class="sep"></span>
               <button class="btn ghost sm" id="st-reset" type="button">Alles zurücksetzen</button>
             </div>
@@ -333,14 +345,14 @@ dl.spec dd{margin:0;font-family:var(--font-mono);font-size:12.5px;text-align:rig
     <section class="view fixed" id="v-editor" hidden>
       <div class="ed">
         <div class="ed-top">
-          <a class="btn ghost sm" href="#thumbnails" aria-label="Zurück zu den Thumbnails">←</a>
+          <a class="btn ghost sm icon" href="#thumbnails" aria-label="Zurück zu den Thumbnails" title="Zurück"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg></a>
           <input class="ed-name" id="ed-name" type="text" maxlength="80" aria-label="Name des Designs">
           <span class="ed-fmt" id="ed-fmt"></span>
           <span class="grow"></span>
-          <button class="btn ghost sm" id="ed-undo" type="button" aria-label="Rückgängig">↶</button>
-          <button class="btn ghost sm" id="ed-redo" type="button" aria-label="Wiederholen">↷</button>
+          <button class="btn ghost sm icon" id="ed-undo" type="button" aria-label="Rückgängig" title="Rückgängig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+          <button class="btn ghost sm icon" id="ed-redo" type="button" aria-label="Wiederholen" title="Wiederholen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
           <span class="sep"></span>
-          <button class="btn primary" id="ed-export" type="button" aria-haspopup="true" aria-expanded="false">Exportieren ▾</button>
+          <button class="btn primary" id="ed-export" type="button" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>Exportieren</button>
         </div>
         <div class="exportmenu" id="exportmenu" hidden>
           <button type="button" data-exp="png"><b>PNG</b><small>Beste Qualität, Transparenz bleibt</small></button>

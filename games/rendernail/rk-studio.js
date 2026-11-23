@@ -19,7 +19,7 @@ const POSES={
 };
 const ST_ITEMS=[['','Nichts'],['sw_diamond','Diamantschwert'],['sw_iron','Eisenschwert'],['sw_gold','Goldschwert'],['sw_dark','Obsidianschwert'],['pk_diamond','Spitzhacke'],['axe','Axt'],['bow','Bogen'],['torch','Fackel'],['apple','Apfel'],['gapple','Goldapfel'],['diamond','Diamant'],['shield','Schild'],['potion_red','Heiltrank']];
 const D2R=Math.PI/180;
-const ST={ready:false,failed:false,models:[],cur:0,bone:null,sym:false,bg:'sky',bgColor:'#2b3340',ground:true,light:1,hist:[],fut:[],running:false,tcUsed:false};
+const ST={open:{},ready:false,failed:false,models:[],cur:0,bone:null,sym:false,bg:'sky',bgColor:'#3a3a3a',ground:true,light:1,hist:[],fut:[],running:false,tcUsed:false};
 let R3=null;
 let USER_SKINS=store.get('rk-skins',[]);if(!Array.isArray(USER_SKINS))USER_SKINS=[];
 const userSkinCanvas=[];
@@ -33,7 +33,7 @@ function stRestore(s){const o=JSON.parse(s);applyStudioState(o);store.set('rk-st
 function applyStudioState(o){
   ST.models.forEach(disposeModel);ST.models=[];
   (o.models&&o.models.length?o.models:[{name:'Spieler 1',skin:'p0',pose:POSES.stehen[1]}]).slice(0,4).forEach((d,i)=>{const m={id:'m'+uid(),name:d.name||('Spieler '+(i+1)),skin:typeof d.skin==='string'?d.skin:'p0',slim:!!d.slim,item:typeof d.item==='string'&&(d.item===''||ITEM16[d.item]||/^pi_[a-z0-9_]+$/.test(d.item))?d.item:'',pose:typeof d.pose==='object'&&d.pose?d.pose:{},rootY:+d.rootY||0,x:+d.x||0,z:+d.z||0,ry:+d.ry||0};ST.models.push(m);buildModel(m)});
-  ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#2b3340';ST.ground=o.ground!==false;ST.light=+o.light||1;
+  ST.bg=['sky','color','none'].includes(o.bg)?o.bg:'sky';ST.bgColor=typeof o.bgColor==='string'?o.bgColor:'#3a3a3a';ST.ground=o.ground!==false;ST.light=+o.light||1;
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
 /* ---------- Geometrie mit Skin-UV ---------- */
@@ -124,7 +124,7 @@ function pick(e){const T=THREE,r=R3.renderer.domElement.getBoundingClientRect(),
   if(hits.length){const u=hits[0].object.userData,i=ST.models.findIndex(m=>m.id===u.model);if(i>=0){ST.cur=i;selectBone(u.bone);buildModelsBar();return}}
   selectBone(null)}
 function curModel(){return ST.models[ST.cur]}
-function selectBone(b){ST.bone=b;const m=curModel();if(b&&m&&m.bones[b])R3.tc.attach(m.bones[b]);else R3.tc.detach();buildSide3()}
+function selectBone(b){ST.bone=b;if(b)ST.open.bone=true;const m=curModel();if(b&&m&&m.bones[b])R3.tc.attach(m.bones[b]);else R3.tc.detach();buildSide3()}
 function readBone(){const m=curModel(),b=ST.bone;if(!m||!b)return;const o=m.bones[b].rotation,r=[o.x/D2R,o.y/D2R,o.z/D2R].map(v=>Math.round(v*10)/10);m.pose={...m.pose,[b]:r};
   if(ST.sym&&PAIR[b]){m.pose[PAIR[b]]=[r[0],-r[1],-r[2]];const p=m.bones[PAIR[b]];p.rotation.set(r[0]*D2R,-r[1]*D2R,-r[2]*D2R)}}
 function mirrorPose(m){const n={};for(const[b]of BONES){const r=(m.pose||{})[b]||[0,0,0],src=PAIR[b]?((m.pose||{})[PAIR[b]]||[0,0,0]):r;n[b]=[src[0],-src[1],-src[2]]}m.pose=n;applyPose(m)}
@@ -140,9 +140,9 @@ let boneUI=null;
 function syncBoneUI(){if(boneUI)boneUI()}
 function buildSide3(){
   const s=$('#st-side');if(!s)return;s.innerHTML='';boneUI=null;const m=curModel();if(!m)return;
-  const sec=t=>{const d=document.createElement('section');d.className='stack';const h=document.createElement('p');h.className='lbl';h.style.margin='0';h.textContent=t;d.append(h);s.append(d);return d};
+  const sec=(t,key,open)=>{const d=document.createElement('details');d.className='stsec';d.open=ST.open[key]??open;d.addEventListener('toggle',()=>{ST.open[key]=d.open});const sm=document.createElement('summary');sm.textContent=t;const body=document.createElement('div');body.className='stack';d.append(sm,body);s.append(d);return body};
   // Posen
-  const ps=sec('Posen · '+m.name);const pg=document.createElement('div');pg.className='posegrid';ps.append(pg);
+  const ps=sec('Posen · '+m.name,'pose',true);const pg=document.createElement('div');pg.className='posegrid';ps.append(pg);
   for(const[k,[n,p,ry]]of Object.entries(POSES)){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=n;b.addEventListener('click',()=>{m.pose=JSON.parse(JSON.stringify(p));m.rootY=ry||0;applyPose(m);stCommit();syncBoneUI()});pg.append(b)}
   const saved=store.get('rk-poses',[]);
   if(Array.isArray(saved)&&saved.length){const sv=document.createElement('div');sv.className='saved';
@@ -151,7 +151,7 @@ function buildSide3(){
   const sr=document.createElement('div');sr.className='btnrow';const si=document.createElement('input');si.type='text';si.maxLength=30;si.placeholder='Name der Pose';si.setAttribute('aria-label','Name der Pose');si.style.cssText='flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:6px 9px';
   const sb=document.createElement('button');sb.type='button';sb.className='btn sm';sb.textContent='Pose speichern';sb.addEventListener('click',()=>{const nm=si.value.trim()||('Pose '+(saved.length+1));saved.push({name:nm.slice(0,30),pose:m.pose,rootY:m.rootY||0});store.set('rk-poses',saved.slice(-24));toast(`Pose „${nm}“ gespeichert.`);buildSide3()});sr.append(si,sb);ps.append(sr);
   // Körperteile
-  const bs=sec('Körperteil');const line=document.createElement('div');line.className='boneline';bs.append(line);
+  const bs=sec('Körperteil','bone',!!ST.bone);const line=document.createElement('div');line.className='boneline';bs.append(line);
   const NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 46 76');svg.setAttribute('class','bonemap');svg.setAttribute('role','group');svg.setAttribute('aria-label','Körperteil wählen');
   const R={head:[15,1,16,16],body:[15,18,16,22],armR:[6,18,8,10.5],armRLow:[6,29.5,8,10.5],armL:[32,18,8,10.5],armLLow:[32,29.5,8,10.5],legR:[15,41,7.5,16.5],legRLow:[15,58.5,7.5,16.5],legL:[23.5,41,7.5,16.5],legLLow:[23.5,58.5,7.5,16.5]};
   for(const[b,[x,y,w,h]]of Object.entries(R)){const r=document.createElementNS(NS,'rect');Object.entries({x,y,width:w,height:h,rx:1.2}).forEach(([k,v])=>r.setAttribute(k,v));r.setAttribute('tabindex','0');r.setAttribute('role','button');r.setAttribute('aria-label',BONE_LABEL[b]);if(b===ST.bone)r.setAttribute('class','on');
@@ -167,7 +167,7 @@ function buildSide3(){
   const sy=document.createElement('label');sy.className='row check';sy.innerHTML='<input type="checkbox" id="st-sym"><span>Symmetrie (beide Seiten gleich)</span>';sy.querySelector('input').checked=ST.sym;sy.querySelector('input').addEventListener('change',e=>{ST.sym=e.target.checked});bs.append(sy);
   const mb=document.createElement('button');mb.type='button';mb.className='btn sm';mb.textContent='Pose spiegeln';mb.addEventListener('click',()=>{mirrorPose(m);stCommit();syncBoneUI()});bs.append(mb);
   // Figur
-  const fs=sec('Figur');
+  const fs=sec('Figur & Skin','fig',true);
   const skinField=document.createElement('div');skinField.className='field';skinField.innerHTML='<div class="lab"><label for="st-skin">Skin</label></div><select id="st-skin"></select>';const ss=skinField.querySelector('select');
   PRESETS.forEach((p,i)=>ss.append(new Option('Beispiel: '+p.name,'p'+i)));if(PACK)Object.keys(PACK.skins).forEach(k=>ss.append(new Option('Paket: '+k.slice(2).replace(/_/g,' '),'k:'+k)));USER_SKINS.forEach((u,i)=>ss.append(new Option(u.name||('Eigener Skin '+(i+1)),'u'+i)));ss.value=m.skin;
   ss.addEventListener('change',()=>{m.skin=ss.value;if(ss.value.startsWith('k:'))m.slim=ss.value.startsWith('k:s:');buildModel(m);stCommit();buildSide3()});fs.append(skinField);
@@ -190,7 +190,7 @@ function buildSide3(){
   fs.append(rng('Höhe',()=>m.rootY||0,v=>{m.rootY=v;applyPose(m)},-20,40,''));
   if(ST.models.length>1){const rm=document.createElement('button');rm.type='button';rm.className='btn sm danger';rm.textContent=m.name+' entfernen';rm.addEventListener('click',removeModel);fs.append(rm)}
   // Szene
-  const sc=sec('Szene');
+  const sc=sec('Szene & Licht','scene',false);
   sc.append(seg('Hintergrund',[['sky','Himmel'],['color','Farbe'],['none','Transparent']],()=>ST.bg,v=>{ST.bg=v;setBackground();stCommit();buildSide3()}));
   if(ST.bg==='color'){const r=document.createElement('label');r.className='row';r.innerHTML='<span>Farbe</span><input type="color" id="st-bgc">';const ci=r.querySelector('input');ci.value=ST.bgColor;ci.addEventListener('input',()=>{ST.bgColor=ci.value;setBackground()});ci.addEventListener('change',stCommit);sc.append(r)}
   const gr=document.createElement('label');gr.className='row check';gr.innerHTML='<input type="checkbox" id="st-ground"><span>Schatten am Boden</span>';gr.querySelector('input').checked=ST.ground;gr.querySelector('input').addEventListener('change',e=>{ST.ground=e.target.checked;setBackground();stCommit()});sc.append(gr);

@@ -1,6 +1,6 @@
 'use strict';
 /* ================= Eigenständiger Betrieb =================
-   Läuft die Renderkammer als normale Webseite (z. B. in AGG Games),
+   Läuft Rendernail als normale Webseite (z. B. in AGG Games),
    gibt es keine Claude-Funktionen. Dann speichert sie Designs, Bilder
    und Renders im Browser (IndexedDB) und lädt Dateien direkt herunter. */
 window.RK_LOCAL=!!window.RK_STANDALONE||!(window.claude&&window.claude.use);

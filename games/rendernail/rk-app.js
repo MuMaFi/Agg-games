@@ -6,7 +6,7 @@
     b.querySelector('b').textContent=title;b.querySelector('b+span').textContent=sub;b.addEventListener('click',fn);g.append(b)};
   card('main','+','Neues Thumbnail','YouTube · 1280 × 720',()=>createAndOpen('yt'));
   for(const k of['short','insta','portrait']){const f=FORMATS[k];card('',f.ic,f.n,`${f.d} · ${f.w} × ${f.h}`,()=>createAndOpen(k))}
-  card('','⇪','Datei öffnen','.json aus der Renderkammer',()=>$('#f-project').click())})();
+  card('','⇪','Datei öffnen','.json aus Rendernail',()=>$('#f-project').click())})();
 function renderHome(){
   const list=[...PROJECTS.values()].filter(p=>p&&Array.isArray(p.layers)).sort((a,b)=>String(b.updated).localeCompare(String(a.updated)));
   $('#pcount').textContent=list.length||'';const g=$('#pgrid');g.innerHTML='';
