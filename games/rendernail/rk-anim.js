@@ -43,7 +43,7 @@ function anLoad(){let d=store.get('rk-anim',null);if(!d||d.v!==1)return anDefaul
   try{d={...D,...d,bg:{...D.bg,...d.bg},cam:{...D.cam,...d.cam},light:{...D.light,...d.light},fx:{...D.fx,...d.fx}};
     d.blocks=Array.isArray(d.blocks)?d.blocks.filter(b=>Array.isArray(b)&&b.length===4).slice(0,30000):[];
     d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',walk:a.walk!==false,size:cleanSize(a.size),
-      keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth',...(typeof k.walk==='boolean'?{walk:k.walk}:{})})).sort((p,q)=>p.t-q.t)}));
+      keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,rx:+k.rx||0,rz:+k.rz||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth',...(typeof k.walk==='boolean'?{walk:k.walk}:{})})).sort((p,q)=>p.t-q.t)}));
     d.props=(Array.isArray(d.props)?d.props:[]).slice(0,40).filter(o=>o&&typeof o.key==='string').map(o=>({id:o.id||'p'+uid(),name:String(o.name||'Block').slice(0,30),key:o.key,
       keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:+k.x||0,y:+k.y||0,z:+k.z||0,rx:+k.rx||0,ry:+k.ry||0,rz:+k.rz||0,s:k.s==null?1:clamp(+k.s,0,8),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
     d.cam.keys=(d.cam.keys||[]).filter(k=>Array.isArray(k.p)&&Array.isArray(k.q)).map(k=>({t:+k.t||0,p:k.p.map(Number),q:k.q.map(Number)})).sort((p,q)=>p.t-q.t);
@@ -132,7 +132,12 @@ function anRebuildBlocks(){if(!AR)return;const T=THREE;
     if(!idx.length)continue;geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(n,3));geo.setAttribute('uv',new T.Float32BufferAttribute(u,2));geo.setAttribute('color',new T.Float32BufferAttribute(c,3));geo.setIndex(idx);
     const mesh=new T.Mesh(geo,anMats(k));mesh.castShadow=true;mesh.receiveShadow=true;AR.blocks.add(mesh);AN.blockMeshes.push(mesh)}
   AN.pathDirty=true}
-function groundY(x,z){return AN.colTop.get(Math.floor(x/AB)+','+Math.floor(z/AB))||0}
+function groundY(x,z){let g=AN.colTop.get(Math.floor(x/AB)+','+Math.floor(z/AB))||0;
+  /* Betten und bewegliche Blöcke tragen Figuren auch (z. B. hinlegen aufs Bett) */
+  const P=AN.data&&AN.data.props;if(P&&P.length&&typeof evalProp==='function')for(const o of P){const v=evalProp(o,AN.t);if(Math.abs(v.rx)>5||Math.abs(v.rz)>5)continue;
+    const bed=o.key.startsWith('bed:'),top=v.y+(bed?9:16)*v.s;if(top<=g||top>48)continue;const a=v.ry*Math.PI/180,dx=x-v.x,dz=z-v.z,lx=dx*Math.cos(a)-dz*Math.sin(a),lz=dx*Math.sin(a)+dz*Math.cos(a);
+    if(Math.abs(lx)<=8*v.s&&Math.abs(lz)<=(bed?16:8)*v.s)g=top}
+  return g}
 
 /* Himmel, Boden, Wolken, Licht */
 let anCloudKey='';
@@ -189,11 +194,11 @@ function anSyncActors(){if(!AR)return;const ids=new Set(AN.data.actors.map(a=>a.
 const anWalks=(a,k)=>typeof k.walk==='boolean'?k.walk:a.walk!==false;
 const lerp=(a,b,u)=>a+(b-a)*u,lerpAng=(a,b,u)=>a+((((b-a)%360)+540)%360-180)*u;
 function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:0,ry:0,y:0};
-  const fix=k=>({pose:anClone(k.pose||{}),x:k.x,z:k.z,ry:k.ry,y:k.y});
+  const fix=k=>({pose:anClone(k.pose||{}),x:k.x,z:k.z,ry:k.ry,rx:k.rx||0,rz:k.rz||0,y:k.y});
   if(t<=K[0].t)return fix(K[0]);if(t>=K[K.length-1].t)return fix(K[K.length-1]);
   let i=0;while(i<K.length-2&&t>=K[i+1].t)i++;const k0=K[i],k1=K[i+1],u=(t-k0.t)/Math.max(1e-6,k1.t-k0.t),e=(AN_EASE[k1.ease]||AN_EASE.smooth)[1](u);
   const pose={};for(const b of new Set([...Object.keys(k0.pose||{}),...Object.keys(k1.pose||{})])){const r0=(k0.pose||{})[b]||[0,0,0],r1=(k1.pose||{})[b]||[0,0,0];pose[b]=[0,1,2].map(j=>lerp(r0[j],r1[j],e))}
-  const s={pose,x:lerp(k0.x,k1.x,e),z:lerp(k0.z,k1.z,e),ry:lerpAng(k0.ry,k1.ry,e),y:lerp(k0.y,k1.y,e)};
+  const s={pose,x:lerp(k0.x,k1.x,e),z:lerp(k0.z,k1.z,e),ry:lerpAng(k0.ry,k1.ry,e),rx:lerp(k0.rx||0,k1.rx||0,e),rz:lerp(k0.rz||0,k1.rz||0,e),y:lerp(k0.y,k1.y,e)};
   /* In der Luft (Sprung, Parkour): Höhe in der Welt glatt von Schlüsselbild zu Schlüsselbild, unabhängig davon, was darunter ist.
      Steht die Figur an beiden Schlüsselbildern auf dem Boden, folgt sie dem Gelände. */
   const walks=anWalks(a,k1);
@@ -205,10 +210,10 @@ function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:
     s.y+=.9*Math.abs(Math.cos(ph))*amp;s.ry=lerpAng(s.ry,Math.atan2(dx,dz)/D2R,Math.min(1,amp*1.4))}
   return s}
 function anApplyActors(){for(const a of AN.data.actors){const rt=AN.rts.get(a.id);if(!rt)continue;const s=evalActor(a,AN.t,!AN.playing&&!AN.rec&&AN.sel===a.id&&AN.bone),m=rt.m;
-    m.pose=s.pose;m.x=s.x;m.z=s.z;m.ry=s.ry;m.rootY=groundY(s.x,s.z)+s.y;applyPose(m)}}
+    m.pose=s.pose;m.x=s.x;m.z=s.z;m.ry=s.ry;m.rootY=groundY(s.x,s.z)+s.y;applyPose(m);m.group.rotation.order='YXZ';m.group.rotation.x=(s.rx||0)*D2R;m.group.rotation.z=(s.rz||0)*D2R}}
 function anKeyAt(keys,t){return keys.find(k=>Math.abs(k.t-t)<.02)}
 function anSetKey(a,patch){const t=AN.t;let k=anKeyAt(a.keys,t);
-  if(!k){const s=evalActor(a,t,true),nx=a.keys.find(q=>q.t>t);k={t,pose:s.pose,x:s.x,z:s.z,ry:s.ry,y:s.y,ease:nx?nx.ease:'smooth'};a.keys.push(k);a.keys.sort((p,q)=>p.t-q.t);anTimeline()}
+  if(!k){const s=evalActor(a,t,true),nx=a.keys.find(q=>q.t>t);k={t,pose:s.pose,x:s.x,z:s.z,ry:s.ry,rx:s.rx||0,rz:s.rz||0,y:s.y,ease:nx?nx.ease:'smooth'};a.keys.push(k);a.keys.sort((p,q)=>p.t-q.t);anTimeline()}
   Object.assign(k,patch);AN.pathDirty=true}
 function anReadBone(){const a=anActor(),b=AN.bone;if(!a||!b)return;const rt=AN.rts.get(a.id),o=rt.m.bones[b].rotation,r=[o.x,o.y,o.z].map(v=>Math.round(v/D2R*10)/10);
   const s=evalActor(a,AN.t,true);anSetKey(a,{pose:{...s.pose,[b]:r}});anBoneUI()}
@@ -249,9 +254,11 @@ const AN_PMOVES=[['spin','Drehen',(c)=>[[0,{}],[2,{ry:c.ry+360},'linear']]],['ho
 function anPropMove(o,fn){const t0=AN.t,c=evalProp(o,t0),steps=fn(c),last=steps[steps.length-1][0];if(t0+last>AN.data.dur)AN.data.dur=Math.min(30,Math.ceil((t0+last+.5)*2)/2);
   for(const[dt,patch,ease]of steps){const t=Math.round((t0+dt)*20)/20,v=evalProp(o,t);let k=anKeyAt(o.keys,t);if(!k){k={t,...v};o.keys.push(k)}Object.assign(k,patch,{ease:ease||k.ease||'smooth'})}
   o.keys.sort((p,q)=>p.t-q.t);anTimeline();anCommit();anPane();toast('Bewegung eingefügt. Drück auf Abspielen.')}
-function anReadMove(){if(anProp()){anReadProp();return}const a=anActor(),g=AR.tcm.object;if(!a||!g)return;const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-40,400)*10)/10;anSetKey(a,{x,z,y})}
+function anReadMove(){if(anProp()){anReadProp();return}const a=anActor(),g=AR.tcm.object;if(!a||!g)return;
+  if(AR.tcm.mode==='rotate'){const c=evalActor(a,AN.t,true),r=v=>Math.round(v*10)/10;anSetKey(a,{rx:r(anUnwrap(g.rotation.x/D2R,c.rx||0)),ry:r(((anUnwrap(g.rotation.y/D2R,c.ry)+540)%360)-180),rz:r(anUnwrap(g.rotation.z/D2R,c.rz||0))});return}
+  const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-40,400)*10)/10;anSetKey(a,{x,z,y})}
 function anActor(){return AN.data.actors.find(a=>a.id===AN.sel)||null}
-function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';AR.tcm.setMode(pm?AN.pmode:'translate');AR.tcm.setSpace(pm&&AN.pmode==='rotate'?'local':'world');if(rt&&!bone&&ed)AR.tcm.attach(rt.m.group);else if(pm&&ed)AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
+function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';const md=pm?AN.pmode:rt?(AN.amode||'translate'):'translate';AR.tcm.setMode(md);AR.tcm.setSpace(md==='rotate'?'local':'world');if(rt&&!bone&&ed)AR.tcm.attach(rt.m.group);else if(pm&&ed)AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
 async function anAddActor(name,skin,slim){const D=AN.data,n=D.actors.length,a={id:'a'+uid(),name:name||'Figur '+(n+1),skin:skin||'',slim:!!slim,item:'',walk:true,size:{},
   keys:[{t:0,pose:anPose('stehen'),x:(n%2?1:-1)*Math.ceil(n/2)*28,z:0,ry:0,y:0,ease:'smooth'}]};if(n===0)a.keys[0].x=0;
   D.actors.push(a);anSyncActors();anSelect(a.id);anCommit();anHint();toast(`${a.name} ist in der Szene. Zieh die Figur, um sie zu bewegen.`)}
@@ -448,7 +455,12 @@ function paneActors(P,a){const D=AN.data;
   const cur=evalActor(a,AN.t,true);s=aSec(P,'Haltung');
   aRange(s,'Position links/rechts',-400,400,1,()=>Math.round(cur.x),v=>{anSetKey(a,{x:v})});
   aRange(s,'Position vorne/hinten',-400,400,1,()=>Math.round(cur.z),v=>{anSetKey(a,{z:v})});
+  aSeg(s,'Pfeile in der Ansicht',[['translate','Verschieben'],['rotate','Drehen / Kippen']],()=>AN.amode||'translate',v=>{AN.amode=v;anSelect(a.id)});
   aRange(s,'Drehung',-180,180,1,()=>Math.round(cur.ry),v=>{anSetKey(a,{ry:v})},v=>v+'°');
+  aRange(s,'Kippen (vor/zurück)',-180,180,1,()=>Math.round(cur.rx||0),v=>{anSetKey(a,{rx:v})},v=>v+'°');
+  aRange(s,'Zur Seite kippen',-180,180,1,()=>Math.round(cur.rz||0),v=>{anSetKey(a,{rz:v})},v=>v+'°');
+  {const r=aRow(s),lay=rx=>()=>{const c=evalActor(a,AN.t,true),up=!Math.abs(c.rx||0)&&!Math.abs(c.rz||0);anSetKey(a,{rx,rz:0,y:Math.round(((up?c.y:c.y-2)+(rx?2:0))*2)/2,pose:anPose('stehen')});anCommit();anPane()};
+    aBtn(r,'Auf den Rücken legen',lay(-90));aBtn(r,'Auf den Bauch legen',lay(90));aBtn(r,'Aufrichten',lay(0))}
   aRange(s,'Höhe über dem Boden',-6,120,.5,()=>Math.round(cur.y*2)/2,v=>{anSetKey(a,{y:v})},v=>String(Math.round(v*10)/10).replace('.',','));
   const items=ST_ITEMS.map(([k2,n])=>[k2,n]).concat(PACK?Object.keys(PACK.imgs).filter(x=>x.startsWith('i/')).sort().map(x=>['pi_'+x.slice(2),prettyName(x.slice(2))]):[]);
   aSelect(s,'In der rechten Hand',items,()=>a.item||'',v=>{a.item=v;anSyncActors()});
