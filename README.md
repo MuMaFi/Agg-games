@@ -14,7 +14,7 @@ gleich mit. Kein Server, kein Build, keine Installation: `index.html` im Browser
 | **Snapshade** | Farbgedächtnis | `games/snapshade.html` |
 | **Mario — Mini Jump ’n’ Run** | Jump ’n’ Run, 2D | `games/mario.html` |
 | **KernClicker** | Idle / Clicker | `games/kernclicker.html` |
-| **Rendernail** | Werkzeug: 3D-Posen & Thumbnails | `games/rendernail/` |
+| **Rendernail** | Werkzeug: Thumbnails, 3D-Posen & Animationen (eigener Tab auf der Startseite) | `games/rendernail/` |
 
 Jede Datei ist für sich vollständig und läuft auch einzeln weitergegeben.
 `games/foundtape.html` ist mit rund 8 MB die größte — dort stecken three.js,
