@@ -2,7 +2,7 @@
 /* ================= Präsentationen =================
    Eine Präsentation ist ein Design mit mehreren Folien (ED.p.slides). Die gerade offene Folie liegt
    wie gewohnt in ED.p.layers, damit alle Werkzeuge des Editors unverändert funktionieren.
-   Export als .pptx: Texte werden echte PowerPoint-Textfelder, alles andere einzelne Bilder. */
+   Export als .pptx: Jede Ebene (auch Text) wird ein einzelnes Bild, damit alles genau wie in Rendernail aussieht. */
 FORMATS.slides={n:'Präsentation',d:'PowerPoint 16:9',w:1280,h:720,ic:[30,17]};
 const SLIDE_TPL=[
   {name:'Titel',make:({bd,as,tx})=>{bd({mode:'mcsky',time:'day',seed:4});
@@ -60,13 +60,6 @@ async function exportPptx(){
   for(const s of slides){const sl=pptx.addSlide();
     for(const L of s.layers){if(L.hidden)continue;
       if(L.type==='backdrop'){sl.background={data:d64(backdropCanvas(L,W,H).toDataURL('image/jpeg',.9))};continue}
-      if(L.type==='text'){const f=FONTS[L.font]||FONTS.luckiest,o={x:inch(L.x-L.w/2),y:inch(L.y-L.h/2),w:inch(L.w),h:inch(L.h),fontFace:f[0],fontSize:Math.max(6,Math.round((L.size||80)*.75)),
-          color:hex(L.color),bold:f[2]>=600,align:L.align||'center',valign:'middle',margin:0,rotate:Math.round(L.rot||0),fit:'none',wrap:false,paraSpaceBefore:0,paraSpaceAfter:0};
-        if(L.stroke>0)o.outline={size:Math.max(.25,Math.round(L.stroke*.75*10)/10),color:hex(L.strokeColor||'#15161b')};
-        if(L.glow>0)o.glow={size:Math.round(L.glow*.75),opacity:.6,color:hex(L.glc)};
-        if(L.shadow>0||L.depth>0)o.shadow={type:'outer',blur:Math.round(Math.max(2,(L.shadow||4)*.5)),offset:Math.max(1,Math.round((L.depth||(L.shadow||4)*.4)*.75)),angle:45,color:'000000',opacity:.55};
-        if((L.opacity??1)<1)o.transparency=Math.round((1-L.opacity)*100);
-        sl.addText(String(L.text||''),o);continue}
       const r=layerImage(L),o={data:d64(r.url),x:inch(L.x-r.w/2),y:inch(L.y-r.h/2),w:inch(r.w),h:inch(r.h),rotate:Math.round(L.rot||0)};
       if((L.opacity??1)<1)o.transparency=Math.round((1-L.opacity)*100);sl.addImage(o)}}
   let blob;try{blob=await pptx.write({outputType:'blob'})}catch{toast('Die PowerPoint-Datei konnte nicht erstellt werden.');return}
