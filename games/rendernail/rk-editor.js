@@ -213,9 +213,10 @@ cv.addEventListener('pointerdown',e=>{
     const bb=selBox(movers);ED.drag={mode:'move',ls:movers,start:movers.map(l=>[l.x,l.y]),sx:d[0],sy:d[1],c0:[(bb.x0+bb.x1)/2,(bb.y0+bb.y1)/2]};return}
   if(additive){ED.drag={mode:'marquee',a:d,base:[...ED.sel]};ED.marquee={x0:d[0],y0:d[1],x1:d[0],y1:d[1]};return}
   if(ED.sel.length)select(null);ED.drag=pan()});
-function blockSnap(L,nx,ny){let best=null;
+const isBed=L=>/^bed:/.test((LIBK[L&&L.key]||{}).bk||'');
+function blockSnap(L,nx,ny){let best=null;if(isBed(L))return null;
   for(const T of ED.p.layers){if(T===L||T.hidden||!isBlock(T)||ED.sel.includes(T.id))continue;const A=cubeAxes(T.yaw??-45,T.pitch??30,T.roll??0),k=T.w/3.6,th=T.w*.22;
-    for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)for(let l=-1;l<=1;l++){if(!i&&!j&&!l)continue;
+    if(isBed(T))continue;for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)for(let l=-1;l<=1;l++){if(!i&&!j&&!l)continue;
       const px=T.x+(i*A[0][0]+j*A[1][0]+l*A[2][0])*k,py=T.y+(i*A[0][1]+j*A[1][1]+l*A[2][1])*k,dd=Math.hypot(px-nx,py-ny);
       if(dd>=th||(best&&dd>=best.d))continue;
       if(T.build&&T.cell){const c=[T.cell[0]+i,T.cell[1]+j,T.cell[2]+l];if(ED.p.layers.some(o=>o!==L&&o.build===T.build&&o.cell&&o.cell[0]===c[0]&&o.cell[1]===c[1]&&o.cell[2]===c[2]))continue}
@@ -224,7 +225,7 @@ function blockSnap(L,nx,ny){let best=null;
 /* Bauwerke: eingerastete Blöcke kennen ihren Platz im 3D-Raster (cell) */
 const blockDepth=(c,A)=>c[0]*A[0][2]+c[1]*A[1][2]+c[2]*A[2][2];
 /* Fläche: vom Block aus aufziehen, es entstehen Blöcke im selben Raster */
-function startArea(L){if(!L||!isBlock(L))return;select(L.id);ED.area=L.id;$('#ed-canvas').classList.add('areamode');buildSelbar();toast('Zieh vom Block weg, um die Fläche aufzuziehen.')}
+function startArea(L){if(!L||!isBlock(L))return;if(isBed(L)){toast('Betten lassen sich nicht als Fläche verwenden.');return}select(L.id);ED.area=L.id;$('#ed-canvas').classList.add('areamode');buildSelbar();toast('Zieh vom Block weg, um die Fläche aufzuziehen.')}
 function areaDrag(D,d){const L=D.L,ls=ED.p.layers;
   for(const o of D.made){const i=ls.indexOf(o);if(i>=0)ls.splice(i,1)}D.made=[];
   if(!L.build||!L.cell){L.build='b'+uid();L.cell=[0,0,0]}

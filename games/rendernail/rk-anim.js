@@ -220,9 +220,13 @@ const anPBox=()=>{const T=THREE;return anPBox.g||(anPBox.g=new T.BoxGeometry(AB,
 function anPropMats(k){const key='p|'+k+'|'+packTick;let m=anMatCache.get(key);if(m)return m;const T=THREE,f=anFaces(k);if(!f)return null;const t=blockTex(k)||{},water=/water/.test(k),alpha=!anOpaque(k)&&!water,bright=t.bright||/lava|glowstone|sea_lantern|shroomlight|froglight|magma/.test(k);
   const mk2=c=>{const o={map:anTex(c)};if(alpha){o.alphaTest=.5;o.side=T.DoubleSide}if(water){o.transparent=true;o.opacity=.8}return bright?new T.MeshBasicMaterial(o):new T.MeshLambertMaterial(o)};
   const [top,side,bot,front]=f.map(mk2);m=[side,side,top,bot,front,side];anMatCache.set(key,m);return m}
+function anPropPalette(){return anPalette().concat(typeof packBedColors==='function'?packBedColors().map(c=>['bed:'+c,prettyName(c+'_bed')]):[])}
 function anSyncProps(){if(!AR)return;const ids=new Set(AN.data.props.map(o=>o.id));
   for(const[id,m]of AN.pmesh)if(!ids.has(id)){AR.props.remove(m);AN.pmesh.delete(id)}
-  for(const o of AN.data.props){let m=AN.pmesh.get(o.id);const sig=o.key+'|'+packTick;if(m&&m.userData.sig===sig)continue;const mats=anPropMats(o.key);if(!mats)continue;
+  for(const o of AN.data.props){let m=AN.pmesh.get(o.id);const sig=o.key+'|'+packTick;if(m&&m.userData.sig===sig)continue;
+    if(o.key.startsWith('bed:')){if(!PACK)continue;if(m){AR.props.remove(m);anDispose(m)}const b=bedMesh(o.key.slice(4));b.position.y=-AB/2;m=new THREE.Group();m.add(b);m.userData={prop:o.id,sig};
+      m.traverse(x=>{if(x.isMesh){x.castShadow=true;x.receiveShadow=true;x.userData={prop:o.id}}});AR.props.add(m);AN.pmesh.set(o.id,m);continue}
+    const mats=anPropMats(o.key);if(!mats)continue;if(m&&!m.isMesh){AR.props.remove(m);anDispose(m);m=null}
     if(m){m.material=mats;m.userData.sig=sig;continue}m=new THREE.Mesh(anPBox(),mats);m.castShadow=true;m.receiveShadow=true;m.userData={prop:o.id,sig};AR.props.add(m);AN.pmesh.set(o.id,m)}
   if(AN.sel&&AN.pmesh.has(AN.sel)&&AR.tcm.object&&AR.tcm.object!==AN.pmesh.get(AN.sel))AR.tcm.attach(AN.pmesh.get(AN.sel))}
 function evalProp(o,t){const K=o.keys,f=k=>({x:k.x,y:k.y,z:k.z,rx:k.rx,ry:k.ry,rz:k.rz,s:k.s});if(!K.length)return{x:0,y:0,z:0,rx:0,ry:0,rz:0,s:1};
@@ -237,7 +241,7 @@ const anUnwrap=(v,ref)=>v+Math.round((ref-v)/360)*360;
 function anReadProp(){const o=anProp(),m=AR.tcm.object;if(!o||!m)return;const cur=evalProp(o,AN.t),r=v=>Math.round(v*10)/10;
   if(AR.tcm.mode==='rotate')anSetPropKey(o,{rx:r(anUnwrap(m.rotation.x/D2R,cur.rx)),ry:r(anUnwrap(m.rotation.y/D2R,cur.ry)),rz:r(anUnwrap(m.rotation.z/D2R,cur.rz))});
   else anSetPropKey(o,{x:r(m.position.x),y:r(m.position.y-AB/2*Math.max(.001,cur.s)),z:r(m.position.z)})}
-function anAddProp(k){const D=AN.data,s=anSceneInfo(),n=D.props.length,o={id:'p'+uid(),name:(anPalette().find(p=>p[0]===k)||[k,'Block'])[1],key:k,
+function anAddProp(k){const D=AN.data,s=anSceneInfo(),n=D.props.length,o={id:'p'+uid(),name:(anPropPalette().find(p=>p[0]===k)||[k,'Block'])[1],key:k,
   keys:[{t:0,x:Math.round(s.c[0]+AB*1.5+(n%4)*AB*1.2),y:groundY(s.c[0]+AB*1.5,s.c[2]),z:Math.round(s.c[2]+AB),rx:0,ry:0,rz:0,s:1,ease:'smooth'}]};
   D.props.push(o);anSyncProps();anSelect(o.id);anCommit();toast(`${o.name} ist in der Szene. Zieh den Block oder nutze die Pfeile.`)}
 const AN_PMOVES=[['spin','Drehen',(c)=>[[0,{}],[2,{ry:c.ry+360},'linear']]],['hop','Hüpfen',(c)=>[[0,{}],[.3,{y:c.y+24},'swing'],[.65,{y:c.y},'bounce']]],
@@ -324,7 +328,7 @@ function anPointer(){const fr=AR.frame;let D=null;
   fr.addEventListener('pointerdown',e=>{if(AN.rec||e.button===2)return;AN.tween=null;{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));if(!$('#an-hint').classList.contains('off'))anHintShow(false)}const st=AN_STEPS[AN.step][0];D={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
     if(AN.playing)anStop();
     if(st==='bg'&&AN.tool==='area'){const h=anBuildHit(e);if(h){D.area=h.place;AR.controls.enabled=false;anGhost(h.place,h.place)}}
-    if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false),ph=anRay(e).intersectObjects([...AN.pmesh.values()],false);
+    if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false),ph=anRay(e).intersectObjects([...AN.pmesh.values()],true);
       const ray=anRay(e),pk=AR.tc.object&&AR.tc._gizmo&&AR.tc._gizmo.picker.rotate,onRing=(pk&&ray.intersectObject(pk,true).length>0)||(AR.tcm.object&&AR.tcm._gizmo&&ray.intersectObject(AR.tcm._gizmo.picker[AR.tcm.mode],true).length>0);
       if(ph.length&&!onRing&&(!hits.length||ph[0].distance<hits[0].distance)){e.stopPropagation();const o=AN.data.props.find(x=>x.id===ph[0].object.userData.prop),v=evalProp(o,AN.t);D.prop=o.id;D.y=v.y;AR.controls.enabled=false;const p=new THREE.Vector3();ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-v.y),p);D.off=[v.x-p.x,v.z-p.z]}
       else if(hits.length&&!onRing){e.stopPropagation();const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
@@ -402,7 +406,7 @@ function paneBg(P){const D=AN.data;
 function paneProps(P){const D=AN.data,o=anProp();let s=aSec(P,'Bewegliche Blöcke','Blöcke, die sich bewegen, drehen, hüpfen oder auftauchen.');
   if(D.props.length){const list=el('div','an-actors');for(const x of D.props){const b=el('button','an-actor');b.type='button';b.setAttribute('aria-pressed',x.id===AN.sel);const c=mk(40,40);try{c.getContext('2d').drawImage(blockCanvas(x.key),0,0,40,40)}catch{}b.append(c,el('span',null,x.name));b.addEventListener('click',()=>anSelect(x.id));list.append(b)}s.append(list)}
   const add=el('details','an-padd');add.innerHTML='<summary class="btn sm">+ Block hinzufügen</summary>';const q=el('input');q.type='search';q.placeholder='Block suchen';q.className='an-search';const grid=el('div','an-pal');add.append(q,grid);
-  const pal=anPalette(),fill=()=>{grid.innerHTML='';const f=q.value.trim().toLowerCase();for(const[k,n]of pal.filter(([k,n])=>!f||n.toLowerCase().includes(f)||k.includes(f)).slice(0,48)){const b=el('button','an-blk');b.type='button';b.title=n;b.setAttribute('aria-label',n+' hinzufügen');const c=mk(56,56);try{c.getContext('2d').drawImage(blockCanvas(k),0,0,56,56)}catch{}b.append(c);b.addEventListener('click',()=>{anAddProp(k);anPane()});grid.append(b)}};
+  const pal=anPropPalette(),fill=()=>{grid.innerHTML='';const f=q.value.trim().toLowerCase();for(const[k,n]of pal.filter(([k,n])=>!f||n.toLowerCase().includes(f)||k.includes(f)).slice(0,48)){const b=el('button','an-blk');b.type='button';b.title=n;b.setAttribute('aria-label',n+' hinzufügen');const c=mk(56,56);try{c.getContext('2d').drawImage(blockCanvas(k),0,0,56,56)}catch{}b.append(c);b.addEventListener('click',()=>{anAddProp(k);anPane()});grid.append(b)}};
   add.addEventListener('toggle',()=>{if(add.open&&!grid.childElementCount)fill()});q.addEventListener('input',fill);s.append(add);
   if(!o)return;const cur=evalProp(o,AN.t),k=anKeyAt(o.keys,AN.t);
   s=aSec(P,o.name+' · bei '+anFmtT(AN.t),k?'Hier liegt ein Schlüsselbild. Änderungen gelten ab dieser Stelle.':'Eine Änderung legt hier automatisch ein neues Schlüsselbild an.');

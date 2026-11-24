@@ -77,7 +77,36 @@ function packBlockTex(k){if(!PACK)return null;const d=PACK_BLOCKS[k];if(!d)retur
 /* Alle Blöcke aus dem Paket: Name → Seiten nach Minecraft-Namensregeln (_top, _side, _bottom, _front, _end) */
 const PK_TINT={grass_block_top:'#91bd59',oak_leaves:'#77ab2f',jungle_leaves:'#77ab2f',acacia_leaves:'#77ab2f',dark_oak_leaves:'#77ab2f',mangrove_leaves:'#77ab2f',birch_leaves:'#80a755',spruce_leaves:'#619961',vine:'#77ab2f',water_still:'#3f76e4',water_flow:'#3f76e4',short_grass:'#91bd59',grass:'#91bd59',fern:'#91bd59',large_fern_top:'#91bd59',large_fern_bottom:'#91bd59',tall_grass_top:'#91bd59',tall_grass_bottom:'#91bd59',sugar_cane:'#91bd59',lily_pad:'#208030',leaves_oak:'#77ab2f',grass_top:'#91bd59'};
 const PK_BOTTOM={grass_block:'dirt',podzol:'dirt',mycelium:'dirt',dirt_path:'dirt',farmland:'dirt',grass_path:'dirt'};
-const PK_SKIP=/(^destroy_stage_\d|_overlay$|^debug|^structure_void$|^barrier$|_particle$)/;
+const PK_SKIP=/(^destroy_stage_\d|_overlay$|^debug|^structure_void$|^barrier$|_particle$|_bed_(head|foot)_|^bed_down$|^bed_head_north$)/;
+/* Betten: Neuere Minecraft-Versionen liefern ein Bett als Einzelflächen (Kopf/Fuß, oben, Seiten, Ende).
+   Daraus entsteht hier ein echtes 3D-Bett nach Minecrafts eigenem Bettmodell (Kopf im Norden, Fuß im Süden). */
+const BED_ELS={foot:[[[0,3,0],[16,9,16],{down:[[0,0,16,16],'down'],up:[[0,0,16,16],'up'],south:[[0,7,16,13],'south'],west:[[0,7,16,13],'west'],east:[[0,7,16,13],'east']}],
+    [[0,0,13],[3,3,16],{down:[[7,13,10,16],'west'],north:[[10,13,13,16],'west'],south:[[0,13,3,16],'south'],west:[[13,13,16,16],'west'],east:[[3,13,6,16],'south']}],
+    [[13,0,13],[16,3,16],{down:[[6,13,9,16],'east'],north:[[3,13,6,16],'east'],south:[[13,13,16,16],'south'],west:[[10,13,13,16],'south'],east:[[0,13,3,16],'east']}]],
+  head:[[[0,3,0],[16,9,16],{down:[[0,0,16,16],'down'],up:[[0,0,16,16],'up'],north:[[0,7,16,13],'north'],west:[[0,7,16,13],'west'],east:[[0,7,16,13],'east']}],
+    [[0,0,0],[3,3,3],{down:[[6,13,9,16],'west'],north:[[13,13,16,16],'north'],south:[[3,13,6,16],'west'],west:[[0,13,3,16],'west'],east:[[10,13,13,16],'north']}],
+    [[13,0,0],[16,3,3],{down:[[7,13,10,16],'east'],north:[[0,13,3,16],'north'],south:[[10,13,13,16],'east'],west:[[3,13,6,16],'north'],east:[[13,13,16,16],'east']}]]};
+function packBedColors(){if(!PACK)return[];const s=new Set();for(const k of Object.keys(PACK.imgs)){const m=k.match(/^b\/([a-z_]+)_bed_head_up$/);if(m&&PACK.imgs['b/'+m[1]+'_bed_foot_up'])s.add(m[1])}return[...s].sort()}
+function bedTex(c,part,v){const n=v==='down'?'bed_down':v==='north'?'bed_head_north':`${c}_bed_${part}_${v}`;return PACK&&PACK.imgs['b/'+n]}
+function bedMesh(c){const T=THREE,by=new Map(),e=.0005;
+  for(const part of['head','foot'])for(const[from,to,faces]of BED_ELS[part]){const oz=part==='head'?-16:0,x0=from[0]-8,x1=to[0]-8,y0=from[1],y1=to[1],z0=from[2]+oz,z1=to[2]+oz;
+    const C={north:[[x1,y1,z0],[x0,y1,z0],[x1,y0,z0],[x0,y0,z0],[0,0,-1]],south:[[x0,y1,z1],[x1,y1,z1],[x0,y0,z1],[x1,y0,z1],[0,0,1]],east:[[x1,y1,z1],[x1,y1,z0],[x1,y0,z1],[x1,y0,z0],[1,0,0]],
+      west:[[x0,y1,z0],[x0,y1,z1],[x0,y0,z0],[x0,y0,z1],[-1,0,0]],up:[[x0,y1,z0],[x1,y1,z0],[x0,y1,z1],[x1,y1,z1],[0,1,0]],down:[[x0,y0,z1],[x1,y0,z1],[x0,y0,z0],[x1,y0,z0],[0,-1,0]]};
+    for(const[f,[uv,v]]of Object.entries(faces)){const tex=bedTex(c,part,v);if(!tex)continue;let g=by.get(tex);if(!g){g={p:[],n:[],u:[],i:[]};by.set(tex,g)}
+      const[tl,tr,bl,br,n]=C[f],b=g.p.length/3,[u1,v1,u2,v2]=uv;for(const q of[tl,tr,bl,br]){g.p.push(...q);g.n.push(...n)}
+      g.u.push(u1/16+e,1-v1/16-e,u2/16-e,1-v1/16-e,u1/16+e,1-v2/16+e,u2/16-e,1-v2/16+e);g.i.push(b,b+2,b+1,b+1,b+2,b+3)}}
+  const grp=new T.Group();
+  for(const[tex,g]of by){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(g.p,3));geo.setAttribute('normal',new T.Float32BufferAttribute(g.n,3));geo.setAttribute('uv',new T.Float32BufferAttribute(g.u,2));geo.setIndex(g.i);
+    const t=new T.CanvasTexture(tex);t.magFilter=T.NearestFilter;t.minFilter=T.NearestFilter;t.generateMipmaps=false;t.encoding=T.sRGBEncoding;grp.add(new T.Mesh(geo,new T.MeshLambertMaterial({map:t,alphaTest:.1})))}
+  return grp}
+let bedR=null;
+function bedCanvas(c,yaw,pitch,roll){if(!window.THREE)return mk(4,4);const T=THREE,R=Math.PI/180;
+  if(bedR===null){try{const r=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});r.setPixelRatio(1);r.setSize(512,512,false);r.outputEncoding=T.sRGBEncoding;
+    const sc=new T.Scene();sc.add(new T.HemisphereLight(0xffffff,0x6a6a6a,.72));const d=new T.DirectionalLight(0xffffff,.7);d.position.set(25,80,45);sc.add(d);
+    const cam=new T.OrthographicCamera(-23,23,23,-23,-200,200);cam.position.set(0,0,100);bedR={r,sc,cam}}catch{bedR=false}}
+  if(!bedR)return mk(4,4);const g=bedMesh(c),piv=new T.Group();g.position.y=-4.5;piv.add(g);piv.rotation.set(pitch*R,yaw*R,roll*R,'XYZ');
+  bedR.sc.add(piv);bedR.r.setClearColor(0x000000,0);bedR.r.render(bedR.sc,bedR.cam);const out=trimCanvas(bedR.r.domElement);bedR.sc.remove(piv);
+  g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose()}});return out}
 const alphaMemo=new WeakMap();
 function hasAlpha(c){let v=alphaMemo.get(c);if(v!=null)return v;const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;v=false;for(let i=3;i<d.length;i+=4)if(d[i]<250){v=true;break}alphaMemo.set(c,v);return v}
 let pkBases=null;
@@ -113,6 +142,7 @@ function registerPackLib(){
   for(const b of packBlockBases()){const flat=pkFlat(b);
     const a=flat?{key:'pb_'+b,cat:'blocks',name:prettyName(b),gen:()=>{const f=[b,b+'_front',b+'_side',b+'_top',b+'_bottom'].map(pkFace).find(Boolean)||mk(16,16);return upscale(f,Math.max(1,Math.round(256/f.width)))},pixel:true,color:null,font:false,cover:false,bk:null,pack:true}
       :{key:'pb_'+b,cat:'blocks',name:prettyName(b),gen:()=>blockCanvas('pk:'+b),pixel:false,color:null,font:false,cover:false,bk:'pk:'+b,pack:true};PACK_LIB.push(a)}
+  for(const c of packBedColors())PACK_LIB.push({key:'pb_bed_'+c,cat:'blocks',name:prettyName(c+'_bed'),gen:()=>blockCanvas('bed:'+c),pixel:false,color:null,font:false,cover:false,bk:'bed:'+c,pack:true});
   for(const k of Object.keys(PACK.imgs).filter(k=>k.startsWith('i/')).sort()){const n=k.slice(2),im=PACK.imgs[k];
     PACK_LIB.push({key:'pi_'+n,cat:'items',name:prettyName(n),gen:()=>upscale(im,Math.max(1,Math.round(256/im.width))),pixel:true,color:null,font:false,cover:false,bk:null,pack:true})}
   for(const a of PACK_LIB){LIB.push(a);LIBK[a.key]=a}}
