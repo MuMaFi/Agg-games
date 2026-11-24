@@ -294,3 +294,4 @@ async function skinFromIGN(name,m){
   if(m){m.skin='u'+i;m.slim=slim;m.name=name;buildModel(m);stCommit();buildModelsBar()}buildSide3();toast(`Skin von ${name} geladen.`)}
 
 multiTap($('#st-wrap'),()=>{if(!$('#st-undo').disabled){$('#st-undo').click();toast('Rückgängig')}},()=>{if(!$('#st-redo').disabled){$('#st-redo').click();toast('Wiederholt')}});
+FLY_CTX.push(()=>view==='studio'&&R3?{camera:R3.camera,controls:R3.controls}:null);

@@ -413,9 +413,9 @@ function anGo(i){i=clamp(i,0,AN_STEPS.length-1);if(i===AN.step)return;const back
 const anHintSeen=new Set();
 function anHintShow(on){$('#an-hint').classList.toggle('off',!on);$('#an-help').hidden=on||AN.playing}
 function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textContent={
-  bg:'Tippe auf den Boden oder einen Block, um zu bauen. Ziehen dreht die Ansicht, zwei Finger oder das Mausrad zoomen.',
+  bg:'Tippe auf den Boden oder einen Block, um zu bauen. Ziehen dreht die Ansicht, zwei Finger oder das Mausrad zoomen. Mit Tastatur: WASD bewegt die Kamera, E/Q hoch/runter, Shift schneller.',
   act:AN.data.actors.length?'Zieh eine Figur, um sie zu verschieben. Schieb vorher den Zeitregler weiter: So entsteht ein Schlüsselbild, dazwischen läuft die Figur von selbst. Zweimal antippen dreht einzelne Körperteile.':'Füge rechts eine Figur mit Minecraft-Skin hinzu.',
-  cam:'Du siehst durch die Kamera. Wähle eine Fahrt oder dreh die Ansicht an einer Zeitstelle: Die Position wird dort gemerkt.',
+  cam:'Du siehst durch die Kamera. Wähle eine Fahrt oder dreh die Ansicht an einer Zeitstelle (oder fahr mit WASD, E/Q): Die Position wird dort gemerkt.',
   light:'Wähle eine Stimmung und verfeinere sie mit den Reglern.',
   out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
 let anPaneT=0;function anPaneSoft(){clearTimeout(anPaneT);anPaneT=setTimeout(()=>{if(['act','cam'].includes(AN_STEPS[AN.step][0]))anPane()},120)}
@@ -640,3 +640,5 @@ packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anR
 multiTap($('#an-frame'),()=>{if(AN.ready&&AN.hist.length>1){anUndo(-1);toast('Rückgängig')}},()=>{if(AN.ready&&AN.fut.length){anUndo(1);toast('Wiederholt')}});
 
 (function(){const b=$('#an-posedone');if(b)b.querySelector('button').addEventListener('click',()=>anSelect(AN.sel))})();
+FLY_CTX.push(()=>{if(view!=='anim'||!AR||AN.rec||AN.playing)return null;const st=AN_STEPS[AN.step][0];if(anLook()==='cam'&&st!=='cam')return null;
+  return{camera:AR.camera,controls:AR.controls,start(){AN.tween=null;if(st==='cam')AN.camEdit=true},end(){if(AN.camEdit){AN.camEdit=false;anSetCamKey()}}}});
