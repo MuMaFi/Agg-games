@@ -428,6 +428,14 @@ function paneActors(P,a){const D=AN.data;
   if(!a){if(D.actors.length)s.append(el('p','sub','Tippe eine Figur an, um sie zu bearbeiten.'));return}
   const k=anKeyAt(a.keys,AN.t);
   s=aSec(P,a.name+' · bei '+anFmtT(AN.t),k?'Hier liegt ein Schlüsselbild. Änderungen gelten ab dieser Stelle.':'Eine Änderung legt hier automatisch ein neues Schlüsselbild an.');
+  {const f=el('form','an-skinform');f.innerHTML='<label class="sub" for="an-rename">Name / Skin (Ingame-Name)</label><div class="btnrow"><input id="an-rename" type="text" maxlength="30" autocomplete="off" spellcheck="false"><button class="btn sm primary" type="submit">Skin laden</button></div><p class="sub an-skinmsg" role="status"></p>';
+    const inp=f.querySelector('input'),msg=f.querySelector('.an-skinmsg'),sb=f.querySelector('button');inp.value=a.name;
+    f.addEventListener('submit',async e=>{e.preventDefault();const n=inp.value.trim();if(!n||sb.disabled)return;
+      if(/^[A-Za-z0-9_]{3,16}$/.test(n)){sb.disabled=true;msg.textContent='Skin von '+n+' wird geladen …';
+        try{const r=await fetchSkinByName(n);anSkins.set(r.data,r.canvas);a.skin=r.data;a.slim=r.slim;a.name=n;anSyncActors();anTimeline();anCommit();msg.textContent='';toast(`Skin von ${n} geladen. Pose und Bewegung bleiben.`);anPane()}
+        catch(err){msg.textContent=(err.message||'Skin nicht gefunden.')+' Der Name wurde trotzdem geändert.';a.name=n;anTimeline();anCommit()}finally{sb.disabled=false}}
+      else{a.name=n.slice(0,30);anTimeline();anCommit();anPane();toast('Name geändert.')}});
+    s.append(f)}
   const pg=el('div','posegrid');for(const[pk,[n,p,ry]]of Object.entries(POSES)){const b=el('button','btn sm',n);b.type='button';b.addEventListener('click',()=>{anSetKey(a,{pose:anClone(p),y:ry||0});anCommit();anPane()});pg.append(b)}s.append(pg);
   s=aSec(P,'Bewegung einfügen','Fügt ab hier eine fertige Bewegung ein.');const mg=el('div','posegrid');
   for(const[id,n,steps]of AN_MOVES){const b=el('button','btn sm',n);b.type='button';b.addEventListener('click',()=>anMove(a,steps));mg.append(b)}s.append(mg);
