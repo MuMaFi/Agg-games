@@ -437,6 +437,110 @@ body.simple .st-status{height:50px}
 .st-status .sub{margin-right:6px}
 .st-status .grow{flex:1}
 @media (max-width:760px){.start{grid-template-columns:1fr}.start-nav{flex-direction:row;flex-wrap:wrap;padding:10px}.start-nav .btn{width:auto}.snav:first-of-type{margin-top:0}.start-main .home{padding:20px 16px 40px}.menu-btn{padding:0 6px}}
+
+/* ---------- Animation ---------- */
+.an{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%}
+.an-steps{display:flex;align-items:center;gap:6px;height:48px;padding:0 10px;background:#262626;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.an-steps::-webkit-scrollbar{display:none}
+.an-steps .grow{flex:1}
+.an-steps .sep{width:1px;height:18px;background:#3c3c3c;margin:0 4px}
+.an-steps-in{display:flex;align-items:center}
+.an-step{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:500;font-size:12.5px;padding:6px 8px;border-radius:var(--r);cursor:pointer;white-space:nowrap}
+.an-step:hover{color:var(--fg);background:#2f2f2f}
+.an-step .no{width:22px;height:22px;flex:none;border-radius:50%;display:grid;place-items:center;border:1.5px solid #5a5a5a;font-size:11px;font-weight:700;transition:background .35s,border-color .35s,color .35s,transform .35s}
+.an-step .no svg{width:13px;height:13px}
+.an-step[aria-current="step"]{color:var(--fg)}
+.an-step[aria-current="step"] .no{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);transform:scale(1.08)}
+.an-step.done .no{border-color:#8d8d8d;color:var(--fg);background:#3a3a3a}
+.an-line{width:26px;height:2px;background:#444;position:relative;overflow:hidden;flex:none;border-radius:1px}
+.an-line i{position:absolute;inset:0;background:#c9c9c9;transform:scaleX(0);transform-origin:left;transition:transform .5s cubic-bezier(.4,0,.2,1)}
+.an-line.done i{transform:scaleX(1)}
+.an-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0}
+.an-col{display:flex;flex-direction:column;min-width:0;min-height:0}
+.an-stage{position:relative;flex:1;min-height:0;background:radial-gradient(ellipse at center,#1f1f1f,#121212);overflow:hidden}
+.an-frame{position:absolute;overflow:hidden;background:#000;box-shadow:0 0 0 1px #2e2e2e,0 24px 60px -24px #000;border-radius:2px}
+.an-frame canvas{display:block;width:100%;height:100%;touch-action:none}
+.an-vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 38%,#000 142%);opacity:var(--vig,0);transition:opacity .3s}
+.an-tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;opacity:0;transition:opacity .3s,background .3s}
+.an-bar{position:absolute;left:0;right:0;height:0;background:#000;pointer-events:none;transition:height .45s cubic-bezier(.4,0,.2,1)}
+.an-bar.t{top:0}.an-bar.b{bottom:0}
+.an-fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+.an-hint{position:absolute;left:14px;bottom:14px;max-width:min(440px,calc(100% - 28px));margin:0;background:rgba(28,28,28,.88);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid #3a3a3a;border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.45;color:#d6d6d6;pointer-events:none;transition:opacity .35s,transform .35s}
+.an-hint.off{opacity:0;transform:translateY(6px)}
+.an-lookbtn{position:absolute;right:14px;top:14px;background:rgba(40,40,40,.92)}
+.an-lookbtn[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.an[data-step="cam"] .an-lookbtn{display:none}
+.an-rec{position:absolute;inset:0;display:grid;place-items:center;background:rgba(12,12,12,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);z-index:5;animation:anFade .25s ease}
+.an-rec[hidden]{display:none}
+.an-reccard{background:#2b2b2b;border:1px solid #444;border-radius:10px;padding:18px;width:min(360px,calc(100% - 32px));display:flex;flex-direction:column;gap:10px;box-shadow:0 30px 60px -20px #000;animation:anPop .32s cubic-bezier(.2,.9,.3,1.2)}
+.an-done{width:min(560px,calc(100% - 32px))}
+.an-done video{width:100%;max-height:50vh;background:#000;border-radius:6px}
+.an-prog{height:6px;border-radius:3px;background:#1c1c1c;overflow:hidden}.an-prog i{display:block;height:100%;width:0;background:#dedede}
+@keyframes anFade{from{opacity:0}}@keyframes anPop{from{opacity:0;transform:scale(.94) translateY(8px)}}
+.an-tl{flex:none;background:#242424;border-top:1px solid var(--line);max-height:230px;transition:max-height .4s cubic-bezier(.4,0,.2,1),opacity .3s;overflow:hidden}
+.an.no-tl .an-tl{max-height:0;opacity:0;border-top-color:transparent}
+.an-tlbar{display:flex;align-items:center;gap:4px;height:40px;padding:0 8px;border-bottom:1px solid #1b1b1b}
+.an-tlbar .grow{flex:1}
+.btn.an-playbtn{width:34px;border-radius:14px}
+.an-tlabel{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-left:8px;white-space:nowrap}
+#an-loop[aria-pressed="true"]{background:var(--sel);color:#fff}
+.an-tlbar select{background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:3px 6px;font-size:12px;margin-left:6px}
+.an-tracks{position:relative;max-height:186px;overflow-y:auto;padding-bottom:6px;--lw:118px;touch-action:none;user-select:none;-webkit-user-select:none}
+.an-row{display:grid;grid-template-columns:var(--lw) minmax(0,1fr);height:28px;align-items:center}
+.an-row.sel{background:#2d2d2d}
+.an-lab{font-size:11.5px;color:var(--muted);padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.an-row.sel .an-lab{color:var(--fg)}
+.an-trk{position:relative;height:100%;padding:0 12px;cursor:pointer}
+.an-in{position:relative;height:100%}
+.an-row:not(.an-ruler) .an-in::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#383838}
+.an-ruler{height:24px;border-bottom:1px solid #1c1c1c}
+.an-tick{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:var(--dim);font-family:var(--font-mono);white-space:nowrap}
+.an-tick::after{content:"";position:absolute;left:50%;top:15px;width:1px;height:4px;background:#555}
+.an-key{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;transform:rotate(45deg);background:#9a9a9a;border:1.5px solid #242424;border-radius:2px;padding:0;cursor:grab;transition:background .15s,transform .15s}
+.an-key:hover{background:#d0d0d0;transform:rotate(45deg) scale(1.2)}
+.an-key.on{background:#fff;transform:rotate(45deg) scale(1.3)}
+.an-phl{position:absolute;top:0;bottom:0;left:calc(var(--lw) + 12px);right:12px;pointer-events:none}
+.an-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#e8e8e8;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.an-ph::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top-color:#e8e8e8}
+.an-aside{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border-left:1px solid var(--line)}
+.an-side{flex:1;min-height:0;overflow-y:auto;padding:2px 0 10px}
+.an-side.in-r{animation:anInR .38s cubic-bezier(.2,.8,.2,1)}.an-side.in-l{animation:anInL .38s cubic-bezier(.2,.8,.2,1)}
+@keyframes anInR{from{opacity:0;transform:translateX(18px)}}@keyframes anInL{from{opacity:0;transform:translateX(-18px)}}
+.an-sec{padding:12px 14px;border-bottom:1px solid #232323}
+.an-sec h4{margin:0 0 4px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.an-sec>.sub{margin-bottom:9px}
+.an-sec .stack{gap:9px}
+.an-nav{flex:none;display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--line);background:#272727}
+.an-nav .btn.primary{flex:1}
+.an-tpl{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.an-card{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:9px 10px;border-radius:6px;border:1px solid var(--line2);background:#303030;color:var(--fg);font:inherit;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.an-card:hover{background:#383838;transform:translateY(-1px)}
+.an-card[aria-pressed="true"]{border-color:#d0d0d0;background:#3c3c3c}
+.an-card b{font-size:12.5px;font-weight:600}.an-card span{font-size:11px;color:var(--muted);line-height:1.3}
+.an-mood{min-height:56px;justify-content:flex-end;color:#fff;border:0;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.an-mood[data-mood="day"]{background:linear-gradient(#78a7ff,#c0d8ff)}
+.an-mood[data-mood="sunset"]{background:linear-gradient(#5a6fb8,#f3b585)}
+.an-mood[data-mood="night"]{background:linear-gradient(#05070f,#24305a)}
+.an-mood[data-mood="drama"]{background:linear-gradient(#2a2233,#c9784a)}
+.an-mood:hover{filter:brightness(1.08)}
+.an-mood[aria-pressed="true"]{box-shadow:0 0 0 2px #fff inset}
+.an-search{width:100%;height:28px;background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:0 9px;font-size:12.5px}
+.an-pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr));gap:4px;max-height:246px;overflow-y:auto}
+.an-blk{aspect-ratio:1;border:1px solid transparent;border-radius:5px;background:#252525;padding:3px;cursor:pointer;display:grid;place-items:center}
+.an-blk canvas{width:100%;height:auto}
+.an-blk:hover{background:#333}.an-blk[aria-pressed="true"]{border-color:#d8d8d8;background:#3a3a3a}
+.an-actors{display:flex;flex-direction:column;gap:4px}
+.an-actor{display:flex;align-items:center;gap:9px;padding:5px 7px;border:1px solid transparent;border-radius:6px;background:#2f2f2f;color:var(--fg);font:inherit;cursor:pointer;text-align:left}
+.an-actor canvas{width:28px;height:28px;image-rendering:pixelated;border-radius:3px}
+.an-actor[aria-pressed="true"]{border-color:#cfcfcf;background:#3a3a3a}
+.an-add{display:flex;flex-direction:column}
+.an-addtile{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:1.5px dashed #555;border-radius:8px;background:transparent;color:var(--fg);font:inherit;font-weight:500;cursor:pointer;transition:border-color .15s,background .15s}
+.an-addtile:hover{border-color:#999;background:#2f2f2f}
+.an-addimg{width:44px;height:auto;flex:none}
+.an-sum{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0 0 6px;font-size:12.5px}.an-sum dt{color:var(--muted)}.an-sum dd{margin:0}
+@media (max-width:900px){.an-main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 42%}.an-aside{border-left:0;border-top:1px solid var(--line)}.an-step .tx{display:none}.an-step[aria-current="step"] .tx{display:inline}.an-tracks{--lw:84px}.an-tl{max-height:150px}.an-tracks{max-height:108px}}
+body.simple .an-steps{height:56px}
+body.simple .an-step .no{width:26px;height:26px;font-size:12.5px}
 </style>
 
 </head>
@@ -451,6 +555,7 @@ body.simple .st-status{height:50px}
       <nav class="nav" aria-label="Bereiche">
         <a href="#renders" data-r="studio">Renders</a>
         <a href="#thumbnails" data-r="home">Thumbnails</a>
+        <a href="#animation" data-r="anim">Animation</a>
         <a href="#neu" data-r="gallery">Galerie</a>
         <a href="../../">AGG Games</a>
       </nav>
@@ -498,6 +603,7 @@ body.simple .st-status{height:50px}
           <button class="btn" type="button" id="start-open">Öffnen …</button>
           <a class="snav" href="#thumbnails" aria-current="page">Start</a>
           <a class="snav" href="#renders">Pose-Studio</a>
+          <a class="snav" href="#animation">Animation</a>
           <a class="snav" href="#neu">Galerie</a>
         </nav>
         <div class="start-main">
@@ -561,6 +667,42 @@ body.simple .st-status{height:50px}
       </div>
     </section>
 
+    <section class="view fixed" id="v-anim" hidden>
+      <div class="an" data-step="bg">
+        <div class="an-steps">
+          <nav class="an-steps-in" id="an-steps-in" aria-label="Schritte"></nav>
+          <span class="grow"></span>
+          <button class="btn ghost sm icon" id="an-undo" type="button" aria-label="Rückgängig" title="Rückgängig" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+          <button class="btn ghost sm icon" id="an-redo" type="button" aria-label="Wiederholen" title="Wiederholen" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+          <span class="sep"></span>
+          <button class="btn ghost sm" id="an-new" type="button">Neu</button>
+        </div>
+        <div class="an-main">
+          <div class="an-col">
+            <div class="an-stage" id="an-stage">
+              <div class="an-frame" id="an-frame"><div class="an-tint" id="an-tint"></div><div class="an-vig"></div><div class="an-bar t" id="an-bar-t"></div><div class="an-bar b" id="an-bar-b"></div><div class="an-fade" id="an-fade"></div></div>
+              <p class="an-hint" id="an-hint"></p>
+              <button class="btn sm an-lookbtn" id="an-look" type="button" aria-pressed="false">Durch die Kamera sehen</button>
+              <div class="an-rec" id="an-rec" hidden></div>
+              <div class="st-fail" id="an-fail" hidden></div>
+            </div>
+            <div class="an-tl">
+              <div class="an-tlbar">
+                <button class="btn ghost sm icon" id="an-start" type="button" aria-label="Zum Anfang" title="Zum Anfang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5v14"/><path d="M18 6l-9 6 9 6z"/></svg></button>
+                <button class="btn primary sm icon an-playbtn" id="an-play" type="button" aria-label="Abspielen" title="Abspielen (Leertaste)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg></button>
+                <button class="btn ghost sm icon" id="an-loop" type="button" aria-pressed="false" aria-label="Endlos wiederholen" title="Endlos wiederholen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg></button>
+                <span class="an-tlabel" id="an-tlabel"></span>
+                <span class="grow"></span>
+                <label class="sub" for="an-dur">Länge</label>
+                <select id="an-dur"><option value="2">2 s</option><option value="3">3 s</option><option value="4">4 s</option><option value="5">5 s</option><option value="6">6 s</option><option value="8">8 s</option><option value="10">10 s</option><option value="12">12 s</option><option value="15">15 s</option><option value="20">20 s</option><option value="30">30 s</option></select>
+              </div>
+              <div class="an-tracks" id="an-tracks"></div>
+            </div>
+          </div>
+          <aside class="an-aside" aria-label="Einstellungen"><div class="an-side" id="an-side"></div><div class="an-nav" id="an-nav"></div></aside>
+        </div>
+      </div>
+    </section>
     <section class="view" id="v-gallery" hidden>
       <div class="wrap">
         <div class="bar">
@@ -627,12 +769,14 @@ body.simple .st-status{height:50px}
 <input type="file" id="f-project" accept=".json,application/json" hidden>
 <input type="file" id="f-skin" accept="image/png" hidden>
 <input type="file" id="f-figskin" accept="image/png" hidden>
+<input type="file" id="f-anskin" accept="image/png" hidden>
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true</script>
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
 <script src="lib/TransformControls.js"></script>
+<script src="lib/mp4-muxer.js"></script>
 <script src="rk-core.js"></script>
 <script src="rk-local.js"></script>
 <script src="rk-assets.js"></script>
@@ -640,6 +784,7 @@ body.simple .st-status{height:50px}
 <script src="rk-editor.js"></script>
 <script src="rk-studio.js"></script>
 <script src="rk-figure.js"></script>
+<script src="rk-anim.js"></script>
 <script src="rk-app.js"></script>
 <script src="rk-shell.js"></script>
 
