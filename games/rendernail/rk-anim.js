@@ -72,7 +72,7 @@ function anProjMenu(btn){closeMenu();const el2=document.createElement('div');el2
 function anLoad(){let d=store.get('rk-anim:'+AN.pid,null);if(!d||d.v!==1)return anDefault();const D=anDefault();
   try{d={...D,...d,bg:{...D.bg,...d.bg},cam:{...D.cam,...d.cam},light:{...D.light,...d.light},fx:{...D.fx,...d.fx}};
     d.blocks=Array.isArray(d.blocks)?d.blocks.filter(b=>Array.isArray(b)&&b.length===4).slice(0,30000):[];
-    d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',walk:a.walk!==false,size:cleanSize(a.size),
+    d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',ign:a.ign===false?false:undefined,walk:a.walk!==false,size:cleanSize(a.size),
       keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,rx:+k.rx||0,rz:+k.rz||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth',...(typeof k.walk==='boolean'?{walk:k.walk}:{})})).sort((p,q)=>p.t-q.t)}));
     d.props=(Array.isArray(d.props)?d.props:[]).slice(0,40).filter(o=>o&&typeof o.key==='string').map(o=>({id:o.id||'p'+uid(),name:String(o.name||'Block').slice(0,30),key:o.key,
       keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:+k.x||0,y:+k.y||0,z:+k.z||0,rx:+k.rx||0,ry:+k.ry||0,rz:+k.rz||0,s:k.s==null?1:clamp(+k.s,0,8),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
@@ -610,9 +610,12 @@ function anRecordLive(){const mime=anMime(),c0=mk(2,2);if(!mime||!c0.captureStre
     if(ui.cancel||t>=AN.data.dur){setTimeout(()=>{try{rec.stop()}catch{AN.rec=null}},120);return}requestAnimationFrame(tick)};requestAnimationFrame(tick)}
 
 /* ---------- Alles neu aufbauen ---------- */
-function anRebuildAll(){if(!AR)return;AN.t=clamp(AN.t,0,AN.data.dur);anRebuildBlocks();anSyncActors();anSyncProps();anApplyLook();if(AN.sel&&!anActor()&&!anProp())anSelect(null);anTimeline();anPane();anResize()}
+async function anRefreshSkins(){if(!window.RK_LOCAL||typeof currentSkin!=='function')return;const pid=AN.pid;let n=0;
+  for(const a of AN.data.actors.filter(x=>x.skin&&x.ign!==false)){const r=await currentSkin(a.name);if(!r||AN.pid!==pid)continue;if(r.data!==a.skin){anSkins.set(r.data,r.canvas);a.skin=r.data;a.slim=r.slim;n++}}
+  if(n&&AN.pid===pid){anSyncActors();AN.hist[AN.hist.length-1]=JSON.stringify(AN.data);anSaveNow();anPane();toast(n===1?'Skin auf den aktuellen Stand gebracht.':`${n} Skins auf den aktuellen Stand gebracht.`)}}
+function anRebuildAll(){if(!AR)return;setTimeout(anRefreshSkins,80);AN.t=clamp(AN.t,0,AN.data.dur);anRebuildBlocks();anSyncActors();anSyncProps();anApplyLook();if(AN.sel&&!anActor()&&!anProp())anSelect(null);anTimeline();anPane();anResize()}
 document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-anskin')return;const f=e.target.files[0];e.target.value='';if(!f)return;
-  blobToDataURL(f).then(loadSkinFile).then(c=>{const slim=c.height===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0,d=c.toDataURL('image/png');anSkins.set(d,c);anAddActor((f.name||'Skin').replace(/\.png$/i,'').slice(0,30),d,slim);anPane()}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
+  blobToDataURL(f).then(loadSkinFile).then(c=>{const slim=c.height===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0,d=c.toDataURL('image/png');anSkins.set(d,c);anAddActor((f.name||'Skin').replace(/\.png$/i,'').slice(0,30),d,slim);{const a=AN.data.actors[AN.data.actors.length-1];if(a){a.ign=false;anCommit()}}anPane()}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
 document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)return;const t=e.target;if(t.closest&&t.closest('input,textarea,select'))return;
   if(e.key===' '){e.preventDefault();anPlay()}else if(e.key==='ArrowLeft'){e.preventDefault();anSeek(AN.t-(e.shiftKey?1:.05))}else if(e.key==='ArrowRight'){e.preventDefault();anSeek(AN.t+(e.shiftKey?1:.05))}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){e.preventDefault();anUndo(e.shiftKey?1:-1)}

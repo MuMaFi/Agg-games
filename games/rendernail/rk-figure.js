@@ -31,9 +31,16 @@ function addFigure(name,skinCanvas,slim,data){
   const L=baseLayer('figure',{name:name||'Figur',fig:{skin:data||'',name:name||'',slim:!!slim,item:'',pose:JSON.parse(JSON.stringify(POSES.stehen[1])),rootY:0,ry:0}});
   L.h=ED.p.h*.78;const c=figureCanvas(L);L.w=L.h*(c?c.width/c.height:.5);L.x=ED.p.w*.7;L.y=ED.p.h*.55;pushLayer(L);
   try{const list=store.get('rk-igns',[]).filter(n=>n!==name);if(name)list.unshift(name);store.set('rk-igns',list.slice(0,8))}catch{}}
+/* Aktuelle Skins: Figuren mit Ingame-Namen holen beim Öffnen den neuesten Skin des Spielers (einmal pro Sitzung und Name) */
+const liveSkin=new Map();
+function currentSkin(name){const k=String(name||'').toLowerCase();if(!/^[a-z0-9_]{3,16}$/.test(k))return Promise.resolve(null);if(!liveSkin.has(k))liveSkin.set(k,fetchSkinByName(name).catch(()=>null));return liveSkin.get(k)}
+async function refreshFigureSkins(){if(!ED.p||!window.RK_LOCAL)return;const pid=ED.p.id;let n=0;
+  for(const L of ED.p.layers.filter(l=>l.type==='figure'&&l.fig&&l.fig.name&&!l.fig.file)){const r=await currentSkin(L.fig.name);if(!r||!ED.p||ED.p.id!==pid)continue;
+    if(r.data!==L.fig.skin){skinCanvasCache.set(r.data,r.canvas);L.fig.skin=r.data;L.fig.slim=r.slim;refitFigure(L);n++}}
+  if(n&&ED.p&&ED.p.id===pid){ED.hist[ED.hist.length-1]=snap();scheduleSave();requestRender();renderLayers();buildProps();toast(n===1?'Skin auf den aktuellen Stand gebracht.':`${n} Skins auf den aktuellen Stand gebracht.`)}}
 async function addFigureByName(name){name=String(name||'').trim();const{canvas,slim,data}=await fetchSkinByName(name);addFigure(name,canvas,slim,data);toast(`${name} hinzugefügt. Pose und Drehung stellst du rechts ein.`)}
 document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-figskin')return;const f=e.target.files[0];e.target.value='';if(!f||!ED.p)return;
-  blobToDataURL(f).then(loadSkinFile).then(c=>{const slim=c.height===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0;addFigure((f.name||'Skin').replace(/\.png$/i,'').slice(0,30),c,slim,c.toDataURL('image/png'))}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
+  blobToDataURL(f).then(loadSkinFile).then(c=>{const slim=c.height===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0;addFigure((f.name||'Skin').replace(/\.png$/i,'').slice(0,30),c,slim,c.toDataURL('image/png'));const L=ED.p.layers[ED.p.layers.length-1];if(L&&L.fig){L.fig.file=true;commit()}}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
 
 /* Kachel und Eingabe im Bereich „Mobs“ */
 function skinTileCanvas(){const c=renderTight(buildChar(skinData(GRAY_SKIN),{pose:'stand',face:'left'}),10),o=mk(c.width+40,c.height+20),x=o.getContext('2d');x.drawImage(c,20,10);
