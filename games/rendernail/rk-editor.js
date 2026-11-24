@@ -43,7 +43,8 @@ function openProject(doc){
   ED.p=JSON.parse(JSON.stringify(doc));ED.sel=[];ED.hist=[snap()];ED.fut=[];ED.fit=true;ED.panX=ED.panY=0;
   store.set('rk-current',ED.p.id);$('#ed-name').value=ED.p.name;
   const f=FORMATS[ED.p.format];$('#ed-fmt').textContent=`${f?f.d:'Design'} · ${ED.p.w}×${ED.p.h}`;
-  updUndo();buildSide();renderLayers();buildSelbar();buildProps();requestRender()}
+  updUndo();buildSide();renderLayers();buildSelbar();buildProps();requestRender();
+  if(typeof refreshFigureSkins==='function')setTimeout(refreshFigureSkins,60)}
 function createAndOpen(format,o){const p=newProject(format,o);PROJECTS.set(p.id,projDoc(p));openProject(p);persistProject(ED.p);location.hash='editor'}
 function selLayers(){if(!ED.p)return[];const s=new Set(ED.sel);return ED.p.layers.filter(l=>s.has(l.id))}
 function selLayer(){const ls=selLayers();return ls.length===1?ls[0]:null}
