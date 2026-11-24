@@ -43,7 +43,7 @@ function anLoad(){let d=store.get('rk-anim',null);if(!d||d.v!==1)return anDefaul
   try{d={...D,...d,bg:{...D.bg,...d.bg},cam:{...D.cam,...d.cam},light:{...D.light,...d.light},fx:{...D.fx,...d.fx}};
     d.blocks=Array.isArray(d.blocks)?d.blocks.filter(b=>Array.isArray(b)&&b.length===4).slice(0,30000):[];
     d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',walk:a.walk!==false,size:cleanSize(a.size),
-      keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
+      keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth',...(typeof k.walk==='boolean'?{walk:k.walk}:{})})).sort((p,q)=>p.t-q.t)}));
     d.props=(Array.isArray(d.props)?d.props:[]).slice(0,40).filter(o=>o&&typeof o.key==='string').map(o=>({id:o.id||'p'+uid(),name:String(o.name||'Block').slice(0,30),key:o.key,
       keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:+k.x||0,y:+k.y||0,z:+k.z||0,rx:+k.rx||0,ry:+k.ry||0,rz:+k.rz||0,s:k.s==null?1:clamp(+k.s,0,8),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
     d.cam.keys=(d.cam.keys||[]).filter(k=>Array.isArray(k.p)&&Array.isArray(k.q)).map(k=>({t:+k.t||0,p:k.p.map(Number),q:k.q.map(Number)})).sort((p,q)=>p.t-q.t);
@@ -185,6 +185,8 @@ function anSyncActors(){if(!AR)return;const ids=new Set(AN.data.actors.map(a=>a.
     m.group.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});rt={m,sig};AN.rts.set(a.id,rt)}
   if(AN.bone&&AN.sel){const rt=AN.rts.get(AN.sel);if(rt&&rt.m.bones[AN.bone]&&AR.tc.object!==rt.m.bones[AN.bone])AR.tc.attach(rt.m.bones[AN.bone])}
   if(AN.sel&&!AN.bone&&AR.tcm.object){const rt=AN.rts.get(AN.sel);if(rt&&AR.tcm.object!==rt.m.group)AR.tcm.attach(rt.m.group)}}
+/* Läuft die Figur auf der Strecke bis zu diesem Schlüsselbild? Eigene Einstellung am Schlüsselbild, sonst die der Figur */
+const anWalks=(a,k)=>typeof k.walk==='boolean'?k.walk:a.walk!==false;
 const lerp=(a,b,u)=>a+(b-a)*u,lerpAng=(a,b,u)=>a+((((b-a)%360)+540)%360-180)*u;
 function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:0,ry:0,y:0};
   const fix=k=>({pose:anClone(k.pose||{}),x:k.x,z:k.z,ry:k.ry,y:k.y});
@@ -194,10 +196,11 @@ function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:
   const s={pose,x:lerp(k0.x,k1.x,e),z:lerp(k0.z,k1.z,e),ry:lerpAng(k0.ry,k1.ry,e),y:lerp(k0.y,k1.y,e)};
   /* In der Luft (Sprung, Parkour): Höhe in der Welt glatt von Schlüsselbild zu Schlüsselbild, unabhängig davon, was darunter ist.
      Steht die Figur an beiden Schlüsselbildern auf dem Boden, folgt sie dem Gelände. */
-  if(a.walk===false||Math.abs(k0.y)>.5||Math.abs(k1.y)>.5){const a0=groundY(k0.x,k0.z)+k0.y,a1=groundY(k1.x,k1.z)+k1.y;s.y=lerp(a0,a1,e)-groundY(s.x,s.z)}
+  const walks=anWalks(a,k1);
+  if(!walks||Math.abs(k0.y)>.5||Math.abs(k1.y)>.5){const a0=groundY(k0.x,k0.z)+k0.y,a1=groundY(k1.x,k1.z)+k1.y;s.y=lerp(a0,a1,e)-groundY(s.x,s.z)}
   else{const g0=Math.min(groundY(k0.x,k0.z),groundY(k1.x,k1.z)),gp=groundY(s.x,s.z);if(gp<g0)s.y+=g0-gp}/* beim Laufen nie in Lücken zwischen gleich hohen Blöcken fallen */
   const dx=k1.x-k0.x,dz=k1.z-k0.z,d=Math.hypot(dx,dz);
-  if(!noWalk&&a.walk!==false&&d>6&&k1.ease!=='hold'){const amp=clamp(Math.min(u,1-u)*6,0,1),ph=e*d/AB*Math.PI,sw=Math.sin(ph),add=(b,v)=>{const r=pose[b]||[0,0,0];pose[b]=[r[0]+v,r[1],r[2]]};
+  if(!noWalk&&walks&&d>6&&k1.ease!=='hold'){const amp=clamp(Math.min(u,1-u)*6,0,1),ph=e*d/AB*Math.PI,sw=Math.sin(ph),add=(b,v)=>{const r=pose[b]||[0,0,0];pose[b]=[r[0]+v,r[1],r[2]]};
     add('legR',38*sw*amp);add('legL',-38*sw*amp);add('armR',-32*sw*amp);add('armL',32*sw*amp);add('legRLow',22*Math.max(0,sw)*amp);add('legLLow',22*Math.max(0,-sw)*amp);
     s.y+=.9*Math.abs(Math.cos(ph))*amp;s.ry=lerpAng(s.ry,Math.atan2(dx,dz)/D2R,Math.min(1,amp*1.4))}
   return s}
@@ -438,7 +441,10 @@ function paneActors(P,a){const D=AN.data;
   const items=ST_ITEMS.map(([k2,n])=>[k2,n]).concat(PACK?Object.keys(PACK.imgs).filter(x=>x.startsWith('i/')).sort().map(x=>['pi_'+x.slice(2),prettyName(x.slice(2))]):[]);
   aSelect(s,'In der rechten Hand',items,()=>a.item||'',v=>{a.item=v;anSyncActors()});
   aSeg(s,'Arme',[['0','Klassisch'],['1','Schmal']],()=>a.slim?'1':'0',v=>{a.slim=v==='1';anSyncActors();anCommit()});
-  aCheck(s,'Beim Verschieben automatisch laufen',()=>a.walk!==false,v=>{a.walk=v});
+  aCheck(s,'Neue Strecken: automatisch laufen',()=>a.walk!==false,v=>{a.walk=v;anTimeline()});
+  {const seg=k&&a.keys.indexOf(k)>0?k:a.keys.find(q=>q.t>AN.t+.02);if(seg){const i=a.keys.indexOf(seg),prev=a.keys[i-1];
+    s=aSec(P,'Strecke '+anFmtT(prev.t)+' → '+anFmtT(seg.t),'Gilt für die Bewegung bis zu diesem Schlüsselbild. In der Zeitleiste zeigt ein Balken, wo gelaufen wird.');
+    aSeg(s,null,[['1','Laufen'],['0','Gleiten / Fliegen']],()=>anWalks(a,seg)?'1':'0',v=>{seg.walk=v==='1';AN.pathDirty=true;anTimeline();anCommit()})}}
   if(k){s=aSec(P,'Schlüsselbild bei '+anFmtT(k.t));aSelect(s,'Übergang hierher',Object.entries(AN_EASE).map(([e,[n]])=>[e,n]),()=>k.ease||'smooth',v=>{k.ease=v;AN.pathDirty=true});
     if(a.keys.length>1)aBtn(aRow(s),'Schlüsselbild löschen',()=>{a.keys.splice(a.keys.indexOf(k),1);anTimeline();anCommit();anPane()},'btn sm danger')}
   s=aSec(P,null);const r=aRow(s);aBtn(r,'Figur entfernen',()=>{D.actors.splice(D.actors.indexOf(a),1);anSelect(null);anSyncActors();anCommit();anPane()},'btn sm danger')}
@@ -476,13 +482,14 @@ function paneOut(P){const D=AN.data,[w,h]=AN_FMT[D.fmt].s[D.q||0];let s=aSec(P,'
 
 /* Zeitleiste */
 function anTimeline(){const box=$('#an-tracks');if(!box||!AN.data)return;const D=AN.data;box.innerHTML='';
-  const row=(lab,keys,id,sel)=>{const r=el('div','an-row'+(sel?' sel':''));const l=el('div','an-lab',lab);const tr=el('div','an-trk');const inn=el('div','an-in');tr.append(inn);
+  const row=(lab,keys,id,sel,bars)=>{const r=el('div','an-row'+(sel?' sel':''));const l=el('div','an-lab',lab);const tr=el('div','an-trk');const inn=el('div','an-in');tr.append(inn);
     for(const k of keys){const b=el('button','an-key'+(Math.abs(k.t-AN.t)<.02?' on':''));b.type='button';b.style.left=(k.t/D.dur*100)+'%';b.title=anFmtT(k.t);b.setAttribute('aria-label',`${lab}: Schlüsselbild bei ${anFmtT(k.t)}`);b._k=k;b._id=id;b._keys=keys;inn.append(b)}
+    if(bars)for(let i=1;i<keys.length;i++){if(!bars(keys[i]))continue;const g=el('span','an-walkseg');g.style.left=(keys[i-1].t/D.dur*100)+'%';g.style.width=((keys[i].t-keys[i-1].t)/D.dur*100)+'%';g.title='läuft';inn.prepend(g)}
     r.append(l,tr);box.append(r)};
   const ru=el('div','an-row an-ruler');ru.append(el('div','an-lab'));const rt=el('div','an-trk'),ri=el('div','an-in');rt.append(ri);ru.append(rt);
   const st=D.dur>15?5:D.dur>8?2:1;for(let s=0;s<=D.dur+1e-6;s+=st){const t=el('span','an-tick',s+' s');t.style.left=(s/D.dur*100)+'%';ri.append(t)}box.append(ru);
   if(AN.step>=2||D.cam.keys.length)row('Kamera',D.cam.keys,'cam',false);
-  for(const a of D.actors)row(a.name,a.keys,a.id,a.id===AN.sel);
+  for(const a of D.actors)row(a.name,a.keys,a.id,a.id===AN.sel,k=>anWalks(a,k));
   for(const o of D.props)row(o.name,o.keys,o.id,o.id===AN.sel);
   if(!D.actors.length&&!(AN.step>=2))box.append(Object.assign(el('div','an-row an-empty'),{textContent:''}));
   const ph=el('div','an-phl');ph.innerHTML='<div class="an-ph" id="an-ph"></div>';box.append(ph);
