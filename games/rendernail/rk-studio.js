@@ -37,6 +37,19 @@ function applyStudioState(o){
   ST.cur=Math.min(ST.cur,ST.models.length-1);ST.bone=null;if(R3)R3.tc.detach();setBackground();buildModelsBar();buildSide3()}
 
 /* ---------- Geometrie mit Skin-UV ---------- */
+/* Quader mit Seiten in Pixelzeilen unterteilt (zum Biegen); skip lässt eine Deckfläche weg. Ergebnis in Knochen-Koordinaten. */
+function sectionGeo(b,TW,TH,k,N,skip){
+  const T=THREE,[w,h,d]=b.s,[u,v]=b.uv,[tw,th,td]=b.d,[r0,r1]=b.r,a=w/2,bb=h/2,c=d/2,rows=r1-r0,o=b.off,e=.0005;
+  const pos=[],uv=[],nor=[],idx=[];const put=(p,n,uu,vv)=>{pos.push((p[0]+o[0])*k,(p[1]+o[1])*k,(p[2]+o[2])*k);nor.push(...n);uv.push(uu,vv)};
+  const side=(tl,tr,n,[x,y,rw])=>{const base=pos.length/3,u0=x/TW+e,u1=(x+rw)/TW-e;
+    for(let r=0;r<=N;r++){const f=r/N,yy=bb-2*bb*f,vv=1-(y+rows*f)/TH+(r===0?-e:r===N?e:0);put([tl[0],yy,tl[2]],n,u0,vv);put([tr[0],yy,tr[2]],n,u1,vv)}
+    for(let r=0;r<N;r++){const q=base+r*2;idx.push(q,q+2,q+1,q+1,q+2,q+3)}};
+  const cap=(tl,tr,bl,br,[x,y,rw,rh],n)=>{const base=pos.length/3,u0=x/TW+e,u1=(x+rw)/TW-e,v0=1-y/TH-e,v1=1-(y+rh)/TH+e;put(tl,n,u0,v0);put(tr,n,u1,v0);put(bl,n,u0,v1);put(br,n,u1,v1);idx.push(base,base+2,base+1,base+1,base+2,base+3)};
+  side([a,0,c],[a,0,-c],[1,0,0],[u+td+tw,v+td+r0,td]);side([-a,0,-c],[-a,0,c],[-1,0,0],[u,v+td+r0,td]);
+  if(skip!==2)cap([-a,bb,-c],[a,bb,-c],[-a,bb,c],[a,bb,c],[u+td,v,tw,td],[0,1,0]);
+  if(skip!==3)cap([-a,-bb,c],[a,-bb,c],[-a,-bb,-c],[a,-bb,-c],[u+td+tw,v,tw,td],[0,-1,0]);
+  side([-a,0,c],[a,0,c],[0,0,1],[u+td,v+td+r0,tw]);side([a,0,-c],[-a,0,-c],[0,0,-1],[u+2*td+tw,v+td+r0,tw]);
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);return g}
 function boxGeo(b,TW,TH,skip=-1){
   const T=THREE,[w,h,d]=b.s,[u,v]=b.uv,[tw,th,td]=b.d,[r0,r1]=b.r,a=w/2,bb=h/2,c=d/2,rows=r1-r0;
   const F=[
@@ -73,21 +86,22 @@ function buildRig(m,skinSrc){const T=THREE;const Z=m.size||{},sH=(Z.head||100)/1
     for(const b of boxes){if(!b)continue;const mesh=new T.Mesh(boxGeo(b,TW,TH),b.ov?matO:mat);mesh.position.set(b.off[0]*k,b.off[1]*k,b.off[2]*k);mesh.scale.setScalar(k);mesh.castShadow=true;mesh.userData={model:m.id,bone:name};g.add(mesh);m.meshes.push(mesh)}return g};
   const body=part('body',root,[0,12*sL,0],[{s:[8,12,4],off:[0,6,0],uv:[16,16],d:[8,12,4],r:[0,12]},!legacy&&{s:[8.5,12.5,4.5],off:[0,6,0],uv:[16,32],d:[8,12,4],r:[0,12],ov:1}],sB);
   part('head',body,[0,12*sB,0],[{s:[8,8,8],off:[0,4,0],uv:[0,0],d:[8,8,8],r:[0,8]},{s:[9,9,9],off:[0,4,0],uv:[32,0],d:[8,8,8],r:[0,8],ov:1}],sH);
-  /* Arme und Beine: Ober- und Unterteil treffen sich auf der Winkelhalbierenden (Gehrung).
-     Keine Lücke, keine Überlappung, kein Flimmern; die Flächen bleiben eben, das Licht stimmt. */
+  /* Arme und Beine biegen sich weich (wie Haut). Die Innenseite wird an der Gelenkmitte flach angelegt,
+     damit sich Ober- und Unterteil nie durchdringen; der Oberarm liegt dort immer oben. */
   m.limbs=[];
+  const matU=mat.clone(),matOU=matO.clone();for(const x of[matU,matOU]){x.polygonOffset=true;x.polygonOffsetFactor=-1;x.polygonOffsetUnits=-2}
   const limb=(name,parent,pivot,top,uv,ov,w,k)=>{const J=top-6;
     const up=new T.Group();up.position.set(...pivot);parent.add(up);m.bones[name]=up;
     const low=new T.Group();low.position.set(0,J*k,0);up.add(low);m.bones[name+'Low']=low;
-    const L={up,low,J:J*k,lim:6*k,parts:[]};
-    const sec=(bone,isUp,b,mt)=>{const g=boxGeo(b,TW,TH,isUp?3:2);g.translate(...b.off);g.scale(k,k,k);
-      const mesh=new T.Mesh(g,mt);mesh.castShadow=true;mesh.userData={model:m.id,bone:isUp?name:name+'Low'};bone.add(mesh);m.meshes.push(mesh);
-      const pa=g.attributes.position,base=Float32Array.from(pa.array),cy=b.off[1]*k,end=[];for(let i=0;i<pa.count;i++)end.push(isUp?base[i*3+1]<cy:base[i*3+1]>cy);
-      L.parts.push({isUp,g,pa,base,end})};
-    sec(up,true,{s:[w,6,4],off:[0,top-3,0],uv,d:[w,12,4],r:[0,6]},mat);
-    if(ov)sec(up,true,{s:[w+.5,6.25,4.5],off:[0,top-2.9,0],uv:ov,d:[w,12,4],r:[0,6],ov:1},matO);
-    sec(low,false,{s:[w,6,4],off:[0,-3,0],uv,d:[w,12,4],r:[6,12]},mat);
-    if(ov)sec(low,false,{s:[w+.5,6.25,4.5],off:[0,-3.1,0],uv:ov,d:[w,12,4],r:[6,12],ov:1},matO);
+    const L={low,J:J*k,parts:[]};
+    const sec=(isUp,b,mt)=>{const g=sectionGeo(b,TW,TH,k,6,isUp?3:2),pa=g.attributes.position,na=g.attributes.normal,bw=1.6*k,wt=new Float32Array(pa.count);
+      for(let i=0;i<pa.count;i++){let t=clamp((J*k+bw-pa.array[i*3+1])/(2*bw),0,1);wt[i]=t*t*(3-2*t)}
+      const mesh=new T.Mesh(g,mt);mesh.castShadow=true;mesh.userData={model:m.id,bone:isUp?name:name+'Low'};up.add(mesh);m.meshes.push(mesh);
+      L.parts.push({isUp,g,pa,na,base:Float32Array.from(pa.array),nb:Float32Array.from(na.array),wt})};
+    sec(true,{s:[w,6,4],off:[0,top-3,0],uv,d:[w,12,4],r:[0,6]},matU);
+    if(ov)sec(true,{s:[w+.5,6.25,4.5],off:[0,top-2.875,0],uv:ov,d:[w,12,4],r:[0,6],ov:1},matOU);
+    sec(false,{s:[w,6,4],off:[0,J-3,0],uv,d:[w,12,4],r:[6,12]},mat);
+    if(ov)sec(false,{s:[w+.5,6.25,4.5],off:[0,J-3.125,0],uv:ov,d:[w,12,4],r:[6,12],ov:1},matO);
     m.limbs.push(L);return low};
   const arm=(side,uv,ov)=>limb('arm'+side,body,[(side==='R'?-1:1)*(4*sB+aw/2*sA),12*sB-2*sA,0],2,uv,ov,aw,sA);
   const handR=arm('R',[40,16],legacy?null:[40,32]);arm('L',legacy?[40,16]:[32,48],legacy?null:[48,48]);
@@ -95,16 +109,18 @@ function buildRig(m,skinSrc){const T=THREE;const Z=m.size||{},sH=(Z.head||100)/1
   leg('R',[0,16],legacy?null:[0,32]);leg('L',legacy?[0,16]:[16,48],legacy?null:[0,48]);
   if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5*sA,.5*sA);holder.scale.setScalar(sA);holder.add(im);handR.add(holder)}}
   return root}
-function miterRig(m){if(!m||!m.limbs)return;const T=THREE;
+function miterRig(m){if(!m||!m.limbs)return;const T=THREE,M=new T.Matrix3();
   for(const L of m.limbs){const q=L.low.quaternion,key=q.x+','+q.y+','+q.z+','+q.w;if(L.key===key)continue;L.key=key;
+    const R=new T.Matrix4().makeRotationFromQuaternion(q).elements,J=L.J;
     const lu=new T.Vector3(0,-1,0).applyQuaternion(q),mU=new T.Vector3(0,1,0).sub(lu),ok=mU.lengthSq()>1e-4;mU.normalize();
-    const uL=new T.Vector3(0,1,0).applyQuaternion(q.clone().invert()),mL=uL.add(new T.Vector3(0,1,0)).normalize();
-    for(const P of L.parts){const a=P.pa.array,b=P.base;
-      for(let i=0;i<P.pa.count;i++){const x=b[i*3],z=b[i*3+2];let y=b[i*3+1];
-        if(ok){if(P.isUp){const d=x*mU.x+(y-L.J)*mU.y+z*mU.z;if(P.end[i]||d<0)y+=clamp(-d/Math.max(mU.y,.05),-L.lim,L.lim)}
-          else{const d=x*mL.x+y*mL.y+z*mL.z;if(P.end[i]||d>0)y-=clamp(d/Math.max(mL.y,.05),-L.lim,L.lim)}}
-        a[i*3+1]=y}
-      P.pa.needsUpdate=true;P.g.computeBoundingSphere();P.g.computeBoundingBox()}}}
+    for(const P of L.parts){const a=P.pa.array,b=P.base,na=P.na.array,nb=P.nb;
+      for(let i=0;i<P.pa.count;i++){const x=b[i*3],y=b[i*3+1]-J,z=b[i*3+2],t=P.wt[i],s1=1-t;
+        let X=s1*x+t*(R[0]*x+R[4]*y+R[8]*z),Y=s1*y+t*(R[1]*x+R[5]*y+R[9]*z),Z=s1*z+t*(R[2]*x+R[6]*y+R[10]*z);
+        if(ok){const d=X*mU.x+Y*mU.y+Z*mU.z;if(P.isUp?d<0:d>-.02){const f=P.isUp?d:d+.02;X-=f*mU.x;Y-=f*mU.y;Z-=f*mU.z}}
+        a[i*3]=X;a[i*3+1]=Y+J;a[i*3+2]=Z;
+        const nx=nb[i*3],ny=nb[i*3+1],nz=nb[i*3+2];let NX=s1*nx+t*(R[0]*nx+R[4]*ny+R[8]*nz),NY=s1*ny+t*(R[1]*nx+R[5]*ny+R[9]*nz),NZ=s1*nz+t*(R[2]*nx+R[6]*ny+R[10]*nz);
+        const l=Math.hypot(NX,NY,NZ)||1;na[i*3]=NX/l;na[i*3+1]=NY/l;na[i*3+2]=NZ/l}
+      P.pa.needsUpdate=true;P.na.needsUpdate=true;P.g.computeBoundingSphere();P.g.computeBoundingBox()}}}
 function applyPose(m){if(!m.group)return;for(const[b]of BONES){const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
   m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R;miterRig(m)}
 
