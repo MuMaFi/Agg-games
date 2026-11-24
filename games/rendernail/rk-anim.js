@@ -38,12 +38,14 @@ function anTemplate(k){const b=[],put=(x,y,z,t)=>b.push([x,y,z,t]);
   if(k==='buehne'){for(let i=-4;i<=4;i++)for(let j=-3;j<=3;j++)put(i,-1,j,Math.abs(i)===4||Math.abs(j)===3?'stone':'planks')}
   return b}
 function anDefault(){return{v:1,dur:6,fmt:'16:9',bg:{mode:'mc',color:'#2b2b2b',ground:'grass'},blocks:anTemplate('wiese'),actors:[],
-  cam:{preset:'orbit',keys:[],fov:35,smooth:true,shake:0},light:{preset:'day',...anClone(AN_LIGHT.day),shadows:true,soft:3},fx:{bars:false,fade:true},q:0}}
+  props:[],cam:{preset:'orbit',keys:[],fov:35,smooth:true,shake:0},light:{preset:'day',...anClone(AN_LIGHT.day),shadows:true,soft:3},fx:{bars:false,fade:true},q:0}}
 function anLoad(){let d=store.get('rk-anim',null);if(!d||d.v!==1)return anDefault();const D=anDefault();
   try{d={...D,...d,bg:{...D.bg,...d.bg},cam:{...D.cam,...d.cam},light:{...D.light,...d.light},fx:{...D.fx,...d.fx}};
     d.blocks=Array.isArray(d.blocks)?d.blocks.filter(b=>Array.isArray(b)&&b.length===4).slice(0,30000):[];
     d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',walk:a.walk!==false,size:cleanSize(a.size),
       keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
+    d.props=(Array.isArray(d.props)?d.props:[]).slice(0,40).filter(o=>o&&typeof o.key==='string').map(o=>({id:o.id||'p'+uid(),name:String(o.name||'Block').slice(0,30),key:o.key,
+      keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:+k.x||0,y:+k.y||0,z:+k.z||0,rx:+k.rx||0,ry:+k.ry||0,rz:+k.rz||0,s:k.s==null?1:clamp(+k.s,0,8),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
     d.cam.keys=(d.cam.keys||[]).filter(k=>Array.isArray(k.p)&&Array.isArray(k.q)).map(k=>({t:+k.t||0,p:k.p.map(Number),q:k.q.map(Number)})).sort((p,q)=>p.t-q.t);
     d.dur=clamp(+d.dur||6,2,30);if(!AN_FMT[d.fmt])d.fmt='16:9'}catch{return D}return d}
 let anSaveT=0;
@@ -78,7 +80,7 @@ function initAnim(){
   const dir=new T.DirectionalLight(0xffffff,1);dir.castShadow=true;dir.shadow.mapSize.set(2048,2048);dir.shadow.bias=-.0004;dir.shadow.normalBias=.5;scene.add(dir);scene.add(dir.target);
   const fill=new T.DirectionalLight(0xb8c8ff,.2);scene.add(fill);
   const ground=new T.Mesh(new T.PlaneGeometry(AB*800,AB*800),new T.MeshLambertMaterial({color:0xffffff}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-  const blocks=new T.Group();scene.add(blocks);const actors=new T.Group();scene.add(actors);
+  const blocks=new T.Group();scene.add(blocks);const actors=new T.Group();scene.add(actors);const props=new T.Group();scene.add(props);
   const helpers=new T.Group();scene.add(helpers);
   const ghost=new T.Group(),gbox=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.16,depthWrite:false})),gl=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1,1,1)),new T.LineBasicMaterial({color:0xffffff}));
   ghost.add(gbox,gl);ghost.visible=false;helpers.add(ghost);
@@ -92,7 +94,7 @@ function initAnim(){
   tcm.addEventListener('dragging-changed',e=>{controls.enabled=!e.value;AN.tcDrag=e.value;if(!e.value){anCommit();anPane()}});
   tcm.addEventListener('objectChange',anReadMove);scene.add(tcm);
   {const pk=tc._gizmo&&tc._gizmo.picker&&tc._gizmo.picker.rotate;if(pk)pk.children.filter(c=>c.name==='XYZE').forEach(c=>pk.remove(c))}/* nur an den Ringen drehen; Ziehen auf der Figur verschiebt sie */
-  AR={renderer,scene,camera,controls,sky,sun,stars,clouds,hemi,dir,fill,ground,blocks,actors,helpers,ghost,gbox,gl,ring,path,camMark,tc,tcm,stage:$('#an-stage'),frame:$('#an-frame'),aniso:Math.min(8,renderer.capabilities.getMaxAnisotropy())};
+  AR={renderer,scene,camera,controls,sky,sun,stars,clouds,hemi,dir,fill,ground,blocks,actors,props,helpers,ghost,gbox,gl,ring,path,camMark,tc,tcm,stage:$('#an-stage'),frame:$('#an-frame'),aniso:Math.min(8,renderer.capabilities.getMaxAnisotropy())};
   new ResizeObserver(anResize).observe(AR.stage);anPointer();
   AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.step=clamp(+store.get('rk-anim-step',0)||0,0,AN_STEPS.length-1);
   AN.ready=true;anRebuildAll();anFrameCam(false);anSteps();anResize()}
@@ -190,6 +192,10 @@ function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:
   let i=0;while(i<K.length-2&&t>=K[i+1].t)i++;const k0=K[i],k1=K[i+1],u=(t-k0.t)/Math.max(1e-6,k1.t-k0.t),e=(AN_EASE[k1.ease]||AN_EASE.smooth)[1](u);
   const pose={};for(const b of new Set([...Object.keys(k0.pose||{}),...Object.keys(k1.pose||{})])){const r0=(k0.pose||{})[b]||[0,0,0],r1=(k1.pose||{})[b]||[0,0,0];pose[b]=[0,1,2].map(j=>lerp(r0[j],r1[j],e))}
   const s={pose,x:lerp(k0.x,k1.x,e),z:lerp(k0.z,k1.z,e),ry:lerpAng(k0.ry,k1.ry,e),y:lerp(k0.y,k1.y,e)};
+  /* In der Luft (Sprung, Parkour): Höhe in der Welt glatt von Schlüsselbild zu Schlüsselbild, unabhängig davon, was darunter ist.
+     Steht die Figur an beiden Schlüsselbildern auf dem Boden, folgt sie dem Gelände. */
+  if(a.walk===false||Math.abs(k0.y)>.5||Math.abs(k1.y)>.5){const a0=groundY(k0.x,k0.z)+k0.y,a1=groundY(k1.x,k1.z)+k1.y;s.y=lerp(a0,a1,e)-groundY(s.x,s.z)}
+  else{const g0=Math.min(groundY(k0.x,k0.z),groundY(k1.x,k1.z)),gp=groundY(s.x,s.z);if(gp<g0)s.y+=g0-gp}/* beim Laufen nie in Lücken zwischen gleich hohen Blöcken fallen */
   const dx=k1.x-k0.x,dz=k1.z-k0.z,d=Math.hypot(dx,dz);
   if(!noWalk&&a.walk!==false&&d>6&&k1.ease!=='hold'){const amp=clamp(Math.min(u,1-u)*6,0,1),ph=e*d/AB*Math.PI,sw=Math.sin(ph),add=(b,v)=>{const r=pose[b]||[0,0,0];pose[b]=[r[0]+v,r[1],r[2]]};
     add('legR',38*sw*amp);add('legL',-38*sw*amp);add('armR',-32*sw*amp);add('armL',32*sw*amp);add('legRLow',22*Math.max(0,sw)*amp);add('legLLow',22*Math.max(0,-sw)*amp);
@@ -205,9 +211,40 @@ function anReadBone(){const a=anActor(),b=AN.bone;if(!a||!b)return;const rt=AN.r
   const s=evalActor(a,AN.t,true);anSetKey(a,{pose:{...s.pose,[b]:r}});anBoneUI()}
 function anFocusActor(id){const rt=AN.rts.get(id);if(!rt||anLook()!=='work')return;const m=rt.m,cam=AR.camera,c=[m.x,m.rootY+17,m.z],want=32/(.62*2*Math.tan(cam.fov*D2R/2));
   const d=new THREE.Vector3().subVectors(cam.position,new THREE.Vector3(...c)),dist=d.length();if(dist<want*1.25)return;d.normalize();anTweenTo([c[0]+d.x*want,c[1]+d.y*want,c[2]+d.z*want],c,550)}
-function anReadMove(){const a=anActor(),g=AR.tcm.object;if(!a||!g)return;const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-40,400)*10)/10;anSetKey(a,{x,z,y})}
+/* ---------- Bewegliche Blöcke ---------- */
+AN.pmesh=new Map();AN.pmode='translate';
+const anPBox=()=>{const T=THREE;return anPBox.g||(anPBox.g=new T.BoxGeometry(AB,AB,AB))};
+function anPropMats(k){const key='p|'+k+'|'+packTick;let m=anMatCache.get(key);if(m)return m;const T=THREE,f=anFaces(k);if(!f)return null;const t=blockTex(k)||{},water=/water/.test(k),alpha=!anOpaque(k)&&!water,bright=t.bright||/lava|glowstone|sea_lantern|shroomlight|froglight|magma/.test(k);
+  const mk2=c=>{const o={map:anTex(c)};if(alpha){o.alphaTest=.5;o.side=T.DoubleSide}if(water){o.transparent=true;o.opacity=.8}return bright?new T.MeshBasicMaterial(o):new T.MeshLambertMaterial(o)};
+  const [top,side,bot,front]=f.map(mk2);m=[side,side,top,bot,front,side];anMatCache.set(key,m);return m}
+function anSyncProps(){if(!AR)return;const ids=new Set(AN.data.props.map(o=>o.id));
+  for(const[id,m]of AN.pmesh)if(!ids.has(id)){AR.props.remove(m);AN.pmesh.delete(id)}
+  for(const o of AN.data.props){let m=AN.pmesh.get(o.id);const sig=o.key+'|'+packTick;if(m&&m.userData.sig===sig)continue;const mats=anPropMats(o.key);if(!mats)continue;
+    if(m){m.material=mats;m.userData.sig=sig;continue}m=new THREE.Mesh(anPBox(),mats);m.castShadow=true;m.receiveShadow=true;m.userData={prop:o.id,sig};AR.props.add(m);AN.pmesh.set(o.id,m)}
+  if(AN.sel&&AN.pmesh.has(AN.sel)&&AR.tcm.object&&AR.tcm.object!==AN.pmesh.get(AN.sel))AR.tcm.attach(AN.pmesh.get(AN.sel))}
+function evalProp(o,t){const K=o.keys,f=k=>({x:k.x,y:k.y,z:k.z,rx:k.rx,ry:k.ry,rz:k.rz,s:k.s});if(!K.length)return{x:0,y:0,z:0,rx:0,ry:0,rz:0,s:1};
+  if(t<=K[0].t)return f(K[0]);if(t>=K[K.length-1].t)return f(K[K.length-1]);let i=0;while(i<K.length-2&&t>=K[i+1].t)i++;
+  const k0=K[i],k1=K[i+1],u=(t-k0.t)/Math.max(1e-6,k1.t-k0.t),e=(AN_EASE[k1.ease]||AN_EASE.smooth)[1](u),r={};for(const q of['x','y','z','rx','ry','rz','s'])r[q]=lerp(k0[q],k1[q],e);return r}
+function anApplyProps(){for(const o of AN.data.props){const m=AN.pmesh.get(o.id);if(!m)continue;const v=evalProp(o,AN.t),sc=Math.max(.001,v.s);
+  m.scale.setScalar(sc);m.position.set(v.x,v.y+AB/2*sc,v.z);m.rotation.set(v.rx*D2R,v.ry*D2R,v.rz*D2R)}}
+function anProp(){return AN.data.props.find(o=>o.id===AN.sel)||null}
+function anSetPropKey(o,patch){const t=AN.t;let k=anKeyAt(o.keys,t);
+  if(!k){const v=evalProp(o,t),nx=o.keys.find(q=>q.t>t);k={t,...v,ease:nx?nx.ease:'smooth'};o.keys.push(k);o.keys.sort((p,q)=>p.t-q.t);anTimeline()}Object.assign(k,patch)}
+const anUnwrap=(v,ref)=>v+Math.round((ref-v)/360)*360;
+function anReadProp(){const o=anProp(),m=AR.tcm.object;if(!o||!m)return;const cur=evalProp(o,AN.t),r=v=>Math.round(v*10)/10;
+  if(AR.tcm.mode==='rotate')anSetPropKey(o,{rx:r(anUnwrap(m.rotation.x/D2R,cur.rx)),ry:r(anUnwrap(m.rotation.y/D2R,cur.ry)),rz:r(anUnwrap(m.rotation.z/D2R,cur.rz))});
+  else anSetPropKey(o,{x:r(m.position.x),y:r(m.position.y-AB/2*Math.max(.001,cur.s)),z:r(m.position.z)})}
+function anAddProp(k){const D=AN.data,s=anSceneInfo(),n=D.props.length,o={id:'p'+uid(),name:(anPalette().find(p=>p[0]===k)||[k,'Block'])[1],key:k,
+  keys:[{t:0,x:Math.round(s.c[0]+AB*1.5+(n%4)*AB*1.2),y:groundY(s.c[0]+AB*1.5,s.c[2]),z:Math.round(s.c[2]+AB),rx:0,ry:0,rz:0,s:1,ease:'smooth'}]};
+  D.props.push(o);anSyncProps();anSelect(o.id);anCommit();toast(`${o.name} ist in der Szene. Zieh den Block oder nutze die Pfeile.`)}
+const AN_PMOVES=[['spin','Drehen',(c)=>[[0,{}],[2,{ry:c.ry+360},'linear']]],['hop','Hüpfen',(c)=>[[0,{}],[.3,{y:c.y+24},'swing'],[.65,{y:c.y},'bounce']]],
+  ['fall','Herunterfallen',(c)=>[[0,{y:c.y+96}],[.9,{y:c.y},'bounce']]],['pop','Auftauchen',(c)=>[[0,{s:0}],[.5,{s:c.s||1},'swing']]],['gone','Verschwinden',(c)=>[[0,{}],[.4,{s:0},'smooth']]],['tumble','Überschlagen',(c)=>[[0,{}],[1,{x:c.x+AB*3,rz:c.rz-360,y:c.y},'smooth']]]];
+function anPropMove(o,fn){const t0=AN.t,c=evalProp(o,t0),steps=fn(c),last=steps[steps.length-1][0];if(t0+last>AN.data.dur)AN.data.dur=Math.min(30,Math.ceil((t0+last+.5)*2)/2);
+  for(const[dt,patch,ease]of steps){const t=Math.round((t0+dt)*20)/20,v=evalProp(o,t);let k=anKeyAt(o.keys,t);if(!k){k={t,...v};o.keys.push(k)}Object.assign(k,patch,{ease:ease||k.ease||'smooth'})}
+  o.keys.sort((p,q)=>p.t-q.t);anTimeline();anCommit();anPane();toast('Bewegung eingefügt. Drück auf Abspielen.')}
+function anReadMove(){if(anProp()){anReadProp();return}const a=anActor(),g=AR.tcm.object;if(!a||!g)return;const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-40,400)*10)/10;anSetKey(a,{x,z,y})}
 function anActor(){return AN.data.actors.find(a=>a.id===AN.sel)||null}
-function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();if(rt&&!bone&&!AN.playing&&AN_STEPS[AN.step][0]==='act')AR.tcm.attach(rt.m.group);else AR.tcm.detach();anPane();anTimeline()}
+function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';AR.tcm.setMode(pm?AN.pmode:'translate');AR.tcm.setSpace(pm&&AN.pmode==='rotate'?'local':'world');if(rt&&!bone&&ed)AR.tcm.attach(rt.m.group);else if(pm&&ed)AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
 async function anAddActor(name,skin,slim){const D=AN.data,n=D.actors.length,a={id:'a'+uid(),name:name||'Figur '+(n+1),skin:skin||'',slim:!!slim,item:'',walk:true,size:{},
   keys:[{t:0,pose:anPose('stehen'),x:(n%2?1:-1)*Math.ceil(n/2)*28,z:0,ry:0,y:0,ease:'smooth'}]};if(n===0)a.keys[0].x=0;
   D.actors.push(a);anSyncActors();anSelect(a.id);anCommit();anHint();toast(`${a.name} ist in der Szene. Zieh die Figur, um sie zu bewegen.`)}
@@ -254,7 +291,7 @@ function anLoop(now){if(view!=='anim'||!AR){AN.running=false;return}requestAnima
   const dt=AN.last?Math.min(.1,(now-AN.last)/1000):0;AN.last=now;
   if(AN.playing&&!AN.rec){AN.t+=dt;if(AN.t>=AN.data.dur){if(AN.loop)AN.t=0;else{AN.t=AN.data.dur;anStop()}}}
   if(!AN.rec)anRender(now)}
-function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anUpdCam(now);
+function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anApplyProps();anUpdCam(now);
   const cam=AR.camera;AR.sky.position.copy(cam.position);AR.stars.position.copy(cam.position);AR.sun.position.copy(cam.position).addScaledVector(anSunDir(),8000);
   AR.clouds.position.set(-AN.t*14,0,-AN.t*4);
   const edit=!AN.playing&&!AN.rec,look=anLook();AR.helpers.visible=edit;AR.path.visible=edit&&look==='work'&&AN.data.cam.keys.length>1;
@@ -284,14 +321,16 @@ function anPointer(){const fr=AR.frame;let D=null;
   fr.addEventListener('pointerdown',e=>{if(AN.rec||e.button===2)return;AN.tween=null;{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));if(!$('#an-hint').classList.contains('off'))anHintShow(false)}const st=AN_STEPS[AN.step][0];D={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
     if(AN.playing)anStop();
     if(st==='bg'&&AN.tool==='area'){const h=anBuildHit(e);if(h){D.area=h.place;AR.controls.enabled=false;anGhost(h.place,h.place)}}
-    if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false);
-      const ray=anRay(e),pk=AR.tc.object&&AR.tc._gizmo&&AR.tc._gizmo.picker.rotate,onRing=(pk&&ray.intersectObject(pk,true).length>0)||(AR.tcm.object&&AR.tcm._gizmo&&ray.intersectObject(AR.tcm._gizmo.picker.translate,true).length>0);
-      if(hits.length&&!onRing){e.stopPropagation();const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
+    if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false),ph=anRay(e).intersectObjects([...AN.pmesh.values()],false);
+      const ray=anRay(e),pk=AR.tc.object&&AR.tc._gizmo&&AR.tc._gizmo.picker.rotate,onRing=(pk&&ray.intersectObject(pk,true).length>0)||(AR.tcm.object&&AR.tcm._gizmo&&ray.intersectObject(AR.tcm._gizmo.picker[AR.tcm.mode],true).length>0);
+      if(ph.length&&!onRing&&(!hits.length||ph[0].distance<hits[0].distance)){e.stopPropagation();const o=AN.data.props.find(x=>x.id===ph[0].object.userData.prop),v=evalProp(o,AN.t);D.prop=o.id;D.y=v.y;AR.controls.enabled=false;const p=new THREE.Vector3();ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-v.y),p);D.off=[v.x-p.x,v.z-p.z]}
+      else if(hits.length&&!onRing){e.stopPropagation();const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
         const p=new THREE.Vector3();anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p);D.off=[s.x-p.x,s.z-p.z]}}},{capture:true});
   fr.addEventListener('pointermove',e=>{const st=AN_STEPS[AN.step][0];
     if(!D){if(st==='bg'&&e.pointerType!=='touch'&&anLook()==='work'){const h=anBuildHit(e);if(!h)anGhost(null);else if(AN.tool==='erase')anGhost(h.cell,h.cell||null,true);else anGhost(h.place,h.place)}return}
     if(Math.hypot(e.clientX-D.x,e.clientY-D.y)>6)D.moved=true;if(AN.tcDrag)return;
     if(D.area){const p=new THREE.Vector3();if(anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.area[1]*AB),p)){const c=[clamp(Math.floor(p.x/AB),D.area[0]-31,D.area[0]+31),D.area[1],clamp(Math.floor(p.z/AB),D.area[2]-31,D.area[2]+31)];D.area2=c;anGhost(D.area,c)}}
+    else if(D.prop&&D.moved){const p=new THREE.Vector3();if(anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p)){const o=AN.data.props.find(x=>x.id===D.prop);if(o){if(AN.sel!==o.id)anSelect(o.id);anSetPropKey(o,{x:Math.round((p.x+D.off[0])*10)/10,z:Math.round((p.z+D.off[1])*10)/10});D.dragged=true}}}
     else if(D.actor&&D.moved){const p=new THREE.Vector3();if(anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p)){const a=AN.data.actors.find(x=>x.id===D.actor);if(a){if(AN.sel!==a.id)anSelect(a.id);anSetKey(a,{x:Math.round((p.x+D.off[0])*10)/10,z:Math.round((p.z+D.off[1])*10)/10});D.dragged=true}}}},{capture:true});
   const up=e=>{if(!D||D.id!==e.pointerId)return;const d=D;D=null;const st=AN_STEPS[AN.step][0];
     if(AN.tcDrag||AR.tc.dragging||AR.tcm.dragging){return}
@@ -299,6 +338,7 @@ function anPointer(){const fr=AR.frame;let D=null;
     if(d.dragged){anCommit();anPane();return}
     if(d.moved||e.type==='pointercancel')return;
     if(st==='bg'&&anLook()==='work'){const h=anBuildHit(e);if(!h)return;if(AN.tool==='erase'){if(h.cell)anEditBlocks(m=>m.delete(h.cell.join(',')))}else{const k=AN.block||anPalette()[0][0];anEditBlocks(m=>m.set(h.place.join(','),[...h.place,k]))}}
+    if(st==='act'&&d.prop){anSelect(d.prop);return}
     if(st==='act'){if(d.actor){if(AN.sel===d.actor){const first=!AN.bone;anSelect(d.actor,d.bone);if(first)anFocusActor(d.actor)}else anSelect(d.actor)}else if(!AR.tc.dragging&&!AR.tcm.dragging)anSelect(null)}};
   fr.addEventListener('pointerup',up,{capture:true});fr.addEventListener('pointercancel',up,{capture:true});
   fr.addEventListener('pointerleave',()=>{if(!D)anGhost(null)});fr.addEventListener('contextmenu',e=>e.preventDefault())}
@@ -356,7 +396,24 @@ function paneBg(P){const D=AN.data;
   if(D.bg.mode==='color'){const w=el('div','field');w.innerHTML='<div class="lab"><span>Farbe</span></div><input type="color">';const i=w.querySelector('input');i.value=D.bg.color;i.addEventListener('input',()=>{D.bg.color=i.value;anApplyLook()});i.addEventListener('change',anCommit);s.append(w)}
   aSelect(s,'Boden',AN_GROUND,()=>D.bg.ground,v=>{D.bg.ground=v;anApplyLook()});
   s.append(el('p','sub','Die Tageszeit stellst du im Schritt „Licht“ ein.'))}
-function paneAct(P){const D=AN.data,a=anActor();
+function paneProps(P){const D=AN.data,o=anProp();let s=aSec(P,'Bewegliche Blöcke','Blöcke, die sich bewegen, drehen, hüpfen oder auftauchen.');
+  if(D.props.length){const list=el('div','an-actors');for(const x of D.props){const b=el('button','an-actor');b.type='button';b.setAttribute('aria-pressed',x.id===AN.sel);const c=mk(40,40);try{c.getContext('2d').drawImage(blockCanvas(x.key),0,0,40,40)}catch{}b.append(c,el('span',null,x.name));b.addEventListener('click',()=>anSelect(x.id));list.append(b)}s.append(list)}
+  const add=el('details','an-padd');add.innerHTML='<summary class="btn sm">+ Block hinzufügen</summary>';const q=el('input');q.type='search';q.placeholder='Block suchen';q.className='an-search';const grid=el('div','an-pal');add.append(q,grid);
+  const pal=anPalette(),fill=()=>{grid.innerHTML='';const f=q.value.trim().toLowerCase();for(const[k,n]of pal.filter(([k,n])=>!f||n.toLowerCase().includes(f)||k.includes(f)).slice(0,48)){const b=el('button','an-blk');b.type='button';b.title=n;b.setAttribute('aria-label',n+' hinzufügen');const c=mk(56,56);try{c.getContext('2d').drawImage(blockCanvas(k),0,0,56,56)}catch{}b.append(c);b.addEventListener('click',()=>{anAddProp(k);anPane()});grid.append(b)}};
+  add.addEventListener('toggle',()=>{if(add.open&&!grid.childElementCount)fill()});q.addEventListener('input',fill);s.append(add);
+  if(!o)return;const cur=evalProp(o,AN.t),k=anKeyAt(o.keys,AN.t);
+  s=aSec(P,o.name+' · bei '+anFmtT(AN.t),k?'Hier liegt ein Schlüsselbild. Änderungen gelten ab dieser Stelle.':'Eine Änderung legt hier automatisch ein neues Schlüsselbild an.');
+  aSeg(s,'Pfeile in der Ansicht',[['translate','Verschieben'],['rotate','Drehen']],()=>AN.pmode,v=>{AN.pmode=v;anSelect(o.id)});
+  const mg=el('div','posegrid');for(const[id,n,fn]of AN_PMOVES){const b=el('button','btn sm',n);b.type='button';b.addEventListener('click',()=>anPropMove(o,fn));mg.append(b)}s.append(el('p','sub','Bewegung einfügen (ab hier):'),mg);
+  s=aSec(P,'Lage');const set=f=>v=>anSetPropKey(o,f(v)),n1=v=>String(Math.round(v*10)/10).replace('.',',');
+  aRange(s,'Links/rechts',-400,400,1,()=>Math.round(cur.x),set(v=>({x:v})));aRange(s,'Höhe',-64,400,1,()=>Math.round(cur.y),set(v=>({y:v})));aRange(s,'Vorne/hinten',-400,400,1,()=>Math.round(cur.z),set(v=>({z:v})));
+  aRange(s,'Drehen',-360,360,1,()=>Math.round(cur.ry),set(v=>({ry:v})),v=>v+'°');aRange(s,'Kippen',-360,360,1,()=>Math.round(cur.rx),set(v=>({rx:v})),v=>v+'°');aRange(s,'Rollen',-360,360,1,()=>Math.round(cur.rz),set(v=>({rz:v})),v=>v+'°');
+  aRange(s,'Größe',0,4,.05,()=>cur.s,set(v=>({s:v})),v=>Math.round(v*100)+' %');
+  if(k){s=aSec(P,'Schlüsselbild bei '+anFmtT(k.t));aSelect(s,'Übergang hierher',Object.entries(AN_EASE).map(([e,[n]])=>[e,n]),()=>k.ease||'smooth',v=>{k.ease=v});
+    if(o.keys.length>1)aBtn(aRow(s),'Schlüsselbild löschen',()=>{o.keys.splice(o.keys.indexOf(k),1);anTimeline();anCommit();anPane()},'btn sm danger')}
+  s=aSec(P,null);aBtn(aRow(s),'Block entfernen',()=>{D.props.splice(D.props.indexOf(o),1);anSelect(null);anSyncProps();anCommit();anPane()},'btn sm danger')}
+function paneAct(P){const D=AN.data,a=anActor();if(anProp()){paneActors(P,null);paneProps(P);return}paneActors(P,a);paneProps(P)}
+function paneActors(P,a){const D=AN.data;
   let s=aSec(P,'Figuren');const list=el('div','an-actors');
   for(const x of D.actors){const b=el('button','an-actor');b.type='button';b.setAttribute('aria-pressed',x.id===AN.sel);const c=mk(40,40),sk=anSkin(x)||GRAY_SKIN,cx=c.getContext('2d');cx.imageSmoothingEnabled=false;cx.drawImage(sk,8,8,8,8,4,4,32,32);cx.drawImage(sk,40,8,8,8,2,2,36,36);b.append(c,el('span',null,x.name));b.addEventListener('click',()=>anSelect(x.id));list.append(b)}
   if(D.actors.length)s.append(list);
@@ -377,7 +434,7 @@ function paneAct(P){const D=AN.data,a=anActor();
   aRange(s,'Position links/rechts',-400,400,1,()=>Math.round(cur.x),v=>{anSetKey(a,{x:v})});
   aRange(s,'Position vorne/hinten',-400,400,1,()=>Math.round(cur.z),v=>{anSetKey(a,{z:v})});
   aRange(s,'Drehung',-180,180,1,()=>Math.round(cur.ry),v=>{anSetKey(a,{ry:v})},v=>v+'°');
-  aRange(s,'Höhe über dem Boden',-6,60,.5,()=>cur.y,v=>{anSetKey(a,{y:v})});
+  aRange(s,'Höhe über dem Boden',-6,120,.5,()=>Math.round(cur.y*2)/2,v=>{anSetKey(a,{y:v})},v=>String(Math.round(v*10)/10).replace('.',','));
   const items=ST_ITEMS.map(([k2,n])=>[k2,n]).concat(PACK?Object.keys(PACK.imgs).filter(x=>x.startsWith('i/')).sort().map(x=>['pi_'+x.slice(2),prettyName(x.slice(2))]):[]);
   aSelect(s,'In der rechten Hand',items,()=>a.item||'',v=>{a.item=v;anSyncActors()});
   aSeg(s,'Arme',[['0','Klassisch'],['1','Schmal']],()=>a.slim?'1':'0',v=>{a.slim=v==='1';anSyncActors();anCommit()});
@@ -426,6 +483,7 @@ function anTimeline(){const box=$('#an-tracks');if(!box||!AN.data)return;const D
   const st=D.dur>15?5:D.dur>8?2:1;for(let s=0;s<=D.dur+1e-6;s+=st){const t=el('span','an-tick',s+' s');t.style.left=(s/D.dur*100)+'%';ri.append(t)}box.append(ru);
   if(AN.step>=2||D.cam.keys.length)row('Kamera',D.cam.keys,'cam',false);
   for(const a of D.actors)row(a.name,a.keys,a.id,a.id===AN.sel);
+  for(const o of D.props)row(o.name,o.keys,o.id,o.id===AN.sel);
   if(!D.actors.length&&!(AN.step>=2))box.append(Object.assign(el('div','an-row an-empty'),{textContent:''}));
   const ph=el('div','an-phl');ph.innerHTML='<div class="an-ph" id="an-ph"></div>';box.append(ph);
   const ds=$('#an-dur');if(![...ds.options].some(o=>+o.value===D.dur))ds.append(new Option(String(D.dur).replace('.',',')+' s',String(D.dur)));ds.value=String(D.dur);anPH()}
@@ -486,7 +544,7 @@ function anRecordLive(){const mime=anMime(),c0=mk(2,2);if(!mime||!c0.captureStre
     if(ui.cancel||t>=AN.data.dur){setTimeout(()=>{try{rec.stop()}catch{AN.rec=null}},120);return}requestAnimationFrame(tick)};requestAnimationFrame(tick)}
 
 /* ---------- Alles neu aufbauen ---------- */
-function anRebuildAll(){if(!AR)return;AN.t=clamp(AN.t,0,AN.data.dur);anRebuildBlocks();anSyncActors();anApplyLook();if(AN.sel&&!anActor())anSelect(null);anTimeline();anPane();anResize()}
+function anRebuildAll(){if(!AR)return;AN.t=clamp(AN.t,0,AN.data.dur);anRebuildBlocks();anSyncActors();anSyncProps();anApplyLook();if(AN.sel&&!anActor()&&!anProp())anSelect(null);anTimeline();anPane();anResize()}
 document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-anskin')return;const f=e.target.files[0];e.target.value='';if(!f)return;
   blobToDataURL(f).then(loadSkinFile).then(c=>{const slim=c.height===64&&c.getContext('2d').getImageData(54,20,1,1).data[3]===0,d=c.toDataURL('image/png');anSkins.set(d,c);anAddActor((f.name||'Skin').replace(/\.png$/i,'').slice(0,30),d,slim);anPane()}).catch(err=>toast(err&&err.message?err.message:'Der Skin konnte nicht gelesen werden.'))});
 document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)return;const t=e.target;if(t.closest&&t.closest('input,textarea,select'))return;
@@ -501,7 +559,7 @@ document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)retu
   q('#an-look').addEventListener('click',e=>{AN.look=AN.look==='cam'?'work':'cam';e.currentTarget.setAttribute('aria-pressed',AN.look==='cam')});
   let armed=0;q('#an-new').addEventListener('click',e=>{const b=e.currentTarget;if(!armed){armed=setTimeout(()=>{armed=0;b.classList.remove('armed');b.textContent='Neu'},2500);b.classList.add('armed');b.textContent='Wirklich neu?';return}
     clearTimeout(armed);armed=0;b.classList.remove('armed');b.textContent='Neu';AN.data=anDefault();AN.t=0;AN.sel=null;AN.bone=null;anCommit();anRebuildAll();anFrameCam(true);anGo(0);anSteps();toast('Neue Animation.')})})();
-packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anRebuildBlocks();anSyncActors();anApplyLook();if(view==='anim')anPane()});
+packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anRebuildBlocks();anSyncActors();anSyncProps();anApplyLook();if(view==='anim')anPane()});
 
 (function(){const h=$('#an-hint'),b=$('#an-help');if(!h||!b)return;
   h.querySelector('.x').addEventListener('click',()=>{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));anHintShow(false)});
