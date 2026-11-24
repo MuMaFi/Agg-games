@@ -541,6 +541,95 @@ body.simple .st-status{height:50px}
 @media (max-width:900px){.an-main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 42%}.an-aside{border-left:0;border-top:1px solid var(--line)}.an-step .tx{display:none}.an-step[aria-current="step"] .tx{display:inline}.an-tracks{--lw:84px}.an-tl{max-height:150px}.an-tracks{max-height:108px}}
 body.simple .an-steps{height:56px}
 body.simple .an-step .no{width:26px;height:26px;font-size:12.5px}
+
+/* ---------- iPad & Desktop ---------- */
+html,body{margin:0;padding:0}
+.btn{max-width:100%}
+.tile{overflow-wrap:break-word;-webkit-hyphens:auto;hyphens:auto}
+.app{height:100%;height:100dvh}
+html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button,a,.btn,canvas,.seg button,.tile,.layer,.an-key,.an-trk{touch-action:manipulation}
+.app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.nav a{white-space:nowrap}
+.nav{overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}
+@media (max-width:900px){.hstat{display:none}}
+@media (max-width:640px){.brand span,.brand b{display:none}}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:18px;cursor:pointer;accent-color:auto}
+input[type=range]:focus{outline:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:#4a4a4a}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#dcdcdc;border:0;margin-top:-5px;box-shadow:0 1px 3px rgba(0,0,0,.55);transition:transform .12s}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.15)}
+input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px rgba(255,255,255,.35)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:#4a4a4a}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#dcdcdc;border:0;box-shadow:0 1px 3px rgba(0,0,0,.55)}
+.toast{top:calc(56px + env(safe-area-inset-top,0px));bottom:auto;animation:toastIn .28s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-8px)}}
+.an-help{position:absolute;left:14px;bottom:14px;width:34px;border-radius:17px;background:rgba(40,40,40,.92);font-weight:700}
+.an-hint{pointer-events:auto}.an-hint.off{pointer-events:none}
+.an-hint .x{position:absolute;right:4px;top:4px;width:22px;height:22px;border:0;background:transparent;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;border-radius:3px}
+.an-hint{padding-right:30px}
+.an-tl,.an-nav{padding-bottom:env(safe-area-inset-bottom,0px)}
+.st-status{padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:content-box}
+.statusbar{bottom:env(safe-area-inset-bottom,0px)}
+@media (min-width:1600px){.an-main{grid-template-columns:minmax(0,1fr) 360px}.studio{grid-template-columns:minmax(0,1fr) 340px}}
+@media (hover:none){
+  .btn:hover{background:#333}.btn.ghost:hover{background:transparent}.btn.primary:hover{background:var(--accent)}
+  .rail button:hover{background:transparent;color:var(--muted)}.rail button[aria-pressed="true"]:hover{background:var(--sel);color:#fff}
+  .an-card:hover{transform:none;background:#303030}.an-key:hover{transform:rotate(45deg);background:#9a9a9a}.an-key.on:hover{background:#fff;transform:rotate(45deg) scale(1.3)}
+  .an-blk:hover{background:#252525}.an-addtile:hover{background:transparent;border-color:#555}
+  .btn:active{filter:brightness(1.25)}.an-card:active,.an-blk:active,.tile:active .ti{filter:brightness(1.2)}
+}
+/* Finger statt Maus: größere Tippflächen */
+@media (pointer:coarse){
+  .hbar{height:46px}
+  .nav a{padding:0 14px;font-size:14px}
+  .btn{height:auto;min-height:38px;padding:6px 14px;font-size:13.5px;line-height:1.2;white-space:normal}
+  .btn.sm{min-height:36px;padding:5px 12px;font-size:13px}
+  .btn.icon,.btn.sm.icon{width:40px;height:40px;padding:0}
+  .btn.icon svg{width:19px;height:19px}
+  .ed-top,.optbar{height:50px}
+  .menu-btn{height:36px;padding:0 12px;font-size:14px}
+  .menu button{padding:11px 18px 11px 30px;font-size:14px}
+  .rail button{width:44px;height:44px}.rail svg{width:22px;height:22px}
+  .ed-body{grid-template-columns:52px 262px minmax(0,1fr) 280px}
+  .seg button{padding:9px 9px;font-size:13px}
+  .field .lab{font-size:12.5px}
+  .field select,.field textarea,.field input[type=text]{padding:8px 10px;font-size:14px}
+  .num{height:32px;width:66px;font-size:13px}
+  input[type=range]{height:34px}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px}
+  input[type=range]::-webkit-slider-thumb{width:26px;height:26px;margin-top:-10px}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px}
+  .check{font-size:14px;min-height:36px}.check input{width:20px;height:20px}
+  .layer{padding:7px 6px}.layer canvas{width:40px;height:40px}.layer b{font-size:13.5px}
+  .layer{grid-template-columns:34px 40px minmax(0,1fr) 34px}
+  .statusbar{height:42px}.statusbar .btn{height:34px}
+  .panel-head{height:38px;font-size:11.5px}.panel-head .btn{height:30px}
+  .doctabs{height:36px}.doctab{height:35px}.doctab a{width:28px;height:28px}
+  .posegrid .btn{height:38px}
+  .stsec>summary{height:42px;font-size:11.5px}
+  .st-status{height:52px}
+  .an-steps{height:58px}.an-step{padding:9px 10px;font-size:14px}.an-step .no{width:28px;height:28px;font-size:13px}
+  .an-sec h4{font-size:11.5px}
+  .an-card{padding:12px}.an-card b{font-size:14px}.an-card span{font-size:12px}
+  .an-pal{grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px}
+  .an-actor{padding:8px 9px}.an-actor canvas{width:34px;height:34px}
+  .an-tlbar{height:52px}.btn.an-playbtn{width:48px;border-radius:19px}
+  .an-tlbar select{height:36px;font-size:14px}
+  .an-tracks{--lw:110px;max-height:200px}
+  .an-row{height:40px}.an-ruler{height:28px}
+  .an-key{width:18px;height:18px;margin:-9px 0 0 -9px}
+  .an-ph{width:3px;margin-left:-1.5px}.an-ph::before{left:-7px;border-width:8px}
+  .an-tl{max-height:270px}
+  .an-search,.ignform input{height:38px;font-size:14px}
+  .an-hint{font-size:13px}.an-hint .x{width:30px;height:30px;font-size:19px}
+  .an-help{width:42px;height:42px;border-radius:21px}
+  .toast{font-size:14px;padding:11px 16px}
+}
+@media (pointer:coarse) and (max-width:1100px){.ed-body{grid-template-columns:52px minmax(0,1fr) 270px}.side{left:52px}}
+@media (pointer:coarse) and (max-width:760px){.ed-body{grid-template-columns:52px minmax(0,1fr)}.side{left:52px}}
+@media (pointer:coarse) and (max-width:900px){.an-tracks{--lw:86px;max-height:124px}.an-tl{max-height:190px}}
 </style>
 
 </head>
@@ -681,7 +770,8 @@ body.simple .an-step .no{width:26px;height:26px;font-size:12.5px}
           <div class="an-col">
             <div class="an-stage" id="an-stage">
               <div class="an-frame" id="an-frame"><div class="an-tint" id="an-tint"></div><div class="an-vig"></div><div class="an-bar t" id="an-bar-t"></div><div class="an-bar b" id="an-bar-b"></div><div class="an-fade" id="an-fade"></div></div>
-              <p class="an-hint" id="an-hint"></p>
+              <div class="an-hint" id="an-hint" role="note"><span></span><button class="x" type="button" aria-label="Hinweis schließen">×</button></div>
+              <button class="btn sm icon an-help" id="an-help" type="button" aria-label="Hinweis anzeigen" title="Hinweis anzeigen" hidden>?</button>
               <button class="btn sm an-lookbtn" id="an-look" type="button" aria-pressed="false">Durch die Kamera sehen</button>
               <div class="an-rec" id="an-rec" hidden></div>
               <div class="st-fail" id="an-fail" hidden></div>

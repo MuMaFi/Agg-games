@@ -85,7 +85,7 @@ function initAnim(){
   const ring=new T.Mesh(new T.RingGeometry(10,11.6,48),new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.75,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.visible=false;helpers.add(ring);
   const path=new T.Line(new T.BufferGeometry(),new T.LineDashedMaterial({color:0xe6e6e6,dashSize:7,gapSize:5,transparent:true,opacity:.85,depthTest:false}));path.renderOrder=5;helpers.add(path);
   const camMark=new T.Mesh(new T.ConeGeometry(5,9,4,1,true),new T.MeshBasicMaterial({color:0xe6e6e6,wireframe:true,depthTest:false}));camMark.renderOrder=5;helpers.add(camMark);
-  const tc=new T.TransformControls(camera,renderer.domElement);tc.setMode('rotate');tc.setSpace('local');tc.setSize(.7);
+  const tc=new T.TransformControls(camera,renderer.domElement);tc.setMode('rotate');tc.setSpace('local');tc.setSize(COARSE?1:.7);
   tc.addEventListener('dragging-changed',e=>{controls.enabled=!e.value;AN.tcDrag=e.value;if(!e.value)anCommit()});
   tc.addEventListener('objectChange',anReadBone);scene.add(tc);
   AR={renderer,scene,camera,controls,sky,sun,stars,clouds,hemi,dir,fill,ground,blocks,actors,helpers,ghost,gbox,gl,ring,path,camMark,tc,stage:$('#an-stage'),frame:$('#an-frame'),aniso:Math.min(8,renderer.capabilities.getMaxAnisotropy())};
@@ -96,7 +96,7 @@ function startAnim(){initAnim();if(AR&&!AN.running){AN.running=true;AN.last=0;an
 function anResize(){if(!AR)return;const r=AR.stage.getBoundingClientRect(),[fw,fh]=AN_FMT[AN.data.fmt].s[0],pad=r.width<600?8:18,aw=Math.max(40,r.width-pad*2),ah=Math.max(40,r.height-pad*2);
   let w=aw,h=aw*fh/fw;if(h>ah){h=ah;w=ah*fw/fh}w=Math.round(w);h=Math.round(h);
   Object.assign(AR.frame.style,{width:w+'px',height:h+'px',left:Math.round((r.width-w)/2)+'px',top:Math.round((r.height-h)/2)+'px'});
-  if(AN.rec)return;AR.renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));AR.renderer.setSize(w,h,false);AR.camera.aspect=fw/fh;AR.camera.updateProjectionMatrix();anFx()}
+  if(AN.rec)return;AR.renderer.setPixelRatio(Math.min(COARSE?1.5:2,window.devicePixelRatio||1));AR.renderer.setSize(w,h,false);AR.camera.aspect=fw/fh;AR.camera.updateProjectionMatrix();anFx()}
 
 /* Blöcke: ein Netz pro Blockart, verdeckte Seiten fallen weg, Ecken bekommen weiche Schatten (wie „Weiches Licht“) */
 const AN_FACES=[[0,1,[[1,1,1],[1,1,0],[1,0,1],[1,0,0]],1],[0,-1,[[0,1,0],[0,1,1],[0,0,0],[0,0,1]],1],[1,1,[[0,1,0],[1,1,0],[0,1,1],[1,1,1]],0],[1,-1,[[0,0,1],[1,0,1],[0,0,0],[1,0,0]],2],[2,1,[[0,1,1],[1,1,1],[0,0,1],[1,0,1]],3],[2,-1,[[1,1,0],[0,1,0],[1,0,0],[0,0,0]],1]];
@@ -258,7 +258,7 @@ function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anUpdCam(now);
 function anFade(t){const D=AN.data.dur;return clamp(Math.max(1-t/.6,1-(D-t)/.6),0,1)}
 function anPlay(){if(AN.playing){anStop();return}if(AN.t>=AN.data.dur-.01)AN.t=0;AN.playing=true;AR.tc.detach();anPlayUI()}
 function anStop(){if(!AN.playing)return;AN.playing=false;AN.t=Math.round(AN.t*20)/20;anPlayUI();if(AN.bone&&AN.sel)anSelect(AN.sel,AN.bone);anPane()}
-function anPlayUI(){const b=$('#an-play');if(!b)return;b.innerHTML=AN.playing?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>';b.setAttribute('aria-label',AN.playing?'Anhalten':'Abspielen');$('#an-hint').classList.toggle('off',AN.playing)}
+function anPlayUI(){const b=$('#an-play');if(!b)return;b.innerHTML=AN.playing?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>';b.setAttribute('aria-label',AN.playing?'Anhalten':'Abspielen');if(AN.playing)anHintShow(false);else $('#an-help').hidden=!$('#an-hint').classList.contains('off')}
 function anSeek(t){AN.t=clamp(Math.round(t*20)/20,0,AN.data.dur);if(AN.playing)return;anPH();anPaneSoft()}
 const anFmtT=t=>t.toFixed(1).replace('.',',')+' s';
 
@@ -272,14 +272,14 @@ function anGhost(c0,c1,erase){const g=AR.ghost;if(!c0){g.visible=false;return}co
   AR.gbox.material.color.set(erase?0xff6b6b:0xffffff);AR.gl.material.color.set(erase?0xff8a8a:0xffffff)}
 function anEditBlocks(fn){const D=AN.data,m=new Map(D.blocks.map(b=>[b[0]+','+b[1]+','+b[2],b]));fn(m);if(m.size>30000){toast('Mehr als 30 000 Blöcke gehen nicht.');return}D.blocks=[...m.values()];anRebuildBlocks();anSunPos();anCommit()}
 function anPointer(){const fr=AR.frame;let D=null;
-  fr.addEventListener('pointerdown',e=>{if(AN.rec||e.button===2)return;AN.tween=null;const st=AN_STEPS[AN.step][0];D={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
+  fr.addEventListener('pointerdown',e=>{if(AN.rec||e.button===2)return;AN.tween=null;{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));if(!$('#an-hint').classList.contains('off'))anHintShow(false)}const st=AN_STEPS[AN.step][0];D={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
     if(AN.playing)anStop();
     if(st==='bg'&&AN.tool==='area'){const h=anBuildHit(e);if(h){D.area=h.place;AR.controls.enabled=false;anGhost(h.place,h.place)}}
     if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false);
       if(hits.length){const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
         const p=new THREE.Vector3();anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p);D.off=[s.x-p.x,s.z-p.z]}}},{capture:true});
   fr.addEventListener('pointermove',e=>{const st=AN_STEPS[AN.step][0];
-    if(!D){if(st==='bg'&&e.pointerType==='mouse'&&anLook()==='work'){const h=anBuildHit(e);if(!h)anGhost(null);else if(AN.tool==='erase')anGhost(h.cell,h.cell||null,true);else anGhost(h.place,h.place)}return}
+    if(!D){if(st==='bg'&&e.pointerType!=='touch'&&anLook()==='work'){const h=anBuildHit(e);if(!h)anGhost(null);else if(AN.tool==='erase')anGhost(h.cell,h.cell||null,true);else anGhost(h.place,h.place)}return}
     if(Math.hypot(e.clientX-D.x,e.clientY-D.y)>6)D.moved=true;if(AN.tcDrag)return;
     if(D.area){const p=new THREE.Vector3();if(anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.area[1]*AB),p)){const c=[clamp(Math.floor(p.x/AB),D.area[0]-31,D.area[0]+31),D.area[1],clamp(Math.floor(p.z/AB),D.area[2]-31,D.area[2]+31)];D.area2=c;anGhost(D.area,c)}}
     else if(D.actor&&D.moved){const p=new THREE.Vector3();if(anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p)){const a=AN.data.actors.find(x=>x.id===D.actor);if(a){if(AN.sel!==a.id)anSelect(a.id);anSetKey(a,{x:Math.round((p.x+D.off[0])*10)/10,z:Math.round((p.z+D.off[1])*10)/10});D.dragged=true}}}},{capture:true});
@@ -316,12 +316,14 @@ function anGo(i){i=clamp(i,0,AN_STEPS.length-1);if(i===AN.step)return;const back
   if(AN_STEPS[i][0]!=='act')anSelect(null);if(AN_STEPS[i][0]==='cam'&&!AN.data.cam.keys.length)anCamPreset(AN.data.cam.preset==='custom'?'orbit':AN.data.cam.preset);
   if(AN_STEPS[i][0]==='act'&&!AN.data.actors.length&&anLook()==='work')anFrameCam(true);
   anSteps();const p=$('#an-side');p.classList.remove('in-l','in-r');void p.offsetWidth;p.classList.add(back?'in-l':'in-r')}
-function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint');h.textContent={
+const anHintSeen=new Set();
+function anHintShow(on){$('#an-hint').classList.toggle('off',!on);$('#an-help').hidden=on||AN.playing}
+function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textContent={
   bg:'Tippe auf den Boden oder einen Block, um zu bauen. Ziehen dreht die Ansicht, zwei Finger oder das Mausrad zoomen.',
   act:AN.data.actors.length?'Schieb den Zeitregler unten weiter, dann zieh die Figur oder wähle eine Pose. So entsteht ein Schlüsselbild; dazwischen bewegt sich alles von selbst.':'Füge rechts eine Figur mit Minecraft-Skin hinzu.',
   cam:'Du siehst durch die Kamera. Wähle eine Fahrt oder dreh die Ansicht an einer Zeitstelle: Die Position wird dort gemerkt.',
   light:'Wähle eine Stimmung und verfeinere sie mit den Reglern.',
-  out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];h.classList.remove('off')}
+  out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
 let anPaneT=0;function anPaneSoft(){clearTimeout(anPaneT);anPaneT=setTimeout(()=>{if(['act','cam'].includes(AN_STEPS[AN.step][0]))anPane()},120)}
 function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,out:paneOut})[k](P);P.scrollTop=sc;
   const nav=$('#an-nav');nav.innerHTML='';const b=aBtn(nav,'Zurück',()=>anGo(AN.step-1),'btn');b.disabled=AN.step===0;
@@ -488,3 +490,8 @@ document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)retu
   let armed=0;q('#an-new').addEventListener('click',e=>{const b=e.currentTarget;if(!armed){armed=setTimeout(()=>{armed=0;b.classList.remove('armed');b.textContent='Neu'},2500);b.classList.add('armed');b.textContent='Wirklich neu?';return}
     clearTimeout(armed);armed=0;b.classList.remove('armed');b.textContent='Neu';AN.data=anDefault();AN.t=0;AN.sel=null;AN.bone=null;anCommit();anRebuildAll();anFrameCam(true);anGo(0);anSteps();toast('Neue Animation.')})})();
 packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anRebuildBlocks();anSyncActors();anApplyLook();if(view==='anim')anPane()});
+
+(function(){const h=$('#an-hint'),b=$('#an-help');if(!h||!b)return;
+  h.querySelector('.x').addEventListener('click',()=>{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));anHintShow(false)});
+  b.addEventListener('click',()=>anHintShow(true))})();
+multiTap($('#an-frame'),()=>{if(AN.ready&&AN.hist.length>1){anUndo(-1);toast('Rückgängig')}},()=>{if(AN.ready&&AN.fut.length){anUndo(1);toast('Wiederholt')}});

@@ -141,10 +141,10 @@ const toScreen=(p,m)=>[m.ox+p[0]*m.z,m.oy+p[1]*m.z];
 const toDesign=(px,py,m)=>[(px-m.ox)/m.z,(py-m.oy)/m.z];
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 function corners(L){const a=(L.rot||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>{const lx=i*L.w/2,ly=j*L.h/2;return[L.x+lx*c-ly*s,L.y+lx*s+ly*c]})}
-function rotHandle(L,m){const a=(L.rot||0)*Math.PI/180,top=[L.x+(L.h/2)*Math.sin(a),L.y-(L.h/2)*Math.cos(a)],p=toScreen(top,m);return[p[0]+Math.sin(a)*30,p[1]-Math.cos(a)*30]}
+function rotHandle(L,m){const a=(L.rot||0)*Math.PI/180,top=[L.x+(L.h/2)*Math.sin(a),L.y-(L.h/2)*Math.cos(a)],p=toScreen(top,m);const o=COARSE?42:30;return[p[0]+Math.sin(a)*o,p[1]-Math.cos(a)*o]}
 function drawHandles(pts,tm,rh){cx.strokeStyle='#f0f0f0';cx.lineWidth=1.5;cx.beginPath();cx.moveTo(tm[0],tm[1]);cx.lineTo(rh[0],rh[1]);cx.stroke();
-  cx.fillStyle='#ffffff';cx.beginPath();cx.arc(rh[0],rh[1],8,0,7);cx.fill();cx.stroke();cx.beginPath();cx.arc(rh[0],rh[1],3.5,.4,5.6);cx.stroke();
-  for(const p of pts){cx.fillStyle='#ffffff';cx.fillRect(p[0]-5,p[1]-5,10,10);cx.strokeStyle='#1e1e1e';cx.lineWidth=1.5;cx.strokeRect(p[0]-5,p[1]-5,10,10)}}
+  cx.fillStyle='#ffffff';cx.beginPath();cx.arc(rh[0],rh[1],COARSE?12:8,0,7);cx.fill();cx.stroke();cx.beginPath();cx.arc(rh[0],rh[1],COARSE?5:3.5,.4,5.6);cx.stroke();
+  const q=COARSE?8:5;for(const p of pts){cx.fillStyle='#ffffff';cx.fillRect(p[0]-q,p[1]-q,q*2,q*2);cx.strokeStyle='#1e1e1e';cx.lineWidth=1.5;cx.strokeRect(p[0]-q,p[1]-q,q*2,q*2)}}
 function selBox(ls){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,n=0;for(const l of ls){if(l.type==='backdrop')continue;n++;for(const[x,y]of corners(l)){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}}return n?{x0,y0,x1,y1}:null}
 const bbCorners=b=>[[b.x0,b.y0],[b.x1,b.y0],[b.x1,b.y1],[b.x0,b.y1]];
 function renderStage(){
@@ -750,3 +750,5 @@ document.addEventListener('keydown',e=>{if(view!=='editor'||!ED.p||dlg.open)retu
   if(k==='s'){e.preventDefault();saveNow();toast('Gespeichert.')}else if(k==='o'){e.preventDefault();$('#f-project').click()}else if(k==='e'){e.preventDefault();exportDesign('png')}
   else if(k==='0'){e.preventDefault();ED.fit=true;ED.panX=ED.panY=0;requestRender()}else if(k==='1'){e.preventDefault();ED.fit=false;ED.z=1;requestRender()}
   else if(k==='+'||k==='='){e.preventDefault();zoomBy(1.25)}else if(k==='-'){e.preventDefault();zoomBy(.8)}else if(k===']'){e.preventDefault();moveLayer(1)}else if(k==='['){e.preventDefault();moveLayer(-1)}});
+
+multiTap($('#ed-canvas'),()=>{undo();toast('Rückgängig')},()=>{redo();toast('Wiederholt')});

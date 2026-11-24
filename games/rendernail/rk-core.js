@@ -345,3 +345,12 @@ const SCENES={island,house,tower,pyramid,portal,character:characterScene,mountai
 const BG_SCENES=[['island','Schwebende Insel','sunset'],['mountains','Berge','day'],['plains','Flusstal','day'],['taiga','Taiga','night'],['desert','Wüste','sunset'],['house','Haus','day'],['tower','Wachturm','night'],['pyramid','Pyramide','sunset'],['portal','Unterwelt','nether']];
 const sceneCache=new Map();
 function sceneFor(name,seed){const k=name+'|'+seed;let s=sceneCache.get(k);if(!s){if(sceneCache.size>40)sceneCache.clear();s=(SCENES[name]||SCENES.island)(mulberry32(seed));sceneCache.set(k,s)}return s}
+
+/* iPad: Seite nicht mit zwei Fingern zoomen; Tippen mit zwei Fingern = Rückgängig, mit drei = Wiederholen (wie in Zeichen-Apps) */
+document.addEventListener('gesturestart',e=>e.preventDefault());
+const COARSE=matchMedia('(pointer:coarse)').matches;
+function multiTap(el,on2,on3){if(!el)return;const P=new Map();let max=0,t0=0,moved=false;
+  el.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;if(!P.size){max=0;t0=performance.now();moved=false}P.set(e.pointerId,[e.clientX,e.clientY]);max=Math.max(max,P.size)},true);
+  el.addEventListener('pointermove',e=>{const p=P.get(e.pointerId);if(p&&Math.hypot(e.clientX-p[0],e.clientY-p[1])>14)moved=true},true);
+  const up=e=>{if(!P.delete(e.pointerId)||P.size)return;if(!moved&&performance.now()-t0<350){if(max===2&&on2)on2();else if(max===3&&on3)on3()}};
+  el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',e=>{if(P.delete(e.pointerId))moved=true},true)}

@@ -139,7 +139,7 @@ function initStudio(){
   Object.assign(dir.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:320});dir.shadow.bias=-.0006;scene.add(dir);scene.add(dir.target);
   const fillL=new T.DirectionalLight(0xb8c8ff,.28);fillL.position.set(-50,30,-40);scene.add(fillL);
   const ground=new T.Mesh(new T.PlaneGeometry(900,900),new T.ShadowMaterial({opacity:.3}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-  const tc=new T.TransformControls(camera,renderer.domElement);tc.setMode('rotate');tc.setSpace('local');tc.setSize(.75);
+  const tc=new T.TransformControls(camera,renderer.domElement);tc.setMode('rotate');tc.setSpace('local');tc.setSize(COARSE?1:.75);
   tc.addEventListener('dragging-changed',e=>{controls.enabled=!e.value;if(e.value)ST.tcUsed=true;else stCommit()});
   tc.addEventListener('objectChange',()=>{readBone();syncBoneUI()});scene.add(tc);
   R3={renderer,scene,camera,controls,tc,hemi,dir,ground,wrap};
@@ -292,3 +292,5 @@ async function skinFromIGN(name,m){
   if(i<0){USER_SKINS.push({name,data});if(USER_SKINS.length>12){USER_SKINS.shift();userSkinCanvas.shift()}i=USER_SKINS.length-1}else USER_SKINS[i].data=data;
   store.set('rk-skins',USER_SKINS);userSkinCanvas[i]=c;
   if(m){m.skin='u'+i;m.slim=slim;m.name=name;buildModel(m);stCommit();buildModelsBar()}buildSide3();toast(`Skin von ${name} geladen.`)}
+
+multiTap($('#st-wrap'),()=>{if(!$('#st-undo').disabled){$('#st-undo').click();toast('Rückgängig')}},()=>{if(!$('#st-redo').disabled){$('#st-redo').click();toast('Wiederholt')}});
