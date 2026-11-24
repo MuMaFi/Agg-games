@@ -39,7 +39,37 @@ function anTemplate(k){const b=[],put=(x,y,z,t)=>b.push([x,y,z,t]);
   return b}
 function anDefault(){return{v:1,dur:6,fmt:'16:9',bg:{mode:'mc',color:'#2b2b2b',ground:'grass'},blocks:anTemplate('wiese'),actors:[],
   props:[],cam:{preset:'orbit',keys:[],fov:35,smooth:true,shake:0},light:{preset:'day',...anClone(AN_LIGHT.day),shadows:true,soft:3},fx:{bars:false,fade:true},q:0}}
-function anLoad(){let d=store.get('rk-anim',null);if(!d||d.v!==1)return anDefault();const D=anDefault();
+/* ---------- Mehrere Animationen speichern ---------- */
+const AN_IDX='rk-anims';
+function anIndex(){const i=store.get(AN_IDX,null);return Array.isArray(i)?i.filter(p=>p&&p.id):[]}
+function anInitStore(){let idx=anIndex();
+  if(!idx.length){const old=store.get('rk-anim',null),id='an'+uid();idx=[{id,name:'Animation 1',t:Date.now()}];store.set('rk-anim:'+id,old&&old.v===1?old:anDefault());store.set(AN_IDX,idx);store.set('rk-anim-cur',id)}
+  let cur=store.get('rk-anim-cur',null);if(!idx.some(p=>p.id===cur))cur=idx[0].id;AN.pid=cur;store.set('rk-anim-cur',cur);return idx}
+function anProjName(){const p=anIndex().find(x=>x.id===AN.pid);return p?p.name:'Animation'}
+function anSaveNow(){clearTimeout(anSaveT);if(!AN.pid||!AN.data)return true;const ok=store.set('rk-anim:'+AN.pid,AN.data);
+  const idx=anIndex(),p=idx.find(x=>x.id===AN.pid);if(p){p.t=Date.now();store.set(AN_IDX,idx)}
+  const st=$('#an-savest');if(st)st.textContent=ok?'Gespeichert':'Nicht gespeichert';if(!ok)toast('Speichern fehlgeschlagen: Der Browser-Speicher ist voll. Lösche alte Animationen oder speichere als Datei.');return ok}
+function anOpenProject(id){anSaveNow();anStop();AN.pid=id;store.set('rk-anim-cur',id);AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.fut=[];AN.t=0;AN.sel=null;AN.bone=null;
+  if(AR){AR.tc.detach();AR.tcm.detach();anRebuildAll();anFrameCam(true)}anProjUI();anUndoUI()}
+function anNewProject(name,data){anSaveNow();const idx=anIndex(),id='an'+uid();name=(name||'').trim()||('Animation '+(idx.length+1));idx.unshift({id,name:name.slice(0,60),t:Date.now()});
+  if(!store.set('rk-anim:'+id,data||anDefault())){toast('Kein Platz mehr im Browser-Speicher.');return}store.set(AN_IDX,idx);anOpenProject(id);if(!data)anGo(0);toast(`„${name}“ angelegt.`)}
+function anProjUI(){const b=$('#an-proj');if(b)b.querySelector('span').textContent=anProjName()}
+function anProjMenu(btn){closeMenu();const el2=document.createElement('div');el2.className='menu';el2.setAttribute('role','menu');
+  const item=(label,fn,chk,kbd)=>{const b=document.createElement('button');b.type='button';b.setAttribute('role',chk!=null?'menuitemradio':'menuitem');b.innerHTML='<span></span><kbd></kbd>';b.firstChild.textContent=label;b.lastChild.textContent=kbd||'';if(chk!=null)b.setAttribute('aria-checked',!!chk);b.addEventListener('click',()=>{closeMenu();fn()});el2.append(b)};
+  const idx=anIndex().sort((a,b)=>b.t-a.t),when=t=>new Date(t).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
+  for(const p of idx.slice(0,15))item(p.name,()=>{if(p.id!==AN.pid)anOpenProject(p.id)},p.id===AN.pid,when(p.t));
+  el2.append(document.createElement('hr'));
+  item('Neue Animation',()=>anNewProject(prompt('Name der neuen Animation:','Animation '+(anIndex().length+1))||''));
+  item('Umbenennen …',()=>{const n=prompt('Neuer Name:',anProjName());if(!n||!n.trim())return;const i=anIndex(),p=i.find(x=>x.id===AN.pid);if(p){p.name=n.trim().slice(0,60);store.set(AN_IDX,i);anProjUI()}});
+  item('Kopie speichern',()=>{anSaveNow();anNewProject(anProjName()+' (Kopie)',JSON.parse(JSON.stringify(AN.data)))});
+  el2.append(document.createElement('hr'));
+  item('Als Datei speichern',()=>{anSaveNow();const name=anProjName(),blob=new Blob([JSON.stringify({app:'rendernail-animation',v:1,name,data:AN.data})],{type:'application/json'});saveFile((slug(name)||'animation')+'.rnanim.json',blob)});
+  item('Datei öffnen …',()=>$('#f-anfile').click());
+  el2.append(document.createElement('hr'));
+  item('Diese Animation löschen',()=>{if(!confirm(`„${anProjName()}“ wirklich löschen?`))return;const i=anIndex().filter(x=>x.id!==AN.pid);try{localStorage.removeItem('rk-anim:'+AN.pid)}catch{}store.set(AN_IDX,i);
+    if(i.length)anOpenProject(i[0].id);else{AN.pid=null;anNewProject('Animation 1')}toast('Gelöscht.')});
+  document.body.append(el2);const r=btn.getBoundingClientRect();el2.style.left=Math.max(6,Math.min(r.left,innerWidth-el2.offsetWidth-6))+'px';el2.style.top=r.bottom+4+'px';openMenu={el:el2,btn};btn.setAttribute('aria-expanded','true')}
+function anLoad(){let d=store.get('rk-anim:'+AN.pid,null);if(!d||d.v!==1)return anDefault();const D=anDefault();
   try{d={...D,...d,bg:{...D.bg,...d.bg},cam:{...D.cam,...d.cam},light:{...D.light,...d.light},fx:{...D.fx,...d.fx}};
     d.blocks=Array.isArray(d.blocks)?d.blocks.filter(b=>Array.isArray(b)&&b.length===4).slice(0,30000):[];
     d.actors=(Array.isArray(d.actors)?d.actors:[]).slice(0,6).map(a=>({id:a.id||'a'+uid(),name:String(a.name||'Figur').slice(0,30),skin:typeof a.skin==='string'&&/^data:image\/png;base64,/.test(a.skin)?a.skin:'',slim:!!a.slim,item:typeof a.item==='string'?a.item:'',walk:a.walk!==false,size:cleanSize(a.size),
@@ -50,9 +80,9 @@ function anLoad(){let d=store.get('rk-anim',null);if(!d||d.v!==1)return anDefaul
     d.dur=clamp(+d.dur||6,2,30);if(!AN_FMT[d.fmt])d.fmt='16:9'}catch{return D}return d}
 let anSaveT=0;
 function anCommit(){const s=JSON.stringify(AN.data);if(AN.hist[AN.hist.length-1]!==s){AN.hist.push(s);if(AN.hist.length>80)AN.hist.shift();AN.fut=[]}
-  clearTimeout(anSaveT);anSaveT=setTimeout(()=>{try{store.set('rk-anim',AN.data)}catch{toast('Speichern fehlgeschlagen: Die Szene ist zu groß für den Browser-Speicher.')}},300);anUndoUI()}
+  clearTimeout(anSaveT);const st=$('#an-savest');if(st)st.textContent='Ungespeichert …';anSaveT=setTimeout(anSaveNow,400);anUndoUI()}
 function anUndo(dir){if(dir<0){if(AN.hist.length<2)return;AN.fut.push(AN.hist.pop())}else{if(!AN.fut.length)return;AN.hist.push(AN.fut.pop())}
-  AN.data=JSON.parse(AN.hist[AN.hist.length-1]);store.set('rk-anim',AN.data);anRebuildAll();anUndoUI()}
+  AN.data=JSON.parse(AN.hist[AN.hist.length-1]);anSaveNow();anRebuildAll();anUndoUI()}
 function anUndoUI(){const u=$('#an-undo'),r=$('#an-redo');if(u)u.disabled=AN.hist.length<2;if(r)r.disabled=!AN.fut.length}
 
 /* ---------- Szene ---------- */
@@ -96,7 +126,7 @@ function initAnim(){
   {const pk=tc._gizmo&&tc._gizmo.picker&&tc._gizmo.picker.rotate;if(pk)pk.children.filter(c=>c.name==='XYZE').forEach(c=>pk.remove(c))}/* nur an den Ringen drehen; Ziehen auf der Figur verschiebt sie */
   AR={renderer,scene,camera,controls,sky,sun,stars,clouds,hemi,dir,fill,ground,blocks,actors,props,helpers,ghost,gbox,gl,ring,path,camMark,tc,tcm,stage:$('#an-stage'),frame:$('#an-frame'),aniso:Math.min(8,renderer.capabilities.getMaxAnisotropy())};
   new ResizeObserver(anResize).observe(AR.stage);anPointer();
-  AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.step=clamp(+store.get('rk-anim-step',0)||0,0,AN_STEPS.length-1);
+  anInitStore();anProjUI();AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.step=clamp(+store.get('rk-anim-step',0)||0,0,AN_STEPS.length-1);
   AN.ready=true;anRebuildAll();anFrameCam(false);anSteps();anResize()}
 function startAnim(){initAnim();if(AR&&!AN.running){AN.running=true;AN.last=0;anResize();requestAnimationFrame(anLoop)}}
 function anResize(){if(!AR)return;const r=AR.stage.getBoundingClientRect(),[fw,fh]=AN_FMT[AN.data.fmt].s[0],pad=r.width<600?8:18,aw=Math.max(40,r.width-pad*2),ah=Math.max(40,r.height-pad*2);
@@ -588,8 +618,12 @@ document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)retu
   q('#an-dur').addEventListener('change',e=>{const D=AN.data,nd=+e.target.value,f=nd/D.dur;for(const a of D.actors)a.keys.forEach(k=>k.t=Math.round(k.t*f*20)/20);D.cam.keys.forEach(k=>k.t=Math.round(k.t*f*20)/20);D.dur=nd;AN.t=Math.min(AN.t*f,nd);AN.pathDirty=true;anTimeline();anCommit();anPane()});
   q('#an-undo').addEventListener('click',()=>anUndo(-1));q('#an-redo').addEventListener('click',()=>anUndo(1));
   q('#an-look').addEventListener('click',e=>{AN.look=AN.look==='cam'?'work':'cam';e.currentTarget.setAttribute('aria-pressed',AN.look==='cam')});
-  let armed=0;q('#an-new').addEventListener('click',e=>{const b=e.currentTarget;if(!armed){armed=setTimeout(()=>{armed=0;b.classList.remove('armed');b.textContent='Neu'},2500);b.classList.add('armed');b.textContent='Wirklich neu?';return}
-    clearTimeout(armed);armed=0;b.classList.remove('armed');b.textContent='Neu';AN.data=anDefault();AN.t=0;AN.sel=null;AN.bone=null;anCommit();anRebuildAll();anFrameCam(true);anGo(0);anSteps();toast('Neue Animation.')})})();
+  q('#an-new').addEventListener('click',()=>{if(AN.ready)anNewProject(prompt('Name der neuen Animation:','Animation '+(anIndex().length+1))||'')});
+  q('#an-proj').addEventListener('click',e=>{if(!AN.ready)return;if(openMenu&&openMenu.btn===e.currentTarget){closeMenu();return}anProjMenu(e.currentTarget)});
+  document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-anfile')return;const f=e.target.files[0];e.target.value='';if(!f)return;
+    f.text().then(t=>{const o=JSON.parse(t);if(!o||o.app!=='rendernail-animation'||!o.data||o.data.v!==1)throw new Error('Das ist keine Rendernail-Animation.');anNewProject(String(o.name||f.name.replace(/\.rnanim\.json$|\.json$/i,'')).slice(0,60),o.data);toast('Animation geöffnet.')}).catch(err=>toast(err.message||'Die Datei konnte nicht gelesen werden.'))});
+  addEventListener('pagehide',()=>{if(AN.ready)anSaveNow()});document.addEventListener('visibilitychange',()=>{if(document.hidden&&AN.ready)anSaveNow()});
+  document.addEventListener('keydown',e=>{if(view==='anim'&&AN.ready&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(anSaveNow())toast('Gespeichert.')}})})();
 packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anRebuildBlocks();anSyncActors();anSyncProps();anApplyLook();if(view==='anim')anPane()});
 
 (function(){const h=$('#an-hint'),b=$('#an-help');if(!h||!b)return;
