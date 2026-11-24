@@ -88,6 +88,7 @@ function initAnim(){
   const tc=new T.TransformControls(camera,renderer.domElement);tc.setMode('rotate');tc.setSpace('local');tc.setSize(COARSE?1:.7);
   tc.addEventListener('dragging-changed',e=>{controls.enabled=!e.value;AN.tcDrag=e.value;if(!e.value)anCommit()});
   tc.addEventListener('objectChange',anReadBone);scene.add(tc);
+  {const pk=tc._gizmo&&tc._gizmo.picker&&tc._gizmo.picker.rotate;if(pk)pk.children.filter(c=>c.name==='XYZE').forEach(c=>pk.remove(c))}/* nur an den Ringen drehen; Ziehen auf der Figur verschiebt sie */
   AR={renderer,scene,camera,controls,sky,sun,stars,clouds,hemi,dir,fill,ground,blocks,actors,helpers,ghost,gbox,gl,ring,path,camMark,tc,stage:$('#an-stage'),frame:$('#an-frame'),aniso:Math.min(8,renderer.capabilities.getMaxAnisotropy())};
   new ResizeObserver(anResize).observe(AR.stage);anPointer();
   AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.step=clamp(+store.get('rk-anim-step',0)||0,0,AN_STEPS.length-1);
@@ -198,8 +199,10 @@ function anSetKey(a,patch){const t=AN.t;let k=anKeyAt(a.keys,t);
   Object.assign(k,patch);AN.pathDirty=true}
 function anReadBone(){const a=anActor(),b=AN.bone;if(!a||!b)return;const rt=AN.rts.get(a.id),o=rt.m.bones[b].rotation,r=[o.x,o.y,o.z].map(v=>Math.round(v/D2R*10)/10);
   const s=evalActor(a,AN.t,true);anSetKey(a,{pose:{...s.pose,[b]:r}});anBoneUI()}
+function anFocusActor(id){const rt=AN.rts.get(id);if(!rt||anLook()!=='work')return;const m=rt.m,cam=AR.camera,c=[m.x,m.rootY+17,m.z],want=32/(.62*2*Math.tan(cam.fov*D2R/2));
+  const d=new THREE.Vector3().subVectors(cam.position,new THREE.Vector3(...c)),dist=d.length();if(dist<want*1.25)return;d.normalize();anTweenTo([c[0]+d.x*want,c[1]+d.y*want,c[2]+d.z*want],c,550)}
 function anActor(){return AN.data.actors.find(a=>a.id===AN.sel)||null}
-function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();anPane();anTimeline()}
+function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();anPane();anTimeline()}
 async function anAddActor(name,skin,slim){const D=AN.data,n=D.actors.length,a={id:'a'+uid(),name:name||'Figur '+(n+1),skin:skin||'',slim:!!slim,item:'',walk:true,size:{},
   keys:[{t:0,pose:anPose('stehen'),x:(n%2?1:-1)*Math.ceil(n/2)*28,z:0,ry:0,y:0,ease:'smooth'}]};if(n===0)a.keys[0].x=0;
   D.actors.push(a);anSyncActors();anSelect(a.id);anCommit();anHint();toast(`${a.name} ist in der Szene. Zieh die Figur, um sie zu bewegen.`)}
@@ -252,6 +255,7 @@ function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anUpdCam(now);
   const edit=!AN.playing&&!AN.rec,look=anLook();AR.helpers.visible=edit;AR.path.visible=edit&&look==='work'&&AN.data.cam.keys.length>1;
   if(AR.path.visible){const e=evalCam(AN.t);AR.camMark.position.set(...e.p);AR.camMark.lookAt(...e.q);AR.camMark.rotateX(-Math.PI/2);AR.camMark.visible=true}else AR.camMark.visible=false;
   AR.tc.visible=edit&&!!AR.tc.object;
+  if(AR.tc.object){const w=new THREE.Vector3();AR.tc.object.getWorldPosition(w);const H=AR.frame.clientHeight||600,ppu=H/(2*w.distanceTo(cam.position)*Math.tan(cam.fov*D2R/2)),px=Math.max(COARSE?50:36,8*ppu);AR.tc.size=clamp(px/H/.1357,.15,1.1)}
   const rt=AN.sel&&AN.rts.get(AN.sel);AR.ring.visible=edit&&!!rt&&AN_STEPS[AN.step][0]==='act';if(AR.ring.visible){const m=rt.m;AR.ring.position.set(m.x,m.rootY+.3,m.z)}
   AR.renderer.render(AR.scene,cam);
   const f=AN.data.fx.fade&&(AN.playing||AN.rec)?anFade(AN.t):0;$('#an-fade').style.opacity=f;anPH()}
@@ -276,7 +280,8 @@ function anPointer(){const fr=AR.frame;let D=null;
     if(AN.playing)anStop();
     if(st==='bg'&&AN.tool==='area'){const h=anBuildHit(e);if(h){D.area=h.place;AR.controls.enabled=false;anGhost(h.place,h.place)}}
     if(st==='act'&&anLook()==='work'){const hits=anRay(e).intersectObjects([...AN.rts.values()].flatMap(r=>r.m.meshes||[]),false);
-      if(hits.length){const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
+      const ray=anRay(e),pk=AR.tc.object&&AR.tc._gizmo&&AR.tc._gizmo.picker.rotate,onRing=pk&&ray.intersectObject(pk,true).length>0;
+      if(hits.length&&!onRing){e.stopPropagation();const u=hits[0].object.userData;D.actor=u.model;D.bone=u.bone;AR.controls.enabled=false;const a=AN.data.actors.find(x=>x.id===u.model),s=evalActor(a,AN.t,true);D.y=groundY(s.x,s.z)+s.y;
         const p=new THREE.Vector3();anRay(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-D.y),p);D.off=[s.x-p.x,s.z-p.z]}}},{capture:true});
   fr.addEventListener('pointermove',e=>{const st=AN_STEPS[AN.step][0];
     if(!D){if(st==='bg'&&e.pointerType!=='touch'&&anLook()==='work'){const h=anBuildHit(e);if(!h)anGhost(null);else if(AN.tool==='erase')anGhost(h.cell,h.cell||null,true);else anGhost(h.place,h.place)}return}
@@ -289,7 +294,7 @@ function anPointer(){const fr=AR.frame;let D=null;
     if(d.dragged){anCommit();anPane();return}
     if(d.moved||e.type==='pointercancel')return;
     if(st==='bg'&&anLook()==='work'){const h=anBuildHit(e);if(!h)return;if(AN.tool==='erase'){if(h.cell)anEditBlocks(m=>m.delete(h.cell.join(',')))}else{const k=AN.block||anPalette()[0][0];anEditBlocks(m=>m.set(h.place.join(','),[...h.place,k]))}}
-    if(st==='act'){if(d.actor)anSelect(d.actor,d.bone);else if(!AR.tc.dragging)anSelect(null)}};
+    if(st==='act'){if(d.actor){if(AN.sel===d.actor){const first=!AN.bone;anSelect(d.actor,d.bone);if(first)anFocusActor(d.actor)}else anSelect(d.actor)}else if(!AR.tc.dragging)anSelect(null)}};
   fr.addEventListener('pointerup',up,{capture:true});fr.addEventListener('pointercancel',up,{capture:true});
   fr.addEventListener('pointerleave',()=>{if(!D)anGhost(null)});fr.addEventListener('contextmenu',e=>e.preventDefault())}
 
@@ -320,7 +325,7 @@ const anHintSeen=new Set();
 function anHintShow(on){$('#an-hint').classList.toggle('off',!on);$('#an-help').hidden=on||AN.playing}
 function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textContent={
   bg:'Tippe auf den Boden oder einen Block, um zu bauen. Ziehen dreht die Ansicht, zwei Finger oder das Mausrad zoomen.',
-  act:AN.data.actors.length?'Schieb den Zeitregler unten weiter, dann zieh die Figur oder wähle eine Pose. So entsteht ein Schlüsselbild; dazwischen bewegt sich alles von selbst.':'Füge rechts eine Figur mit Minecraft-Skin hinzu.',
+  act:AN.data.actors.length?'Zieh eine Figur, um sie zu verschieben. Schieb vorher den Zeitregler weiter: So entsteht ein Schlüsselbild, dazwischen läuft die Figur von selbst. Zweimal antippen dreht einzelne Körperteile.':'Füge rechts eine Figur mit Minecraft-Skin hinzu.',
   cam:'Du siehst durch die Kamera. Wähle eine Fahrt oder dreh die Ansicht an einer Zeitstelle: Die Position wird dort gemerkt.',
   light:'Wähle eine Stimmung und verfeinere sie mit den Reglern.',
   out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
@@ -361,9 +366,11 @@ function paneAct(P){const D=AN.data,a=anActor();
   const pg=el('div','posegrid');for(const[pk,[n,p,ry]]of Object.entries(POSES)){const b=el('button','btn sm',n);b.type='button';b.addEventListener('click',()=>{anSetKey(a,{pose:anClone(p),y:ry||0});anCommit();anPane()});pg.append(b)}s.append(pg);
   s=aSec(P,'Bewegung einfügen','Fügt ab hier eine fertige Bewegung ein.');const mg=el('div','posegrid');
   for(const[id,n,steps]of AN_MOVES){const b=el('button','btn sm',n);b.type='button';b.addEventListener('click',()=>anMove(a,steps));mg.append(b)}s.append(mg);
-  if(AN.bone){s=aSec(P,BONE_LABEL[AN.bone]||'Körperteil','Dreh am Ring in der Ansicht.');anBoneUI.box=s;aBtn(aRow(s),'Teil zurücksetzen',()=>{const st=evalActor(a,AN.t,true),p={...st.pose};delete p[AN.bone];anSetKey(a,{pose:p});anCommit()});aBtn(s.lastChild,'Fertig',()=>anSelect(a.id),'btn ghost sm')}
-  else{s=aSec(P,null);s.append(el('p','sub','Tipp: Tippe auf einen Arm, ein Bein oder den Kopf, um ihn genau zu drehen.'))}
+  if(AN.bone){s=aSec(P,BONE_LABEL[AN.bone]||'Körperteil','Dreh an den farbigen Ringen. Ziehen auf der Figur verschiebt weiterhin die ganze Figur.');anBoneUI.box=s;aBtn(aRow(s),'Teil zurücksetzen',()=>{const st=evalActor(a,AN.t,true),p={...st.pose};delete p[AN.bone];anSetKey(a,{pose:p});anCommit()});aBtn(s.lastChild,'Fertig',()=>anSelect(a.id),'btn ghost sm')}
+  else{s=aSec(P,null);s.append(el('p','sub','Zum Verschieben die Figur in der Ansicht ziehen. Tippe sie noch einmal an, um einen Arm, ein Bein oder den Kopf einzeln zu drehen.'))}
   const cur=evalActor(a,AN.t,true);s=aSec(P,'Haltung');
+  aRange(s,'Position links/rechts',-400,400,1,()=>Math.round(cur.x),v=>{anSetKey(a,{x:v})});
+  aRange(s,'Position vorne/hinten',-400,400,1,()=>Math.round(cur.z),v=>{anSetKey(a,{z:v})});
   aRange(s,'Drehung',-180,180,1,()=>Math.round(cur.ry),v=>{anSetKey(a,{ry:v})},v=>v+'°');
   aRange(s,'Höhe über dem Boden',-6,60,.5,()=>cur.y,v=>{anSetKey(a,{y:v})});
   const items=ST_ITEMS.map(([k2,n])=>[k2,n]).concat(PACK?Object.keys(PACK.imgs).filter(x=>x.startsWith('i/')).sort().map(x=>['pi_'+x.slice(2),prettyName(x.slice(2))]):[]);
@@ -495,3 +502,5 @@ packWatchers.push(()=>{if(!AR)return;anOpq.clear();anCloudKey='';anSunKey='';anR
   h.querySelector('.x').addEventListener('click',()=>{const k=AN_STEPS[AN.step][0];anHintSeen.add(k+(k==='act'?AN.data.actors.length>0:''));anHintShow(false)});
   b.addEventListener('click',()=>anHintShow(true))})();
 multiTap($('#an-frame'),()=>{if(AN.ready&&AN.hist.length>1){anUndo(-1);toast('Rückgängig')}},()=>{if(AN.ready&&AN.fut.length){anUndo(1);toast('Wiederholt')}});
+
+(function(){const b=$('#an-posedone');if(b)b.querySelector('button').addEventListener('click',()=>anSelect(AN.sel))})();
