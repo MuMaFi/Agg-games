@@ -56,6 +56,32 @@ header.top{border-bottom:1px solid var(--linie); background:var(--weiss)}
   .logo img{width:132px}
 }
 
+/* ── Tabs: Spiele | Rendernail ─────────────────────────────────────── */
+.tabs{display:flex; justify-content:center; align-items:flex-end; gap:6px; margin-top:-8px}
+.tabs .mini{display:none; line-height:0; margin-right:14px; align-self:center}
+.tabs .mini img{width:64px; height:auto}
+.tabs [role="tab"]{
+  display:inline-flex; align-items:center; gap:8px; padding:11px 18px 12px;
+  font-size:15px; font-weight:700; color:var(--tinte-dim); text-decoration:none;
+  border-bottom:3px solid transparent; margin-bottom:-1px; white-space:nowrap;
+}
+.tabs [role="tab"]:hover{color:var(--tinte)}
+.tabs [role="tab"][aria-selected="true"]{color:var(--tinte); border-bottom-color:var(--gruen)}
+.tabs [role="tab"]:focus-visible{outline:2px solid var(--gruen); outline-offset:-2px; border-radius:4px}
+.tabs .neu{font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--gruen-dunkel); background:var(--gruen-hell); border-radius:999px; padding:2px 7px}
+#tab-rendernail{display:none}
+#tab-rendernail iframe{display:block; width:100%; height:100%; border:0; background:#1e1e1e}
+/* Im Rendernail-Tab: schmale Kopfzeile, die App füllt den Rest */
+body.app-tab{height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column}
+body.app-tab header.top{flex:none}
+body.app-tab .top-in{display:none}
+body.app-tab .tabs{width:100%; max-width:none; margin-top:0; justify-content:flex-start; padding-left:max(12px,env(safe-area-inset-left,0px)); padding-right:max(12px,env(safe-area-inset-right,0px))}
+body.app-tab .tabs .mini{display:block}
+body.app-tab .tabs [role="tab"]{padding:10px 14px 9px}
+body.app-tab main, body.app-tab footer{display:none}
+body.app-tab #tab-rendernail{display:block; flex:1; min-height:0}
+@media (max-width:560px){ .tabs [role="tab"]{padding:10px 12px 11px; font-size:14px} }
+
 /* ── Filterreihe ───────────────────────────────────────────────────── */
 .bar{
   display:flex; flex-wrap:wrap; align-items:center; gap:8px;
@@ -166,9 +192,18 @@ footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel
       <img src="bilder/agg-logo.png" width="216" height="162" alt="AGG Games">
     </a>
   </div>
+  <nav class="wrap tabs" role="tablist" aria-label="Bereiche">
+    <a class="mini" href="#spiele" aria-label="AGG Games — Spiele"><img src="bilder/agg-logo.png" width="216" height="162" alt=""></a>
+    <a href="#spiele" role="tab" id="t-spiele" data-tab="spiele" aria-controls="tab-spiele" aria-selected="true">Spiele</a>
+    <a href="#rendernail" role="tab" id="t-rendernail" data-tab="rendernail" aria-controls="tab-rendernail" aria-selected="false" tabindex="-1">Rendernail <span class="neu">Neu</span></a>
+  </nav>
 </header>
 
-<main>
+<section id="tab-rendernail" role="tabpanel" aria-labelledby="t-rendernail">
+  <iframe id="rn-frame" title="Rendernail: Minecraft-Thumbnails, 3D-Posen und Animationen" allow="fullscreen; clipboard-write"></iframe>
+</section>
+
+<main id="tab-spiele" role="tabpanel" aria-labelledby="t-spiele">
   <div class="wrap">
     <div class="bar" role="group" aria-label="Nach Art filtern">
       <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle <span class="n">8</span></button>
@@ -179,6 +214,7 @@ footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel
       <button class="chip" type="button" data-filter="puzzle" aria-pressed="false">Kopf &amp; Puzzle <span class="n">0</span></button>
       <button class="chip" type="button" data-filter="idle" aria-pressed="false">Idle &amp; Aufbau <span class="n">1</span></button>
       <button class="chip" type="button" data-filter="horror" aria-pressed="false">Horror <span class="n">1</span></button>
+      <button class="chip" type="button" data-filter="werkzeug" aria-pressed="false">Werkzeuge <span class="n">1</span></button>
       <button class="chip dice" type="button" id="dice">Überrasch mich</button>
     </div>
 
@@ -1892,6 +1928,26 @@ footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel
   for(const chip of chips){
     chip.addEventListener('click', () => apply(chip.dataset.filter));
   }
+
+
+  /* Tabs: „Spiele“ und „Rendernail“. Rendernail lädt erst beim ersten Öffnen. */
+  const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+  function zeige(name){
+    const app = name === 'rendernail';
+    document.body.classList.toggle('app-tab', app);
+    for(const t of tabs){ const an = t.dataset.tab === name; t.setAttribute('aria-selected', String(an)); t.tabIndex = an ? 0 : -1; }
+    const fr = document.getElementById('rn-frame');
+    if(app && !fr.getAttribute('src')) fr.src = 'games/rendernail/';
+    document.title = app ? 'Rendernail — AGG Games' : 'AGG Games — Spiele direkt im Browser';
+    if(app) scrollTo(0, 0);
+  }
+  const ausHash = () => zeige(location.hash === '#rendernail' ? 'rendernail' : 'spiele');
+  addEventListener('hashchange', ausHash); ausHash();
+  for(const t of tabs) t.addEventListener('keydown', e => {
+    if(e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault(); const i = (tabs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[i].focus(); tabs[i].click();
+  });
 
   /* Einmal geladen, läuft die Seite offline weiter — und lässt sich auf
      dem Handy als App auf den Startbildschirm legen. */
