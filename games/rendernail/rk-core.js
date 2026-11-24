@@ -354,3 +354,21 @@ function multiTap(el,on2,on3){if(!el)return;const P=new Map();let max=0,t0=0,mov
   el.addEventListener('pointermove',e=>{const p=P.get(e.pointerId);if(p&&Math.hypot(e.clientX-p[0],e.clientY-p[1])>14)moved=true},true);
   const up=e=>{if(!P.delete(e.pointerId)||P.size)return;if(!moved&&performance.now()-t0<350){if(max===2&&on2)on2();else if(max===3&&on3)on3()}};
   el.addEventListener('pointerup',up,true);el.addEventListener('pointercancel',e=>{if(P.delete(e.pointerId))moved=true},true)}
+
+/* Kamera mit WASD steuern (3D-Ansichten): W/S vor/zurück, A/D seitwärts, E/Q hoch/runter, Shift schneller.
+   Jede 3D-Ansicht meldet sich über FLY_CTX an und liefert Kamera und Steuerung, solange sie aktiv ist. */
+const FLY_CTX=[],FLY={keys:new Set(),raf:0,last:0,ctx:null},FLY_CODES=['KeyW','KeyA','KeyS','KeyD','KeyE','KeyQ'];
+function flyKey(e,down){
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight'){if(down)FLY.keys.add('fast');else FLY.keys.delete('fast');return}
+  if(!FLY_CODES.includes(e.code))return;if(!down){FLY.keys.delete(e.code);return}
+  if(e.metaKey||e.ctrlKey||e.altKey)return;const t=e.target;if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable]'))return;
+  const ctx=FLY_CTX.map(f=>f()).find(Boolean);if(!ctx)return;e.preventDefault();FLY.keys.add(e.code);
+  if(!FLY.raf){FLY.ctx=ctx;FLY.last=performance.now();if(ctx.start)ctx.start();FLY.raf=requestAnimationFrame(flyStep)}}
+function flyStep(now){const ctx=FLY.ctx,k=FLY.keys,dt=Math.min(.05,(now-FLY.last)/1000);FLY.last=now;
+  if(!ctx||!FLY_CODES.some(c=>k.has(c))){FLY.raf=0;FLY.ctx=null;if(ctx&&ctx.end)ctx.end();return}
+  const T=THREE,cam=ctx.camera,tg=ctx.controls.target,fw=new T.Vector3().subVectors(tg,cam.position),dist=fw.length();fw.y=0;if(fw.lengthSq()<1e-6)fw.set(0,0,-1);fw.normalize();
+  const rt=new T.Vector3(-fw.z,0,fw.x),d=new T.Vector3();
+  if(k.has('KeyW'))d.add(fw);if(k.has('KeyS'))d.sub(fw);if(k.has('KeyD'))d.add(rt);if(k.has('KeyA'))d.sub(rt);if(k.has('KeyE'))d.y+=1;if(k.has('KeyQ'))d.y-=1;
+  if(d.lengthSq()){d.normalize().multiplyScalar(Math.max(40,dist*1.1)*(k.has('fast')?3:1)*dt);if(cam.position.y+d.y<2)d.y=2-cam.position.y;cam.position.add(d);tg.add(d);cam.lookAt(tg);if(ctx.moved)ctx.moved()}
+  FLY.raf=requestAnimationFrame(flyStep)}
+addEventListener('keydown',e=>flyKey(e,true));addEventListener('keyup',e=>flyKey(e,false));addEventListener('blur',()=>FLY.keys.clear());

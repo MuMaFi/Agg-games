@@ -688,15 +688,20 @@ async function exportDesign(kind){closeExport();if(!ED.p)return;saveNow();
   const type=kind==='jpg'?'image/jpeg':'image/png';let blob;try{blob=await canvasBlob(c,type,.92)}catch{toast('Export hat nicht geklappt.');return}
   await saveFile(slug(ED.p.name)+(kind==='jpg'?'.jpg':'.png'),blob,DL?null:c.toDataURL(type,.92))}
 async function projectFile(){const p=JSON.parse(JSON.stringify(projDoc(ED.p)));delete p.preview;
-  for(const L of p.layers){if(L.src&&L.src.asset){try{L.src={data:await blobToDataURL(await srcBlob(L.src))}}catch{L.src=null}}}
+  for(const L of[p.layers,...(p.slides||[]).map(x=>x.layers)].flat()){if(L&&L.src&&L.src.asset){try{L.src={data:await blobToDataURL(await srcBlob(L.src))}}catch{L.src=null}}}
   return{app:'rendernail',version:1,project:p}}
+/* Ebenen aus einer Projektdatei prüfen und eingebettete Bilder wieder speichern */
+async function cleanImportLayers(arr){const layers=(Array.isArray(arr)?arr:[]).filter(L=>L&&typeof L==='object'&&['asset','text','image','backdrop','figure'].includes(L.type)).map(L=>({...L,id:'l'+uid()}));
+  for(const L of layers){if(L.src){const d=L.src.data;if(typeof d==='string'&&/^data:image\//.test(d)){if(ASSETS){try{L.src=await storeImage(await(await fetch(d)).blob(),L.name||'Bild','upload')}catch{}}}else if(!(L.src.asset&&/^[0-9a-f]{32}$/.test(L.src.asset)))L.src=null}
+    if(L.type==='asset'&&!LIBK[L.key])L.hidden=true;if(L.type==='figure'&&L.fig&&typeof L.fig.skin==='string'&&L.fig.skin&&!/^data:image\/png;base64,/.test(L.fig.skin))L.fig.skin=''}
+  return layers.filter(L=>L.type!=='image'||L.src)}
 async function importProjectFile(file){
   try{const j=JSON.parse(await file.text()),p=j&&j.project;if(!p||!Array.isArray(p.layers)||!(p.w>0)||!(p.h>0))throw new Error('format');
-    const layers=p.layers.filter(L=>L&&typeof L==='object'&&['asset','text','image','backdrop'].includes(L.type)).map(L=>({...L,id:'l'+uid()}));
-    for(const L of layers){if(L.src){const d=L.src.data;if(typeof d==='string'&&/^data:image\//.test(d)){if(ASSETS){try{L.src=await storeImage(await(await fetch(d)).blob(),L.name||'Bild','upload')}catch{}}}else if(!(L.src.asset&&/^[0-9a-f]{32}$/.test(L.src.asset)))L.src=null}
-      if(L.type==='asset'&&!LIBK[L.key])L.hidden=true}
-    const fmtKey=Object.keys(FORMATS).find(k=>FORMATS[k].w===p.w&&FORMATS[k].h===p.h)||'yt';
-    createAndOpen(fmtKey,{name:String(p.name||'Importiertes Design').slice(0,80),w:Math.min(4096,p.w|0),h:Math.min(4096,p.h|0),layers:layers.filter(L=>L.type!=='image'||L.src)});toast('Projekt geöffnet.')}
+    const o={name:String(p.name||'Importiertes Design').slice(0,80),w:Math.min(4096,p.w|0),h:Math.min(4096,p.h|0)};
+    if(Array.isArray(p.slides)&&p.slides.length){const slides=[];for(const sl of p.slides.slice(0,200))slides.push({id:'s'+uid(),layers:await cleanImportLayers(sl&&sl.layers)});
+      createAndOpen('slides',{...o,slides});if(typeof deckShow==='function'&&isDeck())deckShow(clamp(p.cur|0,0,slides.length-1));toast(`Präsentation mit ${slides.length} Folien geöffnet.`);return}
+    const fmtKey=Object.keys(FORMATS).find(k=>k!=='slides'&&FORMATS[k].w===p.w&&FORMATS[k].h===p.h)||'yt';
+    createAndOpen(fmtKey,{...o,layers:await cleanImportLayers(p.layers)});toast('Projekt geöffnet.')}
   catch{toast('Diese Datei ist keine Rendernail-Projektdatei.')}}
 $('#f-project').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importProjectFile(f)});
 
