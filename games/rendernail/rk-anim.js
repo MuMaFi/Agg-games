@@ -546,17 +546,22 @@ function anTimeline(){const box=$('#an-tracks');if(!box||!AN.data)return;const D
   for(const a of D.actors)row(a.name,a.keys,a.id,a.id===AN.sel,k=>anWalks(a,k));
   for(const o of D.props)row(o.name,o.keys,o.id,o.id===AN.sel);
   if(!D.actors.length&&!(AN.step>=2))box.append(Object.assign(el('div','an-row an-empty'),{textContent:''}));
-  const ph=el('div','an-phl');ph.innerHTML='<div class="an-ph" id="an-ph"></div>';box.append(ph);
+  const ph=el('div','an-phl');ph.innerHTML='<div class="an-ph" id="an-ph"></div>';box.append(ph);ph.style.height=box.scrollHeight+'px';
   const ds=$('#an-dur');if(![...ds.options].some(o=>+o.value===D.dur))ds.append(new Option(String(D.dur).replace('.',',')+' s',String(D.dur)));ds.value=String(D.dur);anPH()}
 function anPH(){const p=$('#an-ph');if(p)p.style.left=(AN.t/AN.data.dur*100)+'%';const l=$('#an-tlabel');if(l)l.textContent=anFmtT(AN.t)+' / '+anFmtT(AN.data.dur);
   document.querySelectorAll('#an-tracks .an-key').forEach(b=>b.classList.toggle('on',Math.abs(b._k.t-AN.t)<.02))}
 (function(){const box=$('#an-tracks');if(!box)return;let D=null;
   const tAt=e=>{const inn=box.querySelector('.an-in');if(!inn)return 0;const r=inn.getBoundingClientRect();return clamp((e.clientX-r.left)/r.width,0,1)*AN.data.dur};
-  box.addEventListener('pointerdown',e=>{if(!AN.data||AN.rec)return;const k=e.target.closest('.an-key');try{box.setPointerCapture(e.pointerId)}catch{}
-    if(AN.playing)anStop();if(k){D={k,x:e.clientX,moved:false}}else{D={seek:true};anSeek(tAt(e))}});
-  box.addEventListener('pointermove',e=>{if(!D)return;if(D.seek){anSeek(tAt(e));return}if(Math.abs(e.clientX-D.x)>4)D.moved=true;if(!D.moved)return;
+  /* Maus: sofort spulen/ziehen. Finger: senkrecht wischen scrollt die Zeilen, waagerecht spult, Tippen springt. */
+  box.addEventListener('pointerdown',e=>{if(!AN.data||AN.rec)return;const k=e.target.closest('.an-key'),touch=e.pointerType==='touch';
+    if(AN.playing)anStop();D=k?{k,x:e.clientX,y:e.clientY,moved:false}:{seek:true,x:e.clientX,y:e.clientY};D.id=e.pointerId;
+    if(touch){D.pending=true;return}try{box.setPointerCapture(e.pointerId)}catch{}if(D.seek)anSeek(tAt(e))});
+  box.addEventListener('pointermove',e=>{if(!D||e.pointerId!==D.id)return;
+    if(D.pending){const dx=Math.abs(e.clientX-D.x),dy=Math.abs(e.clientY-D.y);if(dy>8&&dy>dx){D=null;return}if(dx<=6)return;D.pending=false;try{box.setPointerCapture(e.pointerId)}catch{}}
+    if(D.seek){anSeek(tAt(e));return}if(Math.abs(e.clientX-D.x)>4)D.moved=true;if(!D.moved)return;
     const b=D.k,ks=b._keys,i=ks.indexOf(b._k),lo=i>0?ks[i-1].t+.05:0,hi=i<ks.length-1?ks[i+1].t-.05:AN.data.dur;b._k.t=clamp(Math.round(tAt(e)*20)/20,lo,hi);b.style.left=(b._k.t/AN.data.dur*100)+'%';AN.t=b._k.t;AN.pathDirty=true;anPH()});
-  const up=()=>{if(!D)return;const d=D;D=null;if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{anSeek(b._k.t);if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else anPaneSoft()};
+  const up=e=>{if(!D||e.pointerId!==D.id)return;const d=D;D=null;if(e.type==='pointercancel'&&d.pending)return;
+    if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{anSeek(b._k.t);if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else{if(d.pending)anSeek(tAt(e));anPaneSoft()}};
   box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up)})();
 
 /* ---------- Video und Standbild ---------- */
