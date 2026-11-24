@@ -10,7 +10,8 @@ let PROJECTS=new Map(),projNote='';const homeWatchers=[];
 const setSave=t=>{$('#savestate').textContent=t};
 function localProj(){return store.get('rk-projects',{})}
 for(const[id,p]of Object.entries(localProj()))PROJECTS.set(id,p);
-function projDoc(p){return{id:p.id,name:p.name,format:p.format,w:p.w,h:p.h,layers:p.layers,created:p.created,updated:p.updated,preview:p.preview||''}}
+function projDoc(p){if(Array.isArray(p.slides)&&p.slides[p.cur|0])p.slides[p.cur|0].layers=p.layers;
+  return{id:p.id,name:p.name,format:p.format,w:p.w,h:p.h,layers:p.layers,created:p.created,updated:p.updated,preview:p.preview||'',...(Array.isArray(p.slides)?{slides:p.slides,cur:p.cur|0}:{})}}
 let saveQ=Promise.resolve();
 function persistProject(p){
   const doc=projDoc(p);PROJECTS.set(p.id,doc);homeWatchers.forEach(f=>f());
@@ -38,12 +39,14 @@ const ED={rot3d:false,ghost:null,multi:false,snap:true,marquee:null,snapT:null,s
 const TYPE_LABEL={asset:'Element',text:'Text',image:'Bild',backdrop:'Hintergrund',figure:'Minecraft-Figur'};
 const CAT_LABEL_A=Object.fromEntries(CATS_A);
 function newProject(format,o={}){const f=FORMATS[format]||FORMATS.yt;const n=[...PROJECTS.values()].length+1;
-  return{id:'p'+uid(),name:o.name||`Design ${n}`,format,w:o.w||f.w,h:o.h||f.h,layers:o.layers||[],created:new Date().toISOString(),updated:new Date().toISOString(),preview:''}}
+  const p={id:'p'+uid(),name:o.name||(o.slides?`Präsentation ${n}`:`Design ${n}`),format,w:o.w||f.w,h:o.h||f.h,layers:o.layers||[],created:new Date().toISOString(),updated:new Date().toISOString(),preview:''};
+  if(Array.isArray(o.slides)&&o.slides.length){p.slides=o.slides;p.cur=0;p.layers=o.slides[0].layers}return p}
 function openProject(doc){
-  ED.p=JSON.parse(JSON.stringify(doc));ED.sel=[];ED.hist=[snap()];ED.fut=[];ED.fit=true;ED.panX=ED.panY=0;
+  ED.p=JSON.parse(JSON.stringify(doc));if(Array.isArray(ED.p.slides)&&ED.p.slides.length){ED.p.cur=clamp(ED.p.cur|0,0,ED.p.slides.length-1);ED.p.layers=ED.p.slides[ED.p.cur].layers}else delete ED.p.slides;ED.sel=[];ED.hist=[snap()];ED.fut=[];ED.fit=true;ED.panX=ED.panY=0;
   store.set('rk-current',ED.p.id);$('#ed-name').value=ED.p.name;
   const f=FORMATS[ED.p.format];$('#ed-fmt').textContent=`${f?f.d:'Design'} · ${ED.p.w}×${ED.p.h}`;
   updUndo();buildSide();renderLayers();buildSelbar();buildProps();requestRender();
+  if(typeof deckBar==='function')deckBar();
   if(typeof refreshFigureSkins==='function')setTimeout(refreshFigureSkins,60)}
 function createAndOpen(format,o){const p=newProject(format,o);PROJECTS.set(p.id,projDoc(p));openProject(p);persistProject(ED.p);location.hash='editor'}
 function selLayers(){if(!ED.p)return[];const s=new Set(ED.sel);return ED.p.layers.filter(l=>s.has(l.id))}
@@ -313,7 +316,7 @@ $('#z-fit').addEventListener('click',()=>{ED.fit=true;ED.panX=ED.panY=0;requestR
 function snap(){return JSON.stringify(ED.p.layers)}
 function commit(){const s=snap();if(ED.hist[ED.hist.length-1]===s)return;ED.hist.push(s);if(ED.hist.length>80)ED.hist.shift();ED.fut=[];afterChange()}
 let softT=0;const softCommit=()=>{clearTimeout(softT);softT=setTimeout(commit,350)};
-function afterChange(){updUndo();renderLayers();scheduleSave()}
+function afterChange(){updUndo();renderLayers();scheduleSave();if(typeof deckChanged==='function')deckChanged()}
 function updUndo(){$('#ed-undo').disabled=ED.hist.length<2;$('#ed-redo').disabled=!ED.fut.length}
 function undo(){if(ED.hist.length<2)return;ED.fut.push(ED.hist.pop());restoreSnap(ED.hist[ED.hist.length-1])}
 function redo(){if(!ED.fut.length)return;const s=ED.fut.pop();ED.hist.push(s);restoreSnap(s)}
@@ -641,7 +644,8 @@ function panelTemplates(s){const l=document.createElement('p');l.className='lbl'
   const n=document.createElement('p');n.className='sub';n.style.marginBottom='10px';n.textContent='Ersetzt alle Ebenen. Mit ↶ kommst du zurück.';s.append(n);
   const g=document.createElement('div');g.className='agrid two';s.append(g);
   const W=ED.p.w,H=ED.p.h;
-  for(const t of TEMPLATES){const ls=tplLayers(t,W,H),sc=Math.min(320/W,320/H),c=mk(W*sc,H*sc),x=c.getContext('2d');x.scale(sc,sc);for(const L of ls)drawLayer(x,L,sc,W,H);
+  const deck=typeof isDeck==='function'&&isDeck();if(deck)n.textContent='Ersetzt die aktuelle Folie. Neue Folien fügst du unten mit „+ Folie“ hinzu.';
+  for(const t of(deck?SLIDE_TPL:TEMPLATES)){const ls=tplLayers(t,W,H),sc=Math.min(320/W,320/H),c=mk(W*sc,H*sc),x=c.getContext('2d');x.scale(sc,sc);for(const L of ls)drawLayer(x,L,sc,W,H);
     g.append(tileFrom(c,t.name,false,()=>{ED.p.layers=tplLayers(t,W,H);select(null);commit();requestRender();toast(`Vorlage „${t.name}“ eingefügt.`);closeSideNarrow()},true))}}
 
 /* ---------- Uploads ---------- */
@@ -676,6 +680,7 @@ $('#ed-export').addEventListener('click',e=>{e.stopPropagation();expMenu.hidden=
 document.addEventListener('click',e=>{if(!expMenu.hidden&&!e.target.closest('#exportmenu,#ed-export'))closeExport()});
 expMenu.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>exportDesign(b.dataset.exp)));
 async function exportDesign(kind){closeExport();if(!ED.p)return;saveNow();
+  if(kind==='pptx'){await exportPptx();return}
   if(kind==='json'){toast('Projektdatei wird erstellt…');const data=await projectFile();await saveFile(slug(ED.p.name)+'.json',JSON.stringify(data));return}
   await Promise.all(ED.p.layers.map(L=>{const u=L.type==='image'||L.mode==='image'?srcUrl(L.src):'';const e=u?getImg(u):null;return e?e.p:null}));
   const W=ED.p.w,H=ED.p.h,c=mk(W,H),x=c.getContext('2d');if(kind==='jpg'){x.fillStyle='#000';x.fillRect(0,0,W,H)}
@@ -739,7 +744,7 @@ function showMenu(btn,items){closeMenu();const el=document.createElement('div');
   for(const it of items){if(!it){el.append(document.createElement('hr'));continue}const[label,fn,kbd,en,chk]=it;const b=document.createElement('button');b.type='button';b.setAttribute('role',chk?'menuitemcheckbox':'menuitem');
     b.innerHTML='<span></span><kbd></kbd>';b.firstChild.textContent=label;b.lastChild.textContent=kbd||'';if(en&&!en())b.disabled=true;if(chk)b.setAttribute('aria-checked',!!chk());
     b.addEventListener('click',()=>{closeMenu();fn()});el.append(b)}
-  document.body.append(el);const r=btn.getBoundingClientRect();el.style.left=Math.min(r.left,innerWidth-el.offsetWidth-6)+'px';el.style.top=r.bottom+2+'px';
+  document.body.append(el);const r=btn.getBoundingClientRect();el.style.left=Math.min(r.left,innerWidth-el.offsetWidth-6)+'px';el.style.top=r.bottom+2+'px';if(r.bottom+2+el.offsetHeight>innerHeight-6)el.style.top=Math.max(6,r.top-el.offsetHeight-4)+'px';
   btn.setAttribute('aria-expanded','true');openMenu={el,btn};const f=el.querySelector('button:not(:disabled)');if(f)f.focus({preventScroll:true})}
 (function(){const box=$('#menus');for(const[name,items]of MENUS){const b=document.createElement('button');b.type='button';b.className='menu-btn';b.textContent=name;b.setAttribute('aria-haspopup','menu');b.setAttribute('aria-expanded','false');
     b.addEventListener('click',e=>{e.stopPropagation();if(openMenu&&openMenu.btn===b)closeMenu();else showMenu(b,items)});

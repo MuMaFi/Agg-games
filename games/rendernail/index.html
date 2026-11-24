@@ -543,6 +543,15 @@ body.simple .an-steps{height:56px}
 body.simple .an-step .no{width:26px;height:26px;font-size:12.5px}
 
 /* ---------- iPad & Desktop ---------- */
+.slidebar{flex:none;display:flex;align-items:center;gap:10px;padding:8px 10px;background:#232323;border-top:1px solid var(--line);min-width:0}
+.slidebar[hidden]{display:none}
+.sl-list{flex:1;display:flex;gap:8px;overflow-x:auto;min-width:0;padding:3px;scrollbar-width:thin}
+.sl-item{flex:none;position:relative;padding:0;border:2px solid transparent;border-radius:5px;background:#1b1b1b;cursor:pointer;line-height:0}
+.sl-item canvas{display:block;width:124px;height:auto;border-radius:3px}
+.sl-item span{position:absolute;left:4px;top:4px;line-height:1;font-size:10.5px;font-weight:700;background:rgba(0,0,0,.65);color:#fff;border-radius:3px;padding:2px 5px}
+.sl-item[aria-selected="true"]{border-color:#e6e6e6}
+.sl-tools{flex:none;display:flex;flex-wrap:wrap;gap:4px;max-width:250px;justify-content:flex-end}
+@media (max-width:760px){.sl-item canvas{width:96px}.sl-tools{max-width:150px}}
 .an-savest{font-size:11.5px;color:var(--dim);margin-right:6px;white-space:nowrap}
 .an-projbtn span{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.an-projbtn .car{width:12px!important;height:12px!important;margin-left:-2px}
 @media (max-width:900px){.an-savest{display:none}.an-projbtn span{max-width:110px}}
@@ -737,6 +746,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
         <div class="exportmenu" id="exportmenu" hidden>
           <button type="button" data-exp="png"><b>PNG</b><small>Beste Qualität, Transparenz bleibt</small></button>
           <button type="button" data-exp="jpg"><b>JPG</b><small>Kleinere Datei für YouTube</small></button>
+          <button type="button" data-exp="pptx"><b>PowerPoint (.pptx)</b><small>Alle Folien, Texte in PowerPoint bearbeitbar</small></button>
           <button type="button" data-exp="json"><b>Projektdatei (.json)</b><small>Später wieder öffnen oder weitergeben</small></button>
         </div>
         <div class="ed-body">
@@ -758,6 +768,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
               <span class="sep"></span><span class="ed-fmt" id="ed-fmt"></span>
             </div>
           </div>
+          <div class="slidebar" id="slidebar" hidden></div>
           </div>
           <aside class="dock" id="dock">
             <div class="dock-props"><div class="panel-head">Eigenschaften</div><div class="props" id="props"></div></div>
@@ -882,6 +893,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <script src="lib/OrbitControls.js"></script>
 <script src="lib/TransformControls.js"></script>
 <script src="lib/mp4-muxer.js"></script>
+<script src="lib/pptxgen.bundle.js"></script>
 <script src="rk-core.js"></script>
 <script src="rk-local.js"></script>
 <script src="rk-assets.js"></script>
@@ -889,6 +901,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <script src="rk-editor.js"></script>
 <script src="rk-studio.js"></script>
 <script src="rk-figure.js"></script>
+<script src="rk-slides.js"></script>
 <script src="rk-anim.js"></script>
 <script src="rk-app.js"></script>
 <script src="rk-shell.js"></script>
