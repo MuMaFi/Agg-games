@@ -114,7 +114,7 @@ const ownTex=new Map(),blockTexCache=new Map();let packTick=0;
 function ownBlockTex(k){let t=ownTex.get(k);if(!t){const d=BLOCK_DEFS.find(b=>b[0]===k);t=d?d[2]():{};if(k==='grass')t.bottom=ownBlockTex('dirt').top;ownTex.set(k,t)}return t}
 function blockTex(k){let t=blockTexCache.get(k);if(!t){t=k.startsWith('pk:')?((typeof packDynTex==='function'&&packDynTex(k.slice(3)))||{}):((typeof packBlockTex==='function'&&packBlockTex(k))||ownBlockTex(k));blockTexCache.set(k,t)}return t}
 const cubeCache=new Map();
-function blockCanvas(k,yaw=-45,pitch=30,roll=0){const key=[k,Math.round(yaw*2),Math.round(pitch*2),Math.round(roll*2),packTick].join('|');let c=cubeCache.get(key);if(!c){if(cubeCache.size>160)cubeCache.clear();c=cubeCanvas(blockTex(k),yaw,pitch,roll);cubeCache.set(key,c)}return c}
+function blockCanvas(k,yaw=-45,pitch=30,roll=0){const key=[k,Math.round(yaw*2),Math.round(pitch*2),Math.round(roll*2),packTick].join('|');let c=cubeCache.get(key);if(!c){if(cubeCache.size>160)cubeCache.clear();c=k.startsWith('bed:')&&typeof bedCanvas==='function'?bedCanvas(k.slice(4),yaw,pitch,roll):cubeCanvas(blockTex(k),yaw,pitch,roll);cubeCache.set(key,c)}return c}
 
 /* ================= Mobs & Figuren ================= */
 const C=(c,j=.06)=>({c,j});
