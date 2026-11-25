@@ -251,20 +251,32 @@ function anSyncActors(){if(!AR)return;const ids=new Set(AN.data.actors.map(a=>a.
   if(AN.sel&&!AN.bone&&AR.tcm.object){const rt=AN.rts.get(AN.sel);if(rt&&AR.tcm.object!==rt.m.group)AR.tcm.attach(rt.m.group)}}
 /* Läuft die Figur auf der Strecke bis zu diesem Schlüsselbild? Eigene Einstellung am Schlüsselbild, sonst die der Figur */
 const anWalks=(a,k)=>typeof k.walk==='boolean'?k.walk:a.walk!==false;
-/* Gesichter: Ausdrücke als 8×8-Pixel über der unteren Gesichtshälfte (s Haut, w weiß, e Auge, m Mund, r Zunge) */
-const AN_EXPR={normal:['Normal',null],blink:['Augen zu',['','','','','ssssssss','seesseee','','']],happy:['Fröhlich',['','','','','seessees','esseesse','smssssms','ssmmmmss']],
-  laugh:['Lachen',['','','','','seessees','esseesse','smmmmmms','ssmrrmss']],talk:['Sprechen',['','','','','swessews','ssssssss','sssmmsss','sssmmsss']],
-  wow:['Staunen',['','','','ssssssss','swessews','swessews','sssmmsss','sssmmsss']],angry:['Wütend',['','','','eessssee','sweSSews'.replace(/S/g,'s'),'ssssssss','ssmmmmss','smssssms']],
-  sad:['Traurig',['','','','seessees','swessews','ssssssss','ssmmmmss','smssssms']],wink:['Zwinkern',['','','','','swessess','sssssees','smssssms','ssmmmmss']],
-  sleep:['Schlafen',['','','','','ssssssss','seesseee','ssssssss','sssmssss']]};
+/* Gesichter: Rendernail sucht die Augenzeile im Skin, ersetzt dort die Augen und malt Ausdruck, Brauen und Mund
+   relativ dazu (Zeilen-Versatz → 8 Zeichen: . lassen, s Haut, w weiß, e dunkel, m Mund, r Zunge). Der Rest des Gesichts bleibt. */
+const AN_EXPR={normal:['Normal',null],
+  blink:['Augen zu',{0:'.ee..ee.'}],
+  happy:['Fröhlich',{0:'.ee..ee.',1:'e..ee..e',2:'.m....m.',3:'..mmmm..'}],
+  laugh:['Lachen',{0:'.ee..ee.',1:'e..ee..e',2:'.mmmmmm.',3:'..mrrm..'}],
+  talk:['Sprechen',{keep:1,2:'...mm...',3:'...mm...'}],
+  wow:['Staunen',{0:'.we..ew.',1:'.we..ew.',2:'...mm...',3:'...mm...'}],
+  angry:['Wütend',{'-2':'.e....e.','-1':'..e..e..',0:'.we..ew.',2:'..mmmm..',3:'.m....m.'}],
+  sad:['Traurig',{'-2':'..e..e..','-1':'.e....e.',0:'.we..ew.',2:'..mmmm..',3:'.m....m.'}],
+  wink:['Zwinkern',{0:'.we..ee.',2:'.m....m.',3:'..mmmm..'}],
+  sleep:['Schlafen',{0:'.ee..ee.',3:'...m....'}]};
 function evalFace(a,t){let f='normal';for(const k of a.faces||[])if(k.t<=t+1e-6)f=k.f;else break;return f}
-function anFaceCanvas(sk,f){const d=AN_EXPR[f]&&AN_EXPR[f][1];if(!d)return null;const c=mk(8,8),x=c.getContext('2d');
-  const px=sk.getContext('2d').getImageData(8,8,8,8).data,cnt={};let best='#c69c7d',bn=0;for(let i=0;i<64;i++){if(px[i*4+3]<200)continue;const k=(px[i*4]>>3)+','+(px[i*4+1]>>3)+','+(px[i*4+2]>>3);cnt[k]=(cnt[k]||0)+1;if(cnt[k]>bn){bn=cnt[k];best=`rgb(${px[i*4]},${px[i*4+1]},${px[i*4+2]})`}}
-  const col={s:best,w:'#ffffff',e:'#231a16',m:'#4a2420',r:'#c4505b'};d.forEach((row,y)=>{[...row].forEach((ch,xx)=>{if(col[ch]){x.fillStyle=col[ch];x.fillRect(xx,y,1,1)}})});return c}
+function anFaceCanvas(sk,f){const d=AN_EXPR[f]&&AN_EXPR[f][1];if(!d)return null;const c=mk(8,8),x=c.getContext('2d');x.drawImage(sk,8,8,8,8,0,0,8,8);
+  const im=x.getImageData(0,0,8,8),px=im.data,at=(cx,cy)=>(cy*8+cx)*4,cnt={};let base=[198,156,125],bn=0;
+  for(let i=0;i<64;i++){if(px[i*4+3]<200)continue;const k=(px[i*4]>>3)+','+(px[i*4+1]>>3)+','+(px[i*4+2]>>3);cnt[k]=(cnt[k]||0)+1;if(cnt[k]>bn){bn=cnt[k];base=[px[i*4],px[i*4+1],px[i*4+2]]}}
+  const far=(cx,cy)=>{const i=at(cx,cy);return Math.abs(px[i]-base[0])+Math.abs(px[i+1]-base[1])+Math.abs(px[i+2]-base[2])>70};
+  let eye=4,best=-1;for(let r=1;r<=5;r++){const L=far(1,r)||far(2,r),R=far(5,r)||far(6,r),mid=far(3,r)||far(4,r);const sc=(L&&R&&!mid?20:0)+[1,2,5,6].filter(cx=>far(cx,r)).length-(mid?6:0)-r*.1;if(sc>best){best=sc;eye=r}}
+  if(best<20)eye=4;const tall=[1,2,5,6].filter(cx=>eye<7&&far(cx,eye+1)).length>=3;
+  if(!d.keep)for(const r of tall?[eye,eye+1]:[eye])for(const cx of[1,2,5,6]){const i=at(cx,r);px[i]=base[0];px[i+1]=base[1];px[i+2]=base[2];px[i+3]=255}
+  x.putImageData(im,0,0);const col={s:`rgb(${base})`,w:'#ffffff',e:'#231a16',m:'#4a2420',r:'#c4505b'};
+  for(const[o,row]of Object.entries(d)){if(o==='keep')continue;const y=eye+(+o);if(y<0||y>7)continue;[...row].forEach((ch,cx)=>{if(col[ch]){x.fillStyle=col[ch];x.fillRect(cx,y,1,1)}})}return c}
 function anApplyFace(a,rt){const f=evalFace(a,AN.t);if(rt.face===f)return;rt.face=f;const m=rt.m,head=m.bones&&m.bones.head;if(!head)return;
   if(rt.fmesh){head.remove(rt.fmesh);rt.fmesh.geometry.dispose();if(rt.fmesh.material.map)rt.fmesh.material.map.dispose();rt.fmesh.material.dispose();rt.fmesh=null}
   const c=anFaceCanvas(anSkin(a)||GRAY_SKIN,f);if(!c)return;const T=THREE,k=((a.size||{}).head||100)/100,tex=new T.CanvasTexture(c);tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.generateMipmaps=false;tex.encoding=T.sRGBEncoding;
-  const me=new T.Mesh(new T.PlaneGeometry(8*k,8*k),new T.MeshLambertMaterial({map:tex,transparent:true,alphaTest:.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));me.position.set(0,4*k,4*k+.02);head.add(me);rt.fmesh=me}
+  const me=new T.Mesh(new T.PlaneGeometry(8*k,8*k),new T.MeshLambertMaterial({map:tex,alphaTest:.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));me.position.set(0,4*k,4*k+.02);head.add(me);rt.fmesh=me}
 const lerp=(a,b,u)=>a+(b-a)*u,lerpAng=(a,b,u)=>a+((((b-a)%360)+540)%360-180)*u;
 function evalActor(a,t,noWalk){const K=a.keys;if(!K.length)return{pose:{},x:0,z:0,ry:0,y:0};
   const fix=k=>({pose:anClone(k.pose||{}),x:k.x,z:k.z,ry:k.ry,rx:k.rx||0,rz:k.rz||0,y:k.y});
@@ -645,12 +657,20 @@ function anPostFx(x,W,H,kind){if(!kind||kind==='none')return;
     for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){const i=(y*w+xx)*4,t=B[(y&3)*4+(xx&3)]/16-.5;
       const q=(v,bits)=>{const n=(1<<bits)-1,s=255/n;return clamp(Math.round((v+t*s)/s),0,n)*s};d[i]=q(d[i],5);d[i+1]=q(d[i+1],6);d[i+2]=q(d[i+2],5)}
     cx.putImageData(im,0,0);x.save();x.imageSmoothingEnabled=false;x.drawImage(c,0,0,W,H);x.restore();return}
-  if(kind==='comic'){const w=Math.ceil(W/2),h=Math.ceil(H/2),c=anTmp.a&&anTmp.a.width===w&&anTmp.a.height===h?anTmp.a:(anTmp.a=mk(w,h)),cx=c.getContext('2d');cx.drawImage(x.canvas,0,0,w,h);
-    const im=cx.getImageData(0,0,w,h),d=im.data,q=v=>Math.round(v/255*4)/4*255;for(let i=0;i<d.length;i+=4){const l=(d[i]+d[i+1]+d[i+2])/3;for(let k=0;k<3;k++)d[i+k]=clamp(q(l+(d[i+k]-l)*1.35),0,255)}cx.putImageData(im,0,0);
-    x.save();x.drawImage(c,0,0,W,H);const cell=Math.max(5,Math.round(W/160)),gw=Math.ceil(W/cell)+1,gh=Math.ceil(H/cell)+1,g=anTmp.b&&anTmp.b.width===gw&&anTmp.b.height===gh?anTmp.b:(anTmp.b=mk(gw,gh)),gx=g.getContext('2d');
-    gx.drawImage(x.canvas,0,0,gw,gh);const gd=gx.getImageData(0,0,gw,gh).data;x.fillStyle='rgba(18,12,28,.55)';x.beginPath();
-    for(let y=0;y<gh;y++)for(let xx=0;xx<gw;xx++){const i=(y*gw+xx)*4,l=(gd[i]*.3+gd[i+1]*.59+gd[i+2]*.11)/255,r=(1-l)*cell*.62;if(r<.7)continue;const px=xx*cell+(y%2?cell/2:0),py=y*cell;x.moveTo(px+r,py);x.arc(px,py,r,0,6.2832)}x.fill();
-    x.globalCompositeOperation='screen';x.globalAlpha=.18;x.drawImage(x.canvas,Math.max(1,W/400),0,W,H);x.restore()}}
+  if(kind==='comic'){/* Comic-Druck: flache, kräftige Farben, schwarze Umrisse, farbige Rasterpunkte in den Schatten */
+    const w=Math.ceil(W/2),h=Math.ceil(H/2),c=anTmp.a&&anTmp.a.width===w&&anTmp.a.height===h?anTmp.a:(anTmp.a=mk(w,h)),cx=c.getContext('2d');cx.drawImage(x.canvas,0,0,w,h);
+    const im=cx.getImageData(0,0,w,h),d=im.data,n=w*h,Lm=new Float32Array(n);for(let i=0;i<n;i++){const k=i*4;Lm[i]=d[k]*.3+d[k+1]*.59+d[k+2]*.11}
+    const q=v=>Math.round(v/255*4)/4*255,Lb=new Float32Array(n);for(let y=1;y<h-1;y++)for(let xx=1;xx<w-1;xx++){const i=y*w+xx;Lb[i]=(Lm[i]*4+Lm[i-1]+Lm[i+1]+Lm[i-w]+Lm[i+w])/8}
+    for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){const i=y*w+xx,k=i*4,l=Lm[i];
+      const gx=xx>1&&xx<w-2?Lb[i+1]-Lb[i-1]:0,gy=y>1&&y<h-2?Lb[i+w]-Lb[i-w]:0;
+      if(Math.abs(gx)+Math.abs(gy)>64){d[k]=24;d[k+1]=18;d[k+2]=32;continue}
+      for(let c2=0;c2<3;c2++)d[k+c2]=clamp(q(l+(d[k+c2]-l)*1.25+6),0,255)}
+    cx.putImageData(im,0,0);x.save();x.imageSmoothingEnabled=true;x.drawImage(c,0,0,W,H);
+    const cell=Math.max(5,Math.round(W/150)),gw=Math.ceil(W/cell)+1,gh=Math.ceil(H/cell)+1,g=anTmp.b&&anTmp.b.width===gw&&anTmp.b.height===gh?anTmp.b:(anTmp.b=mk(gw,gh)),gx2=g.getContext('2d');
+    gx2.drawImage(x.canvas,0,0,gw,gh);const gd=gx2.getImageData(0,0,gw,gh).data;x.globalCompositeOperation='multiply';
+    for(let y=0;y<gh;y++)for(let xx=0;xx<gw;xx++){const i=(y*gw+xx)*4,l=(gd[i]*.3+gd[i+1]*.59+gd[i+2]*.11)/255,r=(.58-l)/.58*cell*.68;if(r<.8)continue;
+      x.fillStyle=`rgb(${gd[i]*.5|0},${gd[i+1]*.45|0},${gd[i+2]*.6|0})`;x.beginPath();x.arc(xx*cell+(y%2?cell/2:0),y*cell,r,0,6.2832);x.fill()}
+    x.globalCompositeOperation='source-over';x.restore()}}
 function anComposite(x,W,H,t){const D=AN.data,L=D.light;x.drawImage(AR.renderer.domElement,0,0,W,H);anPostFx(x,W,H,D.fx.look);
   if(L.tint){x.save();x.globalCompositeOperation='soft-light';x.globalAlpha=Math.abs(L.tint)*.55;x.fillStyle=L.tint>0?'#ff9a3c':'#4682ff';x.fillRect(0,0,W,H);x.restore()}
   if(L.vig>0){x.save();x.translate(W/2,H/2);x.scale(W/2,H/2);const g=x.createRadialGradient(0,0,0,0,0,1.42);g.addColorStop(.38,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(0,0,0,${L.vig})`);x.fillStyle=g;x.fillRect(-1,-1,2,2);x.restore()}
