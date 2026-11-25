@@ -39,7 +39,8 @@ const ED={rot3d:false,ghost:null,multi:false,snap:true,marquee:null,snapT:null,s
 const TYPE_LABEL={asset:'Element',text:'Text',image:'Bild',backdrop:'Hintergrund',figure:'Minecraft-Figur'};
 const CAT_LABEL_A=Object.fromEntries(CATS_A);
 function newProject(format,o={}){const f=FORMATS[format]||FORMATS.yt;const n=[...PROJECTS.values()].length+1;
-  const p={id:'p'+uid(),name:o.name||(o.slides?`Präsentation ${n}`:`Design ${n}`),format,w:o.w||f.w,h:o.h||f.h,layers:o.layers||[],created:new Date().toISOString(),updated:new Date().toISOString(),preview:''};
+  const w0=o.w||f.w,h0=o.h||f.h,sky=!o.layers&&!o.slides&&typeof isSimple==='function'&&isSimple()?[{id:'l'+uid(),type:'backdrop',name:'Hintergrund',x:w0/2,y:h0/2,w:w0,h:h0,rot:0,opacity:1,flip:false,hidden:false,locked:true,shade:0,ol:0,olc:'#ffffff',shadow:0,glow:0,glc:'#ffd36b',free:false,mode:'mcsky',scene:'island',time:'day',seed:Math.floor(Math.random()*1e6),zoom:1.25,grad:'sunset',color:'#1b2433',blur:0,dim:0,vig:0}]:null;
+  const p={id:'p'+uid(),name:o.name||(o.slides?`Präsentation ${n}`:`Design ${n}`),format,w:w0,h:h0,layers:o.layers||sky||[],created:new Date().toISOString(),updated:new Date().toISOString(),preview:''};
   if(Array.isArray(o.slides)&&o.slides.length){p.slides=o.slides;p.cur=0;p.layers=o.slides[0].layers}return p}
 function openProject(doc){
   ED.p=JSON.parse(JSON.stringify(doc));if(Array.isArray(ED.p.slides)&&ED.p.slides.length){ED.p.cur=clamp(ED.p.cur|0,0,ED.p.slides.length-1);ED.p.layers=ED.p.slides[ED.p.cur].layers}else delete ED.p.slides;ED.sel=[];ED.hist=[snap()];ED.fut=[];ED.fit=true;ED.panX=ED.panY=0;
@@ -140,7 +141,8 @@ function drawLayer(x,L,k,W,H){
 /* ================= Bühne ================= */
 const cv=$('#ed-canvas'),cx=cv.getContext('2d');let rq=0,checkerPat=null;
 function requestRender(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;renderStage()})}
-function metrics(){const cw=cv.clientWidth,ch=cv.clientHeight,W=ED.p.w,H=ED.p.h;const fitZ=Math.max(.04,Math.min((cw-48)/W,(ch-130)/H));const z=ED.fit?fitZ:ED.z;return{cw,ch,z,ox:(cw-W*z)/2+ED.panX,oy:(ch-H*z)/2+ED.panY+4}}
+function metrics(){const cw=cv.clientWidth,ch=cv.clientHeight,W=ED.p.w,H=ED.p.h,dk=$('#dock'),rs=isSimple()&&dk&&!dk.classList.contains('noselect')&&!dk.classList.contains('closed')&&innerWidth>760?Math.min(cw*.45,dk.offsetWidth+20):0;
+  const fitZ=Math.max(.04,Math.min((cw-rs-48)/W,(ch-130)/H));const z=ED.fit?fitZ:ED.z;return{cw,ch,z,ox:(cw-rs-W*z)/2+ED.panX,oy:(ch-H*z)/2+ED.panY+4}}
 const toScreen=(p,m)=>[m.ox+p[0]*m.z,m.oy+p[1]*m.z];
 const toDesign=(px,py,m)=>[(px-m.ox)/m.z,(py-m.oy)/m.z];
 const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -152,7 +154,7 @@ function drawHandles(pts,tm,rh){cx.strokeStyle='#f0f0f0';cx.lineWidth=1.5;cx.beg
 function selBox(ls){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,n=0;for(const l of ls){if(l.type==='backdrop')continue;n++;for(const[x,y]of corners(l)){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}}return n?{x0,y0,x1,y1}:null}
 const bbCorners=b=>[[b.x0,b.y0],[b.x1,b.y0],[b.x1,b.y1],[b.x0,b.y1]];
 function renderStage(){
-  if(view!=='editor'||!ED.p)return;
+  if(view!=='editor'||!ED.p)return;edStartCard();
   const dpr=Math.min(2,window.devicePixelRatio||1),cw=cv.clientWidth,ch=cv.clientHeight;if(!cw||!ch)return;
   if(cv.width!==Math.round(cw*dpr)||cv.height!==Math.round(ch*dpr)){cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr)}
   const m=metrics(),W=ED.p.w,H=ED.p.h;
@@ -409,7 +411,8 @@ function renderLayers(){
     for(const m of mem)box.append(layerRow(m,true))}}
 
 /* ================= Auswahl-Leiste & Eigenschaften ================= */
-function buildSelbar(){const bar=$('#selbar'),SL=selLayers(),L=SL.length===1?SL[0]:null;bar.innerHTML='';if(!SL.length){const h=document.createElement('span');h.className='sub';h.style.padding='0 6px';h.textContent=ED.multi?'Mehrfach-Auswahl: Ebenen antippen oder einen Rahmen ziehen.':'Ebene antippen, um sie zu bearbeiten. Elemente fügst du links hinzu.';bar.append(h);return}
+function buildSelbar(){buildSelbar0();simplify($('#selbar'),{btns:new Set(['Sperren','Entsperren'])})}
+function buildSelbar0(){const bar=$('#selbar'),SL=selLayers(),L=SL.length===1?SL[0]:null;bar.innerHTML='';if(!SL.length){const h=document.createElement('span');h.className='sub';h.style.padding='0 6px';h.textContent=ED.multi?'Mehrfach-Auswahl: Ebenen antippen oder einen Rahmen ziehen.':'Ebene antippen, um sie zu bearbeiten. Elemente fügst du links hinzu.';bar.append(h);return}
   const b=(label,icon,fn,o={})=>{const x=document.createElement('button');x.type='button';x.className='btn ghost'+(o.cls?' '+o.cls:'');x.innerHTML=(icon||'')+'<span></span>';x.querySelector('span').textContent=label;x.title=label;x.setAttribute('aria-label',label);x.addEventListener('click',fn);if(o.ic)x.classList.add('ic');if(o.pressed!=null){x.classList.add('tool');x.setAttribute('aria-pressed',o.pressed)}bar.append(x);return x};
   const sep=()=>{const s=document.createElement('span');s.className='sep';bar.append(s)};
   if(SL.length>1){const sp=document.createElement('span');sp.className='sub';sp.style.padding='0 8px';sp.textContent=SL.length+' ausgewählt';bar.append(sp);
@@ -453,7 +456,9 @@ function buildPropsMulti(P,SL){
   fRange(e,'Kontur',()=>SL[0].ol||0,v=>all('ol',v),0,40,1,v=>v+' px');fColor(e,'Konturfarbe',()=>SL[0].olc||'#ffffff',v=>all('olc',v));
   fRange(e,'Schatten',()=>SL[0].shadow||0,v=>all('shadow',v),0,80,1,v=>v+' px');
   fRange(e,'Leuchten',()=>SL[0].glow||0,v=>all('glow',v),0,120,1,v=>v+' px');fColor(e,'Leuchtfarbe',()=>SL[0].glc||'#ffd36b',v=>all('glc',v))}
-function buildProps(){
+const ED_SIMPLE={fields:new Set(['Unschärfe','Helligkeit','Abdunkeln','Deckkraft','Farbverlauf','Farbe unten','Ausrichtung','Frei verzerren (ohne Seitenverhältnis)','Pixelig darstellen','Leuchtfarbe','Drehen','Kippen','Rollen']),secs:new Set(['Körperteile: Größe','Transformieren']),head:'.lbl',sec:'.grp',btns:new Set(['Neu würfeln'])};
+function buildProps(){buildProps0();simplify($('#props'),ED_SIMPLE)}
+function buildProps0(){
   const P=$('#props'),SL=selLayers(),L=SL.length===1?SL[0]:null;propSync=[];P.hidden=false;P.innerHTML='';$('#dock').classList.toggle('noselect',!SL.length);
   if(!SL.length){const n=document.createElement('p');n.className='none';n.textContent=ED.p?`${(FORMATS[ED.p.format]||{n:'Design'}).n} · ${ED.p.w} × ${ED.p.h} px. Wähle eine Ebene aus, um sie hier zu bearbeiten.`:'';P.append(n);return}
   if(!L){buildPropsMulti(P,SL);return}
@@ -748,8 +753,8 @@ document.addEventListener('keydown',e=>{if(view!=='editor'||!ED.p||dlg.open)retu
   if(mv){const ms=SL.filter(l=>!l.locked&&l.type!=='backdrop');if(ms.length){e.preventDefault();ms.forEach(l=>{l.x+=mv[0];l.y+=mv[1]});requestRender();softCommit()}}});
 /* Werkzeug-Schalter in der Zoom-Leiste */
 (function(){const ot=$('#opt-tools'),dt=$('#dock-toggle'),mkT=(label,title,get,set)=>{const b=document.createElement('button');b.type='button';b.className='btn ghost sm tool';b.textContent=label;b.title=title;b.setAttribute('aria-pressed',get());b.addEventListener('click',()=>{set(!get());b.setAttribute('aria-pressed',get())});return b};
-  ot.insertBefore(mkT('Mehrfach','Mehrere Ebenen antippen oder einen Rahmen ziehen',()=>ED.multi,v=>{ED.multi=v;buildSelbar()}),dt);
-  ot.insertBefore(mkT('Einrasten','Blöcke rasten an anderen Blöcken ein',()=>ED.snap,v=>{ED.snap=v}),dt);
+  const mt=mkT('Mehrfach','Mehrere Ebenen antippen oder einen Rahmen ziehen',()=>ED.multi,v=>{ED.multi=v;buildSelbar()});
+  mt.classList.add('adv');ot.insertBefore(mt,dt);const st2=mkT('Einrasten','Blöcke rasten an anderen Blöcken ein',()=>ED.snap,v=>{ED.snap=v});st2.classList.add('adv');ot.insertBefore(st2,dt);
   const dock=$('#dock');if(matchMedia('(max-width:760px)').matches)dock.classList.add('closed');dt.addEventListener('click',()=>dock.classList.toggle('closed'))})();
 
 /* ================= Menüleiste ================= */
@@ -788,3 +793,19 @@ document.addEventListener('keydown',e=>{if(view!=='editor'||!ED.p||dlg.open)retu
   else if(k==='+'||k==='='){e.preventDefault();zoomBy(1.25)}else if(k==='-'){e.preventDefault();zoomBy(.8)}else if(k===']'){e.preventDefault();moveLayer(1)}else if(k==='['){e.preventDefault();moveLayer(-1)}});
 
 multiTap($('#ed-canvas'),()=>{undo();toast('Rückgängig')},()=>{redo();toast('Wiederholt')});
+
+/* Simpel-Modus: große Start-Knöpfe auf leerer Fläche */
+function edStartCard(){const wrap=$('#stagewrap');if(!wrap)return;let c=$('#ed-start');const show=isSimple()&&ED.p&&!ED.p.slides&&ED.p.layers.every(l=>l.type==='backdrop');
+  if(!show){if(c)c.hidden=true;return}
+  if(!c){c=document.createElement('div');c.id='ed-start';c.className='ed-start';wrap.append(c)}
+  if(!c.hidden&&c.childElementCount)return;c.hidden=false;c.innerHTML='';
+  const h=document.createElement('h3');h.textContent='Was soll ins Thumbnail?';const row=document.createElement('div');row.className='ed-start-row';c.append(h,row);
+  const big=(ic,t,d,fn)=>{const b=document.createElement('button');b.type='button';b.className='ed-big';b.innerHTML='<span class="ic"></span><b></b><small></small>';b.querySelector('.ic').innerHTML=ic;b.querySelector('b').textContent=t;b.querySelector('small').textContent=d;b.addEventListener('click',fn);row.append(b);return b};
+  const fig=document.createElement('form');fig.className='ed-start-fig';fig.hidden=true;
+  fig.innerHTML=window.RK_LOCAL?'<input type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Ingame-Name, z. B. Notch" aria-label="Ingame-Name"><button class="btn primary" type="submit">Hinzufügen</button><button class="btn" type="button" data-file>Skin-Datei (PNG)</button><p class="sub" role="status"></p>':'<button class="btn primary" type="button" data-file>Skin-Datei (PNG) wählen</button><p class="sub" role="status"></p>';
+  const msg=fig.querySelector('p');fig.querySelector('[data-file]').addEventListener('click',()=>$('#f-figskin').click());
+  fig.addEventListener('submit',async e=>{e.preventDefault();const i=fig.querySelector('input'),n=i&&i.value.trim();if(!n)return;msg.textContent='Skin wird geladen …';try{await addFigureByName(n);msg.textContent=''}catch(err){msg.textContent=err.message||'Skin nicht gefunden.'}});
+  big('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="2.5" width="8" height="7" rx="1"/><rect x="7.5" y="10" width="9" height="7"/><path d="M9.5 17v5M14.5 17v5M7.5 10.5 4.5 15M16.5 10.5l3 4.5"/></svg>','Minecraft-Figur','Mit deinem Skin',()=>{fig.hidden=!fig.hidden;const i=fig.querySelector('input');if(i&&!fig.hidden)i.focus()});
+  big('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5h14M12 5v15M9 20h6"/></svg>','Text','Große Überschrift',()=>{addText(TEXT_PRESETS[0])});
+  big('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>','Vorlage','Fertiges Thumbnail anpassen',()=>{ED.tab='templates';$('#side').classList.remove('closed');buildSide()});
+  c.append(fig);const tip=document.createElement('p');tip.className='sub';tip.textContent='Den Himmel änderst du links unter „Hintergrund“.';c.append(tip)}
