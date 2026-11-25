@@ -165,7 +165,7 @@ async function applyPack(data,status=()=>{}){
   Object.assign(ITEM16,ORIG_ITEM16);for(const[k,names]of Object.entries(PACK_ITEMS)){const im=packItemImg(names);if(im)ITEM16[k]=gridFromImage(im)}
   packChanged()}
 let PACK_BUSY=false,PACK_STATUS='';
-function packStatus(t,f){PACK_STATUS=t;const el=document.getElementById('pack-status');if(el)el.textContent=t;const gs=document.getElementById('gate-st');if(gs&&!$('#gate').hidden){gs.textContent=t;const b=$('#gate-bar');b.hidden=false;if(f!=null)b.firstElementChild.style.width=Math.round(f*100)+'%'}}
+function packStatus(t,f){PACK_STATUS=t;const el=document.getElementById('pack-status');if(el){el.textContent=t;const pb=el.closest('.packbox');if(pb)pb.classList.toggle('busy',!!PACK_BUSY)}const gs=document.getElementById('gate-st');if(gs&&!$('#gate').hidden){gs.textContent=t;const b=$('#gate-bar');b.hidden=false;if(f!=null)b.firstElementChild.style.width=Math.round(f*100)+'%'}}
 async function runPackLoad(make){
   if(PACK_BUSY)return;PACK_BUSY=true;packUI();
   let ok=false;

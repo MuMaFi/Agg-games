@@ -5,9 +5,9 @@
     const i=b.querySelector('.ic');if(typeof ic==='string')i.textContent=ic;else{const r=document.createElement('i');r.style.width=ic[0]+'px';r.style.height=ic[1]+'px';i.append(r)}
     b.querySelector('b').textContent=title;b.querySelector('b+span').textContent=sub;b.addEventListener('click',fn);g.append(b)};
   card('main','+','Neues Thumbnail','YouTube · 1280 × 720',()=>createAndOpen('yt'));
-  for(const k of['short','insta','portrait']){const f=FORMATS[k];card('',f.ic,f.n,`${f.d} · ${f.w} × ${f.h}`,()=>createAndOpen(k))}
+  for(const k of['short','insta','portrait']){const f=FORMATS[k];card(k==='short'?'':'adv',f.ic,f.n,`${f.d} · ${f.w} × ${f.h}`,()=>createAndOpen(k))}
   {const f=FORMATS.slides;card('',f.ic,f.n,'Folien · PowerPoint-Export',()=>createAndOpen('slides',{slides:deckNew(f.w,f.h)}))}
-  card('','⇪','Datei öffnen','.json aus Rendernail',()=>$('#f-project').click())})();
+  card('adv','⇪','Datei öffnen','.json aus Rendernail',()=>$('#f-project').click())})();
 function renderHome(){
   const list=[...PROJECTS.values()].filter(p=>p&&Array.isArray(p.layers)).sort((a,b)=>String(b.updated).localeCompare(String(a.updated)));
   $('#pcount').textContent=list.length||'';const g=$('#pgrid');g.innerHTML='';
