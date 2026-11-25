@@ -411,7 +411,7 @@ function renderLayers(){
     for(const m of mem)box.append(layerRow(m,true))}}
 
 /* ================= Auswahl-Leiste & Eigenschaften ================= */
-function buildSelbar(){buildSelbar0();simplify($('#selbar'),{btns:new Set(['Sperren','Entsperren'])})}
+function buildSelbar(){buildSelbar0();{const b=$('#selbar'),o=b&&b.closest('.optbar');if(o)o.classList.toggle('noselb',!selLayers().length)}simplify($('#selbar'),{btns:new Set(['Sperren','Entsperren'])})}
 function buildSelbar0(){const bar=$('#selbar'),SL=selLayers(),L=SL.length===1?SL[0]:null;bar.innerHTML='';if(!SL.length){const h=document.createElement('span');h.className='sub';h.style.padding='0 6px';h.textContent=ED.multi?'Mehrfach-Auswahl: Ebenen antippen oder einen Rahmen ziehen.':'Ebene antippen, um sie zu bearbeiten. Elemente fügst du links hinzu.';bar.append(h);return}
   const b=(label,icon,fn,o={})=>{const x=document.createElement('button');x.type='button';x.className='btn ghost'+(o.cls?' '+o.cls:'');x.innerHTML=(icon||'')+'<span></span>';x.querySelector('span').textContent=label;x.title=label;x.setAttribute('aria-label',label);x.addEventListener('click',fn);if(o.ic)x.classList.add('ic');if(o.pressed!=null){x.classList.add('tool');x.setAttribute('aria-pressed',o.pressed)}bar.append(x);return x};
   const sep=()=>{const s=document.createElement('span');s.className='sep';bar.append(s)};
@@ -456,7 +456,7 @@ function buildPropsMulti(P,SL){
   fRange(e,'Kontur',()=>SL[0].ol||0,v=>all('ol',v),0,40,1,v=>v+' px');fColor(e,'Konturfarbe',()=>SL[0].olc||'#ffffff',v=>all('olc',v));
   fRange(e,'Schatten',()=>SL[0].shadow||0,v=>all('shadow',v),0,80,1,v=>v+' px');
   fRange(e,'Leuchten',()=>SL[0].glow||0,v=>all('glow',v),0,120,1,v=>v+' px');fColor(e,'Leuchtfarbe',()=>SL[0].glc||'#ffd36b',v=>all('glc',v))}
-const ED_SIMPLE={fields:new Set(['Unschärfe','Helligkeit','Abdunkeln','Deckkraft','Farbverlauf','Farbe unten','Ausrichtung','Frei verzerren (ohne Seitenverhältnis)','Pixelig darstellen','Leuchtfarbe','Drehen','Kippen','Rollen']),secs:new Set(['Körperteile: Größe','Transformieren']),head:'.lbl',sec:'.grp',btns:new Set(['Neu würfeln'])};
+const ED_SIMPLE={fields:new Set(['Konturfarbe','Leuchten','Unschärfe','Helligkeit','Abdunkeln','Deckkraft','Farbverlauf','Farbe unten','Ausrichtung','Frei verzerren (ohne Seitenverhältnis)','Pixelig darstellen','Leuchtfarbe','Drehen','Kippen','Rollen']),secs:new Set(['Körperteile: Größe','Transformieren']),head:'.lbl',sec:'.grp',btns:new Set(['Neu würfeln'])};
 function buildProps(){buildProps0();simplify($('#props'),ED_SIMPLE)}
 function buildProps0(){
   const P=$('#props'),SL=selLayers(),L=SL.length===1?SL[0]:null;propSync=[];P.hidden=false;P.innerHTML='';$('#dock').classList.toggle('noselect',!SL.length);
@@ -550,7 +550,7 @@ function tileFrom(c,label,pixel,fn,two){const b=document.createElement('button')
 let PC_CHECK=null;
 function packBox(){
   const pb=document.createElement('div');pb.className='packbox';pb.innerHTML='<div class="top"><b>Texturen</b><span></span></div><div class="btnrow"></div><p class="sub" id="pack-status" role="status"></p>';
-  pb.querySelector('span').textContent=PACK?PACK.name:'Eigene Grafiken';
+  pb.querySelector('span').textContent=PACK?PACK.name:'Eigene Grafiken';if(PACK)pb.classList.add('has');if(PACK_BUSY)pb.classList.add('busy');
   const row=pb.querySelector('.btnrow'),btn=(t,fn,cls)=>{const b=document.createElement('button');b.type='button';b.className='btn sm'+(cls?' '+cls:'');b.textContent=t;b.disabled=PACK_BUSY;b.addEventListener('click',fn);row.append(b);return b};
   const st=pb.querySelector('#pack-status');st.textContent=PACK_STATUS;
   if(window.RK_LOCAL){
