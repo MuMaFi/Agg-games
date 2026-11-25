@@ -3,7 +3,7 @@
    Schritt für Schritt: 1 Hintergrund bauen · 2 Figuren & Bewegung · 3 Kamerafahrt · 4 Licht · 5 Video.
    Zwischen den Schlüsselbildern rechnet Rendernail die Bewegung automatisch und weich aus. */
 const AB=16;// ein Block in Figur-Einheiten (eine Figur ist zwei Blöcke hoch)
-const AN_STEPS=[['bg','Hintergrund'],['act','Figuren & Bewegung'],['cam','Kamera'],['light','Licht'],['out','Video']];
+const AN_STEPS=[['bg','Hintergrund'],['act','Figuren & Bewegung'],['cam','Kamera'],['light','Licht'],['ovl','Text & 2D'],['out','Video']];
 const AN_FMT={'16:9':{n:'Quer 16:9',s:[[1280,720],[1920,1080]]},'9:16':{n:'Hoch 9:16',s:[[720,1280],[1080,1920]]},'1:1':{n:'Quadrat 1:1',s:[[1080,1080],[1440,1440]]}};
 function bounceOut(u){const n=7.5625,d=2.75;if(u<1/d)return n*u*u;if(u<2/d)return n*(u-=1.5/d)*u+.75;if(u<2.5/d)return n*(u-=2.25/d)*u+.9375;return n*(u-=2.625/d)*u+.984375}
 const AN_EASE={smooth:['Weich',u=>u*u*(3-2*u)],linear:['Gleichmäßig',u=>u],swing:['Mit Schwung',u=>{const s=1.70158;u-=1;return u*u*((s+1)*u+s)+1}],bounce:['Federnd',bounceOut],hold:['Harter Schnitt',u=>u<1?0:1]};
@@ -45,7 +45,7 @@ function anTemplate(k,seed){const b=[],put=(x,y,z,t)=>b.push([x,y,z,t]),r=mulber
   if(k==='block')put(0,-1,0,'grass');
   return b}
 function anDefault(){return{v:1,dur:6,fmt:'16:9',bg:{mode:'mc',color:'#2b2b2b',ground:'grass'},blocks:anTemplate('wiese'),actors:[],
-  props:[],audio:[],cam:{preset:'orbit',keys:[],fov:35,smooth:true,shake:0},light:{preset:'day',...anClone(AN_LIGHT.day),shadows:true,soft:3},fx:{bars:false,fade:true,look:'none'},fps:30,q:0}}
+  props:[],ovl:[],audio:[],cam:{preset:'orbit',keys:[],fov:35,smooth:true,shake:0},light:{preset:'day',...anClone(AN_LIGHT.day),shadows:true,soft:3},fx:{bars:false,fade:true,look:'none'},fps:30,q:0}}
 /* ---------- Mehrere Animationen speichern ---------- */
 const AN_IDX='rk-anims';
 function anIndex(){const i=store.get(AN_IDX,null);return Array.isArray(i)?i.filter(p=>p&&p.id):[]}
@@ -103,6 +103,8 @@ function anLoad(){let d=store.get('rk-anim:'+AN.pid,null);if(!d||d.v!==1)return 
       keys:(Array.isArray(a.keys)&&a.keys.length?a.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),pose:k.pose&&typeof k.pose==='object'?k.pose:anPose('stehen'),x:+k.x||0,z:+k.z||0,ry:+k.ry||0,rx:+k.rx||0,rz:+k.rz||0,y:+k.y||0,ease:AN_EASE[k.ease]?k.ease:'smooth',...(typeof k.walk==='boolean'?{walk:k.walk}:{})})).sort((p,q)=>p.t-q.t)}));
     d.props=(Array.isArray(d.props)?d.props:[]).slice(0,40).filter(o=>o&&typeof o.key==='string').map(o=>({id:o.id||'p'+uid(),name:String(o.name||'Block').slice(0,30),key:o.key,
       keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:+k.x||0,y:+k.y||0,z:+k.z||0,rx:+k.rx||0,ry:+k.ry||0,rz:+k.rz||0,s:k.s==null?1:clamp(+k.s,0,8),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
+    d.ovl=(Array.isArray(d.ovl)?d.ovl:[]).slice(0,40).filter(o=>o&&['text','el','img'].includes(o.kind)).map(o=>({...o,id:o.id||'o'+uid(),
+      keys:(Array.isArray(o.keys)&&o.keys.length?o.keys:[{t:0}]).map(k=>({t:clamp(+k.t||0,0,60),x:k.x==null?.5:+k.x,y:k.y==null?.5:+k.y,s:k.s==null?1:clamp(+k.s,0,8),r:+k.r||0,o:k.o==null?1:clamp(+k.o,0,1),ease:AN_EASE[k.ease]?k.ease:'smooth'})).sort((p,q)=>p.t-q.t)}));
     d.fps=[15,24,30,60].includes(+d.fps)?+d.fps:30;if(!['none','comic','retro'].includes(d.fx.look))d.fx.look='none';
     d.audio=(Array.isArray(d.audio)?d.audio:[]).filter(c=>c&&typeof c.asset==='string').slice(0,12).map(c=>({id:c.id||'au'+uid(),name:String(c.name||'Ton').slice(0,40),asset:c.asset,dur:Math.max(.05,+c.dur||1),at:Math.max(0,+c.at||0),vol:clamp(c.vol==null?1:+c.vol,0,1.5),...(typeof c.data==='string'?{data:c.data}:{})}));
     d.cam.keys=(d.cam.keys||[]).filter(k=>Array.isArray(k.p)&&Array.isArray(k.q)).map(k=>({t:+k.t||0,p:k.p.map(Number),q:k.q.map(Number)})).sort((p,q)=>p.t-q.t);
@@ -344,22 +346,25 @@ function anPropMove(o,fn){const t0=AN.t,c=evalProp(o,t0),steps=fn(c),last=steps[
 function anReadMove(){if(anProp()){anReadProp();return}const a=anActor(),g=AR.tcm.object;if(!a||!g)return;
   if(AR.tcm.mode==='rotate'){const c=evalActor(a,AN.t,true),r=v=>Math.round(v*10)/10;anSetKey(a,{rx:r(anUnwrap(g.rotation.x/D2R,c.rx||0)),ry:r(((anUnwrap(g.rotation.y/D2R,c.ry)+540)%360)-180),rz:r(anUnwrap(g.rotation.z/D2R,c.rz||0))});return}
   const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-600,600)*10)/10;anSetKey(a,{x,z,y})}
-function anCopyObj(){const a=anActor(),o=anProp();if(!a&&!o)return false;AN.clip={kind:a?'actor':'prop',data:JSON.parse(JSON.stringify(a||o))};AN.lastCopy='obj';toast('Kopiert. Mit Strg/Cmd+V einfügen.');return true}
-function anPasteObj(){const c=AN.clip;if(!c)return false;const d=JSON.parse(JSON.stringify(c.data)),off=AB*1.5;for(const k of d.keys){k.x+=off;k.z+=off*.5}
+function anCopyObj(){const a=anActor(),o=anProp(),v=typeof anOvl==='function'?anOvl():null;if(!a&&!o&&!v)return false;AN.clip={kind:a?'actor':o?'prop':'ovl',data:JSON.parse(JSON.stringify(a||o||v))};AN.lastCopy='obj';toast('Kopiert. Mit Strg/Cmd+V einfügen.');return true}
+function anPasteObj(){const c=AN.clip;if(!c)return false;const d=JSON.parse(JSON.stringify(c.data)),off=AB*1.5;
+  if(c.kind==='ovl'){for(const k of d.keys){k.x+=.04;k.y+=.04}c.data.keys.forEach(k=>{k.x+=.04;k.y+=.04});d.id='o'+uid();(AN.data.ovl=AN.data.ovl||[]).push(d);anSelect(d.id);anCommit();anTimeline();anPane();toast('Eingefügt – mit derselben Animation.');return true}
+  for(const k of d.keys){k.x+=off;k.z+=off*.5}
   if(c.kind==='actor'){d.id='a'+uid();d.name=(d.name+' 2').slice(0,30);AN.data.actors.push(d);anSyncActors()}else{d.id='p'+uid();AN.data.props.push(d);anSyncProps()}
   c.data.keys.forEach(k=>{k.x+=off;k.z+=off*.5});anSelect(d.id);anCommit();anTimeline();toast('Eingefügt – mit derselben Animation.');return true}
 /* Schlüsselbilder kopieren: Raute antippen (oder Zeitregler auf ein Schlüsselbild), Strg/Cmd+C, Zeitregler verschieben, Strg/Cmd+V */
 AN.keySel=null;AN.kclip=null;AN.lastCopy=null;
-function anKeyKind(keys){const D=AN.data;if(keys===D.cam.keys)return'cam';if(D.actors.some(a=>a.faces===keys))return'face';if(D.actors.some(a=>a.keys===keys))return'actor';return'prop'}
+function anKeyKind(keys){const D=AN.data;if(keys===D.cam.keys)return'cam';if(D.actors.some(a=>a.faces===keys))return'face';if(D.actors.some(a=>a.keys===keys))return'actor';if((D.ovl||[]).some(o=>o.keys===keys))return'ovl';return'prop'}
 function anKeySource(){const D=AN.data,ks=AN.keySel;if(ks&&ks.keys.includes(ks.k)&&Math.abs(ks.k.t-AN.t)<.02)return ks;
-  const a=anActor(),o=anProp();if(a){const k=anKeyAt(a.keys,AN.t);if(k)return{k,keys:a.keys,id:a.id}}if(o){const k=anKeyAt(o.keys,AN.t);if(k)return{k,keys:o.keys,id:o.id}}
+  const a=anActor(),o=anProp()||anOvl();if(a){const k=anKeyAt(a.keys,AN.t);if(k)return{k,keys:a.keys,id:a.id}}if(o){const k=anKeyAt(o.keys,AN.t);if(k)return{k,keys:o.keys,id:o.id}}
   if(AN_STEPS[AN.step][0]==='cam'){const k=anKeyAt(D.cam.keys,AN.t);if(k)return{k,keys:D.cam.keys,id:'cam'}}return null}
 function anCopyKey(){const s=anKeySource();if(!s)return false;AN.kclip={kind:anKeyKind(s.keys),id:s.id,k:anClone(s.k)};AN.lastCopy='key';toast('Schlüsselbild kopiert. Zeitregler verschieben und mit Strg/Cmd+V einfügen.');anPane();return true}
 function anPasteKey(){const c=AN.kclip;if(!c)return false;const D=AN.data,t=AN.t;let keys,same,a=anActor(),o=anProp();
-  if(c.kind==='cam')keys=D.cam.keys;else if(c.kind==='face'){if(!a)a=D.actors.find(x=>x.id===c.id);if(!a)return false;keys=a.faces=a.faces||[]}
+  if(c.kind==='ovl'){o=anOvl()||(D.ovl||[]).find(x=>x.id===c.id);if(!o)return false;keys=o.keys}else if(c.kind==='cam')keys=D.cam.keys;else if(c.kind==='face'){if(!a)a=D.actors.find(x=>x.id===c.id);if(!a)return false;keys=a.faces=a.faces||[]}
   else if(c.kind==='actor'){if(!a)a=D.actors.find(x=>x.id===c.id);if(!a)return false;keys=a.keys}else{if(!o)o=D.props.find(x=>x.id===c.id);if(!o)return false;keys=o.keys}
-  const owner=c.kind==='cam'?'cam':(c.kind==='prop'?o:a).id;same=owner===c.id;const nk=anClone(c.k);nk.t=t;
+  const owner=c.kind==='cam'?'cam':(c.kind==='prop'||c.kind==='ovl'?o:a).id;same=owner===c.id;const nk=anClone(c.k);nk.t=t;
   if(!same&&(c.kind==='actor'||c.kind==='prop')){const cur=c.kind==='actor'?evalActor(a,t,true):evalProp(o,t);nk.x=cur.x;nk.z=cur.z}
+  if(!same&&c.kind==='ovl'){const cur=evalOvl(o,t);nk.x=cur.x;nk.y=cur.y}
   const old=anKeyAt(keys,t);if(old)keys.splice(keys.indexOf(old),1);keys.push(nk);keys.sort((p,q)=>p.t-q.t);
   if(c.kind==='cam')D.cam.preset='custom';if(c.kind==='face'){const rt=AN.rts.get(a.id);if(rt)rt.face=null}
   AN.keySel={k:nk,keys,id:owner};AN.pathDirty=true;anCommit();anTimeline();anSeek(t);anPane();toast('Schlüsselbild eingefügt.');return true}
@@ -392,7 +397,7 @@ function evalCam(t){const C=AN.data.cam,K=C.keys;let p,q;
 function anSetCamKey(){const C=AN.data.cam,cam=AR.camera,tg=AR.controls.target,t=AN.t;let k=anKeyAt(C.keys,t);
   if(!k){k={t};C.keys.push(k);C.keys.sort((a,b)=>a.t-b.t)}k.p=[cam.position.x,cam.position.y,cam.position.z].map(v=>Math.round(v*10)/10);k.q=[tg.x,tg.y,tg.z].map(v=>Math.round(v*10)/10);
   C.preset='custom';AN.pathDirty=true;anTimeline();anPane();anCommit();toast(`Kameraposition bei ${anFmtT(t)} gemerkt.`)}
-function anLook(){return AN.rec||AN.playing||AN_STEPS[AN.step][0]==='cam'?'cam':AN.look}
+function anLook(){const k=AN_STEPS[AN.step][0];return AN.rec||AN.playing||k==='cam'||k==='ovl'?'cam':AN.look}
 function anFrameCam(tween){const s=anSceneInfo(),d=Math.max(140,s.r*2.6),a=-38*D2R;const p=[s.c[0]+Math.sin(a)*d,s.c[1]+d*.3,s.c[2]+Math.cos(a)*d];AN.work={p,q:s.c};if(tween)anTweenTo(p,s.c);else{AR.camera.position.set(...p);AR.controls.target.set(...s.c);AR.camera.lookAt(...s.c)}}
 function anTweenTo(p,q,ms=650){const c=AR.camera.position,g=AR.controls.target;AN.tween={a:[c.x,c.y,c.z],b:[g.x,g.y,g.z],p,q,t0:performance.now(),ms}}
 let anPrevLook='work';
@@ -423,7 +428,7 @@ function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anApplyProps();a
   const rt=AN.sel&&AN.rts.get(AN.sel);AR.ring.visible=edit&&!!rt&&AN_STEPS[AN.step][0]==='act';if(AR.ring.visible){const m=rt.m;AR.ring.position.set(m.x,m.rootY+.3,m.z)}
   AR.renderer.render(AR.scene,cam);
   {const pc=$('#an-post'),lk=AN.data.fx.look;if(pc){const on=lk&&lk!=='none'&&!AN.rec;pc.hidden=!on;if(on){const w=AR.frame.clientWidth,h=AR.frame.clientHeight;if(pc.width!==w||pc.height!==h){pc.width=w;pc.height=h}const px=pc.getContext('2d');px.drawImage(AR.renderer.domElement,0,0,w,h);anPostFx(px,w,h,lk)}}}
-  const f=AN.data.fx.fade&&(AN.playing||AN.rec)?anFade(AN.t):0;$('#an-fade').style.opacity=f;anPH()}
+  anOvlPreview();const f=AN.data.fx.fade&&(AN.playing||AN.rec)?anFade(AN.t):0;$('#an-fade').style.opacity=f;anPH()}
 function anFade(t){const D=AN.data.dur;return clamp(Math.max(1-t/.6,1-(D-t)/.6),0,1)}
 function anPlay(){if(AN.playing){anStop();return}if(AN.t>=AN.data.dur-.01)AN.t=0;AN.playing=true;AR.tc.detach();AR.tcm.detach();anAudioStart();anPlayUI()}
 function anStop(){if(!AN.playing)return;AN.playing=false;anAudioStop();AN.t=Math.round(AN.t*20)/20;anPlayUI();if(AN.sel)anSelect(AN.sel,AN.bone);anPane()}
@@ -496,9 +501,10 @@ function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textConten
   act:AN.data.actors.length?'Zieh eine Figur, um sie zu verschieben. Schieb vorher den Zeitregler weiter: So entsteht ein Schlüsselbild, dazwischen läuft die Figur von selbst. Zweimal antippen dreht einzelne Körperteile.':'Füge rechts eine Figur mit Minecraft-Skin hinzu.',
   cam:'Du siehst durch die Kamera. Wähle eine Fahrt oder dreh die Ansicht an einer Zeitstelle (oder fahr mit WASD, E/Q): Die Position wird dort gemerkt.',
   light:'Wähle eine Stimmung und verfeinere sie mit den Reglern.',
+  ovl:'Füge rechts Text, Elemente oder Bilder hinzu. Zieh sie im Bild, die Ecke ändert die Größe, der Kreis oben dreht. Wie bei Figuren: Zeitregler verschieben, dann ändern, schon bewegt es sich.',
   out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
 let anPaneT=0;function anPaneSoft(){clearTimeout(anPaneT);anPaneT=setTimeout(()=>{if(['act','cam'].includes(AN_STEPS[AN.step][0]))anPane()},120)}
-function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,out:paneOut})[k](P);P.scrollTop=sc;
+function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,ovl:paneOvl,out:paneOut})[k](P);P.scrollTop=sc;
   const nav=$('#an-nav');nav.innerHTML='';const b=aBtn(nav,'Zurück',()=>anGo(AN.step-1),'btn');b.disabled=AN.step===0;
   if(AN.step<AN_STEPS.length-1)aBtn(nav,'Weiter: '+AN_STEPS[AN.step+1][1],()=>anGo(AN.step+1),'btn primary');else aBtn(nav,'Video erstellen',anRecord,'btn primary')}
 function anPalette(){if(PACK&&typeof packBlockBases==='function'){const l=packBlockBases().filter(b=>!(typeof pkFlat==='function'&&pkFlat(b))).map(b=>['pk:'+b,prettyName(b)]);if(l.length)return l}return BLOCK_DEFS.map(d=>[d[0],d[1]])}
@@ -633,6 +639,7 @@ function anTimeline(){const box=$('#an-tracks');if(!box||!AN.data)return;const D
   if(AN.step>=2||D.cam.keys.length)row('Kamera',D.cam.keys,'cam',false);
   for(const a of D.actors){row(a.name,a.keys,a.id,a.id===AN.sel,k=>anWalks(a,k));if((a.faces||[]).length||a.id===AN.sel){a.faces=a.faces||[];row('↳ Gesicht',a.faces,a.id,a.id===AN.sel);box.lastChild.classList.add('an-facerow')}}
   for(const o of D.props)row(o.name,o.keys,o.id,o.id===AN.sel);
+  for(const o of D.ovl||[]){row((o.kind==='text'?'T ':'◩ ')+anOvlName(o),o.keys,o.id,o.id===AN.sel);box.lastChild.classList.add('an-ovlrow')}
   for(const c of D.audio||[]){const r=el('div','an-row an-audrow'),l=el('div','an-lab','♪ '+c.name),tr=el('div','an-trk'),inn=el('div','an-in'),cl=el('button','an-clip');cl.type='button';cl._clip=c;
     cl.style.left=(c.at/D.dur*100)+'%';cl.style.width=(Math.max(.05,Math.min(c.dur,D.dur-c.at))/D.dur*100)+'%';cl.title=c.name+' · '+anFmtT(c.dur)+' · Lautstärke '+Math.round((c.vol??1)*100)+' %';cl.setAttribute('aria-label','Ton '+c.name+', antippen für Optionen');
     const e=AN_AUD.get(c.asset);if(e&&e.peaks){const cvs=mk(240,40),x=cvs.getContext('2d'),n=e.peaks.length,vis=Math.min(1,(D.dur-c.at)/c.dur);x.fillStyle='rgba(255,255,255,.75)';for(let i=0;i<240;i++){const v=e.peaks[Math.min(n-1,Math.floor(i/240*n*vis))]*36;x.fillRect(i,20-v/2,1,Math.max(1,v))}cl.append(cvs)}else anAudBuf(c);
@@ -658,7 +665,7 @@ function anPH(){const p=$('#an-ph');if(p)p.style.left=(AN.t/AN.data.dur*100)+'%'
       showMenu(d.clip,[['Neu zuschneiden …',async()=>{try{const buf=await anAudBuf(c);anTrimDialog({name:c.name,buf,at:c.at,vol:c.vol,clip:c})}catch{toast('Der Ton konnte nicht geladen werden.')}}],null,
         ...[1.5,1,.75,.5,.25].map(v=>['Lautstärke '+Math.round(v*100)+' %',()=>{c.vol=v;anCommit();anTimeline()},'',null,()=>Math.abs((c.vol??1)-v)<.01]),null,
         ['Ton entfernen',()=>{AN.data.audio.splice(AN.data.audio.indexOf(c),1);anCommit();anTimeline()}]]);return}
-    if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{AN.keySel={k:b._k,keys:b._keys,id:b._id};anSeek(b._k.t);if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else{AN.keySel=null;if(d.pending)anSeek(tAt(e));anPaneSoft()}};
+    if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{AN.keySel={k:b._k,keys:b._keys,id:b._id};anSeek(b._k.t);if(/^o/.test(b._id)){const i=AN_STEPS.findIndex(z=>z[0]==='ovl');if(AN.step!==i)anGo(i)}if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else{AN.keySel=null;if(d.pending)anSeek(tAt(e));anPaneSoft()}};
   box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up)})();
 
 /* ---------- Video und Standbild ---------- */
@@ -693,6 +700,7 @@ function anComposite(x,W,H,t){const D=AN.data,L=D.light;x.drawImage(AR.renderer.
   if(L.tint){x.save();x.globalCompositeOperation='soft-light';x.globalAlpha=Math.abs(L.tint)*.55;x.fillStyle=L.tint>0?'#ff9a3c':'#4682ff';x.fillRect(0,0,W,H);x.restore()}
   if(L.vig>0){x.save();x.translate(W/2,H/2);x.scale(W/2,H/2);const g=x.createRadialGradient(0,0,0,0,0,1.42);g.addColorStop(.38,'rgba(0,0,0,0)');g.addColorStop(1,`rgba(0,0,0,${L.vig})`);x.fillStyle=g;x.fillRect(-1,-1,2,2);x.restore()}
   if(D.fx.bars){const bh=W>H?Math.max(0,(H-W/2.39)/2):H*.09;x.fillStyle='#000';x.fillRect(0,0,W,bh);x.fillRect(0,H-bh,W,bh)}
+  {const[bw,bh]=AN_FMT[D.fmt].s[0];anDrawOvl(x,bw,bh,W/bw,t==null?AN.t:t)}
   const f=D.fx.fade&&t!=null?anFade(t):0;if(f>0){x.fillStyle=`rgba(0,0,0,${f})`;x.fillRect(0,0,W,H)}}
 function anSize(){const D=AN.data;return AN_FMT[D.fmt].s[D.q||0]}
 function anStill(){if(!AR)return;const[W,H]=anSize(),prev=AR.renderer.getPixelRatio();AR.renderer.setPixelRatio(1);AR.renderer.setSize(W,H,false);
@@ -842,8 +850,10 @@ async function anEncodeAudio(muxer,buf,codec){const sr=buf.sampleRate,L=buf.getC
   await ae.flush();ae.close();if(err)throw err}
 async function anAudCodec(){if(!window.AudioEncoder||!window.AudioData)return null;for(const[c,m]of[['mp4a.40.2','aac'],['opus','opus']]){try{if((await AudioEncoder.isConfigSupported({codec:c,sampleRate:48000,numberOfChannels:2,bitrate:160000})).supported)return{codec:c,mux:m}}catch{}}return null}
 /* Datei-Export/Import der Animation: Töne werden eingebettet */
-async function anEmbedAudio(data){const d=JSON.parse(JSON.stringify(data));for(const c of d.audio||[]){try{c.data=await blobToDataURL(await srcBlob({asset:c.asset}))}catch{}}return d}
-async function anUnembedAudio(data){for(const c of data.audio||[]){if(typeof c.data==='string'&&/^data:audio\//.test(c.data)&&ASSETS){try{const r=await ASSETS.upload(await(await fetch(c.data)).blob());c.asset=r.id}catch{}}delete c.data}return data}
+async function anEmbedAudio(data){const d=JSON.parse(JSON.stringify(data));for(const c of d.audio||[]){try{c.data=await blobToDataURL(await srcBlob({asset:c.asset}))}catch{}}
+  for(const o of d.ovl||[])if(o.src&&o.src.asset){try{o.src={data:await blobToDataURL(await srcBlob(o.src))}}catch{}}return d}
+async function anUnembedAudio(data){for(const c of data.audio||[]){if(typeof c.data==='string'&&/^data:audio\//.test(c.data)&&ASSETS){try{const r=await ASSETS.upload(await(await fetch(c.data)).blob());c.asset=r.id}catch{}}delete c.data}
+  for(const o of data.ovl||[])if(o.src&&typeof o.src.data==='string'&&/^data:image\//.test(o.src.data)&&ASSETS){try{const r=await ASSETS.upload(await(await fetch(o.src.data)).blob());o.src={asset:r.id}}catch{}}return data}
 (function(){const b=$('#an-addaudio');if(!b)return;b.addEventListener('click',()=>{const i=$('#f-anaudio');i.accept=AN_AUDIO_ACCEPT;i.click()});
   document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-anaudio')return;const f=e.target.files[0];e.target.value='';if(f&&AN.ready){anStop();anAudioFile(f)}})})();
 
