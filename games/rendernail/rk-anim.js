@@ -494,6 +494,8 @@ function anGo(i){i=clamp(i,0,AN_STEPS.length-1);if(i===AN.step)return;const back
   if(AN_STEPS[i][0]!=='act')anSelect(null);if(AN_STEPS[i][0]==='cam'&&!AN.data.cam.keys.length)anCamPreset(AN.data.cam.preset==='custom'?'orbit':AN.data.cam.preset);
   if(AN_STEPS[i][0]==='act'&&!AN.data.actors.length&&anLook()==='work')anFrameCam(true);
   anSteps();const p=$('#an-side');p.classList.remove('in-l','in-r');void p.offsetWidth;p.classList.add(back?'in-l':'in-r')}
+const AN_SIMPLE={fields:new Set(['Brennweite (Zoom)','Weich anfahren und abbremsen','Handkamera (leichtes Wackeln)','Dunst in der Ferne','Farbe: kühl ↔ warm','Vignette','Übergang hierher','Höhe über dem Boden','Neue Strecken: automatisch laufen','Position links/rechts','Position vorne/hinten','Grundgröße','Schatten','Leuchten','Spiegeln','Pfeile in der Ansicht','Arme']),
+  secs:new Set(['Sonne','Lage','Reihenfolge']),prefix:['Strecke '],head:'h4',sec:'.an-sec'};
 const anHintSeen=new Set();
 function anHintShow(on){$('#an-hint').classList.toggle('off',!on);$('#an-help').hidden=on||AN.playing}
 function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textContent={
@@ -504,7 +506,7 @@ function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textConten
   ovl:'Füge rechts Text, Elemente oder Bilder hinzu. Zieh sie im Bild, die Ecke ändert die Größe, der Kreis oben dreht. Wie bei Figuren: Zeitregler verschieben, dann ändern, schon bewegt es sich.',
   out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
 let anPaneT=0;function anPaneSoft(){clearTimeout(anPaneT);anPaneT=setTimeout(()=>{if(['act','cam'].includes(AN_STEPS[AN.step][0]))anPane()},120)}
-function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,ovl:paneOvl,out:paneOut})[k](P);P.scrollTop=sc;
+function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,ovl:paneOvl,out:paneOut})[k](P);simplify(P,AN_SIMPLE);P.scrollTop=sc;
   const nav=$('#an-nav');nav.innerHTML='';const b=aBtn(nav,'Zurück',()=>anGo(AN.step-1),'btn');b.disabled=AN.step===0;
   if(AN.step<AN_STEPS.length-1)aBtn(nav,'Weiter: '+AN_STEPS[AN.step+1][1],()=>anGo(AN.step+1),'btn primary');else aBtn(nav,'Video erstellen',anRecord,'btn primary')}
 function anPalette(){if(PACK&&typeof packBlockBases==='function'){const l=packBlockBases().filter(b=>!(typeof pkFlat==='function'&&pkFlat(b))).map(b=>['pk:'+b,prettyName(b)]);if(l.length)return l}return BLOCK_DEFS.map(d=>[d[0],d[1]])}

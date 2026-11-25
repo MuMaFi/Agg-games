@@ -372,3 +372,12 @@ function flyStep(now){const ctx=FLY.ctx,k=FLY.keys,dt=Math.min(.05,(now-FLY.last
   if(d.lengthSq()){d.normalize().multiplyScalar(Math.max(40,dist*1.1)*(k.has('fast')?3:1)*dt);if(cam.position.y+d.y<2)d.y=2-cam.position.y;cam.position.add(d);tg.add(d);cam.lookAt(tg);if(ctx.moved)ctx.moved()}
   FLY.raf=requestAnimationFrame(flyStep)}
 addEventListener('keydown',e=>flyKey(e,true));addEventListener('keyup',e=>flyKey(e,false));addEventListener('blur',()=>FLY.keys.clear());
+
+/* Simpel-Modus: Profi-Regler ausblenden. Felder nach Beschriftung, Bereiche nach Überschrift (läuft direkt nach dem Aufbau, also vor der Übersetzung) */
+const isSimple=()=>document.body.classList.contains('simple');
+function simplify(root,o){if(!root||!isSimple())return;const hide=e=>{e.style.display='none'};
+  const lab=e=>{const l=e.querySelector(':scope>.lab label,:scope>.lab span,:scope>span');return l?l.textContent.trim():''};
+  if(o.fields)for(const f of root.querySelectorAll('.field,label.row'))if(o.fields.has(lab(f)))hide(f);
+  if(o.secs)for(const h of root.querySelectorAll(o.head)){const t=h.textContent.trim();if(o.secs.has(t)||(o.prefix||[]).some(p=>t.startsWith(p))){const s=h.closest(o.sec);if(s)hide(s)}}
+  if(o.btns)for(const b of root.querySelectorAll('button'))if(o.btns.has(b.textContent.trim()))hide(b);
+  if(o.sec)for(const g of root.querySelectorAll(o.sec)){const kids=[...g.querySelectorAll('.field,label.row,button,.posegrid,textarea,select')];if(kids.length&&kids.every(k=>k.closest('[style*="display: none"]')))hide(g)}}
