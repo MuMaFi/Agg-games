@@ -43,7 +43,7 @@ function anOvlHit(px,py){const fr=AR.frame,w=fr.clientWidth,[W]=anOvlBase(),k=w/
   for(let i=list.length-1;i>=0;i--){const o=list[i],v=evalOvl(o,AN.t);if(v.o<.05)continue;const L=anOvlLayer(o,v,W,AN_FMT[AN.data.fmt].s[0][1],k);if(!L)continue;
     const a=-(L.rot||0)*D2R,dx=px-L.x*k,dy=py-L.y*k,lx=dx*Math.cos(a)-dy*Math.sin(a),ly=dx*Math.sin(a)+dy*Math.cos(a);if(Math.abs(lx)<=L.w*k/2+6&&Math.abs(ly)<=L.h*k/2+6)return o}return null}
 function anAddOvl(kind,extra){const D=AN.data;D.ovl=D.ovl||[];if(D.ovl.length>=40){toast('Mehr als 40 Ebenen gehen nicht.');return}const n=D.ovl.length;
-  const o={id:'o'+uid(),kind,keys:[{t:AN.t,x:.5,y:kind==='text'?.22+(n%3)*.12:.5,s:1,r:0,o:1,ease:'smooth'}],...(kind==='text'?{text:'TEXT',font:'luckiest',size:96,color:'#ffffff',stroke:8,strokeColor:'#000000',depth:0}:{}),...extra};
+  const o={id:'o'+uid(),kind,keys:[{t:AN.t,x:.5,y:kind==='text'?.22+(n%3)*.12:.5,s:1,r:0,o:1,ease:'smooth'}],...(kind==='text'?{text:'Dein Text',font:'luckiest',size:96,color:'#ffffff',stroke:8,strokeColor:'#000000',depth:0}:{}),...extra};
   if(AN.t>.05)o.keys.unshift({...o.keys[0],t:0,o:0});D.ovl.push(o);anSelect(o.id);anCommit();anTimeline();anPane();toast(anOvlName(o)+' hinzugefügt. Zieh es im Bild an die richtige Stelle.')}
 function anOvlMove(o,fn){const t0=AN.t,c=evalOvl(o,t0),steps=fn(c),last=steps[steps.length-1][0];if(t0+last>AN.data.dur)AN.data.dur=Math.min(30,Math.ceil((t0+last+.5)*2)/2);
   for(const[dt,patch,ease]of steps){const t=Math.round((t0+dt)*20)/20,v=evalOvl(o,t);let k=anKeyAt(o.keys,t);if(!k){k={t,...v};o.keys.push(k)}Object.assign(k,patch,{ease:ease||k.ease||'smooth'})}

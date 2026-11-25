@@ -380,4 +380,5 @@ function simplify(root,o){if(!root||!isSimple())return;const hide=e=>{e.style.di
   if(o.fields)for(const f of root.querySelectorAll('.field,label.row'))if(o.fields.has(lab(f)))hide(f);
   if(o.secs)for(const h of root.querySelectorAll(o.head)){const t=h.textContent.trim();if(o.secs.has(t)||(o.prefix||[]).some(p=>t.startsWith(p))){const s=h.closest(o.sec);if(s)hide(s)}}
   if(o.btns)for(const b of root.querySelectorAll('button'))if(o.btns.has(b.textContent.trim()))hide(b);
-  if(o.sec)for(const g of root.querySelectorAll(o.sec)){const kids=[...g.querySelectorAll('.field,label.row,button,.posegrid,textarea,select')];if(kids.length&&kids.every(k=>k.closest('[style*="display: none"]')))hide(g)}}
+  if(o.subs)for(const p of root.querySelectorAll('p.sub'))if(o.subs.some(x=>p.textContent.trim().startsWith(x)))hide(p);
+  if(o.sec)for(const g of root.querySelectorAll(o.sec)){const kids=[...g.querySelectorAll('*')].filter(e=>!e.children.length&&!e.closest(o.head)&&!/^(OPTION|svg|path|rect|title)$/i.test(e.tagName));if(kids.length&&kids.every(k=>k.closest('[style*="display: none"]')))hide(g)}}

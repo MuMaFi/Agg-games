@@ -370,7 +370,7 @@ function anPasteKey(){const c=AN.kclip;if(!c)return false;const D=AN.data,t=AN.t
   AN.keySel={k:nk,keys,id:owner};AN.pathDirty=true;anCommit();anTimeline();anSeek(t);anPane();toast('Schlüsselbild eingefügt.');return true}
 function anKeyBtns(s){const r=aRow(s);if(anKeySource())aBtn(r,'Schlüsselbild kopieren',anCopyKey,'btn sm');if(AN.kclip)aBtn(r,'Schlüsselbild hier einfügen',anPasteKey,'btn sm')}
 function anActor(){return AN.data.actors.find(a=>a.id===AN.sel)||null}
-function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';const md=pm?AN.pmode:rt?(AN.amode||'translate'):'translate';AR.tcm.setMode(md);AR.tcm.setSpace(md==='rotate'?'local':'world');if(rt&&!bone&&ed)AR.tcm.attach(rt.m.group);else if(pm&&ed)AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
+function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';const md=pm?AN.pmode:rt?(AN.amode||'translate'):'translate';AR.tcm.setMode(md);AR.tcm.setSpace(md==='rotate'?'local':'world');if(rt&&!bone&&ed&&!isSimple())AR.tcm.attach(rt.m.group);else if(pm&&ed&&!isSimple())AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
 async function anAddActor(name,skin,slim){const D=AN.data,n=D.actors.length,a={id:'a'+uid(),name:name||'Figur '+(n+1),skin:skin||'',slim:!!slim,item:'',walk:true,size:{},
   keys:[{t:0,pose:anPose('stehen'),x:(n%2?1:-1)*Math.ceil(n/2)*28,z:0,ry:0,y:0,ease:'smooth'}]};if(n===0)a.keys[0].x=0;
   D.actors.push(a);anSyncActors();anSelect(a.id);anCommit();anHint();toast(`${a.name} ist in der Szene. Zieh die Figur, um sie zu bewegen.`)}
@@ -485,17 +485,25 @@ function aSelect(P,label,opts,get,set){const w=el('div','field'),id='an-'+uid();
 function aBtn(P,text,fn,cls='btn sm'){const b=el('button',cls,text);b.type='button';b.addEventListener('click',fn);P.append(b);return b}
 function aRow(P){const r=el('div','btnrow');P.append(r);return r}
 
-function anSteps(){const box=$('#an-steps-in');box.innerHTML='';
-  AN_STEPS.forEach(([k,l],i)=>{if(i){const ln=el('span','an-line'+(i<=AN.step?' done':''));ln.append(el('i'));box.append(ln)}
-    const b=el('button','an-step'+(i<AN.step?' done':''));b.type='button';b.innerHTML='<span class="no"></span><span class="tx"></span>';b.querySelector('.no').innerHTML=i<AN.step?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>':String(i+1);
+/* Simpel-Modus: ohne eigenen Licht-Schritt (Stimmung beim Hintergrund, Effekte beim Video) */
+function anStepOn(i){return!(AN_STEPS[i][0]==='light'&&isSimple())}
+function anStepNext(d){let i=AN.step+d;while(i>=0&&i<AN_STEPS.length&&!anStepOn(i))i+=d;return i}
+function anSteps(){const box=$('#an-steps-in');box.innerHTML='';if(!anStepOn(AN.step))AN.step=Math.min(AN.step+1,AN_STEPS.length-1);let no=0,first=true;
+  AN_STEPS.forEach(([k,l],i)=>{if(!anStepOn(i))return;no++;if(!first){const ln=el('span','an-line'+(i<=AN.step?' done':''));ln.append(el('i'));box.append(ln)}first=false;
+    const b=el('button','an-step'+(i<AN.step?' done':''));b.type='button';b.innerHTML='<span class="no"></span><span class="tx"></span>';b.querySelector('.no').innerHTML=i<AN.step?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>':String(no);
     b.querySelector('.tx').textContent=l;if(i===AN.step)b.setAttribute('aria-current','step');b.addEventListener('click',()=>anGo(i));box.append(b)});
   const an=$('#v-anim .an');an.classList.toggle('no-tl',AN_STEPS[AN.step][0]==='bg');an.dataset.step=AN_STEPS[AN.step][0];anPane();anTimeline();anHint()}
-function anGo(i){i=clamp(i,0,AN_STEPS.length-1);if(i===AN.step)return;const back=i<AN.step;AN.step=i;store.set('rk-anim-step',i);anGhost(null);
+function anGo(i){i=clamp(i,0,AN_STEPS.length-1);if(!anStepOn(i)){const d=i>AN.step?1:-1;while(i>0&&i<AN_STEPS.length-1&&!anStepOn(i))i+=d}if(i===AN.step)return;const back=i<AN.step;AN.step=i;store.set('rk-anim-step',i);anGhost(null);
   if(AN_STEPS[i][0]!=='act')anSelect(null);if(AN_STEPS[i][0]==='cam'&&!AN.data.cam.keys.length)anCamPreset(AN.data.cam.preset==='custom'?'orbit':AN.data.cam.preset);
   if(AN_STEPS[i][0]==='act'&&!AN.data.actors.length&&anLook()==='work')anFrameCam(true);
   anSteps();const p=$('#an-side');p.classList.remove('in-l','in-r');void p.offsetWidth;p.classList.add(back?'in-l':'in-r')}
-const AN_SIMPLE={fields:new Set(['Brennweite (Zoom)','Weich anfahren und abbremsen','Handkamera (leichtes Wackeln)','Dunst in der Ferne','Farbe: kühl ↔ warm','Vignette','Übergang hierher','Höhe über dem Boden','Neue Strecken: automatisch laufen','Position links/rechts','Position vorne/hinten','Grundgröße','Schatten','Leuchten','Spiegeln','Pfeile in der Ansicht','Arme']),
-  secs:new Set(['Sonne','Lage','Reihenfolge']),prefix:['Strecke '],head:'h4',sec:'.an-sec'};
+const AN_SIMPLE={fields:new Set(['In der rechten Hand','Schriftgröße','Kontur','Kippen (vor/zurück)','Zur Seite kippen','Bilder pro Sekunde','Qualität','3D-Tiefe','Brennweite (Zoom)','Weich anfahren und abbremsen','Handkamera (leichtes Wackeln)','Dunst in der Ferne','Farbe: kühl ↔ warm','Vignette','Übergang hierher','Höhe über dem Boden','Neue Strecken: automatisch laufen','Position links/rechts','Position vorne/hinten','Grundgröße','Schatten','Leuchten','Spiegeln','Pfeile in der Ansicht','Arme']),
+  secs:new Set(['Sonne','Lage','Reihenfolge','Positionen','Himmel & Boden']),prefix:['Strecke ','Gesicht bei'],head:'h4',sec:'.an-sec',btns:new Set(['Schlüsselbild kopieren','Schlüsselbild hier einfügen','Fläche','Alle Blöcke entfernen','Wegploppen','Von unten','Pulsieren','Nach links raus']),
+  subs:['Verschieben: an den Pfeilen','Jedes Bild wird einzeln','Das Video wird in Echtzeit','Mit den Minecraft-Texturen','Der Ausdruck gilt ab hier','Hier liegt ein Schlüsselbild','Eine Änderung legt hier']};
+/* Simpel-Modus: kurze Anleitung, wie Bewegung entsteht, mit großen Zeit-Knöpfen */
+function anSimpleGuide(P,name){const c=el('div','an-sguide');c.append(el('b',null,'So bewegst du '+name+':'));const ol=el('ol');ol.append(el('li',null,'Zeit weiterstellen'),el('li',null,'Im Bild ziehen oder unten eine Bewegung wählen'));c.append(ol);
+  const r=el('div','an-sg-row');for(const[d,l]of[[-1,'− 1 Sek.'],[1,'+ 1 Sek.']]){const b=el('button','btn'+(d>0?' primary':''),l);b.type='button';b.addEventListener('click',()=>{const t=AN.t+d;if(t>AN.data.dur+.01&&d>0){AN.data.dur=Math.min(30,Math.ceil(t));anTimeline();anCommit()}anSeek(t);anPane()});r.append(b)}
+  r.append(el('span','an-sg-t',anFmtT(AN.t)));c.append(r);P.prepend(c)}
 const anHintSeen=new Set();
 function anHintShow(on){$('#an-hint').classList.toggle('off',!on);$('#an-help').hidden=on||AN.playing}
 function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textContent={
@@ -506,9 +514,12 @@ function anHint(){const k=AN_STEPS[AN.step][0],h=$('#an-hint span');h.textConten
   ovl:'Füge rechts Text, Elemente oder Bilder hinzu. Zieh sie im Bild, die Ecke ändert die Größe, der Kreis oben dreht. Wie bei Figuren: Zeitregler verschieben, dann ändern, schon bewegt es sich.',
   out:'Alles fertig. Spiel die Animation ab oder erstelle das Video.'}[k];anHintShow(!anHintSeen.has(k+(k==='act'?AN.data.actors.length>0:'')))}
 let anPaneT=0;function anPaneSoft(){clearTimeout(anPaneT);anPaneT=setTimeout(()=>{if(['act','cam'].includes(AN_STEPS[AN.step][0]))anPane()},120)}
-function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,ovl:paneOvl,out:paneOut})[k](P);simplify(P,AN_SIMPLE);P.scrollTop=sc;
-  const nav=$('#an-nav');nav.innerHTML='';const b=aBtn(nav,'Zurück',()=>anGo(AN.step-1),'btn');b.disabled=AN.step===0;
-  if(AN.step<AN_STEPS.length-1)aBtn(nav,'Weiter: '+AN_STEPS[AN.step+1][1],()=>anGo(AN.step+1),'btn primary');else aBtn(nav,'Video erstellen',anRecord,'btn primary')}
+function anPane(){const P=$('#an-side');if(!P||!AN.data)return;const sc=P.scrollTop;P.innerHTML='';const k=AN_STEPS[AN.step][0];({bg:paneBg,act:paneAct,cam:paneCam,light:paneLight,ovl:paneOvl,out:paneOut})[k](P);
+  if(isSimple()&&(k==='bg'||k==='out')){const tmp=el('div');paneLight(tmp);const secs=tmp.querySelectorAll('.an-sec');if(k==='bg'&&secs[0])P.querySelector('.an-sec').after(secs[0]);if(k==='out'&&secs.length)P.append(secs[secs.length-1])}
+  simplify(P,AN_SIMPLE);
+  if(isSimple()){const a=k==='act'&&(anActor()||anProp()),o=k==='ovl'&&anOvl();if(a)anSimpleGuide(P,a.name);else if(o)anSimpleGuide(P,o.kind==='text'?'den Text':o.kind==='img'?'das Bild':'das Element')}P.scrollTop=sc;
+  const nav=$('#an-nav');nav.innerHTML='';const b=aBtn(nav,'Zurück',()=>anGo(anStepNext(-1)),'btn');b.disabled=anStepNext(-1)<0;
+  if(anStepNext(1)<AN_STEPS.length)aBtn(nav,'Weiter: '+AN_STEPS[anStepNext(1)][1],()=>anGo(anStepNext(1)),'btn primary');else aBtn(nav,'Video erstellen',anRecord,'btn primary')}
 function anPalette(){if(PACK&&typeof packBlockBases==='function'){const l=packBlockBases().filter(b=>!(typeof pkFlat==='function'&&pkFlat(b))).map(b=>['pk:'+b,prettyName(b)]);if(l.length)return l}return BLOCK_DEFS.map(d=>[d[0],d[1]])}
 function paneBg(P){const D=AN.data;
   let s=aSec(P,'Vorlage','Ein Startpunkt, den du danach umbauen kannst.');const tg=el('div','an-tpl');
