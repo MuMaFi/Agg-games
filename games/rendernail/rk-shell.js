@@ -74,6 +74,9 @@ function openSettings(){const b=$('#set-body');b.innerHTML='';
   for(const[k,n,d]of[['simple','Simpel','Große Knöpfe, nur das Wichtigste'],['pro','Professionell','Wie Photoshop: Menüs, Zahlenfelder, Bedienfelder']]){
     const btn=document.createElement('button');btn.type='button';btn.className='mode';btn.setAttribute('aria-pressed',SHELL.mode===k);btn.innerHTML=`<span class="mock ${k}"><i></i><i></i><i></i></span><b></b><span></span>`;btn.querySelector('b').textContent=n;btn.querySelector('b+span').textContent=d;
     btn.addEventListener('click',()=>{setMode(k);modes.querySelectorAll('.mode').forEach(x=>x.setAttribute('aria-pressed',x===btn))});modes.append(btn)}
+  {const sl=sec('Sprache · Language'),g=document.createElement('div');g.className='seg';sl.append(g);
+    for(const[k,n]of[['de','Deutsch'],['en','English']]){const x=document.createElement('button');x.type='button';x.textContent=n;x.setAttribute('aria-pressed',LANG===k);
+      x.addEventListener('click',()=>{if(LANG===k)return;store.set('rn-lang',k);location.reload()});g.append(x)}}
   const s2=sec('Start');
   for(const[k,label]of[['sound','Startklang abspielen'],['anim','Startanimation zeigen']]){const l=document.createElement('label');l.className='row check';l.innerHTML='<input type="checkbox"><span></span>';l.querySelector('span').textContent=label;const i=l.querySelector('input');i.checked=!!SHELL[k];i.addEventListener('change',()=>{SHELL[k]=i.checked;store.set('rn-'+k,i.checked)});s2.append(l)}
   const tb=document.createElement('button');tb.type='button';tb.className='btn sm';tb.textContent='Startanimation jetzt ansehen';tb.addEventListener('click',()=>{audioUnlocked=audioUnlocked||!!chimeEl;setDlg.close();splash()});s2.append(tb);

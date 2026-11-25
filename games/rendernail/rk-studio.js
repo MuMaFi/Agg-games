@@ -64,7 +64,9 @@ function boxGeo(b,TW,TH,skip=-1){
     const e=.0005,u0=x/TW+e,u1=(x+rw)/TW-e,v0=1-y/TH-e,v1=1-(y+rh)/TH+e;uv.push(u0,v0,u1,v0,u0,v1,u1,v1);idx.push(base,base+2,base+1,base+1,base+2,base+3)});
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);return g}
 function itemMesh(key){const g=ITEM16[key]||(String(key).startsWith('pi_')&&typeof packItemGrid==='function'?packItemGrid(key.slice(3)):null);if(!g)return null;const T=THREE,cells=[];
-  const n=g.length,k=16/n;for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(g[y][x])cells.push([x,y,g[y][x]]);
+  /* Minecraft-Äxte und -Hacken haben den Kopf auf der Rückseite des Stiels: an der Stiel-Diagonale spiegeln, damit die Schneide nach vorne zeigt */
+  const flip=key==='axe'&&typeof ORIG_ITEM16!=='undefined'&&g!==ORIG_ITEM16.axe||/^pi_.*_(axe|hoe)$/.test(String(key));
+  const n=g.length,k=16/n;for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(g[y][x])cells.push(flip?[n-1-y,n-1-x,g[y][x]]:[x,y,g[y][x]]);
   const inst=new T.InstancedMesh(new T.BoxGeometry(k,k,1.2),new T.MeshLambertMaterial({color:0xffffff}),cells.length),M=new T.Matrix4(),col=new T.Color();
   cells.forEach(([x,y,c],i)=>{M.makeTranslation((x-(n-1)/2)*k,((n-1)/2-y)*k,0);inst.setMatrixAt(i,M);col.set(c);col.convertSRGBToLinear();inst.setColorAt(i,col)});
   inst.castShadow=true;inst.scale.setScalar(.7);inst.position.set(5.5*.7,5.5*.7,0);const grp=new T.Group();grp.add(inst);grp.rotation.y=-Math.PI/2;return grp}
