@@ -546,6 +546,11 @@ body.simple .an-step .no{width:26px;height:26px;font-size:12.5px}
 /* ---------- iPad & Desktop ---------- */
 .an-mode{flex:none;margin-right:6px}.an-mode button{white-space:nowrap}
 .an-post{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.an-frame .an-ovl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.an-ovlrow .an-key{background:#7fb4ff}.an-ovlrow .an-key.on{background:#cfe2ff}
+.an-otext{width:100%;resize:vertical;min-height:52px;font:inherit;padding:8px;border-radius:6px;border:1px solid var(--line,#3a3a3a);background:var(--field,#1c1c1c);color:inherit}
+.an-ocolors{display:flex;gap:14px;flex-wrap:wrap}.an-ocol{display:flex;align-items:center;gap:6px;font-size:12px}.an-ocol input{width:34px;height:26px;padding:0;border:0;background:none}
+.an-ocats{flex-wrap:wrap;margin:6px 0}
 .an-guidebox{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);outline:2px dashed rgba(255,255,255,.85);box-shadow:0 0 0 9999px rgba(0,0,0,.45);pointer-events:none}
 .an-guidebox::after{content:attr(data-l);position:absolute;left:6px;top:6px;font-size:11px;color:#fff;background:rgba(0,0,0,.55);padding:2px 6px;border-radius:3px;white-space:nowrap}
 .an-guidebtn{position:absolute;right:14px;top:52px;background:rgba(40,40,40,.92)}
@@ -820,7 +825,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
         <div class="an-main">
           <div class="an-col">
             <div class="an-stage" id="an-stage">
-              <div class="an-frame" id="an-frame"><canvas class="an-post" id="an-post" hidden></canvas><div class="an-guidebox" id="an-guidebox" hidden></div><div class="an-tint" id="an-tint"></div><div class="an-vig"></div><div class="an-bar t" id="an-bar-t"></div><div class="an-bar b" id="an-bar-b"></div><div class="an-fade" id="an-fade"></div></div>
+              <div class="an-frame" id="an-frame"><canvas class="an-post" id="an-post" hidden></canvas><div class="an-guidebox" id="an-guidebox" hidden></div><div class="an-tint" id="an-tint"></div><div class="an-vig"></div><div class="an-bar t" id="an-bar-t"></div><div class="an-bar b" id="an-bar-b"></div><canvas class="an-ovl" id="an-ovl"></canvas><div class="an-fade" id="an-fade"></div></div>
               <div class="an-hint" id="an-hint" role="note"><span></span><button class="x" type="button" aria-label="Hinweis schließen">×</button></div>
               <button class="btn sm icon an-help" id="an-help" type="button" aria-label="Hinweis anzeigen" title="Hinweis anzeigen" hidden>?</button>
               <div class="an-posedone" id="an-posedone" hidden><span></span><button class="btn primary sm" type="button">Fertig</button></div>
@@ -917,6 +922,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-anskin" accept="image/png" hidden>
 <input type="file" id="f-anfile" accept=".json,application/json" hidden>
 <input type="file" id="f-anaudio" hidden>
+<input type="file" id="f-anovl" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
@@ -935,6 +941,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <script src="rk-figure.js"></script>
 <script src="rk-slides.js"></script>
 <script src="rk-anim.js"></script>
+<script src="rk-anim2d.js"></script>
 <script src="rk-app.js"></script>
 <script src="rk-shell.js"></script>
 
