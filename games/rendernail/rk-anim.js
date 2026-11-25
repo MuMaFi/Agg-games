@@ -344,10 +344,26 @@ function anPropMove(o,fn){const t0=AN.t,c=evalProp(o,t0),steps=fn(c),last=steps[
 function anReadMove(){if(anProp()){anReadProp();return}const a=anActor(),g=AR.tcm.object;if(!a||!g)return;
   if(AR.tcm.mode==='rotate'){const c=evalActor(a,AN.t,true),r=v=>Math.round(v*10)/10;anSetKey(a,{rx:r(anUnwrap(g.rotation.x/D2R,c.rx||0)),ry:r(((anUnwrap(g.rotation.y/D2R,c.ry)+540)%360)-180),rz:r(anUnwrap(g.rotation.z/D2R,c.rz||0))});return}
   const x=Math.round(g.position.x*10)/10,z=Math.round(g.position.z*10)/10,y=Math.round(clamp(g.position.y-groundY(x,z),-600,600)*10)/10;anSetKey(a,{x,z,y})}
-function anCopyObj(){const a=anActor(),o=anProp();if(!a&&!o)return false;AN.clip={kind:a?'actor':'prop',data:JSON.parse(JSON.stringify(a||o))};toast('Kopiert. Mit Strg/Cmd+V einfügen.');return true}
+function anCopyObj(){const a=anActor(),o=anProp();if(!a&&!o)return false;AN.clip={kind:a?'actor':'prop',data:JSON.parse(JSON.stringify(a||o))};AN.lastCopy='obj';toast('Kopiert. Mit Strg/Cmd+V einfügen.');return true}
 function anPasteObj(){const c=AN.clip;if(!c)return false;const d=JSON.parse(JSON.stringify(c.data)),off=AB*1.5;for(const k of d.keys){k.x+=off;k.z+=off*.5}
   if(c.kind==='actor'){d.id='a'+uid();d.name=(d.name+' 2').slice(0,30);AN.data.actors.push(d);anSyncActors()}else{d.id='p'+uid();AN.data.props.push(d);anSyncProps()}
   c.data.keys.forEach(k=>{k.x+=off;k.z+=off*.5});anSelect(d.id);anCommit();anTimeline();toast('Eingefügt – mit derselben Animation.');return true}
+/* Schlüsselbilder kopieren: Raute antippen (oder Zeitregler auf ein Schlüsselbild), Strg/Cmd+C, Zeitregler verschieben, Strg/Cmd+V */
+AN.keySel=null;AN.kclip=null;AN.lastCopy=null;
+function anKeyKind(keys){const D=AN.data;if(keys===D.cam.keys)return'cam';if(D.actors.some(a=>a.faces===keys))return'face';if(D.actors.some(a=>a.keys===keys))return'actor';return'prop'}
+function anKeySource(){const D=AN.data,ks=AN.keySel;if(ks&&ks.keys.includes(ks.k)&&Math.abs(ks.k.t-AN.t)<.02)return ks;
+  const a=anActor(),o=anProp();if(a){const k=anKeyAt(a.keys,AN.t);if(k)return{k,keys:a.keys,id:a.id}}if(o){const k=anKeyAt(o.keys,AN.t);if(k)return{k,keys:o.keys,id:o.id}}
+  if(AN_STEPS[AN.step][0]==='cam'){const k=anKeyAt(D.cam.keys,AN.t);if(k)return{k,keys:D.cam.keys,id:'cam'}}return null}
+function anCopyKey(){const s=anKeySource();if(!s)return false;AN.kclip={kind:anKeyKind(s.keys),id:s.id,k:anClone(s.k)};AN.lastCopy='key';toast('Schlüsselbild kopiert. Zeitregler verschieben und mit Strg/Cmd+V einfügen.');anPane();return true}
+function anPasteKey(){const c=AN.kclip;if(!c)return false;const D=AN.data,t=AN.t;let keys,same,a=anActor(),o=anProp();
+  if(c.kind==='cam')keys=D.cam.keys;else if(c.kind==='face'){if(!a)a=D.actors.find(x=>x.id===c.id);if(!a)return false;keys=a.faces=a.faces||[]}
+  else if(c.kind==='actor'){if(!a)a=D.actors.find(x=>x.id===c.id);if(!a)return false;keys=a.keys}else{if(!o)o=D.props.find(x=>x.id===c.id);if(!o)return false;keys=o.keys}
+  const owner=c.kind==='cam'?'cam':(c.kind==='prop'?o:a).id;same=owner===c.id;const nk=anClone(c.k);nk.t=t;
+  if(!same&&(c.kind==='actor'||c.kind==='prop')){const cur=c.kind==='actor'?evalActor(a,t,true):evalProp(o,t);nk.x=cur.x;nk.z=cur.z}
+  const old=anKeyAt(keys,t);if(old)keys.splice(keys.indexOf(old),1);keys.push(nk);keys.sort((p,q)=>p.t-q.t);
+  if(c.kind==='cam')D.cam.preset='custom';if(c.kind==='face'){const rt=AN.rts.get(a.id);if(rt)rt.face=null}
+  AN.keySel={k:nk,keys,id:owner};AN.pathDirty=true;anCommit();anTimeline();anSeek(t);anPane();toast('Schlüsselbild eingefügt.');return true}
+function anKeyBtns(s){const r=aRow(s);if(anKeySource())aBtn(r,'Schlüsselbild kopieren',anCopyKey,'btn sm');if(AN.kclip)aBtn(r,'Schlüsselbild hier einfügen',anPasteKey,'btn sm')}
 function anActor(){return AN.data.actors.find(a=>a.id===AN.sel)||null}
 function anSelect(id,bone){AN.sel=id;AN.bone=bone||null;{const f=$('#an-posedone');if(f){f.hidden=!AN.bone;if(AN.bone)f.querySelector('span').textContent=BONE_LABEL[AN.bone]||'Körperteil'}}if(!AR)return;const rt=id&&AN.rts.get(id);if(bone&&rt&&rt.m.bones[bone])AR.tc.attach(rt.m.bones[bone]);else AR.tc.detach();const pm=id&&AN.pmesh.get(id),ed=!AN.playing&&AN_STEPS[AN.step][0]==='act';const md=pm?AN.pmode:rt?(AN.amode||'translate'):'translate';AR.tcm.setMode(md);AR.tcm.setSpace(md==='rotate'?'local':'world');if(rt&&!bone&&ed)AR.tcm.attach(rt.m.group);else if(pm&&ed)AR.tcm.attach(pm);else AR.tcm.detach();anPane();anTimeline()}
 async function anAddActor(name,skin,slim){const D=AN.data,n=D.actors.length,a={id:'a'+uid(),name:name||'Figur '+(n+1),skin:skin||'',slim:!!slim,item:'',walk:true,size:{},
@@ -518,6 +534,7 @@ function paneProps(P){const D=AN.data,o=anProp();let s=aSec(P,'Bewegliche Blöck
   aRange(s,'Größe',0,4,.05,()=>cur.s,set(v=>({s:v})),v=>Math.round(v*100)+' %');
   if(k){s=aSec(P,'Schlüsselbild bei '+anFmtT(k.t));aSelect(s,'Übergang hierher',Object.entries(AN_EASE).map(([e,[n]])=>[e,n]),()=>k.ease||'smooth',v=>{k.ease=v});
     if(o.keys.length>1)aBtn(aRow(s),'Schlüsselbild löschen',()=>{o.keys.splice(o.keys.indexOf(k),1);anTimeline();anCommit();anPane()},'btn sm danger')}
+  if(k||AN.kclip){if(!k)s=aSec(P,null);anKeyBtns(s)}
   s=aSec(P,null);{const rr=aRow(s);aBtn(rr,'Duplizieren (mit Animation)',()=>{anCopyObj();anPasteObj()});aBtn(rr,'Block entfernen',()=>{D.props.splice(D.props.indexOf(o),1);anSelect(null);anSyncProps();anCommit();anPane()},'btn sm danger')}}
 function paneAct(P){const D=AN.data,a=anActor();if(anProp()){paneActors(P,null);paneProps(P);return}paneActors(P,a);paneProps(P)}
 function paneActors(P,a){const D=AN.data;
@@ -569,6 +586,7 @@ function paneActors(P,a){const D=AN.data;
     aSeg(s,null,[['1','Laufen'],['0','Gleiten / Fliegen']],()=>anWalks(a,seg)?'1':'0',v=>{seg.walk=v==='1';AN.pathDirty=true;anTimeline();anCommit()})}}
   if(k){s=aSec(P,'Schlüsselbild bei '+anFmtT(k.t));aSelect(s,'Übergang hierher',Object.entries(AN_EASE).map(([e,[n]])=>[e,n]),()=>k.ease||'smooth',v=>{k.ease=v;AN.pathDirty=true});
     if(a.keys.length>1)aBtn(aRow(s),'Schlüsselbild löschen',()=>{a.keys.splice(a.keys.indexOf(k),1);anTimeline();anCommit();anPane()},'btn sm danger')}
+  if(k||AN.kclip){if(!k)s=aSec(P,null);anKeyBtns(s)}
   s=aSec(P,null);const r=aRow(s);aBtn(r,'Duplizieren (mit Animation)',()=>{anCopyObj();anPasteObj()});aBtn(r,'Figur entfernen',()=>{D.actors.splice(D.actors.indexOf(a),1);anSelect(null);anSyncActors();anCommit();anPane()},'btn sm danger')}
 function anBoneUI(){}
 function anMove(a,steps){const t0=AN.t,last=steps[steps.length-1][0];if(t0+last>AN.data.dur){AN.data.dur=Math.min(30,Math.ceil((t0+last+.5)*2)/2)}
@@ -583,7 +601,7 @@ function paneCam(P){const C=AN.data.cam;let s=aSec(P,'Kamerafahrt','Ein Klick er
   aCheck(s,'Weich anfahren und abbremsen',()=>C.smooth,v=>{C.smooth=v;AN.pathDirty=true});
   aRange(s,'Handkamera (leichtes Wackeln)',0,1,.05,()=>C.shake||0,v=>{C.shake=v},v=>v?Math.round(v*100)+' %':'Aus');
   const k=anKeyAt(C.keys,AN.t);s=aSec(P,'Positionen',C.keys.length+(C.keys.length===1?' Position':' Positionen')+' in der Fahrt.');const r=aRow(s);
-  aBtn(r,k?'Position hier ersetzen':'Position hier merken',anSetCamKey,'btn sm');if(k&&C.keys.length>1)aBtn(r,'Löschen',()=>{C.keys.splice(C.keys.indexOf(k),1);C.preset='custom';AN.pathDirty=true;anTimeline();anCommit();anPane()},'btn sm danger')}
+  aBtn(r,k?'Position hier ersetzen':'Position hier merken',anSetCamKey,'btn sm');if(k&&C.keys.length>1)aBtn(r,'Löschen',()=>{C.keys.splice(C.keys.indexOf(k),1);C.preset='custom';AN.pathDirty=true;anTimeline();anCommit();anPane()},'btn sm danger');anKeyBtns(s)}
 function paneLight(P){const L=AN.data.light,fx=AN.data.fx;let s=aSec(P,'Stimmung');const g=el('div','an-tpl');
   for(const[k,v]of Object.entries(AN_LIGHT)){const b=el('button','an-card an-mood');b.type='button';b.dataset.mood=k;b.setAttribute('aria-pressed',L.preset===k);b.innerHTML='<b></b>';b.querySelector('b').textContent=v.n;
     b.addEventListener('click',()=>{Object.assign(L,anClone(v),{preset:k});anApplyLook();anCommit();anPane()});g.append(b)}s.append(g);
@@ -623,7 +641,7 @@ function anTimeline(){const box=$('#an-tracks');if(!box||!AN.data)return;const D
   const ph=el('div','an-phl');ph.innerHTML='<div class="an-ph" id="an-ph"></div>';box.append(ph);ph.style.height=box.scrollHeight+'px';
   const ds=$('#an-dur');if(![...ds.options].some(o=>+o.value===D.dur))ds.append(new Option(String(D.dur).replace('.',',')+' s',String(D.dur)));ds.value=String(D.dur);anPH()}
 function anPH(){const p=$('#an-ph');if(p)p.style.left=(AN.t/AN.data.dur*100)+'%';const l=$('#an-tlabel');if(l)l.textContent=anFmtT(AN.t)+' / '+anFmtT(AN.data.dur);
-  document.querySelectorAll('#an-tracks .an-key').forEach(b=>b.classList.toggle('on',Math.abs(b._k.t-AN.t)<.02))}
+  document.querySelectorAll('#an-tracks .an-key').forEach(b=>{b.classList.toggle('on',Math.abs(b._k.t-AN.t)<.02);b.classList.toggle('ksel',!!AN.keySel&&AN.keySel.k===b._k)})}
 (function(){const box=$('#an-tracks');if(!box)return;let D=null;
   const tAt=e=>{const inn=box.querySelector('.an-in');if(!inn)return 0;const r=inn.getBoundingClientRect();return clamp((e.clientX-r.left)/r.width,0,1)*AN.data.dur};
   /* Maus: sofort spulen/ziehen. Finger: senkrecht wischen scrollt die Zeilen, waagerecht spult, Tippen springt. */
@@ -640,7 +658,7 @@ function anPH(){const p=$('#an-ph');if(p)p.style.left=(AN.t/AN.data.dur*100)+'%'
       showMenu(d.clip,[['Neu zuschneiden …',async()=>{try{const buf=await anAudBuf(c);anTrimDialog({name:c.name,buf,at:c.at,vol:c.vol,clip:c})}catch{toast('Der Ton konnte nicht geladen werden.')}}],null,
         ...[1.5,1,.75,.5,.25].map(v=>['Lautstärke '+Math.round(v*100)+' %',()=>{c.vol=v;anCommit();anTimeline()},'',null,()=>Math.abs((c.vol??1)-v)<.01]),null,
         ['Ton entfernen',()=>{AN.data.audio.splice(AN.data.audio.indexOf(c),1);anCommit();anTimeline()}]]);return}
-    if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{anSeek(b._k.t);if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else{if(d.pending)anSeek(tAt(e));anPaneSoft()}};
+    if(d.k){const b=d.k;if(d.moved){anCommit();anTimeline()}else{AN.keySel={k:b._k,keys:b._keys,id:b._id};anSeek(b._k.t);if(b._id!=='cam')anSelect(b._id)}if(!d.moved)anPane()}else{AN.keySel=null;if(d.pending)anSeek(tAt(e));anPaneSoft()}};
   box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up)})();
 
 /* ---------- Video und Standbild ---------- */
@@ -726,8 +744,8 @@ document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)retu
   if(e.key===' '){e.preventDefault();anPlay()}else if(e.key==='ArrowLeft'){e.preventDefault();anSeek(AN.t-(e.shiftKey?1:.05))}else if(e.key==='ArrowRight'){e.preventDefault();anSeek(AN.t+(e.shiftKey?1:.05))}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){e.preventDefault();anUndo(e.shiftKey?1:-1)}
   else if(e.key==='Escape'){if(AN.bone)anSelect(AN.sel);else anSelect(null)}
-  else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='c'){if(anCopyObj())e.preventDefault()}
-  else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='v'){if(anPasteObj())e.preventDefault()}
+  else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='c'){const ks=AN.keySel;if(ks&&Math.abs(ks.k.t-AN.t)<.02&&anCopyKey())e.preventDefault();else if(anCopyObj()){AN.lastCopy='obj';e.preventDefault()}}
+  else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='v'){if(AN.lastCopy==='key'?anPasteKey():anPasteObj())e.preventDefault()}
   else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='d'){e.preventDefault();if(anCopyObj())anPasteObj()}});
 (function(){const q=s=>document.querySelector(s);if(!q('#an-play'))return;
   q('#an-play').addEventListener('click',()=>{if(AN.ready)anPlay()});q('#an-start').addEventListener('click',()=>{if(AN.ready){anStop();anSeek(0)}});
