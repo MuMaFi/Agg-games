@@ -63,7 +63,7 @@ function applyMode(){const simple=SHELL.mode==='simple';document.body.classList.
   document.querySelectorAll('.home h2')[0].firstChild.textContent=simple?'Neues Thumbnail':'Neue Datei';
   document.querySelectorAll('.home h2')[1].firstChild.textContent=simple?'Deine Thumbnails ':'Zuletzt verwendet ';
   if(typeof buildProps==='function'&&ED.p){buildProps();buildSelbar();requestRender()}
-  try{if(typeof R3!=='undefined'&&R3)buildSide3()}catch{}try{if(typeof AN!=='undefined'&&AN.data)anPane()}catch{}
+  try{if(typeof R3!=='undefined'&&R3)buildSide3()}catch{}try{if(typeof AN!=='undefined'&&AN.data&&AN.ready)anSteps()}catch{}
   if(typeof resize3==='function')setTimeout(resize3,50)}
 applyMode();
 
