@@ -125,7 +125,7 @@ function route(){
   document.querySelectorAll('.nav a').forEach(a=>{const on=a.dataset.r===v||(a.dataset.r==='home'&&v==='editor');if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
   if(v!=='editor')setSave('');
   if(v==='studio')startStudio();
-  if(v==='anim')startAnim();
+  if(v==='anim'){startAnim();if(typeof anHome==='function'&&AN.ready)anHome(true)}
   if(v==='home')renderHome();
   if(v==='gallery'){gstate.sort=['neu','beliebt','meistgeladen'].includes(h)?h:'neu';gstate.shown=12;draw()}
   if(v==='editor'){buildSide();renderLayers();buildSelbar();buildProps();requestRender()}}

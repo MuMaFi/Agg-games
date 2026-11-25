@@ -45,9 +45,28 @@ function anIndex(){const i=store.get(AN_IDX,null);return Array.isArray(i)?i.filt
 function anInitStore(){let idx=anIndex();
   if(!idx.length){const old=store.get('rk-anim',null),id='an'+uid();idx=[{id,name:'Animation 1',t:Date.now()}];store.set('rk-anim:'+id,old&&old.v===1?old:anDefault());store.set(AN_IDX,idx);store.set('rk-anim-cur',id)}
   let cur=store.get('rk-anim-cur',null);if(!idx.some(p=>p.id===cur))cur=idx[0].id;AN.pid=cur;store.set('rk-anim-cur',cur);return idx}
+/* Vorschaubild der aktuellen Ansicht für die Übersicht */
+function anCapture(){if(!AR||AN.rec||AR.renderer.domElement.width<10)return'';try{const s=AR.renderer.domElement,c=mk(320,Math.max(1,Math.round(320*s.height/s.width)));c.getContext('2d').drawImage(s,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.7)}catch{return''}}
+/* Übersicht aller Animationen (wie die Startseite der Thumbnails) */
+function anHome(show=true){const h=$('#an-home');if(!h)return;h.hidden=!show;if(!show)return;anStop();h.innerHTML='';
+  const w=document.createElement('div');w.className='wrap home';w.innerHTML='<h1>Animationen</h1><p class="lead">Tippe eine Animation an, um weiterzumachen. Alles speichert sich automatisch.</p><div class="fmt-grid"></div><h2>Deine Animationen <small></small></h2><div class="pgrid"></div>';h.append(w);
+  const nb=document.createElement('button');nb.type='button';nb.className='fmt main';nb.innerHTML='<span class="ic">+</span><span><b>Neue Animation</b><span>Schritt für Schritt: Hintergrund, Figuren, Kamera, Licht, Video</span></span>';
+  nb.addEventListener('click',()=>{const n=prompt('Name der neuen Animation:','Animation '+(anIndex().length+1));if(n===null)return;anNewProject(n);anHome(false)});
+  const ob=document.createElement('button');ob.type='button';ob.className='fmt';ob.innerHTML='<span class="ic">⇪</span><span><b>Datei öffnen</b><span>.rnanim.json aus Rendernail</span></span>';ob.addEventListener('click',()=>$('#f-anfile').click());
+  w.querySelector('.fmt-grid').append(nb,ob);
+  const idx=anIndex().sort((a,b)=>b.t-a.t);w.querySelector('h2 small').textContent=idx.length||'';const g=w.querySelector('.pgrid');
+  for(const p of idx){const c=document.createElement('div');c.className='pcard';const pv=document.createElement('button');pv.type='button';pv.className='pv';pv.setAttribute('aria-label',p.name+' öffnen');
+    if(p.preview&&/^data:image\/jpeg;base64,/.test(p.preview)){const im=document.createElement('img');im.alt='';im.src=p.preview;pv.append(im)}else{const sp=document.createElement('span');sp.className='sub';sp.textContent='Noch keine Vorschau';pv.append(sp)}
+    pv.addEventListener('click',()=>{if(p.id!==AN.pid)anOpenProject(p.id);anHome(false)});
+    const meta=document.createElement('div');meta.className='meta';const t=document.createElement('div');t.style.minWidth='0';const b=document.createElement('b');b.textContent=p.name;const sp=document.createElement('span');sp.textContent='bearbeitet '+rel(new Date(p.t).toISOString());t.append(b,sp);
+    const acts=document.createElement('div');acts.className='btnrow';acts.style.flexWrap='nowrap';
+    const du=document.createElement('button');du.type='button';du.className='btn ghost sm';du.textContent='Kopie';du.addEventListener('click',()=>{if(p.id===AN.pid)anSaveNow();const d=store.get('rk-anim:'+p.id,null);if(!d)return;const id='an'+uid(),i=anIndex();i.unshift({id,name:(p.name+' (Kopie)').slice(0,60),t:Date.now(),preview:p.preview});if(store.set('rk-anim:'+id,d)&&store.set(AN_IDX,i)){toast('Kopie erstellt.');anHome(true)}else toast('Kein Platz mehr im Browser-Speicher.')});
+    const de=document.createElement('button');de.type='button';de.className='btn ghost sm danger';de.textContent='Löschen';de.addEventListener('click',()=>{if(!confirm(`„${p.name}“ wirklich löschen?`))return;const i=anIndex().filter(x=>x.id!==p.id);try{localStorage.removeItem('rk-anim:'+p.id)}catch{}store.set(AN_IDX,i);
+      if(p.id===AN.pid){if(i.length)anOpenProject(i[0].id);else{AN.pid=null;anNewProject('Animation 1')}}toast('Gelöscht.');anHome(true)});
+    acts.append(du,de);meta.append(t,acts);c.append(pv,meta);g.append(c)}}
 function anProjName(){const p=anIndex().find(x=>x.id===AN.pid);return p?p.name:'Animation'}
 function anSaveNow(){clearTimeout(anSaveT);if(!AN.pid||!AN.data)return true;const ok=store.set('rk-anim:'+AN.pid,AN.data);
-  const idx=anIndex(),p=idx.find(x=>x.id===AN.pid);if(p){p.t=Date.now();store.set(AN_IDX,idx)}
+  const idx=anIndex(),p=idx.find(x=>x.id===AN.pid);if(p){p.t=Date.now();const pv=anCapture();if(pv)p.preview=pv;if(!store.set(AN_IDX,idx)){delete p.preview;store.set(AN_IDX,idx)}}
   const st=$('#an-savest');if(st)st.textContent=ok?'Gespeichert':'Nicht gespeichert';if(!ok)toast('Speichern fehlgeschlagen: Der Browser-Speicher ist voll. Lösche alte Animationen oder speichere als Datei.');return ok}
 function anOpenProject(id){anSaveNow();anStop();AN.pid=id;store.set('rk-anim-cur',id);AN.data=anLoad();AN.hist=[JSON.stringify(AN.data)];AN.fut=[];AN.t=0;AN.sel=null;AN.bone=null;
   if(AR){AR.tc.detach();AR.tcm.detach();anRebuildAll();anFrameCam(true)}anProjUI();anUndoUI()}
@@ -59,6 +78,7 @@ function anProjMenu(btn){closeMenu();const el2=document.createElement('div');el2
   const idx=anIndex().sort((a,b)=>b.t-a.t),when=t=>new Date(t).toLocaleDateString('de-DE',{day:'numeric',month:'short'});
   for(const p of idx.slice(0,15))item(p.name,()=>{if(p.id!==AN.pid)anOpenProject(p.id)},p.id===AN.pid,when(p.t));
   el2.append(document.createElement('hr'));
+  item('Alle Animationen',()=>{anSaveNow();anHome(true)});
   item('Neue Animation',()=>anNewProject(prompt('Name der neuen Animation:','Animation '+(anIndex().length+1))||''));
   item('Umbenennen …',()=>{const n=prompt('Neuer Name:',anProjName());if(!n||!n.trim())return;const i=anIndex(),p=i.find(x=>x.id===AN.pid);if(p){p.name=n.trim().slice(0,60);store.set(AN_IDX,i);anProjUI()}});
   item('Kopie speichern',()=>{anSaveNow();anNewProject(anProjName()+' (Kopie)',JSON.parse(JSON.stringify(AN.data)))});
