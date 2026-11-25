@@ -583,7 +583,7 @@ function paneLight(P){const L=AN.data.light,fx=AN.data.fx;let s=aSec(P,'Stimmung
   s=aSec(P,'Look');aRange(s,'Dunst in der Ferne',0,1,.05,()=>L.fog,set(v=>L.fog=v),v=>Math.round(v*100)+' %');
   aRange(s,'Farbe: kühl ↔ warm',-1,1,.05,()=>L.tint,set(v=>L.tint=v),v=>v>0?'warm':v<0?'kühl':'neutral');
   aRange(s,'Vignette',0,1,.05,()=>L.vig,set(v=>L.vig=v),v=>Math.round(v*100)+' %');
-  aSeg(s,'Kamera-Effekt',[['none','Aus'],['comic','Comic-Punkte'],['retro','16 Farben']],()=>fx.look||'none',v=>{fx.look=v;anCommit()});
+  aSeg(s,'Kamera-Effekt',[['none','Aus'],['comic','Comic-Punkte'],['retro','16-Bit']],()=>fx.look||'none',v=>{fx.look=v;anCommit()});
   aCheck(s,'Kinobalken',()=>fx.bars,v=>{fx.bars=v;anFx()});aCheck(s,'Am Anfang ein- und am Ende ausblenden',()=>fx.fade,v=>{fx.fade=v})}
 function paneOut(P){const D=AN.data,[w,h]=AN_FMT[D.fmt].s[D.q||0];let s=aSec(P,'Dein Video');
   const sum=el('dl','an-sum');for(const[a,b]of[['Länge',anFmtT(D.dur)],['Format',AN_FMT[D.fmt].n],['Größe',w+' × '+h],['Figuren',String(D.actors.length)],['Blöcke',String(D.blocks.length)]]){sum.append(el('dt',null,a),el('dd',null,b))}s.append(sum);
@@ -639,8 +639,11 @@ let anLut=null;function anPalLut(){if(anLut)return anLut;anLut=new Uint8Array(32
   AN_PAL.forEach((c,j)=>{const d=(c[0]-r)**2*.3+(c[1]-g)**2*.59+(c[2]-b)**2*.11;if(d<bd){bd=d;bi=j}});anLut[i]=bi}return anLut}
 const anTmp={a:null,b:null};
 function anPostFx(x,W,H,kind){if(!kind||kind==='none')return;
-  if(kind==='retro'){const sc=Math.max(2,Math.round(W/400)),w=Math.ceil(W/sc),h=Math.ceil(H/sc),c=anTmp.a&&anTmp.a.width===w&&anTmp.a.height===h?anTmp.a:(anTmp.a=mk(w,h)),cx=c.getContext('2d');
-    cx.drawImage(x.canvas,0,0,w,h);const im=cx.getImageData(0,0,w,h),d=im.data,L=anPalLut();for(let i=0;i<d.length;i+=4){const p=AN_PAL[L[(d[i]>>3)<<10|(d[i+1]>>3)<<5|d[i+2]>>3]];d[i]=p[0];d[i+1]=p[1];d[i+2]=p[2]}
+  if(kind==='retro'){/* 16-Bit-Farben (RGB 5-6-5, 65 536 Farben) mit 4×4-Raster (Dithering) und leicht groben Pixeln */
+    const sc=Math.max(2,Math.round(W/480)),w=Math.ceil(W/sc),h=Math.ceil(H/sc),c=anTmp.a&&anTmp.a.width===w&&anTmp.a.height===h?anTmp.a:(anTmp.a=mk(w,h)),cx=c.getContext('2d');
+    cx.drawImage(x.canvas,0,0,w,h);const im=cx.getImageData(0,0,w,h),d=im.data,B=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+    for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){const i=(y*w+xx)*4,t=B[(y&3)*4+(xx&3)]/16-.5;
+      const q=(v,bits)=>{const n=(1<<bits)-1,s=255/n;return clamp(Math.round((v+t*s)/s),0,n)*s};d[i]=q(d[i],5);d[i+1]=q(d[i+1],6);d[i+2]=q(d[i+2],5)}
     cx.putImageData(im,0,0);x.save();x.imageSmoothingEnabled=false;x.drawImage(c,0,0,W,H);x.restore();return}
   if(kind==='comic'){const w=Math.ceil(W/2),h=Math.ceil(H/2),c=anTmp.a&&anTmp.a.width===w&&anTmp.a.height===h?anTmp.a:(anTmp.a=mk(w,h)),cx=c.getContext('2d');cx.drawImage(x.canvas,0,0,w,h);
     const im=cx.getImageData(0,0,w,h),d=im.data,q=v=>Math.round(v/255*4)/4*255;for(let i=0;i<d.length;i+=4){const l=(d[i]+d[i+1]+d[i+2])/3;for(let k=0;k<3;k++)d[i+k]=clamp(q(l+(d[i+k]-l)*1.35),0,255)}cx.putImageData(im,0,0);
