@@ -1,6 +1,6 @@
 'use strict';
 /* ================= Pose-Studio (Three.js) ================= */
-const BONES=[['head','Kopf'],['body','Körper'],['armR','Rechter Oberarm'],['armRLow','Rechter Unterarm'],['armL','Linker Oberarm'],['armLLow','Linker Unterarm'],['legR','Rechter Oberschenkel'],['legRLow','Rechter Unterschenkel'],['legL','Linker Oberschenkel'],['legLLow','Linker Unterschenkel']];
+const BONES=[['head','Kopf'],['body','Körper'],['armR','Rechter Oberarm'],['armRLow','Rechter Unterarm'],['armL','Linker Oberarm'],['armLLow','Linker Unterarm'],['legR','Rechter Oberschenkel'],['legRLow','Rechter Unterschenkel'],['legL','Linker Oberschenkel'],['legLLow','Linker Unterschenkel'],['item','Gegenstand']];
 const BONE_LABEL=Object.fromEntries(BONES);
 const PAIR={armR:'armL',armL:'armR',armRLow:'armLLow',armLLow:'armRLow',legR:'legL',legL:'legR',legRLow:'legLLow',legLLow:'legRLow'};
 const POSES={
@@ -109,7 +109,8 @@ function buildRig(m,skinSrc){const T=THREE;const Z=m.size||{},sH=(Z.head||100)/1
   const handR=arm('R',[40,16],legacy?null:[40,32]);arm('L',legacy?[40,16]:[32,48],legacy?null:[48,48]);
   const leg=(side,uv,ov)=>limb('leg'+side,root,[(side==='R'?-2:2)*sL,12*sL,0],0,uv,ov,4,sL);
   leg('R',[0,16],legacy?null:[0,32]);leg('L',legacy?[0,16]:[16,48],legacy?null:[0,48]);
-  if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5*sA,.5*sA);holder.scale.setScalar(sA);holder.add(im);handR.add(holder)}}
+  if(m.item){const im=itemMesh(m.item);if(im){const holder=new T.Group();holder.position.set(0,-5.5*sA,.5*sA);holder.scale.setScalar(sA);holder.add(im);handR.add(holder);
+    /* Eigener Drehpunkt am Griff: lässt sich wie ein Körperteil drehen, ohne den Arm zu bewegen */m.bones.item=holder;im.traverse(o=>{if(o.isMesh){o.userData={model:m.id,bone:'item'};m.meshes.push(o)}})}}
   return root}
 function miterRig(m){if(!m||!m.limbs)return;const T=THREE,M=new T.Matrix3();
   for(const L of m.limbs){const q=L.low.quaternion,key=q.x+','+q.y+','+q.z+','+q.w;if(L.key===key)continue;L.key=key;
@@ -123,7 +124,7 @@ function miterRig(m){if(!m||!m.limbs)return;const T=THREE,M=new T.Matrix3();
         const nx=nb[i*3],ny=nb[i*3+1],nz=nb[i*3+2];let NX=s1*nx+t*(R[0]*nx+R[4]*ny+R[8]*nz),NY=s1*ny+t*(R[1]*nx+R[5]*ny+R[9]*nz),NZ=s1*nz+t*(R[2]*nx+R[6]*ny+R[10]*nz);
         const l=Math.hypot(NX,NY,NZ)||1;na[i*3]=NX/l;na[i*3+1]=NY/l;na[i*3+2]=NZ/l}
       P.pa.needsUpdate=true;P.na.needsUpdate=true;P.g.computeBoundingSphere();P.g.computeBoundingBox()}}}
-function applyPose(m){if(!m.group)return;for(const[b]of BONES){const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
+function applyPose(m){if(!m.group)return;for(const[b]of BONES){if(!m.bones[b])continue;const r=(m.pose&&m.pose[b])||[0,0,0];m.bones[b].rotation.set(r[0]*D2R,r[1]*D2R,r[2]*D2R)}
   m.group.position.set(m.x||0,m.rootY||0,m.z||0);m.group.rotation.y=(m.ry||0)*D2R;miterRig(m)}
 
 /* ---------- Szene ---------- */
