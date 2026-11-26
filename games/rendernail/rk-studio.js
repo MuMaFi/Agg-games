@@ -151,7 +151,12 @@ function initStudio(){
   new ResizeObserver(resize3).observe(wrap);
   ST.ready=true;loadUserSkins();
   applyStudioState(store.get('rk-studio',{})||{});ST.hist=[stSnap()];updStUndo();setCamera('left');resize3()}
-let skyT=0;function resize3(){if(!R3)return;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
+/* Bildformat fürs Rendern: Rahmen in der Ansicht zeigt den Ausschnitt */
+const ST_FMT={'9:16':9/16,'1:1':1,'16:9':16/9};ST.fmt=ST_FMT[store.get('rk-st-fmt','screen')]?store.get('rk-st-fmt','screen'):'screen';
+function stFrameRect(){if(!R3||!ST_FMT[ST.fmt])return null;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight,a=ST_FMT[ST.fmt];let fw,fh;if(w/h>a){fh=h;fw=h*a}else{fw=w;fh=w/a}return{x:(w-fw)/2,y:(h-fh)/2,w:fw,h:fh,W:w,H:h}}
+function stFrame(){const f=$('#st-frame');if(!f)return;const r=stFrameRect();f.hidden=!r;if(r)Object.assign(f.style,{left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px'});document.querySelectorAll('#st-fmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===ST.fmt))}
+document.querySelectorAll('#st-fmt button').forEach(b=>b.addEventListener('click',()=>{ST.fmt=b.dataset.f;store.set('rk-st-fmt',ST.fmt);stFrame()}));
+let skyT=0;function resize3(){if(!R3)return;setTimeout(stFrame,0);const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
 function loop3(){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);R3.controls.update();for(const mm of ST.models)miterRig(mm);R3.renderer.render(R3.scene,R3.camera)}
 function startStudio(){initStudio();if(R3&&!ST.running){ST.running=true;resize3();loop3()}}
 let skyTex=null,skyKey='';
@@ -265,8 +270,10 @@ function trimCanvas(src){const w=src.width,h=src.height,c=mk(w,h),x=c.getContext
 $('#st-render').addEventListener('click',async()=>{
   if(!ST.ready){toast('Die 3D-Ansicht ist nicht bereit.');return}
   const{renderer,scene,camera,tc}=R3,att=tc.object;tc.detach();tc.visible=false;
-  const pr=renderer.getPixelRatio(),w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;renderer.setPixelRatio(Math.min(4,Math.max(pr,2200/Math.max(w,h))));renderer.setSize(w,h,false);
-  renderer.render(scene,camera);const raw=renderer.domElement;const out=ST.bg==='none'?trimCanvas(raw):(()=>{const c=mk(raw.width,raw.height);c.getContext('2d').drawImage(raw,0,0);return c})();
+  const pr=renderer.getPixelRatio(),w=R3.wrap.clientWidth,h=R3.wrap.clientHeight,fr=stFrameRect();
+  if(fr){const a=ST_FMT[ST.fmt],W=a>=1?2200:Math.round(2200*a),H=a>=1?Math.round(2200/a):2200;renderer.setPixelRatio(1);renderer.setSize(W,H,false);camera.setViewOffset(fr.W,fr.H,fr.x,fr.y,fr.w,fr.h);camera.updateProjectionMatrix()}
+  else{renderer.setPixelRatio(Math.min(4,Math.max(pr,2200/Math.max(w,h))));renderer.setSize(w,h,false)}
+  renderer.render(scene,camera);if(fr){camera.clearViewOffset();camera.updateProjectionMatrix()}const raw=renderer.domElement;const out=ST.bg==='none'?trimCanvas(raw):(()=>{const c=mk(raw.width,raw.height);c.getContext('2d').drawImage(raw,0,0);return c})();
   renderer.setPixelRatio(pr);resize3();tc.visible=true;if(att)tc.attach(att);
   let blob;try{blob=await canvasBlob(out)}catch{toast('Rendern hat nicht geklappt.');return}
   const url=URL.createObjectURL(blob);let stored=null;const keep=async()=>{if(!stored)stored=await storeImage(blob,'Render','render',out.width,out.height);return stored};

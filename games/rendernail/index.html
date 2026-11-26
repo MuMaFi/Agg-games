@@ -200,6 +200,8 @@ main{flex:1;min-height:0;position:relative}
 .st-stage.transparent{background:var(--checker)}
 #st-wrap{position:absolute;inset:0}
 #st-wrap canvas{display:block;width:100%;height:100%;touch-action:none}
+.st-frame{position:absolute;pointer-events:none;outline:2px dashed rgba(255,255,255,.9);box-shadow:0 0 0 9999px rgba(0,0,0,.42);z-index:1}
+.st-fmt{margin-right:8px;flex:none}.st-fmt button{white-space:nowrap}
 .st-top{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;flex-wrap:wrap;pointer-events:none;z-index:2}
 .st-top>*{pointer-events:auto}
 .st-bottom{bottom:8px;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100% - 16px);justify-content:center}
@@ -738,7 +740,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
             </div>
           </div>
           <div class="st-stage" id="st-stage">
-            <div id="st-wrap"></div>
+            <div id="st-wrap"></div><div class="st-frame" id="st-frame" hidden></div>
             <div class="st-fail" id="st-fail" hidden></div>
           </div>
           <div class="st-status">
@@ -749,6 +751,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
             <button class="btn ghost sm" data-cam="low" type="button">Von unten</button>
             <button class="btn ghost sm" data-cam="close" type="button">Nah</button>
             <span class="grow"></span>
+            <div class="seg st-fmt" id="st-fmt" role="group" aria-label="Format"><button type="button" data-f="screen">Bildschirm</button><button type="button" data-f="9:16">Hoch 9:16</button><button type="button" data-f="1:1">Quadrat</button><button type="button" data-f="16:9">Quer 16:9</button></div>
             <button class="btn primary" id="st-render" type="button">Rendern</button>
           </div>
         </div>

@@ -644,6 +644,7 @@ function paneLight(P){const L=AN.data.light,fx=AN.data.fx;let s=aSec(P,'Stimmung
   aCheck(s,'Kinobalken',()=>fx.bars,v=>{fx.bars=v;anFx()});aCheck(s,'Am Anfang ein- und am Ende ausblenden',()=>fx.fade,v=>{fx.fade=v})}
 function paneOut(P){const D=AN.data,[w,h]=AN_FMT[D.fmt].s[D.q||0];let s=aSec(P,'Dein Video');
   const sum=el('dl','an-sum');for(const[a,b]of[['Länge',anFmtT(D.dur)],['Format',AN_FMT[D.fmt].n],['Größe',w+' × '+h],['Figuren',String(D.actors.length)],['Blöcke',String(D.blocks.length)]]){sum.append(el('dt',null,a),el('dd',null,b))}s.append(sum);
+  aSeg(s,'Format',Object.entries(AN_FMT).map(([k,f])=>[k,f.n]),()=>D.fmt,v=>{D.fmt=v;anResize();anCommit();anPane()});
   aSeg(s,'Bilder pro Sekunde',[[15,'15'],[24,'24 (Film)'],[30,'30'],[60,'60']],()=>D.fps||30,v=>{D.fps=+v;anCommit()});
   aSeg(s,'Qualität',[[0,'Standard'],[1,'Hoch (Full HD)']],()=>D.q||0,v=>{D.q=+v;anCommit();anPane()});
   const r=aRow(s);aBtn(r,'Video erstellen',anRecord,'btn primary');aBtn(r,'Standbild (PNG)',anStill,'btn');
