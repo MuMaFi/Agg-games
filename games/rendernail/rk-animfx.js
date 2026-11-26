@@ -11,36 +11,61 @@ function anDieAngle(u){if(u<0)return 0;const dt=u*AN_TICK+1;let f=(dt-1)/20*1.6;
 function anHurt(rt,on){const m=rt.m;if(!on&&!rt.hurt)return;rt.hurt=on;
   m.group.traverse(o=>{if(!o.isMesh||!o.material)return;for(const mt of[].concat(o.material)){if(!mt.color)continue;if(on){mt.color.setRGB(.7,.7,.7);if(mt.emissive)mt.emissive.setRGB(.3,0,0)}else{mt.color.setRGB(1,1,1);if(mt.emissive)mt.emissive.setRGB(0,0,0)}}})}
 /* Partikel-Bilder generic_0 … generic_7: Wölkchen, das von Bild zu Bild kleiner wird (8 × 8 Pixel) */
-let anPoofTex=null;
-function anPoofFrames(){if(anPoofTex)return anPoofTex;const T=THREE;anPoofTex=[];
-  for(let i=0;i<8;i++){const c=mk(8,8),x=c.getContext('2d'),r=4.1-i*.46;for(let y=0;y<8;y++)for(let xx=0;xx<8;xx++){const d=Math.hypot(xx+.5-4,y+.5-4);if(d>r)continue;
-      const e=d/r;x.fillStyle=e>.72?'rgba(200,200,200,1)':e>.4?'rgba(232,232,232,1)':'rgba(255,255,255,1)';x.fillRect(xx,y,1,1)}
-    const t=new T.CanvasTexture(c);t.magFilter=T.NearestFilter;t.minFilter=T.NearestFilter;t.generateMipmaps=false;t.encoding=T.sRGBEncoding;anPoofTex.push(t)}return anPoofTex}
+/* ---------- Partikel-Texturen: aus dem Minecraft-Paket (textures/particle/…), sonst nachgezeichnet ---------- */
+let anPTex=null;
+function anTexOf(c){const T=THREE,t=new T.CanvasTexture(c);t.magFilter=T.NearestFilter;t.minFilter=T.NearestFilter;t.generateMipmaps=false;t.encoding=T.sRGBEncoding;return t}
+function anPackFrames(prefix){if(typeof PACK==='undefined'||!PACK)return null;const re=new RegExp('^p/'+prefix+'_(\\d+)$'),L=Object.keys(PACK.imgs).map(k=>[k,k.match(re)]).filter(x=>x[1]).sort((a,b)=>a[1][1]-b[1][1]).map(x=>PACK.imgs[x[0]]);return L.length?L:null}
+const anPxCount=c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i]>20)n++;return n};
+function anParticleTex(){if(anPTex)return anPTex;anPTex={};
+  /* generic_0 … 7 (für „poof“): vom größten zum kleinsten Wölkchen */
+  let gen=anPackFrames('generic');
+  if(!gen){gen=[];for(let i=0;i<8;i++){const c=mk(8,8),x=c.getContext('2d'),r=4.1-i*.46;for(let y=0;y<8;y++)for(let xx=0;xx<8;xx++){const d=Math.hypot(xx+.5-4,y+.5-4);if(d>r)continue;const e=d/r;x.fillStyle=e>.72?'#c8c8c8':e>.4?'#e8e8e8':'#fff';x.fillRect(xx,y,1,1)}gen.push(c)}}
+  anPTex.poof=gen.slice().sort((a,b)=>anPxCount(b)-anPxCount(a)).map(anTexOf);
+  /* gust_* (Windstoß), sonst nachgezeichnete Wirbel */
+  let gu=anPackFrames('gust');
+  if(!gu){gu=[];for(let i=0;i<12;i++){const c=mk(32,32),x=c.getContext('2d');x.strokeStyle='rgba(235,245,255,.95)';x.lineWidth=3;const p=i/11;
+      for(let k=0;k<3;k++){x.beginPath();const r=5+k*4+p*8;x.arc(16,16,r,k*2.1+p*3,k*2.1+p*3+2.6-p*1.8);x.stroke()}gu.push(c)}}
+  anPTex.gust=gu.map(anTexOf);anPTex.real=!!anPackFrames('generic');return anPTex}
+if(typeof packWatchers!=='undefined')packWatchers.push(()=>{anPTex=null;anTerrainTex.clear();for(const e of AN_PFX.values())e.key=''});
+/* Block-Brocken (TerrainParticle): ein zufälliges 4 × 4-Stück der Blocktextur */
+const anTerrainTex=new Map();
+function anBlockBelow(m){const D=AN.data,x=Math.floor(m.x/AB),z=Math.floor(m.z/AB),y=Math.round(m.rootY/AB)-1;let best=null;
+  for(const b of D.blocks)if(b[0]===x&&b[2]===z&&b[1]<=y&&(!best||b[1]>best[1]))best=b;return best?best[3]:(D.bg.ground==='none'?null:({grass:'dirt',sand:'sand',stone:'stone',snow:'snow'}[D.bg.ground]||'dirt'))}
+function anTerrainPiece(key,ox,oy){const id=key+'|'+ox+'|'+oy;let t=anTerrainTex.get(id);if(t)return t;const f=anFaces(key)||anFaces('dirt');if(!f)return null;const src=f[1]||f[0],w=src.width,c=mk(4,4);
+  c.getContext('2d').drawImage(src,ox/16*w,oy/16*w,w/4,w/4,0,0,4,4);t=anTexOf(c);anTerrainTex.set(id,t);return t}
+
+/* ---------- Partikel deterministisch simulieren (gleiche Zufallszahlen bei jedem Abspielen und im Video) ---------- */
+const AN_PFX=new Map();
 function anGauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(6.283185*v)}
-const AN_POOF=new Map();
-/* Partikel deterministisch berechnen (gleiche Zufallszahlen bei jedem Abspielen und im Video) */
-function anPoofSim(a,X,Y,Z){const seed=[...a.id].reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619),2166136261)>>>0,r=mulberry32(seed),P=[];
-  for(let i=0;i<20;i++){const d0=anGauss(r)*.02,d1=anGauss(r)*.02,d2=anGauss(r)*.02;
-    const px=X+.6*(2*r()-1),py=Y+1.8*r(),pz=Z+.6*(2*r()-1);
-    const xd=d0+(r()*2-1)*.05,yd=d1+(r()*2-1)*.05,zd=d2+(r()*2-1)*.05,col=r()*.3+.7,size=.1*(r()*r()*6+1),life=Math.floor(16/(r()*.8+.2))+2;
-    P.push({px,py,pz,xd,yd,zd,col,size,life})}return P}
-function anPoofAt(p,ticks){/* Zustand nach „ticks“ Ticks (mit Zwischenwert für flüssige Bilder) */
-  let x=p.px,y=p.py,z=p.pz,xd=p.xd,yd=p.yd,zd=p.zd;const n=Math.floor(ticks),fr=ticks-n;let px=x,py=y,pz=z;
-  for(let i=0;i<=n;i++){px=x;py=y;pz=z;yd+=.004;x+=xd;y+=yd;z+=zd;xd*=.9;yd*=.9;zd*=.9}
-  return[px+(x-px)*fr,py+(y-py)*fr,pz+(z-pz)*fr]}
-function anPoofUpdate(a,rt,u){let e=AN_POOF.get(a.id);const show=u>=1&&u<1+90/AN_TICK;
-  if(!show){if(e)e.g.visible=false;return}
-  const m=rt.m,X=m.x/AB,Y=(m.rootY)/AB,Z=m.z/AB,key=[Math.round(m.x*10),Math.round(m.rootY*10),Math.round(m.z*10)].join(',');
-  if(!e){const T=THREE,g=new T.Group();AR.scene.add(g);e={g,sp:[],key:''};AN_POOF.set(a.id,e);
-    for(let i=0;i<20;i++){const s=new T.Sprite(new T.SpriteMaterial({map:anPoofFrames()[0],transparent:true,alphaTest:.05,depthWrite:false,fog:true}));g.add(s);e.sp.push(s)}}
-  if(e.key!==key){e.P=anPoofSim(a,X,Y,Z);e.key=key}
-  e.g.visible=true;const ticks=(u-1)*AN_TICK,fr=anPoofFrames(),lt=AN.data.light||{},dim=lt.sky==='night'?.45:lt.sky==='sunset'?.85:1;
-  e.P.forEach((p,i)=>{const s=e.sp[i];if(ticks>=p.life){s.visible=false;return}s.visible=true;const[x,y,z]=anPoofAt(p,ticks);s.position.set(x*AB,y*AB,z*AB);
-    s.scale.setScalar(p.size*2*AB);s.material.map=fr[Math.min(7,Math.floor(ticks*7/p.life))];s.material.color.setRGB(p.col*dim,p.col*dim,p.col*dim)})}
+const anSeed=s=>[...s].reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619),2166136261)>>>0;
+/* ExplodeParticle („poof“, 20 Stück bei deathTime 20) */
+function anPoofSim(r,X,Y,Z){const P=[];
+  for(let i=0;i<20;i++){const d0=anGauss(r)*.02,d1=anGauss(r)*.02,d2=anGauss(r)*.02,px=X+.6*(2*r()-1),py=Y+1.8*r(),pz=Z+.6*(2*r()-1);
+    P.push({k:'poof',t0:20,px,py,pz,xd:d0+(r()*2-1)*.05,yd:d1+(r()*2-1)*.05,zd:d2+(r()*2-1)*.05,col:r()*.3+.7,size:.1*(r()*r()*6+1),life:Math.floor(16/(r()*.8+.2))+2,grav:-.1,fric:.9})}return P}
+/* Streitkolben-Schlag: ParticleUtils.spawnSmashAttackParticles(…, 750) mit DUST_PILLAR (Block-Brocken) */
+function anSmashSim(r,X,Y,Z,block){const P=[],power=750,cx=X,cy=Y,cz=Z;if(!block)return P;
+  const add=(x,y,z,ys)=>{P.push({k:'dust',t0:0,px:x,py:y,pz:z,xd:anGauss(r)/30,yd:ys+anGauss(r)/2,zd:anGauss(r)/30,col:.6,size:.1*(r()*.5+.5),life:Math.floor(r()*20)+20,grav:1,fric:.98,ground:cy,block,ox:Math.floor(r()*13),oy:Math.floor(r()*13)})};
+  for(let i=0;i<power/3;i++){const x=cx+anGauss(r)/2,z=cz+anGauss(r)/2;anGauss(r);const ys=anGauss(r)*.2;anGauss(r);add(x,cy,z,ys)}
+  for(let j=0;j<power/1.5;j++){const x=cx+3.5*Math.cos(j)+anGauss(r)/2,z=cz+3.5*Math.sin(j)+anGauss(r)/2;anGauss(r);const ys=anGauss(r)*.05;anGauss(r);add(x,cy,z,ys)}return P}
+/* Windstoß (gust_emitter_large: 7 Ticks lang je ein Gust, Abstand (rand−rand)·3, Gust: 12–15 Ticks, 1 Block halbe Größe, voll hell) */
+function anGustSim(r,X,Y,Z){const P=[];for(let t=0;t<7;t++)P.push({k:'gust',t0:t,px:X+(r()-r())*3,py:Y+1+(r()-r())*3,pz:Z+(r()-r())*3,xd:0,yd:0,zd:0,col:1,size:1,life:12+Math.floor(r()*4),grav:0,fric:1,bright:1});return P}
+function anPartAt(p,ticks){let x=p.px,y=p.py,z=p.pz,xd=p.xd,yd=p.yd,zd=p.zd,og=false;const n=Math.floor(ticks),fr=ticks-n;let qx=x,qy=y,qz=z;
+  for(let i=0;i<=n;i++){qx=x;qy=y;qz=z;yd-=.04*p.grav;x+=xd;y+=yd;z+=zd;if(p.ground!=null&&y<p.ground){y=p.ground;yd=0;og=true}xd*=p.fric;yd*=p.fric;zd*=p.fric;if(og){xd*=.7;zd*=.7}}
+  return[qx+(x-qx)*fr,qy+(y-qy)*fr,qz+(z-qz)*fr]}
+function anPfxUpdate(a,rt,u){let e=AN_PFX.get(a.id);const ticks=u*AN_TICK;if(u<0||ticks>130){if(e)e.g.visible=false;return}
+  const m=rt.m,X=m.x/AB,Y=m.rootY/AB,Z=m.z/AB,key=[Math.round(m.x*10),Math.round(m.rootY*10),Math.round(m.z*10),a.dieFx||'',packTick].join(',');
+  if(!e){e={g:new THREE.Group(),sp:[],key:''};AR.scene.add(e.g);AN_PFX.set(a.id,e)}
+  if(e.key!==key){const r=mulberry32(anSeed(a.id));e.P=anPoofSim(r,X,Y,Z);if(a.dieFx==='mace'){const r2=mulberry32(anSeed(a.id+'m'));e.P=e.P.concat(anSmashSim(r2,X,Y,Z,anBlockBelow(m)),anGustSim(r2,X,Y,Z))}e.key=key}
+  while(e.sp.length<e.P.length){const s=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,alphaTest:.05,depthWrite:false,fog:true}));e.g.add(s);e.sp.push(s)}
+  e.g.visible=true;const tex=anParticleTex(),lt=AN.data.light||{},dim=lt.sky==='night'?.45:lt.sky==='sunset'?.85:1;
+  e.P.forEach((p,i)=>{const s=e.sp[i],age=ticks-p.t0;if(age<0||age>=p.life){s.visible=false;return}const map=p.k==='poof'?tex.poof[Math.min(tex.poof.length-1,Math.floor(age*(tex.poof.length-1)/p.life))]:p.k==='gust'?tex.gust[Math.min(tex.gust.length-1,Math.floor(age*(tex.gust.length-1)/p.life))]:anTerrainPiece(p.block,p.ox,p.oy);
+    if(!map){s.visible=false;return}s.visible=true;const[x,y,z]=anPartAt(p,age);s.position.set(x*AB,y*AB,z*AB);s.scale.setScalar(p.size*2*AB);if(s.material.map!==map){s.material.map=map;s.material.needsUpdate=true}
+    const c=p.col*(p.bright?1:dim);s.material.color.setRGB(c,c,c)});
+  for(let i=e.P.length;i<e.sp.length;i++)e.sp[i].visible=false}
 /* Wird nach dem Setzen der Pose für jede Figur aufgerufen */
-function anApplyDeath(a,rt){const u=anDeathU(a,AN.t),g=rt.m.group;if(u>=0)g.rotation.z+=anDieAngle(u);g.visible=!(u>=1);anHurt(rt,u>=0&&u<1);anPoofUpdate(a,rt,u)}
-function anPoofCleanup(){for(const[id,e]of AN_POOF)if(!AN.data.actors.some(a=>a.id===id&&a.die!=null)){AR.scene.remove(e.g);e.sp.forEach(s=>s.material.dispose());AN_POOF.delete(id)}}
-function anDie(a){a.die=Math.round(AN.t*20)/20;if(a.die+1.8>AN.data.dur){AN.data.dur=Math.min(30,Math.ceil((a.die+1.8)*2)/2)}anCommit();anTimeline();anPane();toast(a.name+' stirbt bei '+anFmtT(a.die)+'. Drück auf Abspielen.')}
+function anApplyDeath(a,rt){const u=anDeathU(a,AN.t),g=rt.m.group;if(u>=0)g.rotation.z+=anDieAngle(u);g.visible=!(u>=1);anHurt(rt,u>=0&&u<1);anPfxUpdate(a,rt,u)}
+function anPoofCleanup(){for(const[id,e]of AN_PFX)if(!AN.data.actors.some(a=>a.id===id&&a.die!=null)){AR.scene.remove(e.g);e.sp.forEach(s=>s.material.dispose());AN_PFX.delete(id)}}
+function anDie(a,fx){a.die=Math.round(AN.t*20)/20;if(fx)a.dieFx=fx;else delete a.dieFx;if(typeof PACK!=='undefined'&&PACK&&!anPackFrames('generic'))setTimeout(()=>toast('Für die Original-Partikel: Einstellungen → Minecraft-Texturen → „Neu von Mojang laden“.'),2600);if(a.die+1.8>AN.data.dur){AN.data.dur=Math.min(30,Math.ceil((a.die+1.8)*2)/2)}anCommit();anTimeline();anPane();toast(a.name+(fx==='mace'?' wird bei ':' stirbt bei ')+anFmtT(a.die)+(fx==='mace'?' mit dem Streitkolben besiegt. Drück auf Abspielen.':'. Drück auf Abspielen.'))}
 
 /* ---------- Eigene Pixel-Gesichter (8 × 8, Vorderseite des Kopfes) ---------- */
 function anCustomFace(a,id){const px=a.cfaces&&a.cfaces[id];if(!Array.isArray(px))return null;const c=mk(8,8),x=c.getContext('2d');

@@ -32,9 +32,11 @@ const pngURL=ab=>blobToDataURL(new Blob([ab],{type:'image/png'})).then(u=>u.repl
 async function collectPack(src,name,status=()=>{}){
   const out={v:2,name:String(name||'Texturpaket').slice(0,60),files:{},skins:{}};
   const env=/^environment\/(?:celestial\/)?(sun|clouds|moon_phases|moon\/full_moon)\.png$/,re=/^(block|blocks|item|items)\/([a-z0-9_]+)\.png$/,sk=/^entity\/(?:player\/(wide|slim)\/)?([a-z0-9_]+)\.png$/;
-  const list=src.names();let n=0;const todo=list.filter(p=>re.test(p)||sk.test(p)||env.test(p));
+  const pt=/^particle\/((?:generic|gust|small_gust|sweep)_\d+)\.png$/;
+  const list=src.names();let n=0;const todo=list.filter(p=>re.test(p)||sk.test(p)||env.test(p)||pt.test(p));
   for(const p of todo){const ab=await src.read(p).catch(()=>null);if(++n%60===0)status(`Texturen werden entpackt … ${n} von ${todo.length}`,n/todo.length);if(!ab)continue;const blob=new Blob([ab],{type:'image/png'});
     let m=p.match(env);if(m){out.files['e/'+(m[1]==='moon/full_moon'?'moon':m[1])]=blob;continue}
+    m=p.match(pt);if(m){out.files['p/'+m[1]]=blob;continue}
     m=p.match(re);if(m){out.files[(m[1][0]==='b'?'b/':'i/')+m[2]]=blob;continue}
     m=p.match(sk);if(m&&(m[1]||['steve','alex'].includes(m[2]))&&Object.keys(out.skins).length<24)out.skins[(m[1]==='slim'||m[2]==='alex'?'s:':'w:')+m[2]]=blob}
   if(!Object.keys(out.files).length&&!Object.keys(out.skins).length)throw new Error('In der Datei wurden keine Minecraft-Texturen gefunden.');
@@ -157,7 +159,7 @@ async function applyPack(data,status=()=>{}){
   if(!data){PACK=null;Object.assign(ITEM16,ORIG_ITEM16);packChanged();return}
   const imgs={},skins={};
   if(data.v===2){const ents=Object.entries(data.files||{});let n=0;
-    for(let i=0;i<ents.length;i+=48){await Promise.all(ents.slice(i,i+48).map(async([k,b])=>{try{imgs[k]=await decodeTex(b,k.startsWith('e/'))}catch{}}));n=Math.min(ents.length,i+48);status(`Texturen werden vorbereitet … ${n} von ${ents.length}`,n/ents.length)}
+    for(let i=0;i<ents.length;i+=48){await Promise.all(ents.slice(i,i+48).map(async([k,b])=>{try{imgs[k]=await decodeTex(b,k.startsWith('e/')||k.startsWith('p/'))}catch{}}));n=Math.min(ents.length,i+48);status(`Texturen werden vorbereitet … ${n} von ${ents.length}`,n/ents.length)}
     for(const[k,b]of Object.entries(data.skins||{})){try{const c=await decodeTex(b,true);if(c.width===64&&(c.height===64||c.height===32))skins[k]=c}catch{}}}
   else{for(const[k,u]of Object.entries(data.tex||{})){if(typeof u!=='string'||!/^data:image\/png;base64,/.test(u))continue;try{const im=await loadImage(u),w=im.naturalWidth,c=mk(w,Math.min(w,im.naturalHeight));c.getContext('2d').drawImage(im,0,0);imgs[k]=c}catch{}}
     for(const[k,u]of Object.entries(data.skins||{})){if(typeof u!=='string'||!/^data:image\/png;base64,/.test(u))continue;try{const im=await loadImage(u);if(im.naturalWidth===64&&(im.naturalHeight===64||im.naturalHeight===32)){const c=mk(64,im.naturalHeight);c.getContext('2d').drawImage(im,0,0);skins[k]=c}}catch{}}}
