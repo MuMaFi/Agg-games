@@ -551,6 +551,14 @@ body.simple .st-status [data-cam=right],body.simple .st-status [data-cam=low],bo
 .ed-big:hover{background:#363636;border-color:#666}.ed-big .ic svg{width:34px;height:34px}.ed-big b{font-size:15px}.ed-big small{color:var(--dim,#9a9a9a);font-size:12px}
 .ed-start-fig{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}.ed-start-fig input{min-width:200px;background:#1c1c1c;border:1px solid #4a4a4a;border-radius:8px;padding:8px 10px;color:inherit;font:inherit}.ed-start-fig p{flex-basis:100%;margin:0}
 .ed-start>.sub{margin:14px 0 0}
+.an-die{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:13px;color:#ff6b6b;pointer-events:none;text-shadow:0 0 3px #000}
+.an-cfaces{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.an-cface{padding:3px;height:auto}.an-cface canvas{display:block;image-rendering:pixelated;width:24px;height:24px}
+.an-fed{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.an-fedcard{background:#262626;border:1px solid #454545;border-radius:14px;padding:18px;max-width:100%;box-shadow:0 24px 60px -20px #000}.an-fedcard h3{margin:0 0 12px;font-size:17px}
+.an-fedbody{display:flex;gap:16px;flex-wrap:wrap}.an-fedgrid{width:min(320px,70vw);height:min(320px,70vw);image-rendering:pixelated;background:repeating-conic-gradient(#3a3a3a 0 25%,#2e2e2e 0 50%) 0 0/16px 16px;border-radius:6px;cursor:crosshair;touch-action:none}
+.an-fedside{display:flex;flex-direction:column;gap:10px;width:200px}.an-fedpal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.an-fedsw{width:100%;aspect-ratio:1;border-radius:5px;border:1px solid #555;padding:0;cursor:pointer}.an-fedsw[aria-pressed=true]{outline:2px solid #fff;outline-offset:1px}
+.an-fedside input[type=color]{width:100%;height:30px;border:0;background:none;padding:0}.an-fedprev{width:64px;height:64px;image-rendering:pixelated;border-radius:4px;background:#1b1b1b}.an-fedfoot{justify-content:flex-end;margin-top:14px}
 .an-sguide{margin:12px 14px 4px;padding:12px 14px;border:1px solid #4a4a4a;border-radius:12px;background:#2a2f38}
 .an-sguide b{font-size:14px}.an-sguide ol{margin:6px 0 10px;padding-left:20px;font-size:13px;line-height:1.5}
 .an-sg-row{display:flex;gap:8px;align-items:center}.an-sg-row .btn{flex:1;height:40px;font-size:15px}.an-sg-t{min-width:52px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim,#aaa)}
@@ -954,6 +962,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <script src="rk-figure.js"></script>
 <script src="rk-slides.js"></script>
 <script src="rk-anim.js"></script>
+<script src="rk-animfx.js"></script>
 <script src="rk-anim2d.js"></script>
 <script src="rk-app.js"></script>
 <script src="rk-shell.js"></script>
