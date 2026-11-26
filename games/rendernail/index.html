@@ -476,6 +476,7 @@ body.simple .st-status{height:50px}
 .an-rec[hidden]{display:none}
 .an-reccard{background:#2b2b2b;border:1px solid #444;border-radius:10px;padding:18px;width:min(360px,calc(100% - 32px));display:flex;flex-direction:column;gap:10px;box-shadow:0 30px 60px -20px #000;animation:anPop .32s cubic-bezier(.2,.9,.3,1.2)}
 .an-done{width:min(560px,calc(100% - 32px));max-height:calc(100% - 24px);box-sizing:border-box;overflow:auto}
+.an-rec:has(.an-done){display:flex;align-items:center;justify-content:center;overflow:auto}
 .an-done video{width:100%;flex:1 1 auto;min-height:80px;max-height:50vh;object-fit:contain;background:#000;border-radius:6px}
 .an-done .btnrow{flex:none}
 .an-prog{height:6px;border-radius:3px;background:#1c1c1c;overflow:hidden}.an-prog i{display:block;height:100%;width:0;background:#dedede}
