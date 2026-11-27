@@ -749,9 +749,11 @@ async function anRecord(){if(!AR||AN.rec)return;const[W,H]=anSize(),cfg=await an
   AN.rec={enc};anRecPrep(W,H);const t0=AN.t;
   try{for(let i=0;i<N;i++){if(ui.cancel||err)break;const t=i/fps;AN.t=t;anRender(performance.now());anComposite(x,W,H,t);
       const f=new VideoFrame(out,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});enc.encode(f,{keyFrame:i%(fps*2)===0});f.close();
-      while(enc.encodeQueueSize>3)await new Promise(r=>setTimeout(r,4));
+      /* Warten, bis der Encoder aufholt – aber nie endlos: bei Fehler abbrechen, bei Stillstand (Safari) einmal anschieben, sonst Echtzeit-Aufnahme */
+      {const w0=performance.now();let pushed=false;while(enc.encodeQueueSize>3&&!err&&enc.state!=='closed'){if(performance.now()-w0>1500){if(pushed)throw new Error('encoder_stalled');pushed=true;await Promise.race([enc.flush(),new Promise(r=>setTimeout(r,4000))])}else await new Promise(r=>setTimeout(r,4))}
+        if(err||enc.state==='closed')throw err||new Error('encoder_closed')}
       if(i%2===0){ui.prog(i/N,anFmtT(t)+' von '+anFmtT(AN.data.dur));await new Promise(r=>requestAnimationFrame(r))}}
-    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await enc.flush();if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}}catch(e){err=e}
+    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}}catch(e){err=e}
   try{enc.close()}catch{}AN.rec=null;AN.t=t0;anResize();
   if(ui.cancel){$('#an-rec').hidden=true;toast('Aufnahme abgebrochen.');return}
   if(err){$('#an-rec').hidden=true;toast('Das Video konnte nicht erstellt werden, ich versuche die Echtzeit-Aufnahme.');anRecordLive();return}
