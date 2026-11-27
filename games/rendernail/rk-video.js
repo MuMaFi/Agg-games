@@ -16,7 +16,7 @@ const VE_IDX='ve-index';
 function veIndex(){const i=store.get(VE_IDX,null);return Array.isArray(i)?i.filter(x=>x&&x.id):[]}
 function veDefault(fmt,name){return{v:1,name:name||'Video',fmt:VE_FMT[fmt]?fmt:'9:16',bg:'blur',bgColor:'#000000',fps:30,q:1,media:[],main:[],over:[],audio:[]}}
 function veClean(d){const D=veDefault(d&&d.fmt,d&&d.name);if(!d||typeof d!=='object')return D;const num=(v,a,b,dflt)=>{v=+v;return isFinite(v)?clamp(v,a,b):dflt};
-  const clip=c=>{if(!c||!['video','image','audio','text','sticker'].includes(c.type))return null;return{...c,id:String(c.id||'c'+uid()),in:num(c.in,0,1e5,0),out:num(c.out,.05,1e5,3),speed:num(c.speed,.1,8,1),vol:num(c.vol,0,2,1),fin:num(c.fin,0,10,0),fout:num(c.fout,0,10,0),
+  const clip=c=>{if(!c||!['video','image','audio','text','sticker','char'].includes(c.type))return null;return{...c,keys:(Array.isArray(c.keys)?c.keys:[]).filter(k=>k&&isFinite(+k.t)).map(k=>({t:num(k.t,0,1e5,0),x:num(k.x,-2,3,.5),y:num(k.y,-2,3,.5),s:num(k.s,.01,20,1),r:num(k.r,-3600,3600,0),o:num(k.o,0,1,1)})).sort((a,b)=>a.t-b.t),id:String(c.id||'c'+uid()),in:num(c.in,0,1e5,0),out:num(c.out,.05,1e5,3),speed:num(c.speed,.1,8,1),vol:num(c.vol,0,2,1),fin:num(c.fin,0,10,0),fout:num(c.fout,0,10,0),
     start:num(c.start,0,1e5,0),lane:Math.round(num(c.lane,0,20,0)),x:num(c.x,-2,3,.5),y:num(c.y,-2,3,.5),s:num(c.s,.01,20,1),r:num(c.r,-3600,3600,0),o:num(c.o,0,1,1),adj:{b:num((c.adj||{}).b,-1,1,0),c:num((c.adj||{}).c,-1,1,0),s:num((c.adj||{}).s,-1,1,0),w:num((c.adj||{}).w,-1,1,0)}}};
   return{...D,...d,fmt:VE_FMT[d.fmt]?d.fmt:'9:16',bg:['blur','black','color'].includes(d.bg)?d.bg:'blur',fps:[24,30,60].includes(+d.fps)?+d.fps:30,q:d.q?1:0,
     media:(Array.isArray(d.media)?d.media:[]).filter(m=>m&&typeof m.asset==='string'),main:(d.main||[]).map(clip).filter(Boolean),over:(d.over||[]).map(clip).filter(Boolean),audio:(d.audio||[]).map(clip).filter(Boolean)}}
@@ -64,6 +64,13 @@ function veLayout(){let s=0;for(const c of VE.p.main){c._s=s;s+=veL(c)}for(const
 function veDur(){veLayout();let d=0;for(const k of['main','over','audio'])for(const c of VE.p[k])d=Math.max(d,c._s+veL(c));return d}
 function veActive(c,t){return t>=c._s-1e-6&&t<c._s+veL(c)-1e-6}
 function veSrcT(c,t){return clamp(c.in+(t-c._s)*(c.speed||1),c.in,Math.max(c.in,c.out-.001))}
+/* Schlüsselbilder: Lage, Größe, Drehung und Deckkraft ändern sich über die Zeit (Zeiten relativ zum Clip-Anfang) */
+const veKV=k=>({x:k.x,y:k.y,s:k.s,r:k.r||0,o:k.o??1});
+function veVal(c,t){const K=c.keys;if(!K||!K.length)return veKV(c);const lt=t-c._s;if(lt<=K[0].t)return veKV(K[0]);if(lt>=K[K.length-1].t)return veKV(K[K.length-1]);
+  let i=0;while(i<K.length-2&&lt>=K[i+1].t)i++;const a=K[i],b=K[i+1],u=(lt-a.t)/Math.max(1e-6,b.t-a.t),e=u*u*(3-2*u),r={};for(const k of['x','y','s','r','o'])r[k]=a[k]+(b[k]-a[k])*e;return r}
+function veKeyAt(c){if(!c.keys||!c.keys.length)return null;veLayout();const lt=VE.t-c._s;return c.keys.find(k=>Math.abs(k.t-lt)<.04)||null}
+function veSetVals(c,patch){if(c.keys&&c.keys.length){veLayout();const lt=clamp(VE.t-c._s,0,veL(c));let k=veKeyAt(c);if(!k){k={t:Math.round(lt*100)/100,...veVal(c,VE.t)};c.keys.push(k);c.keys.sort((a,b)=>a.t-b.t)}Object.assign(k,patch)}else Object.assign(c,patch)}
+function veAddKey(c){veLayout();const lt=clamp(VE.t-c._s,0,veL(c));c.keys=c.keys||[];if(!c.keys.length)c.keys.push({t:0,x:c.x,y:c.y,s:c.s,r:c.r||0,o:c.o??1});if(!veKeyAt(c)){c.keys.push({t:Math.round(lt*100)/100,...veVal(c,VE.t)});c.keys.sort((a,b)=>a.t-b.t)}veCommit();veAll()}
 function veNewClip(m,extra){const base={id:'c'+uid(),type:m.kind,asset:m.asset,name:m.name,in:0,out:m.kind==='image'?3:m.dur,speed:1,vol:1,fin:0,fout:0,start:0,lane:0,x:.5,y:.5,s:1,r:0,o:1,fit:'fit',flip:false,filt:'none',adj:{b:0,c:0,s:0,w:0},ain:'none',aout:'none'};return Object.assign(base,extra||{})}
 function veFreeLane(list,c,from){for(let l=from||0;l<30;l++){if(!list.some(x=>x!==c&&x.lane===l&&x.start<c.start+veL(c)-1e-3&&c.start<x.start+veL(x)-1e-3))return l}return 0}
 function veAddClip(m,as){const P=VE.p;veLayout();let c;
@@ -78,7 +85,7 @@ function veAddSticker(key){const P=VE.p;veLayout();const c={id:'c'+uid(),type:'s
 function veSplit(){const c=veFind(VE.sel)||VE.p.main.find(x=>veActive(x,VE.t));veLayout();if(!c){toast('Stell den Zeitregler auf einen Clip.');return}const t=VE.t;
   if(!(t>c._s+.04&&t<c._s+veL(c)-.04)){toast('Der Zeitregler muss mitten im Clip stehen.');return}
   const cut=c.in+(t-c._s)*c.speed,c2={...JSON.parse(JSON.stringify(c)),id:'c'+uid(),in:cut,fin:0};c.out=cut;c.fout=0;if(c.type==='image'||c.type==='text'||c.type==='sticker'){c2.in=0;c2.out=c2.out-cut;c.out=cut}
-  const list=veListOf(c);if(list!==VE.p.main)c2.start=t;list.splice(list.indexOf(c)+1,0,c2);VE.sel=c2.id;veCommit();veAll()}
+  if(c.keys&&c.keys.length){const lc=t-c._s;c2.keys=c.keys.map(k=>({...k,t:Math.round((k.t-lc)*100)/100}))}const list=veListOf(c);if(list!==VE.p.main)c2.start=t;list.splice(list.indexOf(c)+1,0,c2);VE.sel=c2.id;veCommit();veAll()}
 function veDelete(){const c=veFind(VE.sel);if(!c)return;const list=veListOf(c);list.splice(list.indexOf(c),1);VE.sel=null;veCommit();veAll()}
 function veDuplicate(){const c=veFind(VE.sel);if(!c)return;veLayout();const list=veListOf(c),d={...JSON.parse(JSON.stringify(c)),id:'c'+uid()};
   if(list===VE.p.main)list.splice(list.indexOf(c)+1,0,d);else{d.start=c._s+veL(c);d.lane=veFreeLane(list,d,c.lane);list.push(d)}VE.sel=d.id;veCommit();veAll()}
@@ -98,22 +105,23 @@ function veAdjust(src,sw,sh,a){if(!a||(!a.b&&!a.c&&!a.s&&!a.w))return src;
     g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,src);g.uniform4f(ua,a.b||0,a.c||0,a.s||0,a.w||0);g.drawArrays(g.TRIANGLE_STRIP,0,4);return c}catch{return src}}
 function veAdjOf(c){const f=(VE_FILTERS.find(x=>x[0]===c.filt)||VE_FILTERS[0])[2],a=c.adj||{};return{b:(a.b||0)+(f.b||0),c:(a.c||0)+(f.c||0),s:(a.s||0)+(f.s||0),w:(a.w||0)+(f.w||0)}}
 /* Quelle und Grundgröße eines sichtbaren Clips (in Einheiten des Grundformats) */
-function veSource(c,t,ex,q){const[BW,BH]=veBase();
+function veSource(c,t,ex,q,dims){const[BW,BH]=veBase();
   if(c.type==='video'){const v=(ex?ex.els:VE.els).get(c.id);if(!v||v.readyState<2||!v.videoWidth)return null;return{src:v,w:v.videoWidth,h:v.videoHeight,fitBox:true}}
   if(c.type==='image'){const e=veImg(c.asset);if(!e.ok)return null;return{src:e.img,w:e.img.naturalWidth,h:e.img.naturalHeight,fitBox:true}}
   if(c.type==='text'){let txt=String(c.text||' ');if(c.ain==='type'){const lt=t-c._s;txt=txt.slice(0,Math.max(0,Math.ceil(txt.length*clamp(lt/Math.min(1.2,veL(c)*.6),0,1))))||' '}
     const L={text:txt,font:c.font,size:Math.round((c.size||100)*q),color:c.color,color2:c.color2,grad:!!c.grad,stroke:Math.round((c.stroke||0)*q),strokeColor:c.strokeColor,depth:Math.round((c.depth||0)*q),align:'center'};
     const cv=textCanvas(L);return{src:cv,w:cv.width/q,h:cv.height/q,box:c.box?c.boxColor||'#000':null}}
+  if(c.type==='char'){const h=BH*.55,w=h*2/3;if(dims)return{src:null,w,h};const cv=veCharFrame(c,t);return cv?{src:cv,w,h}:null}
   if(c.type==='sticker'){const a=LIBK[c.key];if(!a)return null;const cv=a.bk?blockCanvas(a.bk):libCanvas(c.key,c.color);if(!cv)return null;const w=BW*.3,h=w*cv.height/cv.width;return{src:cv,w,h,pixel:a.pixel}}
   return null}
 const veEase=u=>1-Math.pow(1-u,3),veBack=u=>{const s=1.7;u-=1;return u*u*((s+1)*u+s)+1};
-function veGeo(c,t,ex,q){const[BW,BH]=veBase(),S=veSource(c,t,ex,q);if(!S)return null;let w=S.w,h=S.h;
+function veGeo(c,t,ex,q,dims){const[BW,BH]=veBase(),S=veSource(c,t,ex,q,dims);if(!S)return null;let w=S.w,h=S.h;
   if(S.fitBox){const f=c.fit==='fill'?Math.max(BW/w,BH/h):Math.min(BW/w,BH/h);w*=f;h*=f}
-  let sc=c.s,x=c.x*BW,y=c.y*BH,a=c.o??1;const isOver=!VE.p.main.includes(c);
+  const V=veVal(c,t);let sc=V.s,x=V.x*BW,y=V.y*BH,a=V.o;const isOver=!VE.p.main.includes(c);
   if(isOver){const lt=t-c._s,L=veL(c),D=.45;for(const[kind,p]of[[c.ain,clamp(lt/D,0,1)],[c.aout,clamp((L-lt)/D,0,1)]]){if(!kind||kind==='none'||kind==='type'||p>=1)continue;const e=veEase(p);
       if(kind==='fade')a*=p;else if(kind==='pop'){sc*=Math.max(0,veBack(p));a*=Math.min(1,p*3)}else if(kind==='up'){y+=(1-e)*BH*.18;a*=p}else if(kind==='left'){x-=(1-e)*BW*.45;a*=p}}}
-  return{...S,x,y,w:w*sc,h:h*sc,r:(c.r||0)*Math.PI/180,a}}
-function veDrawClip(x,c,t,ex,q){const g=veGeo(c,t,ex,q);if(!g||g.a<=.001||g.w<.5)return;let src=g.src;const adj=veAdjOf(c);
+  return{...S,x,y,w:w*sc,h:h*sc,r:(V.r||0)*Math.PI/180,a}}
+function veDrawClip(x,c,t,ex,q){const g=veGeo(c,t,ex,q);if(!g||!g.src||g.a<=.001||g.w<.5)return;let src=g.src;const adj=veAdjOf(c);
   if(c.type==='video'||c.type==='image')src=veAdjust(src,g.src.videoWidth||g.src.naturalWidth||g.src.width,g.src.videoHeight||g.src.naturalHeight||g.src.height,adj);
   x.save();x.globalAlpha=clamp(g.a,0,1);x.translate(g.x,g.y);x.rotate(g.r);if(c.flip)x.scale(-1,1);x.imageSmoothingEnabled=!g.pixel;x.imageSmoothingQuality='high';
   if(g.box){const p=g.h*.12;x.fillStyle=g.box;x.beginPath();if(x.roundRect)x.roundRect(-g.w/2-p,-g.h/2,g.w+p*2,g.h,g.h*.18);else x.rect(-g.w/2-p,-g.h/2,g.w+p*2,g.h);x.fill()}
@@ -153,7 +161,7 @@ function veLoop(now){if(view!=='video'){VE.running=false;return}requestAnimation
   if(VE.playing){const D=veDur();VE.t=VE.t0+(now-VE.tw)/1000;if(VE.t>=D){VE.t=D;vePause()}vePH();veFollow()}
   veSync();const cv=$('#ve-cv');if(!cv)return;const x=cv.getContext('2d');veDraw(x,cv.width,cv.height,VE.t,null);if(!VE.playing)veSelBox(x,cv)}
 /* Auswahlrahmen im Vorschaubild */
-function veSelGeo(c,cv){const[BW]=veBase(),k=cv.width/BW,g=veGeo(c,VE.t,null,Math.max(1,k));if(!g)return null;const r=g.r,co=Math.cos(r),si=Math.sin(r),P=(i,j)=>[(g.x+i*g.w/2*co-j*g.h/2*si)*k,(g.y+i*g.w/2*si+j*g.h/2*co)*cv.height/veBase()[1]];
+function veSelGeo(c,cv){const[BW]=veBase(),k=cv.width/BW,g=veGeo(c,VE.t,null,Math.max(1,k),true);if(!g)return null;const r=g.r,co=Math.cos(r),si=Math.sin(r),P=(i,j)=>[(g.x+i*g.w/2*co-j*g.h/2*si)*k,(g.y+i*g.w/2*si+j*g.h/2*co)*cv.height/veBase()[1]];
   const top=P(0,-1),off=(COARSE?40:28)*(cv.width/cv.clientWidth);return{cx:g.x*k,cy:g.y*cv.height/veBase()[1],pts:[P(-1,-1),P(1,-1),P(1,1),P(-1,1)],top,rot:[top[0]+si*off,top[1]-co*off],r}}
 function veSelBox(x,cv){const c=veFind(VE.sel);if(!c||!veIsVis(c)||!veActive(c,VE.t))return;const g=veSelGeo(c,cv);if(!g)return;const s=cv.width/cv.clientWidth;
   x.save();x.strokeStyle='#ffffff';x.lineWidth=1.5*s;x.setLineDash([5*s,4*s]);x.beginPath();g.pts.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p));x.closePath();x.stroke();x.setLineDash([]);
@@ -165,13 +173,13 @@ function veStagePointer(){const cv=$('#ve-cv');let D=null;const pos=e=>{const r=
   cv.addEventListener('pointerdown',e=>{if(VE.busy)return;if(VE.playing)vePause();const[px,py]=pos(e),s=cv.width/cv.clientWidth,R=(COARSE?22:14)*s;let c=veFind(VE.sel),mode=null;
     if(c&&veIsVis(c)&&veActive(c,VE.t)){const g=veSelGeo(c,cv);if(g){if(Math.hypot(px-g.rot[0],py-g.rot[1])<R)mode='rot';else if(Math.hypot(px-g.pts[2][0],py-g.pts[2][1])<R)mode='scale'}}
     if(!mode){const h=veHitClip(px,py,cv);if(!h){if(VE.sel){VE.sel=null;veTimeline();veProps()}return}if(h.id!==VE.sel){VE.sel=h.id;veTimeline();veProps()}c=h;mode='move'}
-    e.preventDefault();try{cv.setPointerCapture(e.pointerId)}catch{}const g=veSelGeo(c,cv);D={id:e.pointerId,c,mode,x:px,y:py,c0:{x:c.x,y:c.y,s:c.s,r:c.r},g,moved:false}});
+    e.preventDefault();try{cv.setPointerCapture(e.pointerId)}catch{}const g=veSelGeo(c,cv);veLayout();D={id:e.pointerId,c,mode,x:px,y:py,c0:veVal(c,VE.t),g,moved:false}});
   cv.addEventListener('pointermove',e=>{if(!D||e.pointerId!==D.id)return;const[px,py]=pos(e);if(!D.moved&&Math.hypot(px-D.x,py-D.y)<3)return;D.moved=true;const c=D.c,g=D.g;
-    if(D.mode==='move'){let nx=D.c0.x+(px-D.x)/cv.width,ny=D.c0.y+(py-D.y)/cv.height;if(Math.abs(nx-.5)*cv.clientWidth<6)nx=.5;if(Math.abs(ny-.5)*cv.clientHeight<6)ny=.5;c.x=Math.round(nx*1000)/1000;c.y=Math.round(ny*1000)/1000}
-    else if(D.mode==='scale'){const d0=Math.hypot(D.x-g.cx,D.y-g.cy),d1=Math.hypot(px-g.cx,py-g.cy);c.s=Math.round(clamp(D.c0.s*d1/Math.max(4,d0),.02,20)*1000)/1000}
-    else{const a0=Math.atan2(D.y-g.cy,D.x-g.cx),a1=Math.atan2(py-g.cy,px-g.cx);let r=D.c0.r+(a1-a0)*180/Math.PI;if(!e.shiftKey){const sn=Math.round(r/15)*15;if(Math.abs(sn-r)<3)r=sn}c.r=Math.round(r*10)/10}});
+    if(D.mode==='move'){let nx=D.c0.x+(px-D.x)/cv.width,ny=D.c0.y+(py-D.y)/cv.height;if(Math.abs(nx-.5)*cv.clientWidth<6)nx=.5;if(Math.abs(ny-.5)*cv.clientHeight<6)ny=.5;veSetVals(c,{x:Math.round(nx*1000)/1000,y:Math.round(ny*1000)/1000})}
+    else if(D.mode==='scale'){const d0=Math.hypot(D.x-g.cx,D.y-g.cy),d1=Math.hypot(px-g.cx,py-g.cy);veSetVals(c,{s:Math.round(clamp(D.c0.s*d1/Math.max(4,d0),.02,20)*1000)/1000})}
+    else{const a0=Math.atan2(D.y-g.cy,D.x-g.cx),a1=Math.atan2(py-g.cy,px-g.cx);let r=D.c0.r+(a1-a0)*180/Math.PI;if(!e.shiftKey){const sn=Math.round(r/15)*15;if(Math.abs(sn-r)<3)r=sn}veSetVals(c,{r:Math.round(r*10)/10})}});
   const up=e=>{if(!D||e.pointerId!==D.id)return;const d=D;D=null;if(d.moved){veCommit();veProps()}};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-  cv.addEventListener('wheel',e=>{const c=veFind(VE.sel);if(!c||!veIsVis(c)||!veActive(c,VE.t))return;e.preventDefault();c.s=clamp(c.s*Math.exp(-e.deltaY*.0015),.02,20);clearTimeout(veWheelT);veWheelT=setTimeout(()=>{veCommit();veProps()},300)},{passive:false})}
+  cv.addEventListener('wheel',e=>{const c=veFind(VE.sel);if(!c||!veIsVis(c)||!veActive(c,VE.t))return;e.preventDefault();veLayout();veSetVals(c,{s:clamp(veVal(c,VE.t).s*Math.exp(-e.deltaY*.0015),.02,20)});clearTimeout(veWheelT);veWheelT=setTimeout(()=>{veCommit();veProps()},300)},{passive:false})}
 let veWheelT=0;
 /* ---------- Zeitleiste ---------- */
 const VE_PAD=16,VE_ROW={over:34,main:56,audio:34};
@@ -187,7 +195,8 @@ function veTimeline(){const tin=$('#ve-tin');if(!tin||!VE.p)return;const P=VE.p,
   for(const[kind,list]of[['main',P.main],['over',P.over],['audio',P.audio]])for(const c of list){const r=rowOf(kind,kind==='main'?0:c.lane);if(!r)continue;const L=veL(c),el=document.createElement('div');
     el.className='ve-clip t-'+c.type+(c.id===VE.sel?' sel':'');el.style.left=(VE_PAD+c._s*pxs)+'px';el.style.top=r.y+'px';el.style.width=Math.max(6,L*pxs)+'px';el.style.height=r.h+'px';el.dataset.id=c.id;
     const w=Math.max(6,Math.round(L*pxs));if(c.type==='video'||c.type==='image'||c.type==='audio'){const cv=document.createElement('canvas');cv.className='ve-cth';cv.width=Math.min(4000,w);cv.height=r.h;veDrawStrip(cv,c,pxs);el.append(cv)}
-    const lb=document.createElement('span');lb.className='ve-lab';lb.textContent=(c.type==='text'?'T  '+(String(c.text||'').split('\n')[0]):c.type==='sticker'?'★ '+c.name:c.name||'')+(c.speed&&c.speed!==1?'  '+String(c.speed).replace('.',',')+'×':'')+((c.type==='video'||c.type==='audio')&&(c.mute||(c.vol??1)<=0)?'  🔇':'');el.append(lb);
+    for(const k of c.keys||[]){const d=document.createElement('i');d.className='ve-key';d.style.left=(k.t*pxs)+'px';el.append(d)}
+    const lb=document.createElement('span');lb.className='ve-lab';lb.textContent=(c.type==='text'?'T  '+(String(c.text||'').split('\n')[0]):c.type==='sticker'?'★ '+c.name:c.type==='char'?'☺ '+c.name:c.name||'')+(c.speed&&c.speed!==1?'  '+String(c.speed).replace('.',',')+'×':'')+((c.type==='video'||c.type==='audio')&&(c.mute||(c.vol??1)<=0)?'  🔇':'');el.append(lb);
     for(const s of['l','r']){const hd=document.createElement('div');hd.className='ve-h '+s;hd.dataset.h=s;el.append(hd)}tin.append(el)}
   const ph=document.createElement('div');ph.className='ve-ph';ph.id='ve-ph';tin.append(ph);vePH()}
 function veDrawStrip(cv,c,pxs){const x=cv.getContext('2d'),w=cv.width,h=cv.height;x.clearRect(0,0,w,h);
@@ -239,6 +248,8 @@ function veLib(){const box=$('#ve-libin');if(!box||!VE.p)return;const sc=box.scr
     const ups=(typeof UPLOADS!=='undefined'?UPLOADS:[]).filter(u=>u.asset).slice(0,24);if(ups.length){const h=document.createElement('h4');h.textContent='Aus Rendernail (Renders, Uploads)';h.className='ve-h4';box.append(h);const g2=document.createElement('div');g2.className='ve-mgrid small';
       for(const u of ups){const b=document.createElement('button');b.type='button';b.className='ve-mpv';b.title=u.name||'Bild';const e=getImg(srcUrl(u));const im=document.createElement('img');im.alt='';if(e){e.p.then(()=>{if(e.ok)im.src=e.img.src})}b.append(im);
         b.addEventListener('click',()=>{let m=veMedia(u.asset);if(!m){m={asset:u.asset,name:u.name||'Bild',kind:'image',w:u.w||0,h:u.h||0,dur:0};VE.p.media.push(m);vePrepMedia(m)}veAddClip(m,VE.p.main.length?'over':'main');veCommit();veAll()});g2.append(b)}box.append(g2)}}
+  else if(VE.tab==='proj')veLibProj(box);
+  else if(VE.tab==='char')veLibChar(box);
   else if(VE.tab==='text'){box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Antippen fügt den Text an der Stelle des Zeitreglers ein.'}));
     for(const p of TEXT_PRESETS){const b=document.createElement('button');b.type='button';b.className='txt-preset';const f=FONTS[p.font];const s=document.createElement('span');s.className='tp';s.textContent=p.text;s.style.cssText=`font-family:${f[1]};font-weight:${f[2]};color:${p.color};-webkit-text-stroke:${Math.min(3,(p.stroke||0)/4)}px ${p.strokeColor||'#000'};font-size:24px`;b.append(s);
       b.addEventListener('click',()=>veAddText(p));box.append(b)}}
@@ -267,16 +278,20 @@ function veProps(){const P=$('#ve-props');if(!P||!VE.p)return;const sc=P.scrollT
     vBtn(s,'Video exportieren',veExport,'btn primary');s.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Tipp: Clip antippen (unten oder im Bild), um ihn zu bearbeiten. Leertaste spielt ab, S teilt am Zeitregler.'}));
     simplify(P,VE_SIMPLE);P.scrollTop=sc;return}
   const vis=veIsVis(c),isMain=VE.p.main.includes(c);
-  let s=vSec(P,{video:'Video',image:'Bild',audio:'Ton',text:'Text',sticker:'Sticker'}[c.type]+' · '+veFmt(veL(c)));{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Teilen',veSplit);vBtn(r,'Duplizieren',veDuplicate);if(c.type==='video')vBtn(r,'Ton abtrennen',veDetachAudio);vBtn(r,'Löschen',veDelete,'btn sm danger');s.append(r)}
+  let s=vSec(P,{video:'Video',image:'Bild',audio:'Ton',text:'Text',sticker:'Sticker',char:'Figur'}[c.type]+' · '+veFmt(veL(c)));{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Teilen',veSplit);vBtn(r,'Duplizieren',veDuplicate);if(c.type==='video')vBtn(r,'Ton abtrennen',veDetachAudio);vBtn(r,'Löschen',veDelete,'btn sm danger');s.append(r)}
   if(c.type==='text'){s=vSec(P,'Text');const ta=document.createElement('textarea');ta.className='an-otext';ta.rows=2;ta.value=c.text||'';ta.setAttribute('aria-label','Text');ta.addEventListener('input',()=>{c.text=ta.value.slice(0,300);veTimelineSoft()});ta.addEventListener('change',veCommit);s.append(ta);
     vSelect(s,'Schrift',Object.entries(FONTS).map(([k,v])=>[k,v[0]]),()=>c.font,v=>{c.font=v});vRange(s,'Schriftgröße',20,400,1,()=>c.size||100,v=>{c.size=v});
     vColor(s,'Farbe',()=>c.color||'#ffffff',v=>{c.color=v;c.color2=v;c.grad=false});vRange(s,'Kontur',0,40,1,()=>c.stroke||0,v=>{c.stroke=v});vColor(s,'Konturfarbe',()=>c.strokeColor||'#000000',v=>{c.strokeColor=v});
     vCheck(s,'Hintergrund-Fläche',()=>c.box,v=>{c.box=v;veProps()});if(c.box)vColor(s,'Flächenfarbe',()=>c.boxColor||'#000000',v=>{c.boxColor=v})}
   if(c.type==='sticker'&&LIBK[c.key]&&LIBK[c.key].color){s=vSec(P,'Farbe');vColor(s,'Farbe',()=>c.color||LIBK[c.key].color,v=>{c.color=v})}
+  if(c.type==='char')veCharProps(P,c);
   if(vis){s=vSec(P,'Bild');if(c.type==='video'||c.type==='image')vSeg(s,null,[['fit','Einpassen'],['fill','Füllen']],()=>c.fit||'fit',v=>{c.fit=v});
-    vRange(s,'Größe',.05,4,.01,()=>c.s,v=>{c.s=v},pct);vRange(s,'Drehung',-180,180,1,()=>c.r||0,v=>{c.r=v},v=>v+'°');
-    vRange(s,'Links/rechts',-50,150,.5,()=>Math.round(c.x*200)/2,v=>{c.x=v/100},v=>Math.round(v)+' %');vRange(s,'Oben/unten',-50,150,.5,()=>Math.round(c.y*200)/2,v=>{c.y=v/100},v=>Math.round(v)+' %');
-    vRange(s,'Deckkraft',0,1,.01,()=>c.o??1,v=>{c.o=v},pct);vCheck(s,'Spiegeln',()=>c.flip,v=>{c.flip=v});{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Zurücksetzen',()=>{Object.assign(c,{x:.5,y:isMain||c.type!=='text'?.5:.3,s:isMain?1:c.s,r:0});veCommit();veProps()});s.append(r)}}
+    veLayout();const cur=veVal(c,VE.t);vRange(s,'Größe',.05,4,.01,()=>cur.s,v=>{veSetVals(c,{s:v})},pct);vRange(s,'Drehung',-180,180,1,()=>Math.round(cur.r),v=>{veSetVals(c,{r:v})},v=>v+'°');
+    vRange(s,'Links/rechts',-50,150,.5,()=>Math.round(cur.x*200)/2,v=>{veSetVals(c,{x:v/100})},v=>Math.round(v)+' %');vRange(s,'Oben/unten',-50,150,.5,()=>Math.round(cur.y*200)/2,v=>{veSetVals(c,{y:v/100})},v=>Math.round(v)+' %');
+    vRange(s,'Deckkraft',0,1,.01,()=>cur.o,v=>{veSetVals(c,{o:v})},pct);vCheck(s,'Spiegeln',()=>c.flip,v=>{c.flip=v});{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Zurücksetzen',()=>{c.keys=[];Object.assign(c,{x:.5,y:isMain||c.type!=='text'?.5:.3,s:isMain?1:c.s,r:0});veCommit();veAll()});s.append(r)}
+    s=vSec(P,'Bewegung',c.keys&&c.keys.length?'Zeitregler verschieben, dann im Bild ziehen oder die Regler ändern. Dazwischen bewegt es sich von selbst.':'Für Bewegung: Schlüsselbild setzen, Zeitregler verschieben, dann im Bild ziehen.');
+    {const r=document.createElement('div');r.className='btnrow';const k=veKeyAt(c);vBtn(r,'◆ Schlüsselbild setzen',()=>veAddKey(c),'btn sm primary');
+      if(k)vBtn(r,'Schlüsselbild löschen',()=>{c.keys.splice(c.keys.indexOf(k),1);veCommit();veAll()});if(c.keys&&c.keys.length)vBtn(r,'Alle entfernen',()=>{const v=veVal(c,VE.t);c.keys=[];Object.assign(c,v);veCommit();veAll()},'btn sm danger');s.append(r)}}
   if(c.type==='video'||c.type==='image'){s=vSec(P,'Filter');const g=document.createElement('div');g.className='ve-filters';for(const[k,n]of VE_FILTERS){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=n;b.setAttribute('aria-pressed',(c.filt||'none')===k);b.addEventListener('click',()=>{c.filt=k;veCommit();veProps()});g.append(b)}s.append(g);
     s=vSec(P,'Anpassen');c.adj=c.adj||{b:0,c:0,s:0,w:0};const sg=v=>(v>0?'+':'')+Math.round(v*100);vRange(s,'Helligkeit',-.5,.5,.01,()=>c.adj.b,v=>{c.adj.b=v},sg);vRange(s,'Kontrast',-.5,.8,.01,()=>c.adj.c,v=>{c.adj.c=v},sg);vRange(s,'Sättigung',-1,1,.01,()=>c.adj.s,v=>{c.adj.s=v},sg);vRange(s,'Wärme',-1,1,.01,()=>c.adj.w,v=>{c.adj.w=v},sg)}
   if(c.type==='video'||c.type==='audio'){s=vSec(P,'Geschwindigkeit');vSeg(s,null,[[.5,'0,5×'],[1,'1×'],[1.5,'1,5×'],[2,'2×'],[3,'3×']],()=>c.speed,v=>{c.speed=+v;veProps()});vRange(s,'Tempo',.1,8,.05,()=>c.speed,v=>{c.speed=v},v=>String(Math.round(v*100)/100).replace('.',',')+'×');
@@ -291,8 +306,8 @@ async function veMix(D){const P=VE.p,sr=48000,clips=[...P.main,...P.over,...P.au
     g.gain.setValueAtTime(c.fin>0?0:v,t0);if(c.fin>0)g.gain.linearRampToValueAtTime(v,t0+Math.min(c.fin,L));if(c.fout>0){g.gain.setValueAtTime(v,Math.max(t0,t0+L-c.fout));g.gain.linearRampToValueAtTime(0,t0+L)}
     s.connect(g);g.connect(oc.destination);s.start(t0,c.in,Math.max(.01,c.out-c.in))}
   if(!any)return null;return await oc.startRendering()}
-function veRecUI(){const ov=$('#ve-ov');ov.hidden=false;ov.innerHTML='<div class="an-reccard"><b>Video wird erstellt</b><div class="an-prog"><i></i></div><p class="sub" id="ve-recst"></p><button class="btn sm" type="button">Abbrechen</button></div>';
-  const ui={cancel:false,prog(p,t){ov.querySelector('.an-prog i').style.width=Math.round(p*100)+'%';const s=$('#ve-recst');if(s&&t)s.textContent=t}};ov.querySelector('button').addEventListener('click',()=>{ui.cancel=true});return ui}
+function veRecUI(title){const ov=$('#ve-ov');ov.hidden=false;ov.innerHTML='<div class="an-reccard"><b></b><div class="an-prog"><i></i></div><p class="sub" id="ve-recst"></p><button class="btn sm" type="button">Abbrechen</button></div>';
+  ov.querySelector('b').textContent=title||'Video wird erstellt';const ui={cancel:false,prog(p,t){ov.querySelector('.an-prog i').style.width=Math.round(p*100)+'%';const s=$('#ve-recst');if(s&&t)s.textContent=t}};ov.querySelector('button').addEventListener('click',()=>{ui.cancel=true});return ui}
 async function veExport(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.05){toast('Füge zuerst ein Video oder Bild hinzu.');return}vePause();
   const[BW,BH]=veBase(),sc=P.q?1:2/3,W=Math.round(BW*sc/2)*2,H=Math.round(BH*sc/2)*2,fps=P.fps||30,cfg=await anCodec(W,H);
   if(!cfg){toast('Dieser Browser kann hier keine Videos erstellen. Nimm ein aktuelles Chrome, Edge oder Safari.');return}
@@ -337,7 +352,7 @@ function veBuild(){if(VE.built)return;VE.built=true;const root=$('#v-video');
   root.innerHTML=`<div class="ve"><header class="ve-top"><button class="btn ghost sm" id="ve-libbtn" type="button">Medien</button><button class="ve-name" id="ve-name" type="button" aria-haspopup="menu"><span></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><span class="hstat" id="ve-save" role="status"></span><span class="grow"></span>
     <button class="btn ghost sm icon" id="ve-undo" type="button" aria-label="Rückgängig" title="Rückgängig (⌘Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button class="btn ghost sm icon" id="ve-redo" type="button" aria-label="Wiederholen" title="Wiederholen (⇧⌘Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
     <button class="btn ghost sm" id="ve-propbtn" type="button">Bearbeiten</button><button class="btn primary" id="ve-export" type="button">Exportieren</button></header>
-    <div class="ve-main"><aside class="ve-lib" id="ve-lib"><div class="seg ve-tabs" id="ve-tabs"><button type="button" data-t="media">Medien</button><button type="button" data-t="text">Text</button><button type="button" data-t="sticker">Sticker</button></div><div class="ve-libin" id="ve-libin"></div></aside>
+    <div class="ve-main"><aside class="ve-lib" id="ve-lib"><div class="seg ve-tabs" id="ve-tabs"><button type="button" data-t="media">Medien</button><button type="button" data-t="proj">Projekte</button><button type="button" data-t="char">Figuren</button><button type="button" data-t="text">Text</button><button type="button" data-t="sticker">Sticker</button></div><div class="ve-libin" id="ve-libin"></div></aside>
       <div class="ve-stage" id="ve-stage"><canvas id="ve-cv" aria-label="Vorschau"></canvas><div class="an-rec ve-ov" id="ve-ov" hidden></div></div><aside class="ve-props an-side" id="ve-props"></aside></div>
     <div class="ve-tl"><div class="ve-tbar"><button class="btn ghost sm" id="ve-split" type="button" title="Am Zeitregler teilen (S)">Teilen</button><button class="btn ghost sm" id="ve-del" type="button" title="Löschen (Entf)">Löschen</button><span class="grow"></span>
       <button class="btn ghost sm icon" id="ve-start" type="button" aria-label="Zum Anfang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14"/><path d="M18 6 9 12l9 6z"/></svg></button><button class="an-playbtn ve-playbtn" id="ve-play" type="button" aria-label="Abspielen"></button><span class="ve-time" id="ve-time"></span><span class="grow"></span>
@@ -360,3 +375,70 @@ function veBuild(){if(VE.built)return;VE.built=true;const root=$('#v-video');
     else if(e.key==='Escape'){VE.sel=null;veTimeline();veProps()}})}
 async function veStart(){veBuild();if(!VE.p){const id=store.get('ve-cur',null);if(id&&store.get('ve:'+id,null))veOpen(id);else if(veIndex().length)veOpen(veIndex()[0].id)}
   if(!VE.running){VE.running=true;requestAnimationFrame(veLoop)}if(!VE.p)veHome(true);else{veAll();requestAnimationFrame(()=>{veResize();veTimeline()})}}
+/* ---------- Minecraft-Figuren im Video ----------
+   Eine kleine eigene 3D-Bühne (transparent) zeichnet die Figur; das Bild wird wie ein Sticker ins Video gesetzt.
+   Bewegungen laufen in Schleife, Gesichter wie in der Animation. Keine Gegenstände in der Hand. */
+const VE_MOVES=[['stand','Stehen'],['walk','Laufen'],['run','Rennen'],['wave','Winken'],['jump','Springen'],['cheer','Jubeln'],['look','Umschauen'],['hit','Zuschlagen'],['dance','Tanzen']];
+const VE_DANCE=[[0,{armL:[0,0,150],armR:[0,0,-20],legR:[-10,0,0],body:[0,0,6],head:[0,0,-8]}],[.3,{armR:[0,0,-150],armL:[0,0,20],legL:[-10,0,0],body:[0,0,-6],head:[0,0,8]}],[.6,{armL:[0,0,150],armR:[0,0,-20],legR:[-10,0,0],body:[0,0,6],head:[0,0,-8]}]];
+let veCR=null;const veSkins=new Map();
+function veCharRenderer(){if(veCR)return veCR;const T=THREE;const cv=document.createElement('canvas');cv.width=360;cv.height=540;
+  const r=new T.WebGLRenderer({canvas:cv,alpha:true,antialias:true,preserveDrawingBuffer:true});r.setClearColor(0x000000,0);r.outputEncoding=T.sRGBEncoding;
+  const sc=new T.Scene();sc.add(new T.HemisphereLight(0xffffff,0x8a7a66,.9));const d=new T.DirectionalLight(0xffffff,.7);d.position.set(40,70,90);sc.add(d);
+  const cam=new T.PerspectiveCamera(28,2/3,1,1000);cam.position.set(0,20,100);cam.lookAt(0,20,0);veCR={cv,r,sc,cam,models:new Map()};return veCR}
+function veSkinCanvas(c){if(c.skin){let e=veSkins.get(c.skin);if(!e){e={c:null};veSkins.set(c.skin,e);loadImage(c.skin).then(im=>{const k=mk(64,im.naturalHeight===32?32:64);k.getContext('2d').drawImage(im,0,0);e.c=k}).catch(()=>{})}return e.c}
+  return(typeof PRESET_SKINS!=='undefined'&&PRESET_SKINS[c.preset||0])||GRAY_SKIN}
+function veCharPose(c,lt){const base=anClone((POSES[c.pose]||POSES.stehen)[1]);let y=(POSES[c.pose]||POSES.stehen)[2]||0;const mv=c.move||'stand';
+  if(mv==='stand'){const b=Math.sin(lt*2*Math.PI/3)*2;base.armR=[(base.armR||[0,0,0])[0],(base.armR||[0,0,0])[1],(base.armR||[0,0,-4])[2]-b];base.armL=[(base.armL||[0,0,0])[0],(base.armL||[0,0,0])[1],(base.armL||[0,0,4])[2]+b];return{pose:base,y}}
+  if(mv==='walk'||mv==='run'){const run=mv==='run',P=run?.45:.7,A=run?55:30,s=Math.sin(lt*2*Math.PI/P)*A,p={legR:[s,0,0],legL:[-s,0,0],legRLow:[Math.max(0,-s)*.9+(run?15:4),0,0],legLLow:[Math.max(0,s)*.9+(run?15:4),0,0],armR:[-s*1.1,0,-4],armL:[s*1.1,0,4],armRLow:[run?-60:-12,0,0],armLLow:[run?-60:-12,0,0]};
+    if(run){p.body=[12,0,0];p.head=[-12,0,0]}return{pose:p,y:Math.abs(Math.sin(lt*2*Math.PI/P))*(run?1.6:.7)}}
+  const steps=mv==='dance'?VE_DANCE:((AN_MOVES.find(m=>m[0]===mv)||[])[2]);if(!steps)return{pose:base,y};const last=steps[steps.length-1][0]+.35,tt=lt%last;
+  const st=s=>({pose:typeof s[1]==='string'?anPose(s[1]):anClone(s[1]),y:s[2]||0});let i=0;while(i<steps.length-2&&tt>=steps[i+1][0])i++;const a=st(steps[i]),b=st(steps[Math.min(i+1,steps.length-1)]),t0=steps[i][0],t1=steps[Math.min(i+1,steps.length-1)][0];
+  const u=t1>t0?clamp((tt-t0)/(t1-t0),0,1):1,e=u*u*(3-2*u),pose={};for(const k of new Set([...Object.keys(a.pose),...Object.keys(b.pose)])){const r0=a.pose[k]||[0,0,0],r1=b.pose[k]||[0,0,0];pose[k]=[0,1,2].map(j=>r0[j]+(r1[j]-r0[j])*e)}
+  return{pose,y:a.y+(b.y-a.y)*e}}
+function veCharModel(c){const R=veCharRenderer(),sk=veSkinCanvas(c);if(!sk)return null;const key=[c.skin?c.skin.length+c.skin.slice(-30):'p'+(c.preset||0),!!c.slim,packTick].join('|');let e=R.models.get(c.id);
+  if(e&&e.key===key)return e;if(e){R.sc.remove(e.m.group);anDispose(e.m.group)}const m={id:c.id,slim:!!c.slim,item:'',size:{},pose:{},rootY:0,x:0,z:0,ry:0};m.group=buildRig(m,sk);m.group.visible=false;R.sc.add(m.group);e={m,key,sk,face:null,fmesh:null};R.models.set(c.id,e);return e}
+function veCharFace(e,c){const f=c.face||'normal';if(e.face===f)return;e.face=f;const head=e.m.bones.head;if(e.fmesh){head.remove(e.fmesh);e.fmesh.geometry.dispose();if(e.fmesh.material.map)e.fmesh.material.map.dispose();e.fmesh.material.dispose();e.fmesh=null}
+  const cv=anFaceCanvas(e.sk,f,c);if(!cv)return;const T=THREE,tex=new T.CanvasTexture(cv);tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.generateMipmaps=false;tex.encoding=T.sRGBEncoding;
+  const me=new T.Mesh(new T.PlaneGeometry(8,8),new T.MeshLambertMaterial({map:tex,alphaTest:.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));me.position.set(0,4,4.02);head.add(me);e.fmesh=me}
+function veCharFrame(c,t){if(!window.THREE||typeof buildRig!=='function')return null;let e;try{e=veCharModel(c)}catch{return null}if(!e)return null;const R=veCR,lt=Math.max(0,t-c._s),P=veCharPose(c,lt);
+  veCharFace(e,c);e.m.pose=P.pose;e.m.rootY=P.y;e.m.ry=c.yaw||0;applyPose(e.m);for(const x of R.models.values())x.m.group.visible=x===e;R.r.render(R.sc,R.cam);e.m.group.visible=false;return R.cv}
+function veAddChar(o){const P=VE.p;veLayout();const c={id:'c'+uid(),type:'char',name:o.name||'Figur',skin:o.skin||'',slim:!!o.slim,preset:o.preset||0,move:'stand',pose:'stehen',face:'normal',yaw:-20,in:0,out:4,speed:1,start:VE.t,lane:0,x:.5,y:.62,s:1,r:0,o:1,ain:'pop',aout:'none',keys:[],adj:{b:0,c:0,s:0,w:0}};
+  c.lane=veFreeLane(P.over,c);P.over.push(c);VE.sel=c.id;VE.tab='char';veCommit();veAll();toast(c.name+' ist im Video. Wähle rechts eine Bewegung.')}
+function veLibChar(box){const sub=t=>box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:t}));
+  sub('Minecraft-Figuren direkt im Video: mit Skin, Bewegung, Pose und Gesicht. Mit Schlüsselbildern laufen sie durchs Bild.');
+  if(window.RK_LOCAL){const f=document.createElement('form');f.className='btnrow';f.innerHTML='<input type="text" maxlength="16" placeholder="Ingame-Name, z. B. Notch" aria-label="Ingame-Name" autocomplete="off" spellcheck="false" class="ve-in"><button class="btn primary sm" type="submit">Hinzufügen</button>';
+    f.addEventListener('submit',async e=>{e.preventDefault();const n=f.querySelector('input').value.trim();if(!n)return;const b=f.querySelector('button');b.disabled=true;try{const r=await fetchSkinByName(n);veAddChar({name:n,skin:r.data,slim:r.slim})}catch(err){toast(err&&err.message||'Skin nicht gefunden.')}finally{b.disabled=false}});box.append(f)}
+  {const r=document.createElement('div');r.className='btnrow';vBtn(r,'Skin-Datei (PNG)',()=>{const i=document.createElement('input');i.type='file';i.accept='image/png';i.onchange=async()=>{const fl=i.files[0];if(!fl)return;try{const d=await blobToDataURL(fl),im=await loadImage(d);if(im.naturalWidth!==64||![64,32].includes(im.naturalHeight))throw new Error('Der Skin muss 64×64 oder 64×32 Pixel groß sein.');veAddChar({name:fl.name.replace(/\.png$/i,'').slice(0,30),skin:d})}catch(err){toast(err&&err.message||'Der Skin konnte nicht gelesen werden.')}};i.click()});box.append(r)}
+  const h=document.createElement('h4');h.className='ve-h4';h.textContent='Beispiele';box.append(h);const g=document.createElement('div');g.className='ve-mgrid small';
+  (typeof PRESETS!=='undefined'?PRESETS:[]).forEach((p,i)=>{const b=document.createElement('button');b.type='button';b.className='ve-mpv ve-skin';b.title=p.name;b.setAttribute('aria-label',p.name+' hinzufügen');const c=mk(48,48),x=c.getContext('2d');x.imageSmoothingEnabled=false;const sk=PRESET_SKINS&&PRESET_SKINS[i];if(sk)x.drawImage(sk,8,8,8,8,0,0,48,48);b.append(c);const s=document.createElement('span');s.textContent=p.name;b.append(s);b.addEventListener('click',()=>veAddChar({name:p.name,preset:i}));g.append(b)});box.append(g);
+  const used=[...new Map(VE.p.over.filter(c=>c.type==='char'&&c.skin).map(c=>[c.skin,c])).values()];if(used.length){const h2=document.createElement('h4');h2.className='ve-h4';h2.textContent='In diesem Video';box.append(h2);const g2=document.createElement('div');g2.className='ve-mgrid small';
+    for(const u of used){const b=document.createElement('button');b.type='button';b.className='ve-mpv ve-skin';b.title=u.name;const c=mk(48,48),x=c.getContext('2d');x.imageSmoothingEnabled=false;const sk=veSkinCanvas(u);if(sk)x.drawImage(sk,8,8,8,8,0,0,48,48);b.append(c);const s=document.createElement('span');s.textContent=u.name;b.append(s);b.addEventListener('click',()=>veAddChar({name:u.name,skin:u.skin,slim:u.slim}));g2.append(b)}box.append(g2)}}
+function veCharProps(P,c){let s=vSec(P,'Bewegung der Figur');const g=document.createElement('div');g.className='ve-filters three';
+  for(const[k,n]of VE_MOVES){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=n;b.setAttribute('aria-pressed',(c.move||'stand')===k);b.addEventListener('click',()=>{c.move=k;veCommit();veProps()});g.append(b)}s.append(g);
+  if((c.move||'stand')==='stand')vSelect(s,'Pose',Object.entries(POSES).map(([k,v])=>[k,v[0]]),()=>c.pose||'stehen',v=>{c.pose=v});
+  vRange(s,'Drehen',-180,180,1,()=>c.yaw||0,v=>{c.yaw=v},v=>v+'°');{const r=document.createElement('div');r.className='btnrow';for(const[l,v]of[['Vorne',0],['Schräg',-30],['Seite',-90],['Hinten',180]])vBtn(r,l,()=>{c.yaw=v;veCommit();veProps()});s.append(r)}
+  s=vSec(P,'Gesicht','Für ein anderes Gesicht später: Clip am Zeitregler teilen und dort ein neues wählen.');const fg=document.createElement('div');fg.className='ve-filters three';
+  for(const[k,[n]]of Object.entries(AN_EXPR)){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=n;b.setAttribute('aria-pressed',(c.face||'normal')===k);b.addEventListener('click',()=>{c.face=k;veCommit();veProps()});fg.append(b)}s.append(fg);
+  s=vSec(P,'Skin');vSeg(s,'Arme',[['0','Klassisch'],['1','Schmal']],()=>c.slim?'1':'0',v=>{c.slim=v==='1'});
+  if(window.RK_LOCAL){const f=document.createElement('form');f.className='btnrow';f.innerHTML='<input type="text" maxlength="16" aria-label="Ingame-Name" autocomplete="off" spellcheck="false" class="ve-in"><button class="btn sm" type="submit">Skin laden</button>';f.querySelector('input').value=c.name||'';
+    f.addEventListener('submit',async e=>{e.preventDefault();const n=f.querySelector('input').value.trim();if(!n)return;try{const r=await fetchSkinByName(n);c.skin=r.data;c.slim=r.slim;c.name=n;veCommit();veAll();toast('Skin von '+n+' geladen.')}catch(err){toast(err&&err.message||'Skin nicht gefunden.')}});s.append(f)}}
+/* ---------- Eigene Animationen und Designs einfügen ---------- */
+function veLibProj(box){const sub=t=>box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:t}));
+  let h=document.createElement('h4');h.className='ve-h4';h.textContent='Deine Animationen';box.append(h);
+  const ai=(typeof anIndex==='function'?anIndex():[]).sort((a,b)=>b.t-a.t);if(!ai.length)sub('Noch keine Animationen. Bau eine im Bereich „Animation“.');
+  else{sub('Antippen: Die Animation wird als Video gerendert und eingefügt.');const g=document.createElement('div');g.className='ve-mgrid';for(const p of ai){const t=document.createElement('div');t.className='ve-mt';const b=document.createElement('button');b.type='button';b.className='ve-mpv';b.setAttribute('aria-label',p.name+' einfügen');
+      if(p.preview&&/^data:image\/jpeg;base64,/.test(p.preview)){const im=document.createElement('img');im.alt='';im.src=p.preview;b.append(im)}b.addEventListener('click',()=>veInsertAnim(p.id));t.append(b);const nm=document.createElement('div');nm.className='ve-mrow';const sp=document.createElement('span');sp.textContent=p.name;nm.append(sp);t.append(nm);g.append(t)}box.append(g)}
+  h=document.createElement('h4');h.className='ve-h4';h.textContent='Deine Thumbnails und Designs';box.append(h);
+  const ds=(typeof PROJECTS!=='undefined'?[...PROJECTS.values()]:[]).filter(p=>p&&Array.isArray(p.layers)).sort((a,b)=>String(b.updated).localeCompare(String(a.updated)));if(!ds.length)sub('Noch keine Designs. Gestalte eins im Bereich „Thumbnails“.');
+  else{sub('Antippen fügt das Design als Bild ein (Präsentationen: jede Folie).');const g=document.createElement('div');g.className='ve-mgrid';for(const p of ds){const t=document.createElement('div');t.className='ve-mt';const b=document.createElement('button');b.type='button';b.className='ve-mpv';b.setAttribute('aria-label',(p.name||'Design')+' einfügen');
+      if(p.preview&&/^data:image\//.test(p.preview)){const im=document.createElement('img');im.alt='';im.src=p.preview;b.append(im)}b.addEventListener('click',()=>veInsertDesign(p));t.append(b);const nm=document.createElement('div');nm.className='ve-mrow';const sp=document.createElement('span');sp.textContent=p.name||'Design';nm.append(sp);
+      const ob=document.createElement('button');ob.type='button';ob.className='btn ghost sm';ob.textContent='Overlay';ob.title='Über dem Hauptvideo einfügen';ob.addEventListener('click',()=>veInsertDesign(p,'over'));nm.append(ob);t.append(nm);g.append(t)}box.append(g)}}
+async function veInsertAnim(pid){if(VE.busy)return;if(typeof anRenderProjectBlob!=='function'){toast('Die 3D-Ansicht ist nicht bereit.');return}vePause();VE.busy=true;const ui=veRecUI('Animation wird gerendert');let r=null;
+  try{r=await anRenderProjectBlob(pid,ui)}catch(e){toast(e&&e.message==='no_codec'?'Dieser Browser kann hier keine Videos erstellen. Nimm ein aktuelles Chrome, Edge oder Safari.':'Die Animation konnte nicht gerendert werden.')}
+  VE.busy=false;$('#ve-ov').hidden=true;if(!r||!r.blob){if(r&&!r.blob)toast('Abgebrochen.');return}
+  await veImport([new File([r.blob],(r.name||'Animation')+'.mp4',{type:'video/mp4'})],{name:r.name})}
+async function veInsertDesign(d,as){if(VE.busy)return;const slides=Array.isArray(d.slides)&&d.slides.length?d.slides.map(s=>s.layers):[d.layers];const files=[];
+  try{for(let i=0;i<slides.length;i++){const ls=slides[i]||[];await Promise.all(ls.map(L=>{const u=L.type==='image'||L.mode==='image'?srcUrl(L.src):'';const e=u?getImg(u):null;return e?e.p:null}));
+      const c=mk(d.w,d.h),x=c.getContext('2d');for(const L of ls)drawLayer(x,L,1,d.w,d.h);const b=await canvasBlob(c,'image/png');files.push(new File([b],(d.name||'Design')+(slides.length>1?' '+(i+1):'')+'.png',{type:'image/png'}))}}
+  catch{toast('Das Design konnte nicht gezeichnet werden.');return}
+  await veImport(files,{as:as==='over'?'over':'end'})}

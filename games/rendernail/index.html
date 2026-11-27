@@ -744,6 +744,12 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .ve-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;z-index:4;pointer-events:none}.ve-ph::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top-color:#fff}
 .ve-hid{position:fixed;left:-10px;top:-10px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}.ve-hid video,.ve-hid audio{width:1px;height:1px}
 .ve-ov{z-index:6}
+.ve-key{position:absolute;bottom:3px;width:8px;height:8px;margin-left:-4px;background:#ffd34d;border:1px solid #2a2a2a;transform:rotate(45deg);border-radius:1px;pointer-events:none;z-index:1}
+.ve-clip.t-char{background:#3d6f8f}
+.ve-filters.three{grid-template-columns:1fr 1fr 1fr}
+.ve-skin{aspect-ratio:auto;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px}.ve-skin canvas{width:40px;height:40px;image-rendering:pixelated;border-radius:3px;object-fit:contain}.ve-skin span{font-size:10.5px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ve-in{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:6px 8px;color:inherit;font:inherit}
+.ve-tabs button{padding:4px 5px;font-size:11.5px}
 .ve #ve-libbtn,.ve #ve-propbtn{display:none}
 @media (max-width:980px){.ve-main{grid-template-columns:minmax(0,1fr) 260px}.ve-lib{position:absolute;left:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:12px 0 30px -12px #000;transform:translateX(-102%);transition:transform .2s}.ve.lib-open .ve-lib{transform:none}.ve #ve-libbtn{display:inline-flex}}
 @media (max-width:680px){.ve-top{gap:2px;padding:6px}.ve-top .hstat{display:none}.ve-name{max-width:28vw;padding:6px 4px}.ve-top .btn{padding:0 8px}#ve-fit{display:none}.ve-time{white-space:nowrap;font-size:11px}.ve-main{grid-template-columns:minmax(0,1fr)}.ve-props{position:absolute;right:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:-12px 0 30px -12px #000;transform:translateX(102%);transition:transform .2s}.ve.props-open .ve-props{transform:none}.ve #ve-propbtn{display:inline-flex}.ve-zoomlab{display:none}.ve-time{min-width:0}}
@@ -996,26 +1002,26 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
-<script src="lib/three.min.js?v=202611270845"></script>
-<script src="lib/OrbitControls.js?v=202611270845"></script>
-<script src="lib/TransformControls.js?v=202611270845"></script>
-<script src="lib/mp4-muxer.js?v=202611270845"></script>
-<script src="lib/pptxgen.bundle.js?v=202611270845"></script>
-<script src="rk-i18n.js?v=202611270845"></script>
-<script src="rk-core.js?v=202611270845"></script>
-<script src="rk-local.js?v=202611270845"></script>
-<script src="rk-assets.js?v=202611270845"></script>
-<script src="rk-pack.js?v=202611270845"></script>
-<script src="rk-editor.js?v=202611270845"></script>
-<script src="rk-studio.js?v=202611270845"></script>
-<script src="rk-figure.js?v=202611270845"></script>
-<script src="rk-slides.js?v=202611270845"></script>
-<script src="rk-anim.js?v=202611270845"></script>
-<script src="rk-animfx.js?v=202611270845"></script>
-<script src="rk-anim2d.js?v=202611270845"></script>
-<script src="rk-video.js?v=202611270845"></script>
-<script src="rk-app.js?v=202611270845"></script>
-<script src="rk-shell.js?v=202611270845"></script>
+<script src="lib/three.min.js?v=202611271023"></script>
+<script src="lib/OrbitControls.js?v=202611271023"></script>
+<script src="lib/TransformControls.js?v=202611271023"></script>
+<script src="lib/mp4-muxer.js?v=202611271023"></script>
+<script src="lib/pptxgen.bundle.js?v=202611271023"></script>
+<script src="rk-i18n.js?v=202611271023"></script>
+<script src="rk-core.js?v=202611271023"></script>
+<script src="rk-local.js?v=202611271023"></script>
+<script src="rk-assets.js?v=202611271023"></script>
+<script src="rk-pack.js?v=202611271023"></script>
+<script src="rk-editor.js?v=202611271023"></script>
+<script src="rk-studio.js?v=202611271023"></script>
+<script src="rk-figure.js?v=202611271023"></script>
+<script src="rk-slides.js?v=202611271023"></script>
+<script src="rk-anim.js?v=202611271023"></script>
+<script src="rk-animfx.js?v=202611271023"></script>
+<script src="rk-anim2d.js?v=202611271023"></script>
+<script src="rk-video.js?v=202611271023"></script>
+<script src="rk-app.js?v=202611271023"></script>
+<script src="rk-shell.js?v=202611271023"></script>
 
 </body>
 </html>

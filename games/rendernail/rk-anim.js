@@ -740,24 +740,32 @@ function anRecDone(blob,ext){const ov=$('#an-rec'),url=URL.createObjectURL(blob)
   const v=ov.querySelector('video'),fit=()=>{const card=ov.querySelector('.an-done');if(!card)return;const room=ov.clientHeight-24-(card.offsetHeight-v.offsetHeight);v.style.maxHeight=Math.max(80,room)+'px'};requestAnimationFrame(fit);v.addEventListener('loadedmetadata',fit);v.src=url;v.play().catch(()=>{});ov.querySelector('[data-s]').addEventListener('click',()=>saveFile('rendernail-animation.'+ext,blob));{const eb=ov.querySelector('[data-e]');if(typeof veAddBlob!=='function'||ext!=='mp4')eb.remove();else eb.addEventListener('click',()=>{ov.hidden=true;v.pause();veAddBlob(blob,anProjName(),AN.data.fmt)})}
   ov.querySelector('[data-c]').addEventListener('click',()=>{ov.hidden=true;v.pause();URL.revokeObjectURL(url)})}
 function anRecPrep(W,H){anStop();anSelect(AN.sel);AR.tc.detach();AR.tcm.detach();AR.renderer.setPixelRatio(1);AR.renderer.setSize(W,H,false)}
-async function anRecord(){if(!AR||AN.rec)return;const[W,H]=anSize(),cfg=await anCodec(W,H);
-  if(!cfg){anRecordLive();return}
-  const out=mk(W,H),x=out.getContext('2d'),fps=AN.data.fps||30,N=Math.max(1,Math.round(AN.data.dur*fps)),ui=anRecUI();let err=null;
-  let mix=null,acod=null;if((AN.data.audio||[]).length){ui.prog(0,'Ton wird gemischt …');try{mix=await anMixAudio()}catch{mix=null}if(mix){acod=await anAudCodec();if(!acod){$('#an-rec').hidden=true;anRecordLive(mix);return}}}
+/* Video Bild für Bild erzeugen (WebCodecs). Liefert ein MP4-Blob, null bei Abbruch; wirft bei Fehlern ({mix} = Ton da, aber kein Ton-Encoder) */
+async function anEncodeBlob(ui){const[W,H]=anSize(),cfg=await anCodec(W,H);if(!cfg)throw new Error('no_codec');
+  const out=mk(W,H),x=out.getContext('2d'),fps=AN.data.fps||30,N=Math.max(1,Math.round(AN.data.dur*fps));let err=null;
+  let mix=null,acod=null;if((AN.data.audio||[]).length){ui.prog(0,'Ton wird gemischt …');try{mix=await anMixAudio()}catch{mix=null}if(mix){acod=await anAudCodec();if(!acod){const e=new Error('no_audio_codec');e.mix=mix;throw e}}}
   const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H,frameRate:fps},...(mix?{audio:{codec:acod.mux,sampleRate:mix.sampleRate,numberOfChannels:2}}:{}),fastStart:'in-memory'});
-  const enc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{err=e}});enc.configure({...cfg,latencyMode:'quality'});
+  const enc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{err=e}});enc.configure({...cfg,framerate:fps,latencyMode:'quality'});
   AN.rec={enc};anRecPrep(W,H);const t0=AN.t;
   try{for(let i=0;i<N;i++){if(ui.cancel||err)break;const t=i/fps;AN.t=t;anRender(performance.now());anComposite(x,W,H,t);
       const f=new VideoFrame(out,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});enc.encode(f,{keyFrame:i%(fps*2)===0});f.close();
-      /* Warten, bis der Encoder aufholt – aber nie endlos: bei Fehler abbrechen, bei Stillstand (Safari) einmal anschieben, sonst Echtzeit-Aufnahme */
+      /* Warten, bis der Encoder aufholt – aber nie endlos: bei Fehler abbrechen, bei Stillstand (Safari) einmal anschieben */
       {const w0=performance.now();let pushed=false;while(enc.encodeQueueSize>3&&!err&&enc.state!=='closed'){if(performance.now()-w0>1500){if(pushed)throw new Error('encoder_stalled');pushed=true;await Promise.race([enc.flush(),new Promise(r=>setTimeout(r,4000))])}else await new Promise(r=>setTimeout(r,4))}
         if(err||enc.state==='closed')throw err||new Error('encoder_closed')}
-      if(i%2===0){ui.prog(i/N,anFmtT(t)+' von '+anFmtT(AN.data.dur));await new Promise(r=>requestAnimationFrame(r))}}
-    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}}catch(e){err=e}
-  try{enc.close()}catch{}AN.rec=null;AN.t=t0;anResize();
-  if(ui.cancel){$('#an-rec').hidden=true;toast('Aufnahme abgebrochen.');return}
-  if(err){$('#an-rec').hidden=true;toast('Das Video konnte nicht erstellt werden, ich versuche die Echtzeit-Aufnahme.');anRecordLive();return}
-  anRecDone(new Blob([muxer.target.buffer],{type:'video/mp4'}),'mp4')}
+      if(i%2===0){ui.prog(i/N,anFmtT(t)+' von '+anFmtT(AN.data.dur));await new Promise(r=>setTimeout(r,0))}}
+    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}}
+  catch(e){err=e}finally{try{enc.close()}catch{}AN.rec=null;AN.t=t0;anResize()}
+  if(ui.cancel)return null;if(err)throw err;return new Blob([muxer.target.buffer],{type:'video/mp4'})}
+async function anRecord(){if(!AR||AN.rec)return;const[W,H]=anSize(),cfg=await anCodec(W,H);
+  if(!cfg){anRecordLive();return}const ui=anRecUI();let blob=null;
+  try{blob=await anEncodeBlob(ui)}catch(e){$('#an-rec').hidden=true;if(e&&e.mix){anRecordLive(e.mix);return}toast('Das Video konnte nicht erstellt werden, ich versuche die Echtzeit-Aufnahme.');anRecordLive();return}
+  if(!blob){$('#an-rec').hidden=true;toast('Aufnahme abgebrochen.');return}
+  anRecDone(blob,'mp4')}
+/* Eine gespeicherte Animation ohne Umweg rendern (für den Video-Editor) */
+async function anRenderProjectBlob(pid,ui){initAnim();if(!AR)throw new Error('3d');if(AN.rec)throw new Error('busy');const prev=AN.pid;if(pid!==AN.pid)anOpenProject(pid);
+  try{const t0=performance.now();for(const a of AN.data.actors)anSkin(a);while(performance.now()-t0<5000&&AN.data.actors.some(a=>a.skin&&!anSkins.has(a.skin)))await new Promise(r=>setTimeout(r,100));
+    anSyncActors();await new Promise(r=>setTimeout(r,250));return{blob:await anEncodeBlob(ui),fmt:AN.data.fmt,name:anProjName()}}
+  finally{if(prev&&prev!==pid&&AN.pid!==prev)anOpenProject(prev)}}
 function anRecordLive(mix){let asrc=null;const withAudio=st=>{if(mix){const ctx=anACtx(),dst=ctx.createMediaStreamDestination();asrc=ctx.createBufferSource();asrc.buffer=mix;asrc.connect(dst);dst.stream.getAudioTracks().forEach(t=>st.addTrack(t))}return st};const mime=anMime(),c0=mk(2,2);if(!mime||!c0.captureStream){toast('Dieser Browser kann keine Videos aufnehmen. Nimm Chrome, Edge oder Safari.');return}
   const[W,H]=anSize(),out=mk(W,H),x=out.getContext('2d'),stream=withAudio(out.captureStream(AN.data.fps||30)),rec=new MediaRecorder(stream,{mimeType:mix?mime.split(';')[0]:mime,videoBitsPerSecond:H>=1080||W>=1080?12e6:8e6}),chunks=[],ui=anRecUI();
   anRecPrep(W,H);AN.rec={rec};AN.t=0;rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
