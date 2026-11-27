@@ -6,19 +6,78 @@
 <script>
 /* Kein Zoomen. Auf dem iPad gehören zwei Finger dem Laufen und Umsehen,
    nicht der Lupe — Safari übergeht aber user-scalable=no. Deshalb die
-   Gesten selbst abfangen: Zwei-Finger-Zoom, und am Rechner Strg+Mausrad
-   und Strg+/-. Doppeltippen schaltet das CSS ab (touch-action), ein
-   Finger scrollt Listen weiter wie gewohnt. */
+   Gesten selbst abfangen: Zwei-Finger-Zoom, Doppeltippen, und am Rechner
+   Strg+Mausrad und Strg+/-. Ein Finger scrollt Listen weiter wie gewohnt.
+   Alles in der Einfangphase, damit kein Element die Ereignisse vorher
+   schlucken kann. */
 (() => {
+  const fest = { passive:false, capture:true };
   const nein = e => e.preventDefault();
-  for(const art of ['gesturestart', 'gesturechange', 'gestureend']) addEventListener(art, nein, { passive:false });
+  for(const art of ['gesturestart', 'gesturechange', 'gestureend']){
+    addEventListener(art, nein, fest);
+    document.addEventListener(art, nein, fest);
+  }
   addEventListener('touchmove', e => {
     if(e.touches.length > 1 || (e.scale !== undefined && e.scale !== 1)) e.preventDefault();
-  }, { passive:false });
-  addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+  }, fest);
+  addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, fest);
   addEventListener('keydown', e => {
     if((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0', 'Add', 'Subtract'].indexOf(e.key) >= 0) e.preventDefault();
-  });
+  }, true);
+
+  /* Safari meldet einen Doppeltipp als dblclick und zoomt nur, wenn die
+     Seite ihn nicht selbst abfängt. Das Spiel braucht dblclick nirgends. */
+  addEventListener('dblclick', nein, fest);
+  document.addEventListener('dblclick', nein, fest);
+
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform + navigator.userAgent));
+  if(!ios) return;
+
+  /* Doppeltippen: touch-action reicht Safari nicht überall (Rezept- und
+     Katalogfelder, Listen mit pan-y). Kommt ein zweiter Tipp kurz nach dem
+     ersten an fast derselben Stelle, wird das Loslassen abgefangen — das
+     verhindert den Zoom. Den Klick, den Safari dann nicht mehr schickt,
+     reichen wir selbst nach, damit schnelles Tippen auf Knöpfe weiter geht.
+     Das Spiel selbst hört auf Pointer-Ereignisse, die kommen ohnehin. */
+  const feld = t => t && t.closest && t.closest('input, textarea, select, [contenteditable=""], [contenteditable=true]');
+  let letzt = null;
+  addEventListener('touchend', e => {
+    const p = e.changedTouches && e.changedTouches[0];
+    if(!p) return;
+    const jetzt = e.timeStamp, t = e.target;
+    const L = letzt;
+    letzt = { t: jetzt, x: p.clientX, y: p.clientY };
+    if(!L || feld(t)) return;
+    if(jetzt - L.t > 500 || Math.abs(p.clientX - L.x) > 70 || Math.abs(p.clientY - L.y) > 70) return;
+    if(!e.cancelable) return;
+    e.preventDefault();
+    letzt = null;                      // ein dritter Tipp beginnt neu
+    if(t && t.dispatchEvent) t.dispatchEvent(new MouseEvent('click', {
+      bubbles:true, cancelable:true, view:window, detail:2,
+      clientX:p.clientX, clientY:p.clientY, screenX:p.screenX, screenY:p.screenY }));
+  }, fest);
+
+  /* Falls es doch einmal reingezoomt hat: sobald kein Finger mehr liegt,
+     den Viewport neu setzen — Safari springt dann auf 1 zurück. */
+  const vv = window.visualViewport;
+  if(!vv) return;
+  let finger = 0, wechsel = false, warte = 0;
+  const zaehle = e => { finger = e.touches ? e.touches.length : 0; if(!finger) pruefe(); };
+  addEventListener('touchstart', zaehle, { passive:true, capture:true });
+  addEventListener('touchend', zaehle, { passive:true, capture:true });
+  addEventListener('touchcancel', zaehle, { passive:true, capture:true });
+  function pruefe(){
+    clearTimeout(warte);
+    warte = setTimeout(() => {
+      if(finger || vv.scale <= 1.01) return;
+      const m = document.querySelector('meta[name=viewport]'); if(!m) return;
+      wechsel = !wechsel;
+      m.setAttribute('content', 'width=device-width, initial-scale=1' + (wechsel ? '.0' : '') +
+        ', minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+    }, 250);
+  }
+  vv.addEventListener('resize', pruefe);
 })();
 </script>
 <meta name="theme-color" content="#0e1118">
@@ -465,9 +524,14 @@ body.superGrafik #vignette{display:block}
 .schalter{font-family:var(--pix); font-size:12px; padding:3px 7px; background:transparent; color:var(--ink-dim); border:2px dashed var(--edge); cursor:pointer}
 .schalter[aria-pressed=true]{background:var(--grass-dk); color:#f2f7ec; border-style:solid; border-color:var(--grass)}
 #buchListe{display:grid; grid-template-columns:repeat(auto-fill, minmax(calc(var(--s)*.95), 1fr)); gap:4px; overflow:auto; align-content:start; flex:1; min-height:0; padding-right:2px}
-.behRumpf:not(.breit) #buchListe{max-height:calc(var(--s)*3.4)}
-.rz{position:relative; aspect-ratio:1; background:var(--panel-2); border:2px solid var(--edge); display:grid; place-items:center; cursor:pointer; padding:0; touch-action:pan-y}
-.rz .ic{width:74%; height:74%; display:block; background-size:100% 100%; image-rendering:pixelated; pointer-events:none}
+/* Untereinander hat das Buch keine feste Höhe. »flex:1« hieße hier Grundgröße 0 —
+   Safari nimmt das wörtlich und klappt die Liste auf null zusammen, dann
+   zeigt der Kreativ-Katalog keine Gegenstände. Also nach Inhalt bemessen. */
+.behRumpf:not(.breit) #buchListe{flex:0 0 auto; height:auto; max-height:calc(var(--s)*3.4); min-height:calc(var(--s)*1.2)}
+/* min-height für Safari vor 15, das aspect-ratio nicht kennt — sonst wären die Felder flach und leer */
+.rz{position:relative; aspect-ratio:1; min-height:calc(var(--s)*.95); background:var(--panel-2); border:2px solid var(--edge); display:grid; place-items:center; cursor:pointer; padding:0; touch-action:pan-y}
+/* absolut statt Prozenthöhe: die löst Safari in Knöpfen mit aspect-ratio teils zu 0 auf */
+.rz .ic{position:absolute; inset:13%; width:auto; height:auto; display:block; background-size:100% 100%; image-rendering:pixelated; pointer-events:none}
 .rz .cnt{position:absolute; right:2px; bottom:0; font-family:var(--pix); font-size:13px; color:#fff; text-shadow:2px 2px 0 #000; pointer-events:none}
 .rz.ok{border-color:var(--grass)}
 .rz.bank{border-color:var(--amber-dk)}
@@ -918,7 +982,7 @@ body.mcGui .sheet.beh .tabs button[aria-selected=true], body.mcGui .sheet.beh .s
 <script src="mcpaket.js"></script>
 <script src="skin.js"></script>
 <script src="wetter.js"></script>
-<script src="handwerk.js"></script>
+<script src="handwerk.js?v=2026-11-27"></script>
 <script src="speicher.js"></script>
 <script src="menue.js"></script>
 <script src="netz.js"></script>
