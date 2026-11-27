@@ -2022,6 +2022,8 @@ function buildTextures(){
     fein(p, (x, y) => bild[y*16 + x]);
   });
 
+  buildTexturenMehr();
+
   /* — Gleiche Bilder teilen sich eine Lage: Lagen sind knapp (höchstens 256,
      und das Gitter der Chunks zählt sie in Bytes). Nur, wenn sie wirklich
      gleich sind. — */
@@ -2148,4 +2150,326 @@ function isoIconURL(oben, links, rechts, hoehe = 1){
   const url = cv.toDataURL();
   _iconCache.set(k, url);
   return url;
+}
+
+/* ── Seit 26.11: bunte Blöcke, Redstone-Bauteile, neue Waffen ─────────
+   Gemalt nach denselben Regeln: feste Paletten, ein Wertfeld verteilt die
+   Töne. Mit dem Minecraft-Paket treten dessen Bilder an ihre Stelle. */
+function buildTexturenMehr(){
+  /** fünf Töne einer Farbe, dunkel → hell; Schwarz bekommt etwas Glanz dazu */
+  const toene = (rgb, fs = [.6, .76, .9, 1, 1.12]) => fs.map(f => rgb.map(c => clamp(c*f + (f > 1 ? (f - 1)*70 : 0), 0, 255)));
+  const kopie = (name, quelle, fn) => addTex(name, p => {
+    const q = texData[TEX[quelle]];
+    if(q) p.d.set(q);
+    if(fn) fn(p);
+  });
+  const rahmen = (p, c, dunkel) => {
+    for(let i = 0; i < TS; i++){ p.put(i, 0, c); p.put(0, i, c); p.put(i, TS-1, dunkel); p.put(TS-1, i, dunkel); }
+  };
+  const HOLZ = pal('#2e1d0c','#5c3c1b','#7e5528','#9d6e37','#b88947');
+  const MAT = {
+    wood:    pal('#3a2410','#6e4d26','#8f6734','#ae8144','#c69c5a'),
+    stone:   pal('#2c2d31','#5d5e64','#7c7d83','#9a9ba1','#b9babf'),
+    iron:    pal('#3a3b40','#8e9097','#bfc1c7','#dfe1e5','#fbfbfd'),
+    gold:    pal('#5c4006','#b98a10','#e5b726','#f8d858','#fff6b4'),
+    diamond: pal('#0a4a4c','#1a9492','#33c6c0','#7ae8e0','#dcfffb'),
+  };
+  const DUNKEL_EISEN = pal('#1e1f23','#34353b','#4a4b52','#62636b','#7d7e86');
+
+  /* — Sechzehn Farben — */
+  FARBEN.forEach((f, i) => {
+    const P = toene(f.rgb);
+    if(f.wolle >= B.WOLLE2) addTex('wolle_' + f.key, p => malWolle(p, P, 301 + i));
+    // Beton: glatt und matt, kaum Körnung
+    addTex('beton_' + f.key, p => p.fuell((x, y) => .7*vnoise(x, y, 16, 16, 331 + i) + .3*fbm(x, y, 4, 4, 351 + i, 2),
+      toene(f.rgb, [.9, .96, 1, 1.04]), [10, 35, 40, 15], .8));
+    // Keramik: die Farbe in gebranntem Ton, dazu feine helle und dunkle Sprenkel
+    const k = mischen(f.rgb, [150, 92, 66], .42);
+    addTex('keramik_' + f.key, p => {
+      p.fuell((x, y) => .6*fbm(x, y, 4, 4, 371 + i, 3) + .4*vnoise(x, y, 16, 16, 391 + i), toene(k, [.82, .9, .97, 1.03, 1.08]), [6, 20, 38, 26, 10], .7);
+      for(let n = 0; n < 14; n++) p.put(p.r()*TS, p.r()*TS, hell(k, p.r() < .5 ? .8 : 1.15));
+    });
+    // Glas: durchscheinend, mit Rahmen und zwei Lichtstreifen
+    addTex('glas_' + f.key, p => {
+      const c = f.rgb;
+      for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, c, 118);
+      for(let i2 = 0; i2 < TS; i2++){
+        p.put(i2, 0, hell(c, 1.25), 220); p.put(0, i2, hell(c, 1.25), 220);
+        p.put(i2, TS-1, hell(c, .75), 220); p.put(TS-1, i2, hell(c, .75), 220);
+      }
+      for(let d = 0; d < 6; d++){ p.put(6 + d, 11 - d, hell(c, 1.5), 170); p.put(9 + d, 12 - d, hell(c, 1.35), 150); p.put(19 + d, 27 - d, hell(c, 1.4), 150); }
+    });
+    // Farbstoff: ein Häufchen Pulver mit Glanz
+    sprite('i_farbe_' + f.key, S => {
+      const L = S.lage(toene(f.rgb, [.45, .7, .88, 1, 1.18]), { kante:true });
+      S.poly(L, [[5,25],[9,17],[15,12],[21,14],[26,21],[27,26],[16,28]]);
+      S.oval(L, 9, 10, 2.4, 2.4); S.oval(L, 23, 9, 1.8, 1.8);
+      L.muster = (x, y) => (h2(x, y, 411 + i) < .22 ? -1 : h2(x, y, 431 + i) > .8 ? 1 : 0);
+    });
+  });
+  addTex('keramik', p => {
+    p.fuell((x, y) => .6*fbm(x, y, 4, 4, 451, 3) + .4*vnoise(x, y, 16, 16, 452), pal('#7a4630','#87503a','#935a42','#9c6249','#a76c52'), [6, 20, 38, 26, 10], .7);
+    for(let n = 0; n < 14; n++) p.put(p.r()*TS, p.r()*TS, p.r() < .5 ? [120, 70, 50] : [180, 120, 92]);
+  });
+  addTex('ton', p => {
+    p.fuell((x, y) => .55*fbm(x, y, 4, 4, 461, 3) + .45*vnoise(x, y, 16, 16, 462), pal('#7f8592','#8f95a2','#9ca2b0','#a8aebb','#b6bcc8'), [6, 20, 38, 26, 10], .7);
+    for(let n = 0; n < 10; n++){ const x = p.r()*TS, y = p.r()*TS; p.put(x, y, [196, 200, 210]); p.put(x + 1, y + 1, [120, 126, 138]); }
+  });
+
+  /* — Redstone — */
+  const platte = (name, P) => sprite(name, S => {
+    const L = S.lage(P, { kante:true });
+    S.poly(L, [[3,19],[16,13],[29,19],[16,25]]);
+    const V = S.lage(P.map(c => hell(c, .7)));
+    S.poly(V, [[3,19],[16,25],[16,28],[3,22]]); S.poly(V, [[16,25],[29,19],[29,22],[16,28]]);
+  });
+  platte('i_platte_holz', MAT.wood); platte('i_platte_gold', MAT.gold); platte('i_platte_eisen', MAT.iron);
+  sprite('i_holzknopf', S => { const K = S.lage(MAT.wood, { kante:true }); S.rechteck(K, 9, 12, 14, 9); K.glanz = [[10,13,4],[11,13,4],[12,13,4]]; });
+
+  // Beobachter: dunkler Stein; vorn ein Gesicht mit Schlitzaugen, hinten ein roter Punkt
+  const beobGrund = (p, s) => p.fuell((x, y) => .6*fbm(x, y, 4, 4, s, 3) + .4*vnoise(x, y, 16, 16, s + 1),
+    pal('#2b2c30','#35363b','#3f4046','#4a4b51','#56575e'), [8, 22, 34, 26, 10], .6);
+  addTex('beob_vorne', p => {
+    beobGrund(p, 471); rahmen(p, [96, 97, 104], [24, 24, 28]);
+    for(let x = 4; x < 28; x++){ p.put(x, 13, [20, 20, 24]); p.put(x, 18, [20, 20, 24]); }
+    for(const x0 of [7, 18]) for(let y = 14; y < 18; y++) for(let x = x0; x < x0 + 7; x++) p.put(x, y, y === 14 ? [150, 152, 160] : [96, 98, 106]);
+  });
+  const beobHinten = an => p => {
+    beobGrund(p, 481); rahmen(p, [96, 97, 104], [24, 24, 28]);
+    for(let y = 12; y < 20; y++) for(let x = 12; x < 20; x++){
+      const r = Math.max(Math.abs(x - 15.5), Math.abs(y - 15.5));
+      p.put(x, y, r > 3 ? [30, 30, 34] : an ? (r < 2 ? [255, 120, 90] : [230, 40, 24]) : (r < 2 ? [110, 20, 16] : [70, 12, 10]));
+    }
+  };
+  addTex('beob_hinten', beobHinten(false)); addTex('beob_hinten_an', beobHinten(true));
+  addTex('beob_seite', p => {
+    beobGrund(p, 491); rahmen(p, [96, 97, 104], [24, 24, 28]);
+    for(let k = 0; k < 5; k++) for(let x = 15 - k; x <= 16 + k; x++) p.put(x, 6 + k, [150, 152, 160]);
+    for(let y = 11; y < 26; y++){ p.put(15, y, [130, 132, 140]); p.put(16, y, [110, 112, 120]); }
+  });
+  addTex('beob_oben', p => {
+    beobGrund(p, 501); rahmen(p, [96, 97, 104], [24, 24, 28]);
+    for(let y = 3; y < 29; y++) for(const x of [10, 21]) p.put(x, y, [20, 20, 24]);
+    for(let y = 4; y < 28; y += 3) for(let x = 11; x < 21; x++) p.put(x, y, [70, 72, 78]);
+  });
+  // Tageslichtsensor: Holzrahmen, darin blaue Glasfelder (umgekehrt: dunkel)
+  const tagOben = um => p => {
+    malBretter(p, 511, PAL.brett, false);
+    const G = um ? pal('#1c2236','#26304a','#33405e') : pal('#6a8cb0','#8fb2d6','#c4e0f6');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const fx = x % 10, fy = y % 10;
+      if(x > 1 && y > 1 && x < 30 && y < 30 && fx > 1 && fy > 1) p.put(x, y, G[fx === 2 || fy === 2 ? 2 : (fx + fy) % 5 === 0 ? 0 : 1]);
+    }
+  };
+  addTex('tag_oben', tagOben(false)); addTex('tag_oben_um', tagOben(true));
+  addTex('tag_seite', p => { malBretter(p, 513, PAL.brett, false); for(let y = 0; y < 20; y++) for(let x = 0; x < TS; x++) p.tone(x, y, .85); });
+  // Zielblock: Heu mit roten Ringen
+  const heu = p => p.fuell((x, y) => .7*fbm(x, y, 2, 12, 521, 3) + .3*vnoise(x, y, 32, 4, 522), pal('#9c7a1c','#b89426','#cfab36','#dcbd4a','#ead068'), [6, 18, 34, 28, 14], .6);
+  addTex('ziel_seite', p => {
+    heu(p);
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const d = Math.hypot(x - 15.5, y - 15.5);
+      if(d < 3) p.put(x, y, [196, 30, 30]); else if(d < 6) p.put(x, y, [236, 230, 220]); else if(d < 10) p.put(x, y, [196, 30, 30]);
+      else if(d < 13) p.put(x, y, [236, 230, 220]);
+    }
+  });
+  addTex('ziel_oben', p => { heu(p); for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){ const d = Math.hypot(x - 15.5, y - 15.5); if(d > 6 && d < 10) p.put(x, y, [196, 30, 30]); } });
+  // Notenblock: dunkles Holz im Rahmen, wie ein Plattenspieler ohne Deckel
+  addTex('notenblock', p => {
+    malBretter(p, 531, pal('#3c2412','#4a2e18','#58381e','#664226','#744c2c'), true);
+    rahmen(p, [96, 62, 36], [28, 16, 8]);
+    for(let i = 2; i < TS - 2; i++){ p.put(i, 2, [40, 24, 12]); p.put(2, i, [40, 24, 12]); p.put(i, TS - 3, [110, 74, 44]); p.put(TS - 3, i, [110, 74, 44]); }
+  });
+  // TNT: rote Stangen, ein weißes Band mit Schrift
+  addTex('tnt_seite', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const st = x % 8;
+      p.put(x, y, st === 0 ? [120, 20, 16] : st === 1 ? [230, 70, 50] : [200 - (h2(x, y, 541) * 20 | 0), 42, 32]);
+    }
+    for(let y = 11; y < 21; y++) for(let x = 0; x < TS; x++) p.put(x, y, y === 11 || y === 20 ? [170, 170, 170] : [232, 232, 226]);
+    const T = ['###.#..#.###', '.#..##.#..#.', '.#..#.##..#.', '.#..#..#..#.'];
+    T.forEach((r, j) => [...r].forEach((c, i) => { if(c === '#') { p.put(4 + i*2, 13 + j, [30, 30, 30]); p.put(5 + i*2, 13 + j, [30, 30, 30]); } }));
+  });
+  addTex('tnt_oben', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, (x % 8 === 0 || y % 8 === 0) ? [120, 20, 16] : [206, 48, 36]);
+    for(let y = 13; y < 19; y++) for(let x = 13; x < 19; x++) p.put(x, y, [60, 50, 40]);
+  });
+  addTex('tnt_unten', p => { for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.put(x, y, (x % 8 === 0 || y % 8 === 0) ? [120, 20, 16] : [176, 40, 30]); });
+  // Eisentür und Eisenfalltür: Platten mit Nieten
+  const eisenFlaeche = (p, s) => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++)
+      p.quant(x, y, .55 + (fbm(x, y, 1, 16, s, 2) - .5)*.3 + (x === 0 || y === 0 ? .3 : x === TS-1 || y === TS-1 ? -.35 : 0), MAT.iron, .5);
+  };
+  addTex('eisentuer_oben', p => {
+    eisenFlaeche(p, 551);
+    for(const x0 of [6, 18]) for(let y = 6; y < 16; y++) for(let x = x0; x < x0 + 8; x++) p.put(x, y, x === x0 || y === 6 ? [70, 72, 78] : [200, 206, 214], 255);
+    for(let x = 2; x < 30; x++) p.put(x, 22, [110, 112, 118]);
+  });
+  addTex('eisentuer_unten', p => {
+    eisenFlaeche(p, 552);
+    for(let x = 2; x < 30; x++){ p.put(x, 6, [110, 112, 118]); p.put(x, 20, [110, 112, 118]); }
+    for(const [x, y] of [[4,3],[27,3],[4,28],[27,28]]) p.put(x, y, [80, 82, 88]);
+    p.rect(24, 12, 3, 4, [70, 72, 78]);
+  });
+  sprite('i_eisentuer', S => {
+    const L = S.lage(MAT.iron, { kante:true }); S.rechteck(L, 9, 2, 14, 28);
+    const f = S.lage(pal('#1a1a20','#3a5a70','#6a9ab4','#a8d4e8','#e0f4fc'), { kante:true });
+    S.rechteck(f, 11, 5, 4, 6); S.rechteck(f, 17, 5, 4, 6);
+    const g = S.lage(DUNKEL_EISEN); S.rechteck(g, 19, 18, 2, 2);
+  });
+  // Falltüren: ein Gitter mit Löchern
+  const falltuer = (P, s) => p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const rand = x < 3 || y < 3 || x > 28 || y > 28;
+      const loch = !rand && ((x - 3) % 9 > 5 || (y - 3) % 9 > 5) === false && (x % 9 > 3 && y % 9 > 3);
+      if(loch){ p.put(x, y, [0, 0, 0], 0); continue; }
+      p.quant(x, y, .5 + (fbm(x, y, 2, 8, s, 2) - .5)*.5 + (rand && (x < 1 || y < 1) ? .25 : 0), P, .5);
+    }
+  };
+  addTex('falltuer', falltuer(PAL.brett, 561)); addTex('eisenfalltuer', falltuer(MAT.iron, 562));
+  // Spender und Werfer: Ofen-Seite mit einem Maul
+  const maul = (gross, rund) => p => {
+    const q = texData[TEX.furn_side]; if(q) p.d.set(q);
+    const r = gross ? 6 : 4;
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const dx = x - 15.5, dy = y - 15.5, d = rund ? Math.hypot(dx, dy) : Math.max(Math.abs(dx), Math.abs(dy));
+      if(d < r) p.put(x, y, d < r - 1.5 ? [18, 18, 20] : [70, 70, 76]);
+    }
+    if(gross) for(const x of [9, 22]) { p.put(x, 9, [20, 20, 24]); p.put(x, 10, [20, 20, 24]); }
+  };
+  addTex('spender_vorne', maul(true, false)); addTex('spender_vorne_hoch', maul(true, true));
+  addTex('werfer_vorne', maul(false, false)); addTex('werfer_vorne_hoch', maul(false, true));
+  // Trichter: dunkles Eisen
+  addTex('trichter_aussen', p => { for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.quant(x, y, .5 + (fbm(x, y, 4, 4, 571, 2) - .5)*.4 + (x === 0 || y === 0 ? .3 : 0), DUNKEL_EISEN, .5); });
+  addTex('trichter_innen', p => { for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++) p.quant(x, y, .25 + (fbm(x, y, 4, 4, 572, 2) - .5)*.3, DUNKEL_EISEN, .5); });
+  addTex('trichter_oben', p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const r = Math.min(x, y, TS - 1 - x, TS - 1 - y);
+      p.quant(x, y, r < 4 ? .7 - (r === 3 ? .3 : 0) : .12, DUNKEL_EISEN, .4);
+    }
+  });
+  sprite('i_trichter', S => {
+    const L = S.lage(DUNKEL_EISEN, { kante:true });
+    S.poly(L, [[4,6],[28,6],[28,13],[22,20],[10,20],[4,13]]);
+    S.rechteck(L, 12, 20, 8, 5); S.rechteck(L, 14, 25, 4, 4);
+    const I = S.lage(pal('#0c0c0e','#141416','#1c1c20','#24242a','#2c2c32')); S.rechteck(I, 7, 7, 18, 4);
+  });
+  // Komparator: wie der Verstärker, mit drei Fackeln
+  const komparator = an => p => {
+    malStein(p, 581, PAL.stein);
+    for(let i = 0; i < TS; i++){ p.put(i, 0, [70,71,76]); p.put(i, TS-1, [70,71,76]); p.put(0, i, [70,71,76]); p.put(TS-1, i, [70,71,76]); }
+    const R = an ? [255, 60, 40] : [90, 14, 12];
+    for(let y = 6; y < 26; y++){ p.put(15, y, R); p.put(16, y, R); }
+    for(const [x, y] of [[9, 23], [22, 23], [15, 6]]) p.rect(x - 1, y - 1, 3, 3, an ? [255, 120, 80] : [120, 24, 18]);
+  };
+  addTex('rs_komparator', komparator(false)); addTex('rs_komparator_an', komparator(true));
+  sprite('i_komparator', S => {
+    const L = S.lage(PAL.stein, { kante:true }); S.poly(L, [[3,19],[16,13],[29,19],[16,25]]);
+    const V = S.lage(pal('#34353a','#44454b','#54555b','#63646a','#727379'));
+    S.poly(V, [[3,19],[16,25],[16,28],[3,22]]); S.poly(V, [[16,25],[29,19],[29,22],[16,28]]);
+    for(const [x, y] of [[9, 20], [22, 20], [15, 16]]){
+      const F = S.lage(HOLZ); S.rechteck(F, x, y - 6, 2, 6);
+      const K = S.lage(pal('#6a0a08','#b8140e','#e8321e','#ff7250','#ffd0b8')); S.rechteck(K, x, y - 8, 2, 3);
+    }
+  });
+  // Kupferleuchte: Kupferrahmen, innen ein Glaskolben
+  const kupfer = an => p => {
+    const K = pal('#6a3418','#94502a','#b8683a','#d4844e','#e8a06a');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const r = Math.min(x, y, TS - 1 - x, TS - 1 - y);
+      if(r < 5 || (r < 7 && (x === 15 || x === 16 || y === 15 || y === 16))) { p.quant(x, y, .5 + (r === 0 ? .4 : r === 4 ? -.3 : 0) + (fbm(x, y, 4, 4, 591, 2) - .5)*.4, K, .5); continue; }
+      const d = Math.hypot(x - 15.5, y - 15.5);
+      p.put(x, y, an ? (d < 5 ? [255, 246, 200] : [250, 200, 110]) : (d < 5 ? [90, 70, 50] : [60, 44, 32]));
+    }
+  };
+  addTex('kupferleuchte', kupfer(false)); addTex('kupferleuchte_an', kupfer(true));
+  // Schleim und Honig: durchscheinend, innen ein dichterer Kern
+  const gelee = (rgb, s, kern) => p => {
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const r = Math.min(x, y, TS - 1 - x, TS - 1 - y), innen = kern && r > 5 && r < 26;
+      const v = .85 + (fbm(x, y, 4, 4, s, 2) - .5)*.3;
+      p.put(x, y, hell(rgb, r === 0 ? 1.2 : innen ? v*.85 : v), r === 0 ? 230 : innen ? 215 : 150);
+    }
+  };
+  addTex('schleimblock', gelee([112, 192, 92], 601, true));
+  addTex('honig_seite', gelee([236, 160, 40], 602, true)); addTex('honig_oben', gelee([240, 170, 48], 603, true));
+  addTex('honig_unten', gelee([214, 140, 32], 604, false));
+  // Skulk-Sensor: dunkles Türkis mit leuchtenden Adern
+  const skulk = (s, adern) => p => {
+    p.fuell((x, y) => .6*fbm(x, y, 4, 4, s, 3) + .4*vnoise(x, y, 16, 16, s + 1), pal('#051a20','#08252e','#0b3038','#0f3b44','#134a54'), [10, 24, 32, 22, 12], .6);
+    if(adern) for(let i = 0; i < 18; i++){ const x = p.r()*TS, y = p.r()*TS; p.put(x, y, [40, 220, 220]); p.put(x + 1, y, [20, 150, 160]); }
+  };
+  addTex('skulk_oben', skulk(611, true)); addTex('skulk_seite', skulk(612, true)); addTex('skulk_unten', skulk(613, false));
+  // Redstone-Truhe: wie die Truhe, das Schloss mit einem roten Haken
+  kopie('fallentruhe_oben', 'chest_top'); kopie('fallentruhe_seite', 'chest_side');
+  kopie('fallentruhe_vorne', 'chest_front', p => { for(let y = 9; y < 17; y++) for(let x = 14; x < 18; x++) if(y > 13 || x === 14 || x === 17) p.put(x, y, [190, 30, 24]); });
+
+  /* — Gegenstände — */
+  addTex('i_lava_bucket', p => {
+    const q = texData[TEX.i_water_bucket]; if(q) p.d.set(q);
+    const L = pal('#a02a00','#d84800','#f87a10','#ffb030','#ffe080');
+    for(let y = 0; y < TS; y++) for(let x = 0; x < TS; x++){
+      const i = (y*TS + x)*4, r = p.d[i], g = p.d[i+1], b = p.d[i+2];
+      if(p.d[i+3] && b > r*1.3 && b > g*1.05) p.put(x, y, L[clamp(Math.floor(b/256*5 + h2(x, y, 621)*.6), 0, 4)], p.d[i+3]);
+    }
+  });
+  sprite('i_schwarzpulver', S => {
+    const L = S.lage(pal('#18181a','#2e2e32','#48484e','#64646c','#8a8a92'), { kante:true });
+    S.poly(L, [[4,26],[9,17],[16,13],[23,16],[28,26],[16,28]]);
+    L.muster = (x, y) => (h2(x, y, 631) < .3 ? -1 : h2(x, y, 632) > .75 ? 1 : 0);
+  });
+  sprite('i_windrute', S => {
+    const L = S.lage(pal('#4a5a8a','#7c8ec4','#a8b8ea','#d0dcfc','#f4f8ff'), { kante:true });
+    S.strich(L, [[6,27],[26,5]], 1.6);
+    const W = S.lage(pal('#3a8aa0','#5cc0d4','#8ee0ec','#c4f4fa','#ffffff'));
+    for(const t of [.25, .5, .75]){ const cx = 6 + 20*t, cy = 27 - 22*t; S.strich(W, [[cx - 4, cy - 1], [cx, cy - 3], [cx + 3, cy + 1]], .6); }
+  });
+  sprite('i_schwerer_kern', S => {
+    const L = S.lage(pal('#1a1a1e','#2c2c32','#3e3e46','#56565e','#74747e'), { kante:true });
+    S.poly(L, [[16,6],[27,12],[27,22],[16,28],[5,22],[5,12]]);
+    const O = S.lage(pal('#2c2c32','#46464e','#5e5e68','#7a7a84','#9a9aa4')); S.poly(O, [[16,6],[27,12],[16,18],[5,12]]);
+  });
+  sprite('i_streitkolben', S => {
+    const st = S.lage(HOLZ); S.strich(st, [[6,27],[17,15]], 1.5);
+    const g = S.lage(MAT.iron, { kante:true }); S.strich(g, [[15,17],[18,14]], 2.2);
+    const k = S.lage(pal('#1e1f24','#3a3b42','#585a62','#7c7e86','#a8aab2'), { kante:true });
+    S.oval(k, 22, 9, 6, 6);
+    for(const [x, y] of [[22,1.5],[29.5,9],[22,16.5],[14.5,9],[27,4],[27,14]]) S.oval(k, x, y, 1.4, 1.4);
+    k.glanz = [[20,6],[21,6],[20,7]];
+  });
+  sprite('i_windkugel', S => {
+    const L = S.lage(pal('#4a7a9a','#7ab0cc','#a8d6ea','#d4f0fa','#ffffff'), { kante:true });
+    S.oval(L, 16, 16, 10, 10);
+    L.muster = (x, y) => { const a = Math.atan2(y - 16, x - 16), d = Math.hypot(x - 16, y - 16); return Math.sin(a*2 + d*.7) > .5 ? 1 : Math.sin(a*2 + d*.7) < -.6 ? -1 : 0; };
+  });
+  for(const m of ['wood', 'stone', 'iron', 'gold', 'diamond']){
+    sprite('i_' + m + '_speer', S => {
+      const st = S.lage(HOLZ); S.strich(st, [[4,28],[22,10]], 1.2);
+      const sp = S.lage(MAT[m], { kante:true }); S.poly(sp, [[20,8],[28,4],[24,12],[22,13],[19,10]]);
+      sp.glanz = [[24,7],[25,6]];
+    });
+  }
+  for(const m of ['iron', 'gold', 'diamond']){
+    sprite('i_' + m + '_scheibe', S => {
+      const L = S.lage(MAT[m], { kante:true });
+      S.oval(L, 16, 16, 12, 12); S.oval(L, 16, 16, 4, 4, 0);
+      L.muster = (x, y) => (Math.hypot(x - 16, y - 16) > 10 ? 1 : 0);
+      const G = S.lage(HOLZ); S.oval(G, 16, 16, 7, 7); S.oval(G, 16, 16, 4, 4, 0);
+      L.glanz = [[9,9],[10,8],[9,10]];
+    });
+  }
+  // Teilchen: Noten, Wind, Rauch
+  sprite('p_note', S => {
+    const L = S.lage(pal('#0a4010','#18801e','#30c030','#70e060','#c0ffb0'));
+    S.oval(L, 11, 23, 5, 4); S.rechteck(L, 14, 5, 3, 18); S.poly(L, [[14,5],[26,9],[26,14],[17,11]]);
+  });
+  sprite('p_wind', S => {
+    const L = S.lage(pal('#90a8c0','#c0d4e6','#dceaf6','#f0f8ff','#ffffff'));
+    S.strich(L, [[4,20],[10,10],[20,8],[26,14],[22,20],[16,18]], 1.4);
+  });
+  sprite('p_rauch', S => {
+    const L = S.lage(pal('#3a3a3e','#5a5a60','#7a7a80','#9a9aa0','#c0c0c6'));
+    S.oval(L, 16, 16, 11, 10); S.oval(L, 10, 12, 6, 5); S.oval(L, 22, 20, 6, 5);
+    L.muster = (x, y) => (h2(x, y, 641) < .25 ? -1 : h2(x, y, 642) > .8 ? 1 : 0);
+  });
 }

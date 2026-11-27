@@ -237,6 +237,59 @@ function initRecipes(){
   geformt('redstone', B.VERSTAERKER, 1, ['TrT','SSS'], {T:B.RS_FACKEL, r:RS, S:B.STONE});
   geformt('redstone', B.KOLBEN, 1, ['PPP','CIC','CrC'], {P:P, C:B.COBBLE, I:ITEM.iron, r:RS});
   geformt('redstone', B.KLEBKOLBEN, 1, ['s','K'], {s:ITEM.slimeball, K:B.KOLBEN});
+  initRecipesMehr();
+}
+/* Seit 26.11: Farbstoffe und was man damit färbt, die übrigen Redstone-Bauteile, neue Waffen */
+function initRecipesMehr(){
+  const P = B.PLANKS, S = ITEM.stick, RS = ITEM.redstone, F = key => ITEM['farbe_' + key];
+  // Farbstoffe aus Blumen, Knochenmehl, Kohle, Lapislazuli, Erde — und gemischt
+  formlos('stoffe', F('rot'), 1, [B.ROSE]);
+  formlos('stoffe', F('gelb'), 1, [B.DANDELION]);
+  formlos('stoffe', F('blau'), 1, [[B.KORNBLUME, ITEM.lapis]]);
+  formlos('stoffe', F('weiss'), 1, [ITEM.bone_meal]);
+  formlos('stoffe', F('schwarz'), 1, [ITEM.coal]);
+  formlos('stoffe', F('braun'), 1, [B.DIRT]);
+  for(const [ziel, a, b] of [['orange','rot','gelb'], ['rosa','rot','weiss'], ['hellblau','blau','weiss'], ['tuerkis','blau','gruen'],
+      ['hellgruen','gruen','weiss'], ['lila','blau','rot'], ['magenta','lila','rosa'], ['grau','schwarz','weiss'], ['hellgrau','grau','weiss']])
+    formlos('stoffe', F(ziel), 2, [F(a), F(b)]);
+  formlos('stoffe', F('hellgrau'), 3, [F('schwarz'), F('weiss'), F('weiss')]);
+  const alleWolle = FARBEN.map(f => f.wolle);
+  FARBEN.forEach((f, i) => {
+    // Wolle färben: jede Wolle und der Farbstoff
+    formlos('bauen', f.wolle, 1, [alleWolle, F(f.key)]);
+    // Beton: Farbstoff, vier Sand, vier Kies
+    formlos('bauen', B.BETON + i, 8, [F(f.key), B.SAND, B.SAND, B.SAND, B.SAND, B.GRAVEL, B.GRAVEL, B.GRAVEL, B.GRAVEL]);
+    geformt('bauen', B.KERAMIK_F + i, 8, ['###','#f#','###'], {'#':B.KERAMIK, f:F(f.key)});
+    geformt('bauen', B.GLAS_F + i, 8, ['###','#f#','###'], {'#':B.GLASS, f:F(f.key)});
+  });
+  // Redstone — Netherquarz gibt es hier nicht, Lapislazuli tritt an seine Stelle
+  formlos('redstone', B.HOLZKNOPF, 1, [P]);
+  geformt('redstone', B.PLATTE_HOLZ, 1, ['##'], {'#':P});
+  geformt('redstone', B.PLATTE_GOLD, 1, ['##'], {'#':ITEM.gold});
+  geformt('redstone', B.PLATTE_EISEN, 1, ['##'], {'#':ITEM.iron});
+  geformt('redstone', beobId(4, false), 1, ['CCC','rrQ','CCC'], {C:B.COBBLE, r:RS, Q:ITEM.lapis});
+  geformt('redstone', B.TAGESSENSOR, 1, ['GGG','QQQ','HHH'], {G:B.GLASS, Q:ITEM.lapis, H:stufeId(0, false)});
+  geformt('redstone', B.ZIELBLOCK, 1, [' r ','rWr',' r '], {r:RS, W:ITEM.wheat});
+  geformt('redstone', B.NOTENBLOCK, 1, ['###','#r#','###'], {'#':P, r:RS});
+  geformt('redstone', B.TNT, 1, ['XSX','SXS','XSX'], {X:ITEM.schwarzpulver, S:B.SAND});
+  geformt('redstone', B.EISENTUER, 3, ['II','II','II'], {I:ITEM.iron});
+  geformt('redstone', B.FALLTUER, 2, ['###','###'], {'#':P});
+  geformt('redstone', B.EISENFALLTUER, 1, ['II','II'], {I:ITEM.iron});
+  geformt('redstone', auswurfId(B.SPENDER, 4, false), 1, ['CCC','CBC','CrC'], {C:B.COBBLE, B:ITEM.bow, r:RS});
+  geformt('redstone', auswurfId(B.WERFER, 4, false), 1, ['CCC','C C','CrC'], {C:B.COBBLE, r:RS});
+  geformt('redstone', B.TRICHTER, 1, ['I I','ITI',' I '], {I:ITEM.iron, T:B.CHEST});
+  geformt('redstone', B.KOMPARATOR, 1, [' T ','TQT','SSS'], {T:B.RS_FACKEL, Q:ITEM.lapis, S:B.STONE});
+  geformt('redstone', B.KUPFERLEUCHTE, 1, [' G ','GLG',' r '], {G:ITEM.gold, L:ITEM.lohenrute, r:RS});
+  geformt('redstone', B.SCHLEIMBLOCK, 1, ['sss','sss','sss'], {s:ITEM.slimeball});
+  formlos('stoffe', ITEM.slimeball, 9, [B.SCHLEIMBLOCK]);
+  formlos('redstone', B.FALLENTRUHE, 1, [B.CHEST, RS]);
+  // Kampf: Windkugeln aus der Windrute, der Streitkolben aus Kern und Rute, Speere und Wurfscheiben
+  formlos('kampf', ITEM.windkugel, 4, [ITEM.windrute]);
+  geformt('kampf', ITEM.streitkolben, 1, ['K','R'], {K:ITEM.schwerer_kern, R:ITEM.windrute});
+  for(const [m, mat] of [['wood',P],['stone',B.COBBLE],['iron',ITEM.iron],['gold',ITEM.gold],['diamond',ITEM.diamond]])
+    geformt('kampf', ITEM[m + '_speer'], 1, ['  M',' | ','|  '], {M:mat, '|':S});
+  for(const [m, mat] of [['iron',ITEM.iron],['gold',ITEM.gold],['diamond',ITEM.diamond]])
+    geformt('kampf', ITEM[m + '_scheibe'], 1, [' M ','M|M',' M '], {M:mat, '|':S});
 }
 const zutatenVon = r => r.formlos ? r.zutaten : r.zellen.filter(Boolean);
 
@@ -320,10 +373,14 @@ function initSmelt(){
   SMELT[ITEM.mutton_raw] = ITEM.mutton_cooked;
   SMELT[ITEM.chicken_raw] = ITEM.chicken_cooked;
   SMELT[B.REDSTONE_ERZ] = ITEM.redstone;
+  SMELT[B.TON] = B.KERAMIK;
+  SMELT[B.CACTUS] = ITEM.farbe_gruen;
 }
 function fuelValue(id){
   if(items[id] && items[id].fuel) return items[id].fuel;
   if(id === B.PLANKS || id === B.LOG || id === B.FICHTENSTAMM || id === B.TABLE || id === B.CHEST || id === B.LADDER) return 300;
+  if(id === B.NOTENBLOCK || id === B.FALLENTRUHE || id === B.FALLTUER || id === B.TAGESSENSOR) return 300;
+  if(id === B.HOLZKNOPF || id === B.PLATTE_HOLZ) return 100;
   if(isTreppe(id) && TREPPEN[treppeArt(id)].stoff === B.PLANKS) return 300;
   if(isStufe(id) && STUFEN[stufeArt(id)].stoff === B.PLANKS) return 150;
   return 0;
@@ -495,11 +552,19 @@ const Screens = {
       ? 'Leg Zutaten ins Raster oder tipp ein Rezept an. Lang drücken nimmt die Hälfte oder legt eins ab.'
       : modus === 'handel' ? 'Tipp ein Angebot an: links, was du gibst, rechts, was du bekommst.' : '');
   },
+  /** Name des offenen Behälters: Truhe, Spender, Werfer, Trichter … */
+  behaelterName(){
+    const [x, y, z] = String(this.truheKey).split(',').map(Number), id = Game.world.getBlock(x, y, z);
+    return id === B.CHEST || !blocks[id] ? TITEL.truhe : blocks[id].name;
+  },
   hide(){
     if(this.open === 'beh'){
       if(this.modus === 'truhe' && this.truheKey){
-        const [x, y, z] = String(this.truheKey).split(',').map(Number);
-        Sfx.play('truhe_zu', x + .5, y + .5, z + .5);
+        const [x, y, z] = String(this.truheKey).split(',').map(Number), w = Game.world, id = w.getBlock(x, y, z);
+        if(id === B.CHEST || isFallentruhe(id)) Sfx.play('truhe_zu', x + .5, y + .5, z + .5);
+        // die Redstone-Truhe gibt nur Strom, solange sie offen ist
+        if(id === B.FALLENTRUHE + 1) w.setBlock(x, y, z, B.FALLENTRUHE);
+        if(w.schaltung && !Netz.istGast) w.schaltung.inhalt(x, y, z);
       }
       // Raster und Hand zurück in die Tasche, was nicht passt, fällt vor die Füße
       for(let i=0; i<9; i++){ if(this.raster[i]){ this.zurueck(this.raster[i]); this.raster[i] = null; } }
@@ -564,7 +629,8 @@ const Screens = {
     const guertel = $('#behGuertel'); guertel.innerHTML = '';
     for(let i=9; i<36; i++) haupt.appendChild(this.mk(this.invRef(i, 'haupt')));
     for(let i=0; i<9; i++) guertel.appendChild(this.mk(this.invRef(i, 'guertel')));
-    $('#behTitel').textContent = this.modus === 'handel' ? BERUFE[this.handelWesen.beruf | 0].name : TITEL[this.modus];
+    $('#behTitel').textContent = this.modus === 'handel' ? BERUFE[this.handelWesen.beruf | 0].name
+      : this.modus === 'truhe' ? this.behaelterName() : TITEL[this.modus];
 
     const kreativ = Game.player.creative;
     if(this.modus === 'inv' || this.modus === 'werkbank'){
@@ -586,9 +652,11 @@ const Screens = {
       if(kreativ)
         oben.appendChild(this.mk({ gruppe:'muell', art:'muell', get:() => null, set:() => {}, passt:() => true, leer:'crack7' }, 'muell'));
     } else if(this.modus === 'truhe'){
-      const t = Game.world.chests.get(this.truheKey);
-      const box = el('div', 'reihe9');
-      for(let i=0; i<27; i++) box.appendChild(this.mk({ gruppe:'truhe', art:'lager', get:() => t[i], set:v => { t[i] = v; }, passt:() => true }));
+      // Truhe 27 Fächer in drei Reihen, Spender und Werfer 3 × 3, Trichter fünf nebeneinander
+      const t = Game.world.chests.get(this.truheKey), n = t.length;
+      const box = el('div', n === 27 ? 'reihe9' : 'raster');
+      if(n !== 27) box.style.gridTemplateColumns = 'repeat(' + (n === 9 ? 3 : n) + ', var(--s))';
+      for(let i=0; i<n; i++) box.appendChild(this.mk({ gruppe:'truhe', art:'lager', get:() => t[i], set:v => { t[i] = v; }, passt:() => true }));
       oben.appendChild(box);
     } else if(this.modus === 'ofen'){
       const f = Game.world.furnaces.get(this.ofenKey);

@@ -68,6 +68,37 @@ Object.assign(MC_TEX, { wirr_nyzel:'block/warped_nylium', wirr_nyzel_seite:'bloc
   pilzlicht:'block/shroomlight', netherziegel:'block/nether_bricks', feuer:{ p:'block/fire_0', bild:0 },
   endstein:'block/end_stone', endrahmen_oben:'block/end_portal_frame_top', endrahmen_seite:'block/end_portal_frame_side',
   endrahmen_auge:{ p:'block/end_portal_frame_top', drauf:'block/end_portal_frame_eye' }, drachenei:'block/dragon_egg', i_enderauge:'item/ender_eye', spawner:'block/spawner', i_netherziegel:'item/nether_brick', i_lohenrute:'item/blaze_rod', i_lohenstaub:'item/blaze_powder', i_enderperle:'item/ender_pearl' }); MC_TEX.obsidian = 'block/obsidian'; MC_TEX.braustand = 'block/brewing_stand'; MC_TEX.braustand_fuss = 'block/brewing_stand_base';
+/* Seit 26.11: die sechzehn Farben, Ton, die übrigen Redstone-Bauteile und die neuen Waffen */
+for(const f of FARBEN){
+  MC_TEX['wolle_' + f.key] = 'block/' + f.mc + '_wool';
+  MC_TEX['beton_' + f.key] = 'block/' + f.mc + '_concrete';
+  MC_TEX['keramik_' + f.key] = 'block/' + f.mc + '_terracotta';
+  MC_TEX['glas_' + f.key] = 'block/' + f.mc + '_stained_glass';
+  MC_TEX['i_farbe_' + f.key] = 'item/' + f.mc + '_dye';
+}
+Object.assign(MC_TEX, {
+  keramik:'block/terracotta', ton:'block/clay',
+  beob_vorne:'block/observer_front', beob_hinten:'block/observer_back', beob_hinten_an:'block/observer_back_on',
+  beob_seite:'block/observer_side', beob_oben:'block/observer_top',
+  tag_oben:'block/daylight_detector_top', tag_oben_um:'block/daylight_detector_inverted_top', tag_seite:'block/daylight_detector_side',
+  ziel_oben:'block/target_top', ziel_seite:'block/target_side', notenblock:'block/note_block',
+  tnt_oben:'block/tnt_top', tnt_unten:'block/tnt_bottom', tnt_seite:'block/tnt_side',
+  eisentuer_oben:'block/iron_door_top', eisentuer_unten:'block/iron_door_bottom', i_eisentuer:'item/iron_door',
+  falltuer:'block/oak_trapdoor', eisenfalltuer:'block/iron_trapdoor',
+  spender_vorne:'block/dispenser_front', spender_vorne_hoch:'block/dispenser_front_vertical',
+  werfer_vorne:'block/dropper_front', werfer_vorne_hoch:'block/dropper_front_vertical',
+  trichter_oben:'block/hopper_top', trichter_aussen:'block/hopper_outside', trichter_innen:'block/hopper_inside', i_trichter:'item/hopper',
+  rs_komparator:'block/comparator', rs_komparator_an:'block/comparator_on', i_komparator:'item/comparator',
+  kupferleuchte:'block/copper_bulb', kupferleuchte_an:'block/copper_bulb_lit',
+  schleimblock:'block/slime_block', honig_oben:'block/honey_block_top', honig_unten:'block/honey_block_bottom', honig_seite:'block/honey_block_side',
+  skulk_oben:'block/sculk_sensor_top', skulk_unten:'block/sculk_sensor_bottom', skulk_seite:'block/sculk_sensor_side',
+  i_lava_bucket:'item/lava_bucket', i_schwarzpulver:'item/gunpowder', i_windrute:'item/breeze_rod', i_windkugel:'item/wind_charge',
+  i_streitkolben:'item/mace',
+});
+for(const [pc, mc] of [['wood', 'wooden'], ['stone', 'stone'], ['iron', 'iron'], ['gold', 'golden'], ['diamond', 'diamond']])
+  MC_TEX['i_' + pc + '_speer'] = 'item/' + mc + '_spear';
+/* die Redstone-Truhe hat in Minecraft ein eigenes Truhenbild */
+const MC_FALLENTRUHE = 'entity/chest/trapped';
 /** Bilder, für die es ohne Paket keine eigene Lage gibt (Betten, Fußplatten des Braustands) */
 const mcZusatz = n => n.startsWith('bettmc_') || n === 'braustand_fuss';
 for(let f = 0; f < WATER_FRAMES; f++) MC_TEX['water' + f] = { p:'block/water_still', farbe:MCF.wasser, bild:f*4, alpha:188 };
@@ -83,6 +114,7 @@ for(const t of ['helmet', 'chestplate', 'leggings', 'boots'])
 /** alle Bildpfade, die aus der client.jar gebraucht werden */
 function mcBildPfade(){
   const s = new Set(typeof mcWesenPfade === 'function' ? mcWesenPfade() : []);
+  s.add(MC_FALLENTRUHE);
   for(const v of Object.values(MC_TEX)){
     if(typeof v === 'string') s.add(v); else { s.add(v.p); if(v.drauf) s.add(v.drauf); }
   }
@@ -117,6 +149,9 @@ const MC_KLANG = {
   drache_laut:mcV('mob/enderdragon/growl', 4), drache_au:mcV('mob/enderdragon/hit', 4), drache_tot:['mob/enderdragon/end'],
   drache_fluegel:mcV('mob/enderdragon/wings', 6), explosion:mcV('random/explode', 4),
   auge_setzen:mcV('block/end_portal/eyeplace', 3), endportal:['block/end_portal/endportal'],
+  note_harp:['note/harp'], note_bass:['note/bass'], note_bd:['note/bd'], note_snare:['note/snare'], note_hat:['note/hat'],
+  note_bell:['note/bell'], note_flute:['note/flute'], note_guitar:['note/guitar'], note_xylo:['note/xylobone'], note_eisen:['note/iron_xylophone'],
+  zuendschnur:['random/fuse'],
   wither_laut:mcV('mob/wither_skeleton/idle', 3), wither_au:mcV('mob/wither_skeleton/hurt', 4), wither_tot:mcV('mob/wither_skeleton/death', 2),
 };
 /* Blöcke: Minecraft klingt beim Laufen und Hacken mit »step«, beim Abbauen
@@ -325,6 +360,8 @@ const McPaket = {
     }
     const truhe = await hol(MC_TRUHE);
     if(truhe) Object.assign(this._fertig, mcTruhe(truhe));
+    const falle = await hol(MC_FALLENTRUHE);
+    if(falle){ const t = mcTruhe(falle); Object.assign(this._fertig, { fallentruhe_vorne:t.chest_front, fallentruhe_seite:t.chest_side, fallentruhe_oben:t.chest_top }); }
     return this._fertig;
   },
   async texturenSetzen(an){
@@ -363,22 +400,15 @@ const McPaket = {
     return true;
   },
 
-  /* Betten: Minecraft hat je Farbe, Teil und Seite ein Bild. Blöcke dürfen
-     nur Bildlagen unter 256 benutzen (das Gitter der Chunks zählt in Bytes,
-     texturen.js füllt sie schon ganz). Platz schafft ein Tausch: ein Bild,
-     das nur Wesen und Gegenstände brauchen (i_, m_, p_), wandert ans Ende —
-     die werden beim Zeichnen über ihren Namen gefunden. */
+  /* Betten: Minecraft hat je Farbe, Teil und Seite ein Bild. Früher durften
+     Blöcke nur Bildlagen unter 256 benutzen; seit die Chunks die oberen Bits
+     der Lage im u-Byte mitführen (welt.js, MeshBuf.vert), kommen neue Lagen
+     einfach hinten dazu. */
   bettenAn: false,
   _chunkLage(name){
     if(texNames.length + 1 > (gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) || 256)) return -1;
-    for(let k = 0; k < Math.min(256, texNames.length); k++){
-      const alt = texNames[k];
-      if(!/^(i_|m_|p_)/.test(alt)) continue;
-      TEX[alt] = texNames.length; texNames.push(alt); texData.push(texData[k]);
-      texNames[k] = name; TEX[name] = k;
-      return k;
-    }
-    return -1;
+    TEX[name] = texNames.length; texNames.push(name); texData.push(null);
+    return TEX[name];
   },
   _bettenSetzen(betten, neu){
     if(!betten.length) return;

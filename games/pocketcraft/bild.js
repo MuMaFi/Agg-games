@@ -41,15 +41,19 @@ uniform float uDay, uFogNear, uFogFar, uWater0, uWaterFrame, uGrund, uHellig;
 out vec3 vUV; out float vShade; out float vFog; out float vSharp;
 ${SH_COMMON}
 void main(){
+  // Bildlage über 255: die oberen Bits stecken im u-Byte (u selbst braucht nur 0…16)
+  float hiL = floor(aUV.x / 32.0 + 0.001);
+  vec2 uvK = vec2(aUV.x - hiL * 32.0, aUV.y);
+  float layK = aLayer + hiL * 256.0;
   vec3 wp = uChunk + aPos / 64.0;
   gl_Position = uVP * vec4(wp, 1.0);
   float p = aPack;
   float ao  = mod(p, 4.0);
   float nrm = floor(mod(p / 4.0, 8.0));
   // Wasser läuft durch seine Bilder: alle Wasserflächen tragen Bild 0
-  float L = aLayer;
+  float L = layK;
   if(abs(L - uWater0) < 0.5) L += uWaterFrame;
-  vUV = vec3(aUV / 16.0, L);
+  vUV = vec3(uvK / 16.0, L);
   vSharp = nrm > 5.5 ? 1.0 : 0.0;      // Kreuz-Modelle: Alpha ohne Mip-Weichzeichnung
   float fs = 1.0;
   if(nrm < 1.5) fs = 0.74;          // ±X
@@ -731,6 +735,30 @@ function drawSpieler(fogCol, near, far){
 }
 /* Pfeile: ein dünner, langer Kasten, entlang der Flugrichtung gedreht.
    Eier: ein kleiner, etwas höherer Kasten, der sich im Flug überschlägt. */
+/* Gezündetes TNT: ein Block, der weiß aufblitzt und kurz vor dem Knall anschwillt */
+function drawTnts(){
+  const l = Game.world.tnts;
+  if(!l || !l.length) return;
+  const P = entProg();
+  gl.useProgram(P.p);
+  gl.uniform1f(P.u.uUseTex, 1);
+  gl.bindVertexArray(R.cubeVAO);
+  for(let i = 0; i < 6; i++) _layers[i] = TEX.tnt_seite;
+  _layers[2] = TEX.tnt_oben; _layers[3] = TEX.tnt_unten;
+  gl.uniform1fv(P.u.uLayers, _layers);
+  for(const t of l){
+    if(!R.boxVisible(t.x - .5, t.y, t.z - .5, t.x + .5, t.y + 1, t.z + .5)) continue;
+    const blink = Math.floor(t.t*5) % 2 === 0, g = 1 + (t.t < 0.4 ? (0.4 - t.t)*0.5 : 0);
+    gl.uniform4f(P.u.uTint, 1, 1, 1, 1);
+    gl.uniform1f(P.u.uLight, blink ? 1.6 : blockLightAt(t.x, t.y + .5, t.z));
+    M4.ident(_m);
+    M4.translate(_m, _m, t.x, t.y + .5, t.z);
+    M4.scale(_m, _m, g, g, g);
+    M4.translate(_m, _m, -.5, -.5, -.5);
+    gl.uniformMatrix4fv(P.u.uModel, false, _m);
+    gl.drawElements(gl.TRIANGLES, R.cubeCount, gl.UNSIGNED_SHORT, 0);
+  }
+}
 function drawPfeile(fogCol, near, far){
   if(!Game.pfeile.length) return;
   const P = entProg();
@@ -741,16 +769,18 @@ function drawPfeile(fogCol, near, far){
   let tex = '';
   for(const a of Game.pfeile){
     if(!R.boxVisible(a.x-.5, a.y-.5, a.z-.5, a.x+.5, a.y+.5, a.z+.5)) continue;
-    const t = a.drachen ? 'p_atem' : a.feuer ? 'lava' : a.auge ? 'i_enderauge' : a.perle ? 'i_enderperle' : a.ei ? 'm_ei' : 'm_pfeil';
+    const t = a.drachen ? 'p_atem' : a.feuer ? 'lava' : a.auge ? 'i_enderauge' : a.perle ? 'i_enderperle' : a.wind ? 'i_windkugel'
+      : a.scheibe ? items[a.scheibe.stapel.id].tex : a.ei ? 'm_ei' : 'm_pfeil';
     if(t !== tex){ tex = t; setLayers(P, TEX[t]); }
     gl.uniform1f(P.u.uLight, a.feuer ? 1 : blockLightAt(a.x, a.y, a.z));
     const hv = Math.hypot(a.rx, a.rz);
     M4.ident(_m);
     M4.translate(_m, _m, a.x, a.y, a.z);
-    if(a.perle || a.auge || a.drachen){
+    if(a.perle || a.auge || a.drachen || a.wind || a.scheibe){
       // Enderperle und Enderauge: ein flaches Bild, das zur Kamera schaut — wie beim Vorbild
       M4.rotY(_m, _m, Game.player.yaw);
-      const g = a.drachen ? 1.1 : 0.42;
+      if(a.scheibe) M4.rotZ(_m, _m, a.alter*18);                       // die Wurfscheibe dreht sich
+      const g = a.drachen ? 1.1 : a.scheibe ? 0.55 : 0.42;
       M4.scale(_m, _m, g, g, 0.01);
       M4.translate(_m, _m, -0.5, -0.5, -0.5);
       gl.uniformMatrix4fv(P.u.uModel, false, _m);
@@ -1114,6 +1144,7 @@ function render(dt){
   drawMobs(fog, near, far);
   drawSpieler(fog, near, far);
   drawPfeile(fog, near, far);
+  drawTnts();
   drawPartikel();
   drawDrops(fog, near, far);
   drawHuellen(fog, near, far);

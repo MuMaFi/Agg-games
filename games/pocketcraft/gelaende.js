@@ -484,6 +484,9 @@ function erzeugen2(w, c){
         break;
     }
     if(steil && oben === B.GRASS){ oben = unter = B.STONE; }               // Felswände
+    // Ton: fleckenweise am sandigen Grund von Flüssen und Seen, wie beim Vorbild
+    if(oben === B.SAND && h < SEA && (bio === BIO.FLUSS || bio === BIO.OCEAN)
+       && w.nKies.n2((wx + w.versatz[0])*0.11 + 517.3, (wz + w.versatz[1])*0.11 - 91.7) > 0.38) oben = B.TON;
     const top = Math.max(h, SEA);
     for(let y = 0; y <= top; y++){
       let id;

@@ -50,7 +50,9 @@ function materialVon(id){
   if(isWheat(id) || id === B.TALLGRASS || id === B.ROSE || id === B.DANDELION || id === B.KORNBLUME || id === B.TORCH || isWandfackel(id)) return 'pflanze';
   if(id === B.LEAVES || id === B.FICHTENNADELN) return 'blatt';
   if(id === B.SCHNEEDECKE) return 'schnee';
-  if(id === B.GLASS) return 'glas';
+  if(id === B.GLASS || isGlasF(id) || id === B.SCHLEIMBLOCK || id === B.HONIGBLOCK) return 'glas';
+  if(id === B.TON) return 'erde';
+  if(id === B.TNT) return 'pflanze';
   if(id === B.SNOW) return 'schnee';
   if(id === B.SAND) return 'sand';
   if(id === B.GRAVEL) return 'kies';
@@ -215,6 +217,26 @@ const Sfx = {
     const name = key.startsWith('leather') ? 'ruestung_leder' : key.startsWith('diamond') ? 'ruestung_diamant' : 'ruestung_eisen';
     this.probe(name, { gain: .6, rate: zufall(.95, 1.05) });
   },
+  /** Notenblock: Instrument (harp, bass, bd, snare, hat, bell, flute, guitar, xylo, eisen) und Ton 0…24
+      wie beim Vorbild (12 ist Fis, je Schritt ein Halbton) — mit dem Minecraft-Paket dessen Klänge */
+  note(instr, ton, x, y, z){
+    const rate = Math.pow(2, (ton - 12)/12);
+    if(this.probe('note_' + instr, { gain: .9, rate, x, y, z, weit: 48 }) && typeof McPaket !== 'undefined' && McPaket.klangAn) return;
+    if(!this.on || this.stumm) return;
+    const f = 369.99*rate;
+    switch(instr){
+      case 'bd':    this.tone(70*rate + 30, 0.18, 'sine', 0.22, 0.4); this.noise(0.05, 0.08, 300); break;
+      case 'snare': this.noise(0.12, 0.14, 2600 + 600*rate); break;
+      case 'hat':   this.noise(0.04, 0.10, 7000); break;
+      case 'bass':  this.tone(f/4, 0.35, 'triangle', 0.16); break;
+      case 'bell':  this.tone(f*2, 0.9, 'sine', 0.09); this.tone(f*5.4, 0.4, 'sine', 0.025); break;
+      case 'flute': this.tone(f, 0.45, 'sine', 0.1); break;
+      case 'guitar':this.tone(f/2, 0.4, 'sawtooth', 0.06, 0.98); break;
+      case 'xylo':  this.tone(f*2, 0.18, 'sine', 0.12); break;
+      case 'eisen': this.tone(f, 0.3, 'square', 0.05); break;
+      default:      this.tone(f, 0.5, 'triangle', 0.12);
+    }
+  },
   /** die alten Namen; mit Ort (x, y, z) klingt es aus dieser Richtung */
   play(what, x, y, z){
     const o = x !== undefined ? { x, y, z } : {};
@@ -307,6 +329,7 @@ const Sfx = {
       case 'geburt': this.tone(660, 0.08, 'triangle', 0.07, 1.3); setTimeout(()=>this.tone(990, 0.12, 'triangle', 0.07, 1.1), 90); break;
       case 'schere': this.noise(0.04, 0.10, 4000); setTimeout(()=>this.noise(0.04, 0.10, 4000), 90); break;
       case 'die':   this.tone(300, 0.7, 'sawtooth', 0.16, 0.25); break;
+      case 'explosion': this.noise(1.1, 0.5, 380); this.tone(60, 0.8, 'sine', 0.25, 0.4); break;
     }
   }
 };

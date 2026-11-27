@@ -82,6 +82,18 @@ function dingeIndex(){
   STUFEN.forEach((t, art) => neu(t.mc, stufeId(art, false), false));
   BETTEN.forEach((b, i) => neu(b.mc, B.BETT + i, false));
   neu('red_bed', B.BED, false); neu('bed', B.BED, false); neu('cornflower', B.KORNBLUME, false);
+  // seit 26.11: die Minecraft-Namen der bunten Blöcke, Redstone-Bauteile und neuen Gegenstände
+  for(const b of blocks) if(b && b.mc && b.item !== false) neu(b.mc, b.id, false);
+  FARBEN.forEach(f => neu(f.mc + '_dye', ITEM['farbe_' + f.key], false));
+  for(const [k, id] of [['lava_bucket', ITEM.lava_bucket], ['gunpowder', ITEM.schwarzpulver], ['breeze_rod', ITEM.windrute], ['heavy_core', ITEM.schwerer_kern],
+      ['mace', ITEM.streitkolben], ['wind_charge', ITEM.windkugel], ['wooden_spear', ITEM.wood_speer], ['stone_spear', ITEM.stone_speer],
+      ['iron_spear', ITEM.iron_speer], ['golden_spear', ITEM.gold_speer], ['diamond_spear', ITEM.diamond_speer],
+      ['iron_throwing_disc', ITEM.iron_scheibe], ['golden_throwing_disc', ITEM.gold_scheibe], ['diamond_throwing_disc', ITEM.diamond_scheibe],
+      ['observer', beobId(4, false)], ['dispenser', auswurfId(B.SPENDER, 4, false)], ['dropper', auswurfId(B.WERFER, 4, false)], ['hopper', B.TRICHTER],
+      ['comparator', B.KOMPARATOR], ['daylight_detector', B.TAGESSENSOR], ['target', B.ZIELBLOCK], ['note_block', B.NOTENBLOCK], ['tnt', B.TNT],
+      ['iron_door', B.EISENTUER], ['oak_trapdoor', B.FALLTUER], ['iron_trapdoor', B.EISENFALLTUER], ['copper_bulb', B.KUPFERLEUCHTE],
+      ['sculk_sensor', B.SKULK], ['trapped_chest', B.FALLENTRUHE], ['oak_button', B.HOLZKNOPF], ['oak_pressure_plate', B.PLATTE_HOLZ],
+      ['light_weighted_pressure_plate', B.PLATTE_GOLD], ['heavy_weighted_pressure_plate', B.PLATTE_EISEN]]) neu(k, id, false);
   return _dinge;
 }
 function dingNummer(s){ const id = dingeIndex().get(bNorm(s)); return id === undefined ? null : id; }

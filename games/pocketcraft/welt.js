@@ -118,8 +118,9 @@ class MeshBuf{
     if(this.n + 1 > this.cap) this.grow();
     const o16 = this.n*6, o8 = this.n*12;
     this.u16[o16] = x*4 + .5; this.u16[o16+1] = y*4 + .5; this.u16[o16+2] = z*4 + .5;
-    this.u8[o8+6] = pack; this.u8[o8+7] = layer; this.u8[o8+8] = sky; this.u8[o8+9] = blk;
-    this.u8[o8+10] = u; this.u8[o8+11] = v;
+    // Bildlagen über 255: die oberen Bits wandern ins u-Byte (u braucht nur 0…16, also 5 Bit)
+    this.u8[o8+6] = pack; this.u8[o8+7] = layer & 255; this.u8[o8+8] = sky; this.u8[o8+9] = blk;
+    this.u8[o8+10] = (u & 31) | ((layer >> 8) << 5); this.u8[o8+11] = v;
     return this.n++;
   }
   quad(flip){
@@ -641,7 +642,10 @@ class World{
           if(bd.model === 'bett'){ this.emitBett(opaqueBuf, x, y, z, bd, id); continue; }
           if(bd.kaktus){ this.emitKaktus(opaqueBuf, x, y, z, id, bd); continue; }
           if(bd.model === 'braustand'){ this.emitBraustand(opaqueBuf, x, y, z); continue; }
-          const buf = isWasser(id) ? waterBuf : opaqueBuf;
+          if(bd.model === 'trichter'){ this.emitTrichter(opaqueBuf, x, y, z, id, bd); continue; }
+          if(bd.model === 'komparator'){ this.emitKomparator(opaqueBuf, x, y, z, id); continue; }
+          // gefärbtes Glas, Schleim und Honig scheinen durch: mit dem Wasser gezeichnet, nach ihm gemischt
+          const buf = isWasser(id) || bd.durchscheinend ? waterBuf : opaqueBuf;
           this.emitCube(buf, x, y, z, id, bd);
         }
       }
@@ -684,7 +688,7 @@ class World{
       const F = FACES[f];
       const nx = px + F.n[0], ny = y + F.n[1], nz = pz + F.n[2];
       const nid = this.pb(nx, ny, nz);
-      if(nid === id && cutout) continue;
+      if(nid === id && (cutout || bd.durchscheinend)) continue;
       if(water && isWasser(nid)) continue;
       if(OPQ[nid] === 1) continue;
       if(water && nid !== B.AIR && SOL[nid] === 0) continue;
@@ -1054,6 +1058,28 @@ class World{
       this.emitKasten(buf, x, y, z, [7, 2, z0, 9, 7, z0 + 2], T, fackel, sky, fb, RS_VFACKEL_UV, true);
   }
 
+  /* Trichter: eine Schale oben, darunter der Hals und das Rohr — nach unten
+     oder zur Seite, wohin er abgibt */
+  emitTrichter(buf, x, y, z, id, bd){
+    this.emitBox(buf, x, y, z, bd, [0, 10, 0, 16, 16, 16]);
+    this.emitBox(buf, x, y, z, bd, [4, 4, 4, 12, 10, 12], 1 << 2);
+    const r = id - B.TRICHTER;
+    const rohr = r === 0 ? [6, 0, 6, 10, 4, 10] : [[12, 4, 6, 16, 8, 10], [0, 4, 6, 4, 8, 10], [6, 4, 12, 10, 8, 16], [6, 4, 0, 10, 8, 4]][r - 1];
+    this.emitBox(buf, x, y, z, bd, rohr);
+  }
+  /* Komparator: flach wie der Verstärker; hinten zwei Fackeln (leuchten mit
+     dem Ausgang), vorn eine (leuchtet beim Subtrahieren) */
+  emitKomparator(buf, x, y, z, id){
+    const r = kompRichtung(id), an = kompAn(id), minus = kompMinus(id);
+    const T = (lx, ly, lz) => r === 3 ? [lx, ly, lz] : r === 2 ? [16 - lx, ly, 16 - lz] : r === 0 ? [16 - lz, ly, lx] : [lz, ly, 16 - lx];
+    const lv = this.getLightLocal(x + 1, y, z + 1), sky = lv & 15, blk = lv >> 4;
+    const oben = TEX[an ? 'rs_komparator_an' : 'rs_komparator'];
+    this.emitKasten(buf, x, y, z, [0, 0, 0, 16, 2, 16], T, f => f === 2 ? oben : TEX.stone, sky, blk, f => f !== 3, false);
+    const fackel = s => TEX[s ? 'rs_fackel' : 'rs_fackel_aus'];
+    for(const [x0, z0, s] of [[7, 2, minus], [3, 11, an], [11, 11, an]])
+      this.emitKasten(buf, x, y, z, [x0, 2, z0, x0 + 2, 6, z0 + 2], T, fackel(s), sky, s ? Math.max(blk, 11) : blk, RS_VFACKEL_UV, true);
+  }
+
   /* Kolben: nach oben gebaut und in seine Richtung gedreht. Eingefahren ein
      voller Block, ausgefahren ein Fuß von zwölf Pixeln; der Kopf ist eine
      Platte mit einer Stange, die in den Fuß hineinreicht. */
@@ -1117,7 +1143,8 @@ class World{
     for(let i=0; i<512 && t <= maxD; i++){
       const id = this.getBlock(x,y,z);
       const bd = blocks[id];
-      if(id !== B.AIR && id !== B.LAVA && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER)))){
+      // Lava trifft nur der Eimer (»quelle«): sonst zielt man durch sie hindurch
+      if(id !== B.AIR && (id !== B.LAVA || liquid === 'quelle') && bd && bd.model !== 'none' && (!isWasser(id) || (liquid && (liquid !== 'quelle' || id === B.WATER)))){
         // Stufen und Treppen: nur, wo sie wirklich sind — durch die leere Hälfte sieht man hindurch
         if(!isStufe(id) && !isTreppe(id)) return { hit:true, x, y, z, nx:fx, ny:fy, nz:fz, id, t };
         const h = this.formTreffer(ox, oy, oz, dx, dy, dz, x, y, z, id, maxD);

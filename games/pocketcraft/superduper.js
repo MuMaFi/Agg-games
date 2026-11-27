@@ -71,21 +71,25 @@ out vec3 vUV; out vec3 vWelt; out vec3 vN; out float vAO; out float vSky; out fl
 out float vFog; out float vSharp; out float vWasser; out vec4 vLicht;
 ${SD_WIEGEN}
 void main(){
+  // Bildlage über 255: die oberen Bits stecken im u-Byte (u selbst braucht nur 0…16)
+  float hiL = floor(aUV.x / 32.0 + 0.001);
+  vec2 uvK = vec2(aUV.x - hiL * 32.0, aUV.y);
+  float layK = aLayer + hiL * 256.0;
   vec3 wp = uChunk + aPos / 64.0;
   float ao = mod(aPack, 4.0);
   float nrm = floor(mod(aPack / 4.0, 8.0));
-  float L = aLayer;
+  float L = layK;
   vWasser = abs(L - uWater0) < 0.5 ? 1.0 : 0.0;
   if(vWasser > 0.5) L += uWaterFrame;
   vec3 N = nrm < 0.5 ? vec3(1.0, 0.0, 0.0) : nrm < 1.5 ? vec3(-1.0, 0.0, 0.0) : nrm < 2.5 ? vec3(0.0, 1.0, 0.0)
          : nrm < 3.5 ? vec3(0.0, -1.0, 0.0) : nrm < 4.5 ? vec3(0.0, 0.0, 1.0) : nrm < 5.5 ? vec3(0.0, 0.0, -1.0) : vec3(0.0, 1.0, 0.0);
   vSharp = nrm > 5.5 ? 1.0 : 0.0;
-  wp = wiegen(wp, aLayer, aUV);
+  wp = wiegen(wp, layK, uvK);
   // Wellen: nur die Oberfläche, etwas abgesenkt, damit sie nie über den Rand steigt
   if(vWasser > 0.5 && nrm > 1.5 && nrm < 2.5)
     wp.y += (sin(wp.x * 1.3 + uZeit * 1.6) + sin(wp.z * 1.1 - uZeit * 1.3)) * 0.022 - 0.045;
   vWelt = wp; vN = N;
-  vUV = vec3(aUV / 16.0, L);
+  vUV = vec3(uvK / 16.0, L);
   vAO = 0.42 + ao * 0.1933;
   vSky = aSky / 15.0; vBlk = aBlk / 15.0;
   vLicht = uLichtVP * vec4(wp + N * 0.07, 1.0);
@@ -177,8 +181,12 @@ uniform mat4 uVP; uniform vec3 uChunk;
 out vec3 vUV;
 ${SD_WIEGEN}
 void main(){
-  vec3 wp = wiegen(uChunk + aPos / 64.0, aLayer, aUV);
-  vUV = vec3(aUV / 16.0, aLayer);
+  // Bildlage über 255: die oberen Bits stecken im u-Byte (u selbst braucht nur 0…16)
+  float hiL = floor(aUV.x / 32.0 + 0.001);
+  vec2 uvK = vec2(aUV.x - hiL * 32.0, aUV.y);
+  float layK = aLayer + hiL * 256.0;
+  vec3 wp = wiegen(uChunk + aPos / 64.0, layK, uvK);
+  vUV = vec3(uvK / 16.0, layK);
   gl_Position = uVP * vec4(wp, 1.0);
 }`;
 const SD_VS_TIEFE_ENT = `#version 300 es
