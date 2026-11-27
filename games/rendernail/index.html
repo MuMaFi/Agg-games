@@ -705,6 +705,48 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 @media (pointer:coarse) and (max-width:1100px){.ed-body{grid-template-columns:52px minmax(0,1fr) 270px}.side{left:52px}}
 @media (pointer:coarse) and (max-width:760px){.ed-body{grid-template-columns:52px minmax(0,1fr)}.side{left:52px}}
 @media (pointer:coarse) and (max-width:900px){.an-tracks{--lw:86px;max-height:124px}.an-tl{max-height:190px}}
+
+/* ===== Video-Editor ===== */
+.ve{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(170px,34%);background:var(--bg)}
+.ve>*{min-width:0}.ve-tl,.ve-scroll{min-width:0;max-width:100%}
+.ve-top{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--panel2);min-width:0}
+.ve-name{display:inline-flex;align-items:center;gap:4px;background:none;border:0;color:var(--fg);font:600 13px/1 inherit;padding:6px 8px;border-radius:6px;cursor:pointer;max-width:40vw}.ve-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ve-name:hover{background:var(--panel3)}
+.ve-main{display:grid;grid-template-columns:270px minmax(0,1fr) 290px;min-height:0;position:relative}
+.ve-lib{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--panel2)}
+.ve-tabs{margin:10px 10px 0}.ve-libin{flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:9px}
+.ve-h4{margin:8px 0 0;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ve-mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ve-mgrid.small{grid-template-columns:repeat(3,1fr)}
+.ve-mt{display:flex;flex-direction:column;gap:4px;min-width:0}.ve-mpv{position:relative;display:block;padding:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#151515;cursor:pointer;aspect-ratio:16/10;width:100%}
+.ve-mpv canvas,.ve-mpv img{display:block;width:100%;height:100%;object-fit:cover}.ve-mpv:hover{border-color:#888}
+.ve-mdur{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.7);color:#fff;font-size:10.5px;padding:1px 5px;border-radius:3px;font-variant-numeric:tabular-nums}
+.ve-mrow{display:flex;align-items:center;gap:4px;min-width:0}.ve-mrow span{flex:1;min-width:0;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ve-mrow .btn{height:22px;padding:0 6px;font-size:11px}
+.ve-stage{position:relative;display:grid;place-items:center;min-width:0;min-height:0;background:#111;overflow:hidden}
+.ve-stage canvas{display:block;box-shadow:0 0 0 1px #2e2e2e,0 20px 50px -20px #000;touch-action:none;background:#000}
+.ve-props{border-left:1px solid var(--line);background:var(--panel2);overflow:auto;min-height:0}
+.ve-filters{display:grid;grid-template-columns:1fr 1fr;gap:4px}.ve-filters .btn[aria-pressed=true]{background:var(--sel,#555);color:#fff;border-color:transparent}
+.ve-tl{display:flex;flex-direction:column;min-height:0;border-top:1px solid var(--line);background:var(--panel2)}
+.ve-tbar{display:flex;align-items:center;gap:6px;padding:5px 10px;border-bottom:1px solid var(--line)}
+.ve-playbtn{width:34px;height:34px;border-radius:50%;border:0;background:#e9e9e9;color:#111;display:grid;place-items:center;cursor:pointer}.ve-playbtn svg{width:16px;height:16px}
+.ve-time{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);font-variant-numeric:tabular-nums;min-width:96px}
+.ve-zoomlab{display:flex;align-items:center}.ve-zoomlab input{width:110px}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.ve-scroll{flex:1;min-height:0;overflow:auto;position:relative;-webkit-overflow-scrolling:touch}
+.ve-tin{position:relative;min-height:100%}
+.ve-ruler{position:sticky;top:0;height:22px;z-index:3;background:var(--panel2);border-bottom:1px solid var(--line);touch-action:none;cursor:pointer}
+.ve-tick{position:absolute;top:4px;font:10px ui-monospace,Menlo,monospace;color:var(--dim);transform:translateX(-50%);white-space:nowrap}.ve-tick::after{content:"";position:absolute;left:50%;top:13px;width:1px;height:5px;background:var(--dim)}
+.ve-lane{position:absolute;left:0;right:0;border-radius:4px;background:rgba(255,255,255,.025);font-size:11.5px;color:var(--dim);display:flex;align-items:center;padding-left:24px}.ve-lane.main{background:rgba(255,255,255,.045)}
+.ve-clip{position:absolute;border-radius:6px;overflow:hidden;cursor:grab;box-sizing:border-box;border:2px solid transparent;background:#3b4a63}
+.ve-clip.t-video,.ve-clip.t-image{background:#2d3a50}.ve-clip.t-audio{background:#2e5a3c}.ve-clip.t-text{background:#6a4296}.ve-clip.t-sticker{background:#8a5a1e}
+.ve-clip.sel{border-color:#fff;touch-action:none;z-index:2}
+.ve-cth{position:absolute;inset:0;width:100%;height:100%;opacity:.95}
+.ve-lab{position:absolute;left:6px;top:3px;right:6px;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.ve-h{position:absolute;top:0;bottom:0;width:12px;cursor:ew-resize;touch-action:none;z-index:2}.ve-h.l{left:0}.ve-h.r{right:0}
+.ve-clip.sel .ve-h{background:rgba(255,255,255,.92)}.ve-clip.sel .ve-h::after{content:"";position:absolute;left:5px;top:35%;bottom:35%;width:2px;border-radius:1px;background:#333}
+.ve-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;z-index:4;pointer-events:none}.ve-ph::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top-color:#fff}
+.ve-hid{position:fixed;left:-10px;top:-10px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}.ve-hid video,.ve-hid audio{width:1px;height:1px}
+.ve-ov{z-index:6}
+.ve #ve-libbtn,.ve #ve-propbtn{display:none}
+@media (max-width:980px){.ve-main{grid-template-columns:minmax(0,1fr) 260px}.ve-lib{position:absolute;left:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:12px 0 30px -12px #000;transform:translateX(-102%);transition:transform .2s}.ve.lib-open .ve-lib{transform:none}.ve #ve-libbtn{display:inline-flex}}
+@media (max-width:680px){.ve-top{gap:2px;padding:6px}.ve-top .hstat{display:none}.ve-name{max-width:28vw;padding:6px 4px}.ve-top .btn{padding:0 8px}#ve-fit{display:none}.ve-time{white-space:nowrap;font-size:11px}.ve-main{grid-template-columns:minmax(0,1fr)}.ve-props{position:absolute;right:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:-12px 0 30px -12px #000;transform:translateX(102%);transition:transform .2s}.ve.props-open .ve-props{transform:none}.ve #ve-propbtn{display:inline-flex}.ve-zoomlab{display:none}.ve-time{min-width:0}}
 </style>
 
 </head>
@@ -720,6 +762,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
         <a href="#renders" data-r="studio">Renders</a>
         <a href="#thumbnails" data-r="home">Thumbnails</a>
         <a href="#animation" data-r="anim">Animation</a>
+        <a href="#video" data-r="video">Video</a>
         <a href="#neu" data-r="gallery">Galerie</a>
         <a href="../../" target="_top" class="agg-link">AGG Games</a>
       </nav>
@@ -834,6 +877,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
       </div>
     </section>
 
+    <section class="view fixed" id="v-video" hidden></section>
     <section class="view fixed" id="v-anim" hidden>
       <div class="an-home" id="an-home" hidden></div>
       <div class="an" data-step="bg">
@@ -952,25 +996,26 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
-<script src="lib/three.min.js?v=202611270608"></script>
-<script src="lib/OrbitControls.js?v=202611270608"></script>
-<script src="lib/TransformControls.js?v=202611270608"></script>
-<script src="lib/mp4-muxer.js?v=202611270608"></script>
-<script src="lib/pptxgen.bundle.js?v=202611270608"></script>
-<script src="rk-i18n.js?v=202611270608"></script>
-<script src="rk-core.js?v=202611270608"></script>
-<script src="rk-local.js?v=202611270608"></script>
-<script src="rk-assets.js?v=202611270608"></script>
-<script src="rk-pack.js?v=202611270608"></script>
-<script src="rk-editor.js?v=202611270608"></script>
-<script src="rk-studio.js?v=202611270608"></script>
-<script src="rk-figure.js?v=202611270608"></script>
-<script src="rk-slides.js?v=202611270608"></script>
-<script src="rk-anim.js?v=202611270608"></script>
-<script src="rk-animfx.js?v=202611270608"></script>
-<script src="rk-anim2d.js?v=202611270608"></script>
-<script src="rk-app.js?v=202611270608"></script>
-<script src="rk-shell.js?v=202611270608"></script>
+<script src="lib/three.min.js?v=202611270845"></script>
+<script src="lib/OrbitControls.js?v=202611270845"></script>
+<script src="lib/TransformControls.js?v=202611270845"></script>
+<script src="lib/mp4-muxer.js?v=202611270845"></script>
+<script src="lib/pptxgen.bundle.js?v=202611270845"></script>
+<script src="rk-i18n.js?v=202611270845"></script>
+<script src="rk-core.js?v=202611270845"></script>
+<script src="rk-local.js?v=202611270845"></script>
+<script src="rk-assets.js?v=202611270845"></script>
+<script src="rk-pack.js?v=202611270845"></script>
+<script src="rk-editor.js?v=202611270845"></script>
+<script src="rk-studio.js?v=202611270845"></script>
+<script src="rk-figure.js?v=202611270845"></script>
+<script src="rk-slides.js?v=202611270845"></script>
+<script src="rk-anim.js?v=202611270845"></script>
+<script src="rk-animfx.js?v=202611270845"></script>
+<script src="rk-anim2d.js?v=202611270845"></script>
+<script src="rk-video.js?v=202611270845"></script>
+<script src="rk-app.js?v=202611270845"></script>
+<script src="rk-shell.js?v=202611270845"></script>
 
 </body>
 </html>
