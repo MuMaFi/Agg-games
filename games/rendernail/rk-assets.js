@@ -248,7 +248,8 @@ function clearFontAssets(){for(const k of[...libCache.keys()]){const a=LIBK[k.sp
 
 /* ================= Hintergründe & Schriften ================= */
 const GRADS={sunset:['Abendrot',['#3b2a6b','#e5866a','#f6d49c']],night:['Nacht',['#060914','#1c2a5c','#3c4f8f']],nether:['Unterwelt',['#1a0606','#5c1a12','#c4421a']],ocean:['Ozean',['#04263f','#0e6b8a','#5fd0d6']],forest:['Wald',['#0d2414','#2f6b34','#9ed36a']],gold:['Gold',['#3a2402','#c98a12','#ffe27a']],candy:['Bonbon',['#4b1d6b','#d24c9c','#ffb37a']],steel:['Stahl',['#0f1216','#2b333e','#5c6878']]};
-const FONTS={luckiest:['Luckiest Guy','"Luckiest Guy", Impact, sans-serif',400],bungee:['Bungee','"Bungee", Impact, sans-serif',400],lilita:['Lilita One','"Lilita One", Impact, sans-serif',400],bangers:['Bangers','"Bangers", Impact, sans-serif',400],pixel:['Pixelify Sans','"Pixelify Sans", monospace',700],press:['Press Start 2P','"Press Start 2P", monospace',400],inter:['Inter Black','"Inter", "Arial Black", sans-serif',900]};
+/* Grundschriften; weitere (Google Fonts 'g:…', eigene 'u:…') legt rk-fonts.js beim ersten Zugriff an */
+const FONTS=new Proxy({luckiest:['Luckiest Guy','"Luckiest Guy", Impact, sans-serif',400],bungee:['Bungee','"Bungee", Impact, sans-serif',400],lilita:['Lilita One','"Lilita One", Impact, sans-serif',400],bangers:['Bangers','"Bangers", Impact, sans-serif',400],pixel:['Pixelify Sans','"Pixelify Sans", monospace',700],press:['Press Start 2P','"Press Start 2P", monospace',400],inter:['Inter Black','"Inter", "Arial Black", sans-serif',900]},{get(t,k){if(typeof k==='string'&&!(k in t)&&/^[gu]:/.test(k)&&typeof fontReg==='function'){const e=fontReg(k);if(e)t[k]=e}return t[k]}});
 
 /* ================= Minecraft-Himmel =================
    Farben wie in Minecraft (Ebene, Tag: Himmel #78A7FF, Dunst #C0D8FF). Mit installierten

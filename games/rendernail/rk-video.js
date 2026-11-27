@@ -34,7 +34,14 @@ function veThumbShot(){const cv=$('#ve-cv');if(!cv||!cv.width)return'';const w=2
 /* ---------- Medien ---------- */
 async function veUrl(asset){if(VE.urls.has(asset))return VE.urls.get(asset);const p=(async()=>{const b=await srcBlob({asset});return URL.createObjectURL(b)})();VE.urls.set(asset,p);p.catch(()=>VE.urls.delete(asset));return p}
 function veMedia(asset){return(VE.p.media||[]).find(m=>m.asset===asset)}
-function veImg(asset){let e=VE.imgs.get(asset);if(!e){e={img:new Image(),ok:false};VE.imgs.set(asset,e);veUrl(asset).then(u=>{e.img.onload=()=>{e.ok=true;veTimeline();veLib()};e.img.src=u}).catch(()=>{})}return e}
+/* Bilder: sehr große werden fürs Video auf 2560 px verkleinert (spart viel Arbeitsspeicher), GIFs in Einzelbilder zerlegt */
+const VE_IMG_MAX=2560;
+function veImg(asset){let e=VE.imgs.get(asset);if(e){e.used=performance.now();return e}e={img:null,ok:false,w:0,h:0,sw:0,sh:0,bytes:0,used:performance.now()};VE.imgs.set(asset,e);
+  (async()=>{const b=await srcBlob({asset});const head=new Uint8Array(await b.slice(0,6).arrayBuffer());
+    if(gifIs(head)){const g=await gifDecode(new Uint8Array(await b.arrayBuffer()));if(g&&g.frames.length>1){if(VE.imgs.get(asset)!==e){gifFree(g);return}e.gif=g;e.img=g.frames[0].c;e.w=g.W;e.h=g.H;e.sw=g.w;e.sh=g.h;e.bytes=g.bytes;e.ok=true;veTimeline();veLib();return}}
+    const u=await veUrl(asset),im=new Image();im.decoding='async';await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});let src=im,w=im.naturalWidth,h=im.naturalHeight,sw=w,sh=h;
+    if(Math.max(w,h)>VE_IMG_MAX){const k=VE_IMG_MAX/Math.max(w,h);sw=Math.round(w*k);sh=Math.round(h*k);const c=mk(sw,sh),x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,0,0,sw,sh);src=c;im.src=''}
+    if(VE.imgs.get(asset)!==e)return;Object.assign(e,{img:src,w,h,sw,sh,bytes:sw*sh*4,ok:true});veTimeline();veLib()})().catch(()=>{});return e}
 function veHid(){return $('#ve-hid')}
 /* Vorschaubilder (Filmstreifen) und Wellenform für die Zeitleiste */
 async function vePrepMedia(m){if(m.kind==='image'){veImg(m.asset);return}
@@ -42,9 +49,13 @@ async function vePrepMedia(m){if(m.kind==='image'){veImg(m.asset);return}
       await new Promise((ok,no)=>{v.onloadeddata=ok;v.onerror=no;setTimeout(ok,8000)});const n=clamp(Math.ceil((m.dur||1)/1.5),4,24),out=[],hh=64,ww=Math.max(16,Math.round(hh*(m.w||16)/(m.h||9)));
       for(let i=0;i<n;i++){const t=Math.min((m.dur||1)-.05,((i+.5)/n)*(m.dur||1));await veSeek(v,t);const c=mk(ww,hh);try{c.getContext('2d').drawImage(v,0,0,ww,hh)}catch{}out.push({t,c})}
       VE.thumbs.set(m.asset,out);v.remove();veTimeline();veLib()}catch{}}
-  if((m.kind==='audio'||m.kind==='video')&&!VE.peaks.has(m.asset)){VE.peaks.set(m.asset,null);const b=await veAudioBuf(m.asset);if(b){VE.peaks.set(m.asset,anPeaks(b,1600));veTimeline()}}}
+  if((m.kind==='audio'||m.kind==='video')&&!VE.peaks.has(m.asset)){VE.peaks.set(m.asset,null);const b=await veAudioDecode(m.asset,8000);if(b){VE.peaks.set(m.asset,anPeaks(b,1600));veTimeline()}}}
 function veSeek(v,t){return new Promise(r=>{let done=false;const fin=()=>{if(done)return;done=true;v.removeEventListener('seeked',fin);r()};if(Math.abs(v.currentTime-t)<.0005&&v.readyState>=2)return r();v.addEventListener('seeked',fin);try{v.currentTime=t}catch{fin()}setTimeout(fin,2500)})}
-async function veAudioBuf(asset){if(VE.abufs.has(asset))return VE.abufs.get(asset);const p=(async()=>{try{const b=await srcBlob({asset}),ab=await b.arrayBuffer();return await new Promise((ok,no)=>{const r=anACtx().decodeAudioData(ab,ok,no);if(r&&r.then)r.then(ok,no)})}catch{return null}})();VE.abufs.set(asset,p);return p}
+/* Ton dekodieren: in der gewünschten Abtastrate (weniger Speicher), nur so lange im Speicher wie nötig */
+const VE_AUDIO_MAX=1.8e9;
+async function veAudioDecode(asset,sr){try{const b=await srcBlob({asset});if(!b||b.size>VE_AUDIO_MAX)return null;const ab=await b.arrayBuffer();const C=window.OfflineAudioContext||window.webkitOfflineAudioContext,ctx=sr&&C?new C(2,1,sr):anACtx();
+  return await new Promise((ok,no)=>{const r=ctx.decodeAudioData(ab,ok,no);if(r&&r.then)r.then(ok,no)})}catch{return null}}
+async function veAudioBuf(asset,sr){const k=asset+'@'+(sr||48000);if(VE.abufs.has(k))return VE.abufs.get(k);const p=veAudioDecode(asset,sr||48000);VE.abufs.set(k,p);return p}
 function veKind(f){const t=f.type||'',n=(f.name||'').toLowerCase();if(t.startsWith('video/')||/\.(mp4|mov|m4v|webm|mkv)$/.test(n))return'video';if(t.startsWith('image/')||/\.(png|jpe?g|webp|gif)$/.test(n))return'image';if(t.startsWith('audio/')||/\.(mp3|m4a|wav|aac|ogg|flac|opus|aiff?)$/.test(n))return'audio';return null}
 function veProbe(url,kind){return new Promise(ok=>{if(kind==='image'){const i=new Image();i.onload=()=>ok({w:i.naturalWidth,h:i.naturalHeight,dur:0});i.onerror=()=>ok(null);i.src=url;return}
   const e=document.createElement(kind==='audio'?'audio':'video');e.preload='metadata';e.muted=true;e.onloadedmetadata=()=>ok({w:e.videoWidth||0,h:e.videoHeight||0,dur:isFinite(e.duration)?e.duration:0});e.onerror=()=>ok(null);e.src=url;setTimeout(()=>ok(null),15000)})}
@@ -53,9 +64,9 @@ async function veImport(files,opts={}){if(!ASSETS){toast('Speichern ist in diese
     const st=$('#ve-save');if(st)st.textContent='Importiere '+(f.name||'Datei')+' …';
     let up;try{up=await ASSETS.upload(f)}catch(e){toast((f.name||'Datei')+(e&&e.code==='too_large'||f.size>20*1048576?': zu groß zum Speichern hier. In der AGG-Games-Fassung gibt es keine Grenze.':': konnte nicht gespeichert werden.'));continue}
     const url=URL.createObjectURL(f);VE.urls.set(up.id,Promise.resolve(url));let meta=await veProbe(url,kind);if(kind==='audio'&&(!meta||!meta.dur)){const ab=await veAudioBuf(up.id);if(ab)meta={w:0,h:0,dur:ab.duration}}if(!meta||(kind!=='image'&&!meta.dur)){toast((f.name||'Datei')+': Das kann dein Browser nicht abspielen.');continue}
-    const m={asset:up.id,name:String(f.name||opts.name||kind).replace(/\.[a-z0-9]+$/i,'').slice(0,40),kind,...meta};VE.p.media.push(m);vePrepMedia(m);n++;
+    const m={asset:up.id,name:String(f.name||opts.name||kind).replace(/\.[a-z0-9]+$/i,'').slice(0,40),kind,...meta};if(kind==='image'){try{const u8=new Uint8Array(await f.slice(0,Math.min(f.size,30e6)).arrayBuffer());if(gifIs(u8)){const G=gifParse(u8);if(G.fr.length>1){m.anim=true;m.gdur=G.fr.reduce((a,x)=>a+(x.delay<=1?10:x.delay)/100,0)}}}catch{}}VE.p.media.push(m);vePrepMedia(m);n++;
     if(opts.add!==false){if(kind==='audio')veAddClip(m,'audio');else veAddClip(m,opts.as||'end')}}
-  if(n){veCommit();veAll();if(VE.p.main.length&&veDur()>0)veFitZoom()}const st=$('#ve-save');if(st)st.textContent='Gespeichert'}
+  if(n){if(opts.add!==false&&!opts.keepSel)VE.sel=null;veCommit();veAll();if(VE.p.main.length&&veDur()>0)veFitZoom()}const st=$('#ve-save');if(st)st.textContent='Gespeichert'}
 /* Von außen (z. B. fertige Animation) ins aktuelle oder ein neues Projekt */
 async function veAddBlob(blob,name,fmt){location.hash='video';await veStart();if(!VE.p||VE.p.main.length)veNew(fmt||'9:16',name);const f=new File([blob],(name||'Animation')+'.mp4',{type:blob.type||'video/mp4'});await veImport([f],{name})}
 /* ---------- Clips ---------- */
@@ -115,7 +126,7 @@ function veAdjOf(c){const f=(VE_FILTERS.find(x=>x[0]===c.filt)||VE_FILTERS[0])[2
 function veSource(c,t,ex,q,dims){const[BW,BH]=veBase();
   const cr=c.crop||{},cx=clamp(1-(cr.l||0)-(cr.r||0),.05,1),cy=clamp(1-(cr.t||0)-(cr.b||0),.05,1);
   if(c.type==='video'){const v=(ex?ex.els:VE.els).get(c.id);if(!v||v.readyState<2||!v.videoWidth)return null;return{src:v,nw:v.videoWidth,nh:v.videoHeight,w:v.videoWidth*cx,h:v.videoHeight*cy,fitBox:true,crop:cr}}
-  if(c.type==='image'){const e=veImg(c.asset);if(!e.ok)return null;return{src:e.img,nw:e.img.naturalWidth,nh:e.img.naturalHeight,w:e.img.naturalWidth*cx,h:e.img.naturalHeight*cy,fitBox:true,crop:cr}}
+  if(c.type==='image'){const e=veImg(c.asset);if(!e.ok)return null;let src=e.img;if(e.gif)src=gifFrameAt(e.gif,(t-c._s)*(c.speed||1)+(c.in||0))||src;return{src,nw:e.sw,nh:e.sh,w:e.w*cx,h:e.h*cy,fitBox:true,crop:cr}}
   if(c.type==='text'){let txt=String(c.text||' ');if(c.ain==='type'){const lt=t-c._s;txt=txt.slice(0,Math.max(0,Math.ceil(txt.length*clamp(lt/Math.min(1.2,veL(c)*.6),0,1))))||' '}
     const L={text:txt,font:c.font,size:Math.round((c.size||100)*q),color:c.color,color2:c.color2,grad:!!c.grad,stroke:Math.round((c.stroke||0)*q),strokeColor:c.strokeColor,depth:Math.round((c.depth||0)*q),align:'center'};
     const cv=textCanvas(L);return{src:cv,w:cv.width/q,h:cv.height/q,box:c.box?c.boxColor||'#000':null}}
@@ -126,7 +137,7 @@ const veEase=u=>1-Math.pow(1-u,3),veBack=u=>{const s=1.7;u-=1;return u*u*((s+1)*
 function veGeo(c,t,ex,q,dims){const[BW,BH]=veBase(),S=veSource(c,t,ex,q,dims);if(!S)return null;let w=S.w,h=S.h;
   if(S.fitBox){const f=c.fit==='fill'?Math.max(BW/w,BH/h):Math.min(BW/w,BH/h);w*=f;h*=f}
   const V=veVal(c,t);let sc=V.s,x=V.x*BW,y=V.y*BH,a=V.o;const isOver=!VE.p.main.includes(c);
-  if(isOver){const lt=t-c._s,L=veL(c),D=.45;for(const[kind,p]of[[c.ain,clamp(lt/D,0,1)],[c.aout,clamp((L-lt)/D,0,1)]]){if(!kind||kind==='none'||kind==='type'||p>=1)continue;const e=veEase(p);
+  if(isOver){const lt=t-c._s,L=veL(c),D=.45,edit=!ex&&!VE.playing&&c.id===VE.sel;/* beim Bearbeiten (angehalten, ausgewählt) ganz zeigen */for(const[kind,p]of[[c.ain,clamp(lt/D,0,1)],[c.aout,clamp((L-lt)/D,0,1)]]){if(edit||!kind||kind==='none'||kind==='type'||p>=1)continue;const e=veEase(p);
       if(kind==='fade')a*=p;else if(kind==='pop'){sc*=Math.max(0,veBack(p));a*=Math.min(1,p*3)}else if(kind==='up'){y+=(1-e)*BH*.18;a*=p}else if(kind==='left'){x-=(1-e)*BW*.45;a*=p}else if(kind==='right'){x+=(1-e)*BW*.45;a*=p}else if(kind==='top'){y-=(1-e)*BH*.2;a*=p}else if(kind==='zoom'){sc*=1+(1-e)*.9;a*=p}else if(kind==='spin'){sc*=e;a*=p;V.r=(V.r||0)-(1-e)*360}}
     const lp=c.aloop;if(lp==='bounce')y-=Math.abs(Math.sin(lt*Math.PI/.55))*BH*.03;else if(lp==='shake')V.r=(V.r||0)+Math.sin(lt*38)*5;else if(lp==='pulse')sc*=1+.07*Math.sin(lt*2*Math.PI/.8);else if(lp==='spin')V.r=(V.r||0)+lt*140;else if(lp==='float')y+=Math.sin(lt*2*Math.PI/2.2)*BH*.018;else if(lp==='wiggle'){x+=Math.sin(lt*9)*BW*.008;V.r=(V.r||0)+Math.sin(lt*7)*3}}
   return{...S,x,y,w:w*sc,h:h*sc,r:(V.r||0)*Math.PI/180,a}}
@@ -170,14 +181,20 @@ function veDraw(x,TW,TH,t,ex){const P=VE.p,[BW,BH]=veBase(),k=TW/BW,q=Math.max(1
 /* ---------- Vorschau ---------- */
 function veEl(c){let e=VE.els.get(c.id);if(e&&e._asset===c.asset)return e;if(e){e.pause();e.remove()}
   e=document.createElement(c.type==='audio'?'audio':'video');e.playsInline=true;e.setAttribute('playsinline','');e.preload='auto';e.preservesPitch=false;e.webkitPreservesPitch=false;e.mozPreservesPitch=false;e._asset=c.asset;veHid().append(e);
-  veUrl(c.asset).then(u=>{e.src=u}).catch(()=>{});VE.els.set(c.id,e);return e}
+  e._has=false;VE.els.set(c.id,e);return e}
 function veFadeK(c,t){const lt=t-c._s,L=veL(c);let k=1;if(c.fin>0)k=Math.min(k,clamp(lt/c.fin,0,1));if(c.fout>0)k=Math.min(k,clamp((L-lt)/c.fout,0,1));return k}
+/* Nur Clips in der Nähe des Zeitreglers bekommen ein Video-/Ton-Element (spart Arbeitsspeicher bei vielen Clips) */
+function veNear(c,t){const L=veL(c);return t>=c._s-(VE.playing?3:.6)&&t<c._s+L+.5}
 function veSync(){const P=VE.p,live=new Set();veLayout();
-  for(const c of[...P.main,...P.over,...P.audio]){if(c.type!=='video'&&c.type!=='audio')continue;live.add(c.id);const e=veEl(c),on=veActive(c,VE.t),st=veSrcT(c,VE.t);
+  for(const c of[...P.main,...P.over,...P.audio]){if(c.type!=='video'&&c.type!=='audio')continue;live.add(c.id);const e=veEl(c);
+    /* Element bleibt (auf iPad schon freigeschaltet), aber nur nahe Clips haben eine Quelle geladen */
+    if(!veNear(c,VE.t)){if(e._has){e.pause();e._has=false;e.removeAttribute('src');try{e.load()}catch{}}continue}
+    if(!e._has){e._has=true;veUrl(c.asset).then(u=>{if(e._has)e.src=u}).catch(()=>{})}
+    const on=veActive(c,VE.t),st=veSrcT(c,VE.t);
     e.muted=!!c.mute||(c.vol??1)<=0||!!VE.recMute;try{e.volume=clamp((c.vol??1)*veFadeK(c,VE.t),0,1)}catch{}
     if(VE.playing&&on){if(Math.abs(e.playbackRate-c.speed)>.001)e.playbackRate=c.speed;if(e.paused){if(Math.abs(e.currentTime-st)>.05)e.currentTime=st;e.play().catch(()=>{})}else if(Math.abs(e.currentTime-st)>.3)e.currentTime=st}
     else{if(!e.paused)e.pause();if(on&&c.type==='video'&&!e.seeking&&Math.abs(e.currentTime-st)>.02)try{e.currentTime=st}catch{}}}
-  for(const[id,e]of VE.els)if(!live.has(id)){e.pause();e.removeAttribute('src');e.remove();VE.els.delete(id)}}
+  for(const[id,e]of VE.els)if(!live.has(id)){e.pause();e.removeAttribute('src');try{e.load()}catch{}e.remove();VE.els.delete(id)}}
 function vePlay(){if(VE.playing){vePause();return}const D=veDur();if(D<.05)return;if(VE.t>=D-.02)VE.t=0;VE.playing=true;VE.t0=VE.t;VE.tw=performance.now();
   /* iPad/Safari: Medien müssen einmal direkt aus dem Tippen heraus starten dürfen */
   for(const e of VE.els.values()){const was=e.muted;e.muted=true;const pr=e.play();if(pr&&pr.then)pr.then(()=>{e.pause();e.muted=was}).catch(()=>{e.muted=was});else{e.pause();e.muted=was}}
@@ -222,10 +239,10 @@ function veFitZoom(){const sc=$('#ve-scroll');if(!sc||!VE.p)return;const D=Math.
 function veTimeline(){const tin=$('#ve-tin');if(!tin||!VE.p)return;const P=VE.p,D=veDur(),pxs=VE.pxs,{rows,h}=veRows(),sc=$('#ve-scroll');
   const W=Math.max(sc?sc.clientWidth:600,VE_PAD*2+(D+8)*pxs);tin.style.width=W+'px';tin.style.height=h+'px';tin.innerHTML='';
   const ru=document.createElement('div');ru.className='ve-ruler';const step=[.5,1,2,5,10,15,30,60,120].find(s=>s*pxs>=64)||300;for(let s=0;s<=D+8;s+=step){const tk=document.createElement('span');tk.className='ve-tick';tk.style.left=(VE_PAD+s*pxs)+'px';tk.textContent=veFmt(s).replace(/,0$/,'');ru.append(tk)}tin.append(ru);
-  for(const r of rows){const bg=document.createElement('div');bg.className='ve-lane '+r.kind;bg.style.top=r.y+'px';bg.style.height=r.h+'px';if(r.kind==='main'&&!P.main.length)bg.textContent='Importiere links ein Video oder Bild. Es landet hier auf der Hauptspur.';tin.append(bg)}
+  for(const r of rows){const bg=document.createElement('div');bg.className='ve-lane '+r.kind;bg.style.top=r.y+'px';bg.style.height=r.h+'px';if(r.kind==='main'&&!P.main.length)bg.textContent='Füge ein Video oder Bild hinzu. Es landet hier auf der Hauptspur.';tin.append(bg)}
   const rowOf=(kind,lane)=>rows.find(r=>r.kind===kind&&r.lane===lane);
   for(const[kind,list]of[['main',P.main],['over',P.over],['audio',P.audio],['fx',P.fx]])for(const c of list){const r=rowOf(kind,kind==='main'?0:c.lane);if(!r)continue;const L=veL(c),el=document.createElement('div');
-    el.className='ve-clip t-'+c.type+(c.id===VE.sel?' sel':'');el.style.left=(VE_PAD+c._s*pxs)+'px';el.style.top=r.y+'px';el.style.width=Math.max(6,L*pxs)+'px';el.style.height=r.h+'px';el.dataset.id=c.id;
+    el.className='ve-clip t-'+c.type+(c.sub?' sub':'')+(c.id===VE.sel?' sel':'');el.style.left=(VE_PAD+c._s*pxs)+'px';el.style.top=r.y+'px';el.style.width=Math.max(6,L*pxs)+'px';el.style.height=r.h+'px';el.dataset.id=c.id;
     const w=Math.max(6,Math.round(L*pxs));if(c.type==='video'||c.type==='image'||c.type==='audio'){const cv=document.createElement('canvas');cv.className='ve-cth';cv.width=Math.min(4000,w);cv.height=r.h;veDrawStrip(cv,c,pxs);el.append(cv)}
     for(const k of c.keys||[]){const d=document.createElement('i');d.className='ve-key';d.style.left=(k.t*pxs)+'px';el.append(d)}
     const lb=document.createElement('span');lb.className='ve-lab';lb.textContent=(c.type==='text'?'T  '+(String(c.text||'').split('\n')[0]):c.type==='sticker'?'★ '+c.name:c.type==='char'?'☺ '+c.name:c.type==='fx'?'✦ '+((VE_FX.find(f=>f[0]===c.kind)||[])[1]||'Effekt'):c.name||'')+(c.speed&&c.speed!==1?'  '+String(c.speed).replace('.',',')+'×':'')+((c.type==='video'||c.type==='audio')&&(c.mute||(c.vol??1)<=0)?'  🔇':'');el.append(lb);
@@ -234,7 +251,7 @@ function veTimeline(){const tin=$('#ve-tin');if(!tin||!VE.p)return;const P=VE.p,
 function veDrawStrip(cv,c,pxs){const x=cv.getContext('2d'),w=cv.width,h=cv.height;x.clearRect(0,0,w,h);
   if(c.type==='audio'){const pk=VE.peaks.get(c.asset),m=veMedia(c.asset);if(!pk||!m||!m.dur)return;x.fillStyle='rgba(255,255,255,.55)';const n=pk.length;
     for(let i=0;i<w;i+=2){const st=c.in+(i/pxs)*(c.speed||1);if(st>c.out)break;const v=pk[Math.min(n-1,Math.floor(st/m.dur*n))]*(h-8)*Math.min(1,c.vol??1);x.fillRect(i,(h-v)/2,1.5,Math.max(1,v))}return}
-  if(c.type==='image'){const e=veImg(c.asset);if(!e.ok)return;const tw=Math.max(8,h*e.img.naturalWidth/e.img.naturalHeight);for(let i=0;i<w;i+=tw)try{x.drawImage(e.img,i,0,tw,h)}catch{}return}
+  if(c.type==='image'){const e=veImg(c.asset);if(!e.ok)return;const tw=Math.max(8,h*e.w/e.h);for(let i=0;i<w;i+=tw)try{x.drawImage(e.img,i,0,tw,h)}catch{}return}
   const th=VE.thumbs.get(c.asset);if(!th||!th.length)return;const tw=th[0].c.width*h/th[0].c.height;
   for(let i=0;i<w;i+=tw){const st=c.in+((i+tw/2)/pxs)*(c.speed||1);let best=th[0];for(const z of th)if(Math.abs(z.t-st)<Math.abs(best.t-st))best=z;x.drawImage(best.c,i,0,tw,h)}}
 function vePH(){const p=$('#ve-ph');if(p)p.style.left=(VE_PAD+VE.t*VE.pxs)+'px';const l=$('#ve-time');if(l)l.textContent=veFmt(VE.t)+' / '+veFmt(veDur())}
@@ -265,11 +282,50 @@ function veTLPointer(){const sc=$('#ve-scroll');let D=null;
   sc.addEventListener('pointerup',up);sc.addEventListener('pointercancel',up);
   sc.addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();VE.pxs=clamp(VE.pxs*Math.exp(-e.deltaY*.003),8,400);const z=$('#ve-zoom');if(z)z.value=Math.log(VE.pxs);veTimeline()},{passive:false})}
 /* ---------- Mediathek ---------- */
-function veLib(){const box=$('#ve-libin');if(!box||!VE.p)return;const sc=box.scrollTop;box.innerHTML='';const tabs=$('#ve-tabs');tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===VE.tab));
+/* ---------- Bedienung: Symbole, Bibliothek-Reiter, Werkzeuge ---------- */
+const VE_IC={media:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z" fill="currentColor"/>',
+  text:'<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',sticker:'<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14c.9 1.4 2.1 2.1 3.5 2.1s2.6-.7 3.5-2.1M9 10h.01M15 10h.01"/>',
+  gif:'<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><text x="12" y="15.4" text-anchor="middle" font-size="7.4" font-weight="800" fill="currentColor" stroke="none" font-family="Inter,Arial,sans-serif">GIF</text>',
+  fx:'<path d="M12 3.5 13.6 9l5.4 1.6-5.4 1.6L12 17.7l-1.6-5.5L5 10.6 10.4 9z"/><path d="M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',audio:'<path d="M9 18V5.5l11-2.2v12.4"/><circle cx="6.2" cy="18" r="2.8"/><circle cx="17.2" cy="15.7" r="2.8"/>',
+  sub:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 12.5h4M13 12.5h4M7 15.5h6.5"/>',char:'<rect x="8" y="2.8" width="8" height="8" rx="1"/><path d="M5.5 21v-5.5a2.3 2.3 0 0 1 2.3-2.3h8.4a2.3 2.3 0 0 1 2.3 2.3V21"/><path d="M10.4 6.8h.01M13.6 6.8h.01"/>',
+  proj:'<path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  pos:'<path d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>',
+  speed:'<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4.5-5"/>',vol:'<path d="M4 9.5v5h3.5L12 18V6L7.5 9.5z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/>',
+  anim:'<circle cx="15" cy="12" r="5"/><path d="M3 8h5M2 12h6M3 16h5"/>',filter:'<circle cx="9" cy="10" r="5"/><circle cx="15" cy="10" r="5"/><circle cx="12" cy="15" r="5"/>',
+  adjust:'<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',crop:'<path d="M6.5 2.5v13a2 2 0 0 0 2 2h13"/><path d="M2.5 6.5h13a2 2 0 0 1 2 2v13"/>',
+  key:'<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2.4"/><circle cx="12" cy="10" r="3"/><path d="M7 19c.8-3 2.8-4.5 5-4.5s4.2 1.5 5 4.5"/>',
+  glow:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  color:'<path d="M12 3.5s6 6.4 6 10.8a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/>',move:'<circle cx="14" cy="4.5" r="2"/><path d="M9 21l2.5-6 2.5 2.5V21M7 11.5l3-3.5h4l2 3.5 3 1M11.5 15l1-6"/>',
+  face:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8.5 10h.01M15.5 10h.01M9 15h6"/>',skin:'<path d="M8.5 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4.5-3a3.5 3.5 0 0 1-7 0z"/>',
+  split:'<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.1 7.6 20 19M8.1 16.4 20 5"/>',del:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  dup:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',back:'<path d="m15 18-6-6 6-6"/>',
+  fmt:'<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M8 3.5v2.5M16 3.5v2.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',key2:'<path d="M12 2.5 14.6 8l6 .6-4.5 4 1.3 5.9L12 15.5l-5.4 3 1.3-5.9-4.5-4 6-.6z"/>'};
+const VE_LIBTABS=[['media','Medien'],['text','Text'],['sticker','Sticker'],['gif','GIFs'],['fx','Effekte'],['audio','Audio'],['sub','Untertitel'],['char','Figuren'],['proj','Projekte']];
+const VE_TOOLS=[['move','Bewegung','move'],['face','Gesicht','face'],['skin','Skin','skin'],['text','Text','text'],['fxs','Effekt','fx'],['pos','Position','pos'],['audio','Ton','vol'],['speed','Tempo','speed'],['anim','Animation','anim'],['filter','Filter','filter'],['adjust','Anpassen','adjust'],['crop','Zuschneiden','crop'],['key','Greenscreen','key'],['glow','Schatten','glow'],['color','Farbe','color']];
+const VE_SECTOOL={'Text':'text','Bild':'pos','Bewegung':'pos','Dauer':'pos','Geschwindigkeit':'speed','Ton':'audio','Animation':'anim','Filter':'filter','Anpassen':'adjust','Zuschneiden':'crop','Greenscreen':'key','Schatten und Leuchten':'glow','Farbe':'color','Bewegung der Figur':'move','Gesicht':'face','Skin':'skin'};
+const veSmall=()=>matchMedia('(max-width:980px)').matches,vePhone=()=>matchMedia('(max-width:680px)').matches;
+function veSheet(which){const r=$('#v-video .ve');if(!r)return;r.classList.toggle('lib-open',which==='lib');r.classList.toggle('props-open',which==='props');veDock()}
+function veToolsOf(c){if(VE.toolSel===c.id&&VE.toolList)return VE.toolList;/* welche Werkzeuge der Clip hat: Probe-Aufbau der Eigenschaften */const box=document.createElement('div');veBuildProps(box,c);const have=new Set([...box.querySelectorAll('.an-sec[data-sec]')].map(x=>VE_SECTOOL[x.dataset.sec]||(c.type==='fx'?'fxs':null)).filter(Boolean));return VE_TOOLS.filter(t=>have.has(t[0]))}
+function veDock(){const d=$('#ve-dock');if(!d||!VE.p)return;const c=veFind(VE.sel),r=$('#v-video .ve'),open=r&&(r.classList.contains('lib-open')?'lib':r.classList.contains('props-open')?'props':null);let h='';
+  const b=(a,ic,n,on)=>`<button type="button" data-a="${a}"${on?' aria-pressed="true"':''}><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC[ic]}</svg><span>${n}</span></button>`;
+  if(!c){h=VE_LIBTABS.map(([k,n])=>b('lib:'+k,k,n,open==='lib'&&VE.tab===k)).join('')+(vePhone()?b('props:','fmt','Format',open==='props'):'')}
+  else{h=b('done','back','Fertig')+b('split','split','Teilen')+veToolsOf(c).map(([k,n,ic])=>b('tool:'+k,ic,n,open==='props'&&VE.tool===k)).join('')+(c.type==='video'?b('detach','vol','Ton trennen')+b('freeze','media','Standbild'):'')+b('dup','dup','Kopie')+b('del','del','Löschen')}
+  d.innerHTML=h}
+function veDockClick(e){const bt=e.target.closest('button[data-a]');if(!bt)return;const a=bt.dataset.a,r=$('#v-video .ve');
+  if(a.startsWith('lib:')){const k=a.slice(4);if(r.classList.contains('lib-open')&&VE.tab===k){veSheet(null);return}VE.tab=k;veLib();veSheet('lib');return}
+  if(a==='props:'){veSheet(r.classList.contains('props-open')?null:'props');return}
+  if(a.startsWith('tool:')){const k=a.slice(5);if(r.classList.contains('props-open')&&VE.tool===k&&vePhone()){veSheet(null);return}VE.tool=k;veProps();if(vePhone())veSheet('props');else veDock();return}
+  if(a==='done'){VE.sel=null;veSheet(null);veTimeline();veProps();return}
+  if(a==='split')veSplit();else if(a==='detach')veDetachAudio();else if(a==='freeze')veFreeze();else if(a==='dup')veDuplicate();else if(a==='del'){veDelete();veSheet(null)}}
+function veEmpty(){const el=$('#ve-empty');if(!el||!VE.p)return;const on=!VE.p.main.length&&!VE.p.over.length&&!VE.busy;el.hidden=!on;if(!on||el.dataset.b)return;el.dataset.b='1';
+  el.innerHTML=`<div class="ve-emptycard"><div class="ve-emptyic"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.plus}</svg></div><b>Füge dein erstes Video hinzu</b><p>Videos, Bilder oder deine Animationen aus Rendernail.</p><button type="button" class="btn primary ve-big" data-a="import">+ Video oder Bild</button>
+    <div class="ve-emptyrow"><button type="button" class="btn" data-a="proj"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.proj}</svg>Animation</button><button type="button" class="btn" data-a="char"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.char}</svg>Figur</button><button type="button" class="btn" data-a="text"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.text}</svg>Text</button><button type="button" class="btn" data-a="gif"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.gif}</svg>GIF</button></div><p class="sub">Du kannst Dateien auch einfach hierher ziehen.</p></div>`;
+  el.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;const a=b.dataset.a;if(a==='import'){$('#ve-file').click();return}if(a==='text'){veAddText(TEXT_PRESETS[0]);return}VE.tab=a;veLib();if(veSmall())veSheet('lib')})}
+function veLib(){const box=$('#ve-libin');if(!box||!VE.p)return;if(!VE_LIBTABS.some(t=>t[0]===VE.tab))VE.tab='media';const sc=VE.libTab===VE.tab?box.scrollTop:0;VE.libTab=VE.tab;box.innerHTML='';const tabs=$('#ve-tabs');tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===VE.tab));$('#ve-libtitle').textContent=(VE_LIBTABS.find(t=>t[0]===VE.tab)||[])[1]||'';
   if(VE.tab==='media'){const r=document.createElement('div');r.className='btnrow';const b=document.createElement('button');b.type='button';b.className='btn primary';b.textContent='+ Importieren';b.addEventListener('click',()=>$('#ve-file').click());r.append(b);box.append(r);
     box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Videos, Bilder und Ton (MP4, MOV, PNG, JPG, MP3, M4A, WAV …). Antippen fügt sie in die Zeitleiste ein.'}));
     const g=document.createElement('div');g.className='ve-mgrid';for(const m of VE.p.media){const t=document.createElement('div');t.className='ve-mt';const pv=document.createElement('button');pv.type='button';pv.className='ve-mpv';pv.title=m.name;pv.setAttribute('aria-label',m.name+' einfügen');
-        const c=mk(160,100),x=c.getContext('2d');x.fillStyle='#1a1a1a';x.fillRect(0,0,160,100);try{if(m.kind==='image'){const e=veImg(m.asset);if(e.ok){const f=Math.max(160/e.img.naturalWidth,100/e.img.naturalHeight);x.drawImage(e.img,(160-e.img.naturalWidth*f)/2,(100-e.img.naturalHeight*f)/2,e.img.naturalWidth*f,e.img.naturalHeight*f)}}
+        const c=mk(160,100),x=c.getContext('2d');x.fillStyle='#1a1a1a';x.fillRect(0,0,160,100);try{if(m.kind==='image'){const e=veImg(m.asset);if(e.ok){const f=Math.max(160/e.w,100/e.h);x.drawImage(e.img,(160-e.w*f)/2,(100-e.h*f)/2,e.w*f,e.h*f)}}
           else if(m.kind==='video'){const th=VE.thumbs.get(m.asset);if(th&&th.length){const z=th[0].c,f=Math.max(160/z.width,100/z.height);x.drawImage(z,(160-z.width*f)/2,(100-z.height*f)/2,z.width*f,z.height*f)}}
           else{x.fillStyle='#3d7a4f';x.fillRect(0,0,160,100);x.fillStyle='#fff';x.font='700 40px Inter,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('♪',80,52)}}catch{}
         pv.append(c);if(m.dur){const d=document.createElement('span');d.className='ve-mdur';d.textContent=veFmt(m.dur);pv.append(d)}
@@ -281,6 +337,8 @@ function veLib(){const box=$('#ve-libin');if(!box||!VE.p)return;const sc=box.scr
       for(const u of ups){const b=document.createElement('button');b.type='button';b.className='ve-mpv';b.title=u.name||'Bild';const e=getImg(srcUrl(u));const im=document.createElement('img');im.alt='';if(e){e.p.then(()=>{if(e.ok)im.src=e.img.src})}b.append(im);
         b.addEventListener('click',()=>{let m=veMedia(u.asset);if(!m){m={asset:u.asset,name:u.name||'Bild',kind:'image',w:u.w||0,h:u.h||0,dur:0};VE.p.media.push(m);vePrepMedia(m)}veAddClip(m,VE.p.main.length?'over':'main');veCommit();veAll()});g2.append(b)}box.append(g2)}}
   else if(VE.tab==='proj')veLibProj(box);
+  else if(VE.tab==='gif')veLibGif(box);
+  else if(VE.tab==='sub')veLibSub(box);
   else if(VE.tab==='fx')veLibFx(box);
   else if(VE.tab==='audio')veLibAudio(box);
   else if(VE.tab==='char')veLibChar(box);
@@ -294,7 +352,7 @@ function veLib(){const box=$('#ve-libin');if(!box||!VE.p)return;const sc=box.scr
     q.addEventListener('input',fill);fill()}
   box.scrollTop=sc}
 /* ---------- Eigenschaften ---------- */
-function vSec(P,title,sub){const s=document.createElement('section');s.className='an-sec';if(title){const h=document.createElement('h4');h.textContent=title;s.append(h)}if(sub){const p=document.createElement('p');p.className='sub';p.textContent=sub;s.append(p)}const b=document.createElement('div');b.className='stack';s.append(b);P.append(s);return b}
+function vSec(P,title,sub){const s=document.createElement('section');s.className='an-sec';s.dataset.sec=typeof title==='string'?title:'';if(title){const h=document.createElement('h4');h.textContent=title;s.append(h)}if(sub){const p=document.createElement('p');p.className='sub';p.textContent=sub;s.append(p)}const b=document.createElement('div');b.className='stack';s.append(b);P.append(s);return b}
 function vRange(P,label,min,max,step,get,set,fmt=v=>v){const w=document.createElement('div');w.className='field';const id='ve-'+uid();w.innerHTML=`<div class="lab"><label for="${id}"></label><output></output></div><input type="range" id="${id}" min="${min}" max="${max}" step="${step}">`;
   w.querySelector('label').textContent=label;const i=w.querySelector('input'),o=w.querySelector('output');i.value=get();o.textContent=fmt(+get());i.addEventListener('input',()=>{set(+i.value);o.textContent=fmt(+i.value);veTimelineSoft()});i.addEventListener('change',veCommit);P.append(w);return w}
 function vSeg(P,label,opts,get,set){const w=document.createElement('div');w.className='field';if(label){const l=document.createElement('div');l.className='lab';const s=document.createElement('span');s.textContent=label;l.append(s);w.append(l)}const g=document.createElement('div');g.className='seg';
@@ -306,15 +364,22 @@ function vBtn(P,text,fn,cls='btn sm'){const b=document.createElement('button');b
 let veTLT=0;function veTimelineSoft(){clearTimeout(veTLT);veTLT=setTimeout(veTimeline,60)}
 const VE_SIMPLE={fields:new Set(['Kontrast','Sättigung','Wärme','Helligkeit','Bilder pro Sekunde','Links/rechts','Oben/unten']),secs:new Set(['Anpassen']),head:'h4',sec:'.an-sec'};
 function veProps(){const P=$('#ve-props');if(!P||!VE.p)return;const sc=P.scrollTop;P.innerHTML='';const c=veFind(VE.sel),pct=v=>Math.round(v*100)+' %';
+  {const ph=document.createElement('div');ph.className='ve-phead';ph.innerHTML='<b></b><button class="btn ghost sm icon" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" aria-hidden="true">'+VE_IC.x+'</svg></button>';ph.querySelector('b').textContent=c?((VE_TOOLS.find(t=>t[0]===VE.tool)||[])[1]||'Bearbeiten'):'Format und Export';ph.querySelector('button').addEventListener('click',()=>veSheet(null));P.append(ph)}
   if(!c){let s=vSec(P,'Projekt');vSeg(s,'Format',Object.entries(VE_FMT).map(([k,f])=>[k,f.n]),()=>VE.p.fmt,v=>{VE.p.fmt=v;veResize()});
     vSeg(s,'Hintergrund',[['blur','Unscharf'],['black','Schwarz'],['color','Farbe']],()=>VE.p.bg,v=>{VE.p.bg=v;veProps()});if(VE.p.bg==='color')vColor(s,'Farbe',()=>VE.p.bgColor,v=>{VE.p.bgColor=v});
     s=vSec(P,'Export');vSeg(s,'Qualität',[[0,'Standard (720p)'],[1,'Hoch (1080p)']],()=>VE.p.q,v=>{VE.p.q=+v});vSeg(s,'Bilder pro Sekunde',[[24,'24'],[30,'30'],[60,'60']],()=>VE.p.fps,v=>{VE.p.fps=+v});
     vBtn(s,'Video exportieren',veExport,'btn primary');s.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Tipp: Clip antippen (unten oder im Bild), um ihn zu bearbeiten. Leertaste spielt ab, S teilt am Zeitregler.'}));
-    simplify(P,VE_SIMPLE);P.scrollTop=sc;return}
+    simplify(P,VE_SIMPLE);P.scrollTop=sc;veDock();veEmpty();return}
   const vis=veIsVis(c),isMain=VE.p.main.includes(c);
-  let s=vSec(P,{video:'Video',image:'Bild',audio:'Ton',text:'Text',sticker:'Sticker',char:'Figur',fx:'Effekt'}[c.type]+' · '+veFmt(veL(c)));{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Teilen',veSplit);vBtn(r,'Duplizieren',veDuplicate);if(c.type==='video'){vBtn(r,'Ton abtrennen',veDetachAudio);vBtn(r,'Standbild',veFreeze)}vBtn(r,'Löschen',veDelete,'btn sm danger');s.append(r)}
+  let s=vSec(P,{video:'Video',image:'Bild',audio:'Ton',text:'Text',sticker:'Sticker',char:'Figur',fx:'Effekt'}[c.type]+' · '+veFmt(veL(c)));{const r=document.createElement('div');r.className='btnrow';vBtn(r,'Teilen',veSplit);vBtn(r,'Duplizieren',veDuplicate);if(c.type==='video'){vBtn(r,'Ton abtrennen',veDetachAudio);vBtn(r,'Standbild',veFreeze)}vBtn(r,'Löschen',veDelete,'btn sm danger');s.append(r);s.parentElement.classList.add('ve-head')}
+  /* Werkzeuge als Reiter: immer nur ein Bereich sichtbar, nichts geht verloren */
+  const body=document.createElement('div');veBuildProps(body,c);simplify(body,VE_SIMPLE);const secs=[...body.querySelectorAll(':scope>.an-sec')],tk=x=>VE_SECTOOL[x.dataset.sec]||(c.type==='fx'?'fxs':'pos');
+  const tools=VE_TOOLS.filter(t=>secs.some(x=>x.style.display!=='none'&&tk(x)===t[0]));VE.toolSel=c.id;VE.toolList=tools;if(!tools.some(t=>t[0]===VE.tool))VE.tool=tools.length?tools[0][0]:null;
+  if(tools.length>1){const bar=document.createElement('div');bar.className='ve-tools';bar.setAttribute('role','tablist');for(const[k,n,ic]of tools){const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.setAttribute('aria-selected',k===VE.tool);b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+VE_IC[ic]+'</svg><span></span>';b.querySelector('span').textContent=n;b.addEventListener('click',()=>{VE.tool=k;veProps()});bar.append(b)}P.append(bar)}
+  for(const x of secs)if(tools.length>1&&tk(x)!==VE.tool)x.style.display='none';P.append(...body.childNodes);P.scrollTop=VE.propTool===VE.tool+c.id?sc:0;VE.propTool=VE.tool+c.id;veDock();veEmpty()}
+function veBuildProps(P,c){const pct=v=>Math.round(v*100)+' %',vis=veIsVis(c),isMain=VE.p.main.includes(c);let s;
   if(c.type==='text'){s=vSec(P,'Text');const ta=document.createElement('textarea');ta.className='an-otext';ta.rows=2;ta.value=c.text||'';ta.setAttribute('aria-label','Text');ta.addEventListener('input',()=>{c.text=ta.value.slice(0,300);veTimelineSoft()});ta.addEventListener('change',veCommit);s.append(ta);
-    vSelect(s,'Schrift',Object.entries(FONTS).map(([k,v])=>[k,v[0]]),()=>c.font,v=>{c.font=v});vRange(s,'Schriftgröße',20,400,1,()=>c.size||100,v=>{c.size=v});
+    fontField(s,'Schrift',()=>c.font,v=>{c.font=v;veCommit();veTimelineSoft()});vRange(s,'Schriftgröße',20,400,1,()=>c.size||100,v=>{c.size=v});
     vColor(s,'Farbe',()=>c.color||'#ffffff',v=>{c.color=v;c.color2=v;c.grad=false});vRange(s,'Kontur',0,40,1,()=>c.stroke||0,v=>{c.stroke=v});vColor(s,'Konturfarbe',()=>c.strokeColor||'#000000',v=>{c.strokeColor=v});
     vCheck(s,'Hintergrund-Fläche',()=>c.box,v=>{c.box=v;veProps()});if(c.box)vColor(s,'Flächenfarbe',()=>c.boxColor||'#000000',v=>{c.boxColor=v})}
   if(c.type==='sticker'&&LIBK[c.key]&&LIBK[c.key].color){s=vSec(P,'Farbe');vColor(s,'Farbe',()=>c.color||LIBK[c.key].color,v=>{c.color=v})}
@@ -338,36 +403,54 @@ function veProps(){const P=$('#ve-props');if(!P||!VE.p)return;const sc=P.scrollT
   if(c.type==='video'||c.type==='audio'){s=vSec(P,'Geschwindigkeit');vSeg(s,null,[[.5,'0,5×'],[1,'1×'],[1.5,'1,5×'],[2,'2×'],[3,'3×']],()=>c.speed,v=>{c.speed=+v;veProps()});vRange(s,'Tempo',.1,8,.05,()=>c.speed,v=>{c.speed=v},v=>String(Math.round(v*100)/100).replace('.',',')+'×');
     s=vSec(P,'Ton');vCheck(s,'Stumm',()=>c.mute,v=>{c.mute=v});vRange(s,'Lautstärke',0,2,.01,()=>c.vol??1,v=>{c.vol=v},pct);vRange(s,'Einblenden',0,Math.min(10,veL(c)/2),.1,()=>c.fin||0,v=>{c.fin=v},v=>String(Math.round(v*10)/10).replace('.',',')+' s');vRange(s,'Ausblenden',0,Math.min(10,veL(c)/2),.1,()=>c.fout||0,v=>{c.fout=v},v=>String(Math.round(v*10)/10).replace('.',',')+' s')}
   if(c.type==='image'&&isMain){s=vSec(P,'Dauer');vRange(s,'Länge',.2,30,.1,()=>c.out-c.in,v=>{c.out=c.in+v},v=>String(Math.round(v*10)/10).replace('.',',')+' s')}
-  if(!isMain&&vis&&c.type!=='fx'){s=vSec(P,'Animation');vSelect(s,'Rein',VE_ANIM.filter(a=>a[0]!=='type'||c.type==='text'),()=>c.ain||'none',v=>{c.ain=v});vSelect(s,'Raus',VE_ANIM.filter(a=>a[0]!=='type'),()=>c.aout||'none',v=>{c.aout=v});vSelect(s,'Dauerhaft',VE_LOOP,()=>c.aloop||'none',v=>{c.aloop=v})}
-  simplify(P,VE_SIMPLE);P.scrollTop=sc}
+  if(!isMain&&vis&&c.type!=='fx'){s=vSec(P,'Animation');vSelect(s,'Rein',VE_ANIM.filter(a=>a[0]!=='type'||c.type==='text'),()=>c.ain||'none',v=>{c.ain=v});vSelect(s,'Raus',VE_ANIM.filter(a=>a[0]!=='type'),()=>c.aout||'none',v=>{c.aout=v});vSelect(s,'Dauerhaft',VE_LOOP,()=>c.aloop||'none',v=>{c.aloop=v})}}
 /* ---------- Export ---------- */
-async function veMix(D){const P=VE.p,sr=48000,clips=[...P.main,...P.over,...P.audio].filter(veHasAudio);if(!clips.length)return null;const C=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!C)return null;
-  const oc=new C(2,Math.max(1,Math.ceil(D*sr)),sr);let any=false;veLayout();
-  for(const c of clips){const b=await veAudioBuf(c.asset);if(!b)continue;any=true;const s=oc.createBufferSource();s.buffer=b;s.playbackRate.value=c.speed||1;const g=oc.createGain(),v=c.vol??1,t0=c._s,L=veL(c);
-    g.gain.setValueAtTime(c.fin>0?0:v,t0);if(c.fin>0)g.gain.linearRampToValueAtTime(v,t0+Math.min(c.fin,L));if(c.fout>0){g.gain.setValueAtTime(v,Math.max(t0,t0+L-c.fout));g.gain.linearRampToValueAtTime(0,t0+L)}
-    s.connect(g);g.connect(oc.destination);s.start(t0,c.in,Math.max(.01,c.out-c.in))}
-  if(!any)return null;return await oc.startRendering()}
+/* Ton für den Export in Abschnitten von 20 s mischen und gleich kodieren: so liegt nie der ganze Ton im Speicher */
+function veGainAt(c,v,t){const t0=c._s,L=veL(c);let g=v;if(c.fin>0&&t<t0+c.fin)g=v*clamp((t-t0)/c.fin,0,1);if(c.fout>0&&t>t0+L-c.fout)g=Math.min(g,v*clamp((t0+L-t)/c.fout,0,1));return g}
+async function veMixEncode(muxer,codec,D,ui){const P=VE.p,sr=48000,WIN=20,clips=[...P.main,...P.over,...P.audio].filter(veHasAudio),C=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!clips.length||!C)return false;
+  veLayout();const bufs=new Map();for(const c of clips)if(!bufs.has(c.asset))bufs.set(c.asset,await veAudioBuf(c.asset,sr));
+  let err=null;const ae=new AudioEncoder({output:(ch,m)=>muxer.addAudioChunk(ch,m),error:e=>{err=e}});ae.configure({codec,sampleRate:sr,numberOfChannels:2,bitrate:160000});
+  const N=Math.max(1,Math.ceil(D*sr));let pos=0;
+  for(let w0=0;pos<N;w0+=WIN){const w1=Math.min(D,w0+WIN),len=Math.min(N-pos,Math.max(1,Math.round((w1-w0)*sr)));const oc=new C(2,len,sr);
+    for(const c of clips){const b=bufs.get(c.asset);if(!b)continue;const t0=c._s,L=veL(c),sp=c.speed||1;if(t0>=w1||t0+L<=w0)continue;
+      const src=oc.createBufferSource();src.buffer=b;src.playbackRate.value=sp;const g=oc.createGain(),v=c.vol??1,a=Math.max(t0,w0),z=Math.min(t0+L,w1);
+      const tp=[...new Set([a,z,t0+(c.fin||0),t0+L-(c.fout||0)].filter(t=>t>=a&&t<=z))].sort((p,q)=>p-q);g.gain.setValueAtTime(veGainAt(c,v,tp[0]),Math.max(0,tp[0]-w0));for(const t of tp.slice(1))g.gain.linearRampToValueAtTime(veGainAt(c,v,t),t-w0);
+      src.connect(g);g.connect(oc.destination);src.start(Math.max(0,a-w0),c.in+(a-t0)*sp,Math.max(.01,(z-a)*sp))}
+    const r=await oc.startRendering(),Lc=r.getChannelData(0),Rc=r.numberOfChannels>1?r.getChannelData(1):Lc;
+    for(let i=0;i<len;i+=4096){const n=Math.min(4096,len-i),d=new Float32Array(n*2);d.set(Lc.subarray(i,i+n),0);d.set(Rc.subarray(i,i+n),n);const ad=new AudioData({format:'f32-planar',sampleRate:sr,numberOfFrames:n,numberOfChannels:2,timestamp:Math.round((pos+i)/sr*1e6),data:d});ae.encode(ad);ad.close()}
+    pos+=len;while(ae.encodeQueueSize>8&&!err)await new Promise(q=>setTimeout(q,5));if(err)throw err;if(ui)ui.prog(1,'Ton wird eingefügt … '+Math.min(100,Math.round(pos/N*100))+' %')}
+  await ae.flush();ae.close();if(err)throw err;return true}
+/* Fertiges Video in Blob-Stücken sammeln statt in einem großen Puffer (der Browser kann sie auslagern) */
+function veSink(){const segs=[];
+  return{onData(data,pos){const end=pos+data.length,ov=segs.filter(q=>q.pos<end&&pos<q.pos+q.len);
+      for(const q of ov){const a=Math.max(pos,q.pos),z=Math.min(end,q.pos+q.len);q.b=new Blob([q.b.slice(0,a-q.pos),data.slice(a-pos,z-pos),q.b.slice(z-q.pos)])}
+      let lo=pos;const cov=ov.map(q=>[q.pos,q.pos+q.len]).sort((x,y)=>x[0]-y[0]);for(const[a,z]of cov){if(a>lo)segs.push({pos:lo,len:a-lo,b:new Blob([data.slice(lo-pos,a-pos)])});lo=Math.max(lo,z)}
+      if(lo<end)segs.push({pos:lo,len:end-lo,b:new Blob([data.slice(lo-pos)])});segs.sort((x,y)=>x.pos-y.pos)},
+    blob(type){return new Blob(segs.map(q=>q.b),{type})}}}
 function veRecUI(title){const ov=$('#ve-ov');ov.hidden=false;ov.innerHTML='<div class="an-reccard"><b></b><div class="an-prog"><i></i></div><p class="sub" id="ve-recst"></p><button class="btn sm" type="button">Abbrechen</button></div>';
   ov.querySelector('b').textContent=title||'Video wird erstellt';const ui={cancel:false,prog(p,t){ov.querySelector('.an-prog i').style.width=Math.round(p*100)+'%';const s=$('#ve-recst');if(s&&t)s.textContent=t}};ov.querySelector('button').addEventListener('click',()=>{ui.cancel=true});return ui}
 async function veExport(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.05){toast('Füge zuerst ein Video oder Bild hinzu.');return}vePause();
   const[BW,BH]=veBase(),sc=P.q?1:2/3,W=Math.round(BW*sc/2)*2,H=Math.round(BH*sc/2)*2,fps=P.fps||30,cfg=await anCodec(W,H);
   if(!cfg){toast('Dieser Browser kann hier keine Videos erstellen. Nimm ein aktuelles Chrome, Edge oder Safari.');return}
-  VE.busy=true;const ui=veRecUI();let err=null,mix=null,acod=null;const els=new Map();
-  try{if([...P.main,...P.over,...P.audio].some(veHasAudio)){ui.prog(0,'Ton wird gemischt …');try{mix=await veMix(D)}catch{mix=null}if(mix){acod=await anAudCodec();if(!acod)mix=null}}
-    ui.prog(0,'Videos werden geladen …');veLayout();
-    for(const c of[...P.main,...P.over])if(c.type==='video'){const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';veHid().append(v);v.src=await veUrl(c.asset);await new Promise(ok=>{v.onloadeddata=ok;v.onerror=ok;setTimeout(ok,10000)});els.set(c.id,v)}
-    const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H,frameRate:fps},...(mix?{audio:{codec:acod.mux,sampleRate:mix.sampleRate,numberOfChannels:2}}:{}),fastStart:'in-memory'});
+  VE.busy=true;const ui=veRecUI();let err=null,acod=null;const els=new Map();
+  try{if([...P.main,...P.over,...P.audio].some(veHasAudio))acod=await anAudCodec();
+    ui.prog(0,'Schriften werden geladen …');try{await Promise.race([fontsReady([...P.over,...P.main].filter(c=>c.type==='text').map(c=>c.font)),new Promise(r=>setTimeout(r,8000))])}catch{}
+    veLayout();const vids=[...P.main,...P.over].filter(c=>c.type==='video'),sink=veSink();
+    const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.StreamTarget({onData:(d,p)=>sink.onData(d,p),chunked:true,chunkSize:1<<23}),video:{codec:'avc',width:W,height:H,frameRate:fps},...(acod?{audio:{codec:acod.mux,sampleRate:48000,numberOfChannels:2}}:{}),fastStart:false});
     const enc=new VideoEncoder({output:(ch,m)=>muxer.addVideoChunk(ch,m),error:e=>{err=e}});enc.configure({...cfg,framerate:fps,latencyMode:'quality'});
     const out=mk(W,H),x=out.getContext('2d'),N=Math.max(1,Math.round(D*fps)),ex={els};
     for(let i=0;i<N;i++){if(ui.cancel||err)break;const t=i/fps;
-      for(const c of[...P.main,...P.over])if(c.type==='video'&&veActive(c,t)){const v=els.get(c.id);if(v)await veSeek(v,veSrcT(c,t))}
+      /* Videos erst kurz vor ihrem Einsatz laden und danach wieder freigeben */
+      for(const c of vids){const on=veActive(c,t);let v=els.get(c.id);
+        if(on&&!v){v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';veHid().append(v);v.src=await veUrl(c.asset);await new Promise(ok=>{v.onloadeddata=ok;v.onerror=ok;setTimeout(ok,10000)});els.set(c.id,v)}
+        if(on&&v)await veSeek(v,veSrcT(c,t));else if(v&&t>=c._s+veL(c)){v.removeAttribute('src');try{v.load()}catch{}v.remove();els.delete(c.id)}}
       veDraw(x,W,H,t,ex);const f=new VideoFrame(out,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});enc.encode(f,{keyFrame:i%(fps*2)===0});f.close();
       {const w0=performance.now();let pushed=false;while(enc.encodeQueueSize>3&&!err&&enc.state!=='closed'){if(performance.now()-w0>1500){if(pushed)throw new Error('encoder_stalled');pushed=true;await Promise.race([enc.flush(),new Promise(r=>setTimeout(r,4000))])}else await new Promise(r=>setTimeout(r,4))}if(err||enc.state==='closed')throw err||new Error('encoder_closed')}
       if(i%3===0){ui.prog(i/N,veFmt(t)+' von '+veFmt(D));await new Promise(r=>setTimeout(r,0))}}
-    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}
+    if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(acod){ui.prog(1,'Ton wird eingefügt …');await veMixEncode(muxer,acod.codec,D,ui)}muxer.finalize()}
     try{enc.close()}catch{}
-    if(!ui.cancel&&!err)veDone(new Blob([muxer.target.buffer],{type:'video/mp4'}))}catch(e){err=e}
-  for(const v of els.values()){v.removeAttribute('src');v.remove()}VE.busy=false;
+    if(!ui.cancel&&!err)veDone(sink.blob('video/mp4'))}catch(e){err=e}
+  for(const v of els.values()){v.removeAttribute('src');v.remove()}VE.abufs.clear();VE.busy=false;
   if(ui.cancel){$('#ve-ov').hidden=true;toast('Export abgebrochen.')}else if(err){$('#ve-ov').hidden=true;toast('Das Video konnte nicht erstellt werden. Versuch „Standard“ als Qualität oder ein anderes Video-Format.')}}
 function veDone(blob){const ov=$('#ve-ov'),url=URL.createObjectURL(blob);
   ov.innerHTML='<div class="an-reccard an-done"><b>Fertig!</b><div class="btnrow"><button class="btn primary" type="button" data-s>Video speichern</button><button class="btn" type="button" data-c>Schließen</button></div><video controls playsinline loop muted></video></div>';
@@ -385,28 +468,30 @@ function veHome(show=true){const h=$('#ve-homeov');if(!h)return;h.hidden=!show;i
     const acts=document.createElement('div');acts.className='btnrow';acts.style.flexWrap='nowrap';const de=document.createElement('button');de.type='button';de.className='btn ghost sm danger';de.textContent='Löschen';
     de.addEventListener('click',()=>{if(!confirm(`„${p.name}“ wirklich löschen?`))return;const i=veIndex().filter(x=>x.id!==p.id);try{localStorage.removeItem('ve:'+p.id)}catch{}store.set(VE_IDX,i);if(p.id===VE.pid){VE.pid=null;VE.p=null}toast('Gelöscht.');veHome(true)});
     acts.append(de);meta.append(t,acts);c.append(pv,meta);g.append(c)}}
-function veProjMenu(btn){showMenu(btn,[['Alle Videos',()=>veHome(true)],['Umbenennen …',()=>{const n=prompt('Neuer Name:',VE.p.name);if(n===null||!n.trim())return;VE.p.name=n.trim().slice(0,60);veCommit();veSaveNow();veNameUI();toast('Name geändert.')}],null,['Neues Video',()=>veHome(true)]])}
+function veProjMenu(btn){showMenu(btn,[['Alle Videos',()=>veHome(true)],['Umbenennen …',async()=>{const n=await askText('Neuer Name',VE.p.name,{ok:'Umbenennen'});if(n===null||!n.trim())return;VE.p.name=n.trim().slice(0,60);veCommit();veSaveNow();veNameUI();toast('Name geändert.')}],null,['Neues Video',()=>veHome(true)]])}
 function veNameUI(){const b=$('#ve-name');if(b&&VE.p)b.querySelector('span').textContent=VE.p.name}
 /* ---------- Aufbau ---------- */
-function veAll(){if(!VE.p)return;veNameUI();veResize();veTimeline();veLib();veProps();veUndoUI();vePH()}
+function veAll(){if(!VE.p)return;const n=VE.p.main.length+VE.p.over.length+VE.p.audio.length+VE.p.fx.length;if(VE.nClips!=null&&n>VE.nClips&&vePhone()){const r=$('#v-video .ve');if(r&&r.classList.contains('lib-open')&&VE.tab!=='sub')r.classList.remove('lib-open')}VE.nClips=n;
+  veNameUI();veResize();veTimeline();veLib();veProps();veUndoUI();vePH()}
 function veBuild(){if(VE.built)return;VE.built=true;const root=$('#v-video');
-  root.innerHTML=`<div class="ve"><header class="ve-top"><button class="btn ghost sm" id="ve-libbtn" type="button">Medien</button><button class="ve-name" id="ve-name" type="button" aria-haspopup="menu"><span></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><span class="hstat" id="ve-save" role="status"></span><span class="grow"></span>
+  root.innerHTML=`<div class="ve"><header class="ve-top"><button class="ve-name" id="ve-name" type="button" aria-haspopup="menu"><span></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><span class="hstat" id="ve-save" role="status"></span><span class="grow"></span>
     <button class="btn ghost sm icon" id="ve-undo" type="button" aria-label="Rückgängig" title="Rückgängig (⌘Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button class="btn ghost sm icon" id="ve-redo" type="button" aria-label="Wiederholen" title="Wiederholen (⇧⌘Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
-    <button class="btn ghost sm" id="ve-propbtn" type="button">Bearbeiten</button><button class="btn primary" id="ve-export" type="button">Exportieren</button></header>
-    <div class="ve-main"><aside class="ve-lib" id="ve-lib"><div class="seg ve-tabs" id="ve-tabs"><button type="button" data-t="media">Medien</button><button type="button" data-t="proj">Projekte</button><button type="button" data-t="char">Figuren</button><button type="button" data-t="text">Text</button><button type="button" data-t="sticker">Sticker</button><button type="button" data-t="fx">Effekte</button><button type="button" data-t="audio">Audio</button></div><div class="ve-libin" id="ve-libin"></div></aside>
-      <div class="ve-stage" id="ve-stage"><canvas id="ve-cv" aria-label="Vorschau"></canvas><div class="an-rec ve-ov" id="ve-ov" hidden></div></div><aside class="ve-props an-side" id="ve-props"></aside></div>
+    <button class="btn primary" id="ve-export" type="button">Exportieren</button></header>
+    <div class="ve-main"><aside class="ve-lib" id="ve-lib"><nav class="ve-rail" id="ve-tabs" aria-label="Einfügen">${VE_LIBTABS.map(([k,n])=>`<button type="button" data-t="${k}"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC[k]}</svg><span>${n}</span></button>`).join('')}</nav>
+      <div class="ve-libpane"><div class="ve-libhead"><h3 id="ve-libtitle"></h3><button class="btn ghost sm icon ve-x" id="ve-libx" type="button" aria-label="Schließen"><svg viewBox="0 0 24 24" aria-hidden="true">${VE_IC.x}</svg></button></div><div class="ve-libin" id="ve-libin"></div></div></aside>
+      <div class="ve-stage" id="ve-stage"><canvas id="ve-cv" aria-label="Vorschau"></canvas><div class="ve-empty" id="ve-empty" hidden></div><div class="an-rec ve-ov" id="ve-ov" hidden></div></div><aside class="ve-props an-side" id="ve-props"></aside></div>
     <div class="ve-tl"><div class="ve-tbar"><button class="btn ghost sm" id="ve-split" type="button" title="Am Zeitregler teilen (S)">Teilen</button><button class="btn ghost sm" id="ve-del" type="button" title="Löschen (Entf)">Löschen</button><span class="grow"></span>
       <button class="btn ghost sm icon" id="ve-start" type="button" aria-label="Zum Anfang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14"/><path d="M18 6 9 12l9 6z"/></svg></button><button class="an-playbtn ve-playbtn" id="ve-play" type="button" aria-label="Abspielen"></button><span class="ve-time" id="ve-time"></span><span class="grow"></span>
       <button class="btn ghost sm icon" id="ve-safe" type="button" aria-pressed="false" aria-label="Sicherheitsbereich" title="Sicherheitsbereich: zeigt, wo bei TikTok und Shorts Knöpfe und Text liegen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M8.5 16.5h5M15.5 9v4" stroke-dasharray="2 2"/></svg></button><button class="btn ghost sm icon" id="ve-full" type="button" aria-label="Vorschau im Vollbild" title="Vorschau im Vollbild"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button><label class="ve-zoomlab"><span class="sr">Zoom</span><input type="range" id="ve-zoom" min="2" max="6" step="0.01" aria-label="Zeitleiste zoomen"></label><button class="btn ghost sm" id="ve-fit" type="button">Anpassen</button></div>
       <div class="ve-scroll" id="ve-scroll"><div class="ve-tin" id="ve-tin"></div></div></div>
-    <div class="ve-home an-home" id="ve-homeov" hidden></div><div class="ve-hid" id="ve-hid" aria-hidden="true"></div><input type="file" id="ve-file" multiple accept="video/*,image/*,audio/*,.mov,.mp4,.m4a,.mp3,.wav,.flac" hidden></div>`;
+    <nav class="ve-dock" id="ve-dock" aria-label="Werkzeuge"></nav>
+    <div class="ve-home an-home" id="ve-homeov" hidden></div><div class="ve-hid" id="ve-hid" aria-hidden="true"></div><input type="file" id="ve-file" multiple accept="video/*,image/*,audio/*,.mov,.mp4,.m4a,.mp3,.wav,.flac,.gif" hidden></div>`;
   $('#ve-file').addEventListener('change',e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)veImport(fs)});
-  $('#ve-tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;VE.tab=b.dataset.t;veLib()});
+  $('#ve-tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;VE.tab=b.dataset.t;veLib()});$('#ve-libx').addEventListener('click',()=>veSheet(null));$('#ve-dock').addEventListener('click',veDockClick);
   $('#ve-undo').addEventListener('click',()=>veUndo(-1));$('#ve-redo').addEventListener('click',()=>veUndo(1));$('#ve-export').addEventListener('click',veExport);
   $('#ve-name').addEventListener('click',e=>{e.stopPropagation();veProjMenu(e.currentTarget)});$('#ve-play').addEventListener('click',vePlay);$('#ve-start').addEventListener('click',()=>{vePause();veGoto(0);$('#ve-scroll').scrollLeft=0});
   $('#ve-split').addEventListener('click',veSplit);$('#ve-safe').addEventListener('click',e=>{VE.safe=!VE.safe;e.currentTarget.setAttribute('aria-pressed',VE.safe);if(VE.safe&&VE.p&&VE.p.fmt!=='9:16')toast('Der Sicherheitsbereich gilt für Hochformat 9:16.')});$('#ve-full').addEventListener('click',veFull);$('#ve-del').addEventListener('click',veDelete);$('#ve-fit').addEventListener('click',veFitZoom);
   $('#ve-zoom').addEventListener('input',e=>{VE.pxs=Math.exp(+e.target.value);veTimeline()});
-  $('#ve-libbtn').addEventListener('click',()=>{const r=$('#v-video .ve');r.classList.toggle('lib-open');r.classList.remove('props-open')});$('#ve-propbtn').addEventListener('click',()=>{const r=$('#v-video .ve');r.classList.toggle('props-open');r.classList.remove('lib-open')});
   const st=$('#ve-stage');st.addEventListener('dragover',e=>{e.preventDefault()});st.addEventListener('drop',e=>{e.preventDefault();const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])];if(fs.length)veImport(fs)});
   veStagePointer();veTLPointer();veTLExtras();vePlayUI();
   if(window.ResizeObserver)new ResizeObserver(()=>{veResize()}).observe(st);addEventListener('resize',()=>{if(view==='video'){veResize();veTimeline()}});
@@ -528,7 +613,8 @@ function veLibAudio(box){const sub=t=>box.append(Object.assign(document.createEl
     const ad=document.createElement('button');ad.type='button';ad.className='btn sm';ad.textContent=n;ad.addEventListener('click',()=>veAddSfx(k,n));row.append(pl,ad);g.append(row)}box.append(g);
   h=document.createElement('h4');h.className='ve-h4';h.textContent='Musik und eigene Töne';box.append(h);{const r=document.createElement('div');r.className='btnrow';vBtn(r,'+ Ton importieren',()=>$('#ve-file').click());box.append(r)}}
 async function veFreeze(){const c=veFind(VE.sel);veLayout();if(!c||c.type!=='video'||!veActive(c,VE.t)){toast('Stell den Zeitregler auf das Video.');return}if(!ASSETS){toast('Speichern ist in dieser Ansicht nicht möglich.');return}
-  const v=VE.els.get(c.id);if(!v||!v.videoWidth)return;await veSeek(v,veSrcT(c,VE.t));const cv=mk(v.videoWidth,v.videoHeight);cv.getContext('2d').drawImage(v,0,0);let up;try{up=await ASSETS.upload(await canvasBlob(cv,'image/png'))}catch{toast('Das Standbild konnte nicht gespeichert werden.');return}
+  let v=VE.els.get(c.id),tmp=null;if(!v||!v.videoWidth){tmp=document.createElement('video');tmp.muted=true;tmp.playsInline=true;tmp.preload='auto';veHid().append(tmp);tmp.src=await veUrl(c.asset);await new Promise(ok=>{tmp.onloadeddata=ok;tmp.onerror=ok;setTimeout(ok,8000)});v=tmp}
+  if(!v.videoWidth){if(tmp)tmp.remove();toast('Das Standbild konnte nicht gespeichert werden.');return}await veSeek(v,veSrcT(c,VE.t));const cv=mk(v.videoWidth,v.videoHeight);cv.getContext('2d').drawImage(v,0,0);if(tmp){tmp.removeAttribute('src');tmp.remove()}let up;try{up=await ASSETS.upload(await canvasBlob(cv,'image/png'))}catch{toast('Das Standbild konnte nicht gespeichert werden.');return}
   const m={asset:up.id,name:(c.name||'Video')+' (Standbild)',kind:'image',w:cv.width,h:cv.height,dur:0};VE.p.media.push(m);VE.imgs.delete(up.id);const t=VE.t,list=veListOf(c);
   const img=veNewClip(m,{out:2,fit:c.fit,x:c.x,y:c.y,s:c.s,r:c.r,o:c.o,flip:c.flip,filt:c.filt,adj:{...(c.adj||{})},crop:c.crop?{...c.crop}:undefined,key:c.key?{...c.key}:undefined,blend:c.blend});
   if(list===VE.p.main){if(t>c._s+.04&&t<c._s+veL(c)-.04){VE.sel=c.id;veSplit()}veLayout();let i=VE.p.main.findIndex(x=>Math.abs(x._s+veL(x)-t)<.03);if(i<0)i=VE.p.main.indexOf(c);VE.p.main.splice(i+1,0,img)}
@@ -560,3 +646,50 @@ function veTLExtras(){const sc=$('#ve-scroll');let lp=null;
   let pz=null;sc.addEventListener('touchstart',e=>{if(e.touches.length===2){const[a,b]=e.touches;pz={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),p:VE.pxs}}},{passive:true});
   sc.addEventListener('touchmove',e=>{if(!pz||e.touches.length!==2)return;e.preventDefault();const[a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);VE.pxs=clamp(pz.p*d/Math.max(10,pz.d),8,400);const z=$('#ve-zoom');if(z)z.value=Math.log(VE.pxs);if(!pz.raf)pz.raf=requestAnimationFrame(()=>{if(pz)pz.raf=0;veTimeline()})},{passive:false});
   sc.addEventListener('touchend',e=>{if(e.touches.length<2)pz=null})}
+/* ---------- GIFs (GIPHY und eigene) ---------- */
+async function veAddGifBlob(blob,name,meta){if(!ASSETS){toast('Speichern ist in dieser Ansicht nicht möglich.');return}const u8=new Uint8Array(await blob.arrayBuffer());if(!gifIs(u8)){toast('Das ist kein GIF.');return}
+  const G=gifParse(u8),up=await ASSETS.upload(new Blob([u8],{type:'image/gif'})),P=VE.p;const m={asset:up.id,name:String(name||'GIF').slice(0,40),kind:'image',w:G.W,h:G.H,dur:0,anim:G.fr.length>1,gdur:G.fr.reduce((a,x)=>a+(x.delay<=1?10:x.delay)/100,0),...(meta||{})};
+  P.media.push(m);vePrepMedia(m);const c=veAddClip(m,P.main.length?'over':'main');if(!VE.p.main.includes(c)){c.s=.55;c.out=Math.max(2,Math.min(6,m.gdur*Math.ceil(2/Math.max(.2,m.gdur))))}veCommit();veAll();toast('GIF eingefügt.')}
+function veLibGif(box){const sub=t=>box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:t}));const key=giphyKey();
+  {const r=document.createElement('div');r.className='btnrow';vBtn(r,'+ GIF von deinem Gerät',()=>{const i=document.createElement('input');i.type='file';i.accept='image/gif,.gif';i.addEventListener('change',()=>{const f=i.files[0];if(f)veAddGifBlob(f,f.name.replace(/\.gif$/i,''))});i.click()});box.append(r)}
+  if(!key){const card=document.createElement('div');card.className='ve-card';card.innerHTML=`<b>GIFs von GIPHY suchen</b><p class="sub">Dafür brauchst du einmal einen kostenlosen Schlüssel von GIPHY:</p><ol class="ve-steps"><li>Anmelden auf: <a href="https://developers.giphy.com/dashboard/" target="_blank" rel="noopener">developers.giphy.com</a></li><li>„Create an API Key“ antippen und „API“ wählen.</li><li>Den Schlüssel kopieren und hier einfügen.</li></ol><form class="btnrow"><input class="ve-in" type="text" autocomplete="off" spellcheck="false" placeholder="GIPHY-Schlüssel" aria-label="GIPHY-Schlüssel"><button class="btn sm primary" type="submit">Speichern</button></form>`;
+    card.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const v=card.querySelector('input').value.trim();if(v.length<10){toast('Der Schlüssel ist zu kurz.');return}store.set('rn-giphy-key',v);VE.gres=null;veLib()});box.append(card);return}
+  const f=document.createElement('form');f.className='ve-gsearch';f.innerHTML='<input type="search" class="an-search" placeholder="GIPHY durchsuchen" aria-label="GIPHY durchsuchen">';const q=f.querySelector('input');q.value=VE.gq||'';box.append(f);
+  const seg=document.createElement('div');seg.className='seg';for(const[k,n]of[['g','GIFs'],['s','Sticker']]){const b=document.createElement('button');b.type='button';b.textContent=n;b.setAttribute('aria-pressed',(VE.gkind||'g')===k);b.addEventListener('click',()=>{VE.gkind=k;VE.gres=null;veLib()});seg.append(b)}box.append(seg);
+  const grid=document.createElement('div');grid.className='ve-gifs';box.append(grid);const more=document.createElement('div');more.className='btnrow';box.append(more);
+  const foot=document.createElement('p');foot.className='sub ve-gfoot';foot.innerHTML='<span>Powered by GIPHY</span>';const ch=document.createElement('button');ch.type='button';ch.className='btn ghost sm';ch.textContent='Schlüssel ändern';ch.addEventListener('click',()=>{store.set('rn-giphy-key','');VE.gres=null;veLib()});foot.append(ch);box.append(foot);
+  const paint=()=>{grid.innerHTML='';more.innerHTML='';const R=VE.gres;if(!R)return;if(R.err){grid.append(Object.assign(document.createElement('p'),{className:'sub',textContent:R.err}));return}
+    if(!R.items.length){grid.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Nichts gefunden.'}));return}
+    for(const it of R.items){const im=(it.images||{}).fixed_width_small||(it.images||{}).fixed_width||{};if(!im.url)continue;const b=document.createElement('button');b.type='button';b.className='ve-gif'+(VE.gkind==='s'?' st':'');b.title=it.title||'GIF';const i=document.createElement('img');i.loading='lazy';i.alt=it.title||'GIF';i.src=im.url;i.width=+im.width||100;i.height=+im.height||100;b.append(i);
+      b.addEventListener('click',async()=>{if(b.classList.contains('busy'))return;b.classList.add('busy');try{const r=await fetch(giphyPick(it));if(!r.ok)throw 0;await veAddGifBlob(await r.blob(),(it.title||'GIF').replace(/\s+GIF.*$/i,''),{giphy:it.id})}catch{toast('Das GIF konnte nicht geladen werden.')}b.classList.remove('busy')});grid.append(b)}
+    if(R.more)vBtn(more,'Mehr laden',()=>load(true))};
+  const load=async add=>{const kind=VE.gkind||'g',qq=(VE.gq||'').trim(),off=add&&VE.gres?VE.gres.items.length:0;if(!add)VE.gres={items:[],loading:true};
+    try{const r=await giphyApi((kind==='s'?'stickers':'gifs')+(qq?'/search':'/trending'),{...(qq?{q:qq}:{}),limit:24,offset:off,lang:'de'});const items=(r.data||[]);VE.gres={items:[...(add&&VE.gres?VE.gres.items:[]),...items],more:items.length===24&&off+24<((r.pagination||{}).total_count||0)}}
+    catch(e){VE.gres={items:[],err:e&&e.code==='badkey'?'Der GIPHY-Schlüssel funktioniert nicht. Tippe unten auf „Schlüssel ändern“.':e&&e.code==='rate'?'GIPHY bekommt gerade zu viele Anfragen. Versuch es gleich nochmal.':'GIPHY ist gerade nicht erreichbar. Prüfe die Internetverbindung.'}}
+    if(VE.tab==='gif'&&grid.isConnected)paint()};
+  let tq=0;q.addEventListener('input',()=>{clearTimeout(tq);tq=setTimeout(()=>{VE.gq=q.value;load(false)},400)});f.addEventListener('submit',e=>{e.preventDefault();clearTimeout(tq);VE.gq=q.value;load(false)});
+  if(VE.gres&&!VE.gres.loading)paint();else if(!VE.gres)load(false)}
+/* ---------- Untertitel ---------- */
+function veLibSub(box){const sub=t=>box.append(Object.assign(document.createElement('p'),{className:'sub',textContent:t}));const L=subList();VE.subo=VE.subo||{lang:LANG==='en'?'english':'german',model:'good',style:'clean',only:false};const o=VE.subo;
+  const sel=veFind(VE.sel),canOnly=sel&&veHasAudio(sel);
+  if(!L.length){const h=document.createElement('h4');h.className='ve-h4';h.textContent='Automatische Untertitel';box.append(h);sub('Rendernail hört sich die Stimme in deinem Video an und schreibt daraus Untertitel. Alles passiert auf deinem Gerät.')}
+  const sec=document.createElement('div');sec.className='stack';box.append(sec);
+  vSelect(sec,'Sprache',SUB_LANGS,()=>o.lang,v=>{o.lang=v});vSelect(sec,'Genauigkeit',SUB_MODELS.map(m=>[m[0],m[1]]),()=>o.model,v=>{o.model=v});
+  if(canOnly)vCheck(sec,'Nur der ausgewählte Clip',()=>o.only,v=>{o.only=v});
+  const h2=document.createElement('h4');h2.className='ve-h4';h2.textContent='Aussehen';sec.append(h2);const g=document.createElement('div');g.className='ve-substyles';
+  for(const[k,n,st]of SUB_STYLES){const b=document.createElement('button');b.type='button';b.className='ve-substyle';b.setAttribute('aria-pressed',o.style===k);const sp=document.createElement('span');sp.textContent=n;const F=FONTS[st.font]||FONTS.inter;sp.style.cssText=`font-family:${F[1]};font-weight:${F[2]};color:${st.color};-webkit-text-stroke:${Math.min(2,st.stroke/6)}px ${st.strokeColor};${st.box?'background:'+st.boxColor+';padding:0 6px;border-radius:4px;':''}${st.glow?'text-shadow:0 0 8px '+st.glc+';':''}`;b.append(sp);
+    b.addEventListener('click',()=>{o.style=k;if(L.length)subStyleAll(k);else veLib()});g.append(b)}sec.append(g);
+  {const r=document.createElement('div');r.className='btnrow';vBtn(r,L.length?'Neu erstellen':'Untertitel erstellen',()=>subCreate(o),'btn primary');if(L.length)vBtn(r,'Alle löschen',()=>{VE.p.over=VE.p.over.filter(c=>!c.sub);veCommit();veAll()},'btn sm danger');sec.append(r)}
+  if(!L.length){sub('Beim ersten Mal wird das Sprachmodell aus dem Internet geladen, danach geht es schneller.');return}
+  const h3=document.createElement('h4');h3.className='ve-h4';h3.textContent=L.length+' Untertitel';box.append(h3);sub('Antippen springt zur Stelle. Du kannst den Text direkt ändern.');
+  const list=document.createElement('div');list.className='ve-sublist';for(const c of L){const row=document.createElement('div');row.className='ve-subrow'+(c.id===VE.sel?' sel':'');const tb=document.createElement('button');tb.type='button';tb.className='ve-subt';tb.textContent=veFmt(c._s);tb.addEventListener('click',()=>{vePause();veGoto(c._s+.01);VE.sel=c.id;veTimeline();veProps()});
+    const inp=document.createElement('input');inp.type='text';inp.className='ve-in';inp.value=c.text||'';inp.setAttribute('aria-label','Untertitel bei '+veFmt(c._s));inp.addEventListener('focus',()=>{vePause();veGoto(c._s+.01)});inp.addEventListener('input',()=>{c.text=inp.value.slice(0,200);veTimelineSoft()});inp.addEventListener('change',veCommit);
+    const del=document.createElement('button');del.type='button';del.className='btn ghost sm icon';del.setAttribute('aria-label','Löschen');del.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+VE_IC.x+'</svg>';del.addEventListener('click',()=>{VE.p.over.splice(VE.p.over.indexOf(c),1);veCommit();veAll()});row.append(tb,inp,del);list.append(row)}box.append(list)}
+/* ---------- Speicher-Wächter ---------- */
+const VE_IMG_BUDGET=350e6;
+function veMemTrim(hard){const now=performance.now(),P=VE.p,used=new Set();if(P){veLayout();for(const c of[...P.main,...P.over])if(c.type==='image'&&(!hard||veNear(c,VE.t)))used.add(c.asset)}
+  let tot=0;for(const[k,e]of[...VE.imgs.entries()].sort((a,b)=>b[1].used-a[1].used)){if(!e.ok)continue;tot+=e.bytes||0;const drop=hard?!used.has(k):((!used.has(k)&&now-e.used>60000)||(tot>VE_IMG_BUDGET&&now-e.used>4000));
+    if(drop){if(e.gif)gifFree(e.gif);else if(e.img&&e.img.getContext)e.img.width=e.img.height=0;VE.imgs.delete(k);tot-=e.bytes||0}}
+  if(!VE.busy)VE.abufs.clear();if(hard&&typeof txtCache!=='undefined')txtCache.clear()}
+setInterval(()=>{if(VE.p&&!VE.busy)veMemTrim(false)},10000);
+if(window.rnNative&&typeof rnNative.onMemory==='function')rnNative.onMemory(()=>{veMemTrim(true);if(typeof txtCache!=='undefined')txtCache.clear()});

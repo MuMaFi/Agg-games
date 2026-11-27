@@ -113,6 +113,13 @@ function openDialog(o){
     box.appendChild(b)}
   if(!dlg.open)dlg.showModal()}
 $('#d-close').addEventListener('click',()=>dlg.close());
+/* Eigenes Eingabefenster statt prompt(): prompt gibt es in der Mac-App (Electron) nicht */
+function askText(title,def='',opt={}){return new Promise(ok=>{const d=document.createElement('dialog');d.className='ask-dlg';
+  d.innerHTML='<form method="dialog"><label class="ask-lab"><span></span><input class="ask-in" maxlength="80" autocomplete="off"></label><div class="ask-btns"><button type="button" class="btn ghost ask-no">Abbrechen</button><button class="btn primary ask-ok">OK</button></div></form>';
+  d.querySelector('.ask-lab span').textContent=title;const inp=d.querySelector('.ask-in');inp.value=def;d.querySelector('.ask-ok').textContent=opt.ok||'OK';let res=null;
+  d.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const v=inp.value.trim();if(!v&&!opt.allowEmpty){inp.focus();return}res=v;d.close()});
+  d.querySelector('.ask-no').addEventListener('click',()=>d.close());d.addEventListener('close',()=>{d.remove();ok(res)});
+  document.body.append(d);d.showModal();setTimeout(()=>{inp.focus();inp.select()},30)})}
 dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
 
 /* ================= Voxel-Renderer (isometrisch) ================= */
