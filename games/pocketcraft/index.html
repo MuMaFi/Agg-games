@@ -34,29 +34,49 @@
     (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform + navigator.userAgent));
   if(!ios) return;
 
-  /* Doppeltippen: touch-action reicht Safari nicht überall (Rezept- und
-     Katalogfelder, Listen mit pan-y). Kommt ein zweiter Tipp kurz nach dem
-     ersten an fast derselben Stelle, wird das Loslassen abgefangen — das
-     verhindert den Zoom. Den Klick, den Safari dann nicht mehr schickt,
-     reichen wir selbst nach, damit schnelles Tippen auf Knöpfe weiter geht.
-     Das Spiel selbst hört auf Pointer-Ereignisse, die kommen ohnehin. */
+  /* Doppeltippen: touch-action reicht Safari nicht überall — auf den
+     Spielknöpfen (Sprung, Steuerkreuz …) zoomt es trotzdem, und ein
+     abgefangenes Loslassen hält den Zoom dort auch nicht auf. Was sicher
+     wirkt: das Aufsetzen abfangen. Setzt ein Finger kurz nach dem letzten
+     Tipp an fast derselben Stelle wieder auf, wird schon touchstart
+     verworfen; dann bricht Safari alle eigenen Gesten für diesen Finger ab,
+     auch den Zoom. Das Spiel hört auf Pointer-Ereignisse, die kommen
+     trotzdem. Nur den Klick, den Safari dann nicht schickt, reichen wir
+     selbst nach, damit schnelles Tippen auf Menüknöpfe weiter geht. */
   const feld = t => t && t.closest && t.closest('input, textarea, select, [contenteditable=""], [contenteditable=true]');
-  let letzt = null;
-  addEventListener('touchend', e => {
-    const p = e.changedTouches && e.changedTouches[0];
-    if(!p) return;
-    const jetzt = e.timeStamp, t = e.target;
-    const L = letzt;
-    letzt = { t: jetzt, x: p.clientX, y: p.clientY };
-    if(!L || feld(t)) return;
-    if(jetzt - L.t > 500 || Math.abs(p.clientX - L.x) > 70 || Math.abs(p.clientY - L.y) > 70) return;
-    if(!e.cancelable) return;
+  const FRIST = 450, NAH = 70;
+  let letzt = [];                        // die letzten Tipp-Enden: {t, x, y}
+  const geschluckt = new Map();          // Finger, deren Aufsetzen verworfen wurde → Startpunkt
+  addEventListener('touchstart', e => {
+    if(!e.cancelable || feld(e.target)) return;
+    const jetzt = e.timeStamp;
+    letzt = letzt.filter(L => jetzt - L.t <= FRIST);
+    let treffer = false;
+    for(const p of e.changedTouches)
+      if(letzt.some(L => Math.abs(p.clientX - L.x) <= NAH && Math.abs(p.clientY - L.y) <= NAH)) treffer = true;
+    if(!treffer) return;
     e.preventDefault();
-    letzt = null;                      // ein dritter Tipp beginnt neu
-    if(t && t.dispatchEvent) t.dispatchEvent(new MouseEvent('click', {
-      bubbles:true, cancelable:true, view:window, detail:2,
-      clientX:p.clientX, clientY:p.clientY, screenX:p.screenX, screenY:p.screenY }));
+    for(const p of e.changedTouches) geschluckt.set(p.identifier, { x:p.clientX, y:p.clientY });
   }, fest);
+  const ende = e => {
+    for(const p of e.changedTouches){
+      letzt.push({ t:e.timeStamp, x:p.clientX, y:p.clientY });
+      const g = geschluckt.get(p.identifier);
+      if(!g) continue;
+      geschluckt.delete(p.identifier);
+      if(e.type !== 'touchend') continue;
+      if(e.cancelable) e.preventDefault();
+      // nur ein echter Tipp wird zum Klick, kein Wischen
+      if(Math.abs(p.clientX - g.x) > 12 || Math.abs(p.clientY - g.y) > 12) continue;
+      const t = e.target;
+      if(t && t.dispatchEvent) t.dispatchEvent(new MouseEvent('click', {
+        bubbles:true, cancelable:true, view:window, detail:2,
+        clientX:p.clientX, clientY:p.clientY, screenX:p.screenX, screenY:p.screenY }));
+    }
+    if(letzt.length > 8) letzt = letzt.slice(-8);
+  };
+  addEventListener('touchend', ende, fest);
+  addEventListener('touchcancel', ende, fest);
 
   /* Falls es doch einmal reingezoomt hat: sobald kein Finger mehr liegt,
      den Viewport neu setzen — Safari springt dann auf 1 zurück. */
