@@ -910,11 +910,16 @@ const Screens = {
       liste.innerHTML = '';
       $('#behZahl').textContent = 'Katalog — antippen nimmt einen Stapel';
       for(const id of katalog()){
+        // ein einzelnes kaputtes Symbol darf nicht den ganzen Katalog leeren
+        let url = '';
+        try{ url = iconFor(id); }catch(_){}
         const b = el('button', 'rz ok'); b._katalog = id;
-        const ic = el('i', 'ic'); ic.style.backgroundImage = 'url(' + iconFor(id) + ')'; b.appendChild(ic);
-        b.title = nameOf(id);
+        const ic = el('i', 'ic'); if(url) ic.style.backgroundImage = 'url(' + url + ')'; b.appendChild(ic);
+        try{ b.title = nameOf(id); }catch(_){}
         liste.appendChild(b);
       }
+      // Leer, obwohl es Gegenstände gibt? Dann beim nächsten Zeichnen neu versuchen
+      if(!liste.children.length) this._buchSig = '';
       return;
     }
     const v = vorrat(), g = this.g;
