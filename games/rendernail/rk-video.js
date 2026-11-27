@@ -38,10 +38,10 @@ function veMedia(asset){return(VE.p.media||[]).find(m=>m.asset===asset)}
 const VE_IMG_MAX=2560;
 function veImg(asset){let e=VE.imgs.get(asset);if(e){e.used=performance.now();return e}e={img:null,ok:false,w:0,h:0,sw:0,sh:0,bytes:0,used:performance.now()};VE.imgs.set(asset,e);
   (async()=>{const b=await srcBlob({asset});const head=new Uint8Array(await b.slice(0,6).arrayBuffer());
-    if(gifIs(head)){const g=await gifDecode(new Uint8Array(await b.arrayBuffer()));if(g&&g.frames.length>1){if(VE.imgs.get(asset)!==e){gifFree(g);return}e.gif=g;e.img=g.frames[0].c;e.w=g.W;e.h=g.H;e.sw=g.w;e.sh=g.h;e.bytes=g.bytes;e.ok=true;veTimeline();veLib();return}}
+    if(gifIs(head)){const g=await gifDecode(new Uint8Array(await b.arrayBuffer()));if(g&&g.frames.length>1){if(VE.imgs.get(asset)!==e){gifFree(g);return}e.gif=g;e.img=g.frames[0].c;e.w=g.W;e.h=g.H;e.sw=g.w;e.sh=g.h;e.bytes=g.bytes;e.ok=true;liveWake(400);veTimeline();veLib();return}}
     const u=await veUrl(asset),im=new Image();im.decoding='async';await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});let src=im,w=im.naturalWidth,h=im.naturalHeight,sw=w,sh=h;
     if(Math.max(w,h)>VE_IMG_MAX){const k=VE_IMG_MAX/Math.max(w,h);sw=Math.round(w*k);sh=Math.round(h*k);const c=mk(sw,sh),x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,0,0,sw,sh);src=c;im.src=''}
-    if(VE.imgs.get(asset)!==e)return;Object.assign(e,{img:src,w,h,sw,sh,bytes:sw*sh*4,ok:true});veTimeline();veLib()})().catch(()=>{});return e}
+    if(VE.imgs.get(asset)!==e)return;Object.assign(e,{img:src,w,h,sw,sh,bytes:sw*sh*4,ok:true});liveWake(400);veTimeline();veLib()})().catch(()=>{});return e}
 function veHid(){return $('#ve-hid')}
 /* Vorschaubilder (Filmstreifen) und Wellenform für die Zeitleiste */
 async function vePrepMedia(m){if(m.kind==='image'){veImg(m.asset);return}
@@ -181,7 +181,7 @@ function veDraw(x,TW,TH,t,ex){const P=VE.p,[BW,BH]=veBase(),k=TW/BW,q=Math.max(1
 /* ---------- Vorschau ---------- */
 function veEl(c){let e=VE.els.get(c.id);if(e&&e._asset===c.asset)return e;if(e){e.pause();e.remove()}
   e=document.createElement(c.type==='audio'?'audio':'video');e.playsInline=true;e.setAttribute('playsinline','');e.preload='auto';e.preservesPitch=false;e.webkitPreservesPitch=false;e.mozPreservesPitch=false;e._asset=c.asset;veHid().append(e);
-  e._has=false;VE.els.set(c.id,e);return e}
+  e._has=false;for(const ev of['loadeddata','seeked','canplay'])e.addEventListener(ev,()=>liveWake(400));VE.els.set(c.id,e);return e}
 function veFadeK(c,t){const lt=t-c._s,L=veL(c);let k=1;if(c.fin>0)k=Math.min(k,clamp(lt/c.fin,0,1));if(c.fout>0)k=Math.min(k,clamp((L-lt)/c.fout,0,1));return k}
 /* Nur Clips in der Nähe des Zeitreglers bekommen ein Video-/Ton-Element (spart Arbeitsspeicher bei vielen Clips) */
 function veNear(c,t){const L=veL(c);return t>=c._s-(VE.playing?3:.6)&&t<c._s+L+.5}
@@ -201,12 +201,13 @@ function vePlay(){if(VE.playing){vePause();return}const D=veDur();if(D<.05)retur
   vePlayUI()}
 function vePause(){if(!VE.playing)return;VE.playing=false;for(const e of VE.els.values())e.pause();vePlayUI();veProps()}
 function vePlayUI(){const b=$('#ve-play');if(b)b.innerHTML=VE.playing?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>';if(b)b.setAttribute('aria-label',VE.playing?'Anhalten':'Abspielen')}
-function veGoto(t){VE.t=clamp(t,0,Math.max(0,veDur()));if(VE.playing){VE.t0=VE.t;VE.tw=performance.now()}vePH()}
+function veGoto(t){liveWake(600);VE.t=clamp(t,0,Math.max(0,veDur()));if(VE.playing){VE.t0=VE.t;VE.tw=performance.now()}vePH()}
 function veFmt(t){t=Math.max(0,t);const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(1).replace('.',',')}
 function veResize(){const st=$('#ve-stage'),cv=$('#ve-cv');if(!st||!cv||!VE.p)return;const[BW,BH]=veBase(),r=st.getBoundingClientRect(),pad=14,aw=Math.max(40,r.width-pad*2),ah=Math.max(40,r.height-pad*2),s=Math.min(aw/BW,ah/BH),w=Math.round(BW*s),h=Math.round(BH*s);
-  cv.style.width=w+'px';cv.style.height=h+'px';const dpr=Math.min(2,window.devicePixelRatio||1),bw=Math.min(BW,Math.round(w*dpr)),bh=Math.round(bw*BH/BW);if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}}
+  cv.style.width=w+'px';cv.style.height=h+'px';const dpr=Math.min(2,window.devicePixelRatio||1),bw=Math.round(Math.min(BW,w*dpr,BW*Math.sqrt(1.7e6/(BW*BH)))),bh=Math.round(bw*BH/BW);if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}}
 function veLoop(now){if(view!=='video'){VE.running=false;return}requestAnimationFrame(veLoop);if(!VE.p||VE.busy)return;
   if(VE.playing){const D=veDur();VE.t=VE.t0+(now-VE.tw)/1000;if(VE.t>=D){VE.t=D;vePause()}vePH();veFollow()}
+  if(!liveFrame('ve',now,VE.playing,VE.playing?Math.min(60,Math.max(24,VE.p.fps||30)):60))return;
   veSync();const cv=$('#ve-cv');if(!cv)return;const x=cv.getContext('2d');veDraw(x,cv.width,cv.height,VE.t,null);if(!VE.playing)veSelBox(x,cv);if(VE.safe)veSafe(x,cv)}
 /* Auswahlrahmen im Vorschaubild */
 function veSelGeo(c,cv){const[BW]=veBase(),k=cv.width/BW,g=veGeo(c,VE.t,null,Math.max(1,k),true);if(!g)return null;const r=g.r,co=Math.cos(r),si=Math.sin(r),P=(i,j)=>[(g.x+i*g.w/2*co-j*g.h/2*si)*k,(g.y+i*g.w/2*si+j*g.h/2*co)*cv.height/veBase()[1]];
@@ -432,7 +433,7 @@ function veRecUI(title){const ov=$('#ve-ov');ov.hidden=false;ov.innerHTML='<div 
 async function veExport(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.05){toast('Füge zuerst ein Video oder Bild hinzu.');return}vePause();
   const[BW,BH]=veBase(),sc=P.q?1:2/3,W=Math.round(BW*sc/2)*2,H=Math.round(BH*sc/2)*2,fps=P.fps||30,cfg=await anCodec(W,H);
   if(!cfg){toast('Dieser Browser kann hier keine Videos erstellen. Nimm ein aktuelles Chrome, Edge oder Safari.');return}
-  VE.busy=true;const ui=veRecUI();let err=null,acod=null;const els=new Map();
+  VE.busy=true;rnBusy(true);const ui=veRecUI();let err=null,acod=null;const els=new Map();
   try{if([...P.main,...P.over,...P.audio].some(veHasAudio))acod=await anAudCodec();
     ui.prog(0,'Schriften werden geladen …');try{await Promise.race([fontsReady([...P.over,...P.main].filter(c=>c.type==='text').map(c=>c.font)),new Promise(r=>setTimeout(r,8000))])}catch{}
     veLayout();const vids=[...P.main,...P.over].filter(c=>c.type==='video'),sink=veSink();
@@ -450,7 +451,7 @@ async function veExport(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.
     if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(acod){ui.prog(1,'Ton wird eingefügt …');await veMixEncode(muxer,acod.codec,D,ui)}muxer.finalize()}
     try{enc.close()}catch{}
     if(!ui.cancel&&!err)veDone(sink.blob('video/mp4'))}catch(e){err=e}
-  for(const v of els.values()){v.removeAttribute('src');v.remove()}VE.abufs.clear();VE.busy=false;
+  for(const v of els.values()){v.removeAttribute('src');v.remove()}VE.abufs.clear();VE.busy=false;rnBusy(false);
   if(ui.cancel){$('#ve-ov').hidden=true;toast('Export abgebrochen.')}else if(err){$('#ve-ov').hidden=true;toast('Das Video konnte nicht erstellt werden. Versuch „Standard“ als Qualität oder ein anderes Video-Format.')}}
 function veDone(blob){const ov=$('#ve-ov'),url=URL.createObjectURL(blob);
   ov.innerHTML='<div class="an-reccard an-done"><b>Fertig!</b><div class="btnrow"><button class="btn primary" type="button" data-s>Video speichern</button><button class="btn" type="button" data-c>Schließen</button></div><video controls playsinline loop muted></video></div>';
@@ -471,7 +472,7 @@ function veHome(show=true){const h=$('#ve-homeov');if(!h)return;h.hidden=!show;i
 function veProjMenu(btn){showMenu(btn,[['Alle Videos',()=>veHome(true)],['Umbenennen …',async()=>{const n=await askText('Neuer Name',VE.p.name,{ok:'Umbenennen'});if(n===null||!n.trim())return;VE.p.name=n.trim().slice(0,60);veCommit();veSaveNow();veNameUI();toast('Name geändert.')}],null,['Neues Video',()=>veHome(true)]])}
 function veNameUI(){const b=$('#ve-name');if(b&&VE.p)b.querySelector('span').textContent=VE.p.name}
 /* ---------- Aufbau ---------- */
-function veAll(){if(!VE.p)return;const n=VE.p.main.length+VE.p.over.length+VE.p.audio.length+VE.p.fx.length;if(VE.nClips!=null&&n>VE.nClips&&vePhone()){const r=$('#v-video .ve');if(r&&r.classList.contains('lib-open')&&VE.tab!=='sub')r.classList.remove('lib-open')}VE.nClips=n;
+function veAll(){liveWake(600);if(!VE.p)return;const n=VE.p.main.length+VE.p.over.length+VE.p.audio.length+VE.p.fx.length;if(VE.nClips!=null&&n>VE.nClips&&vePhone()){const r=$('#v-video .ve');if(r&&r.classList.contains('lib-open')&&VE.tab!=='sub')r.classList.remove('lib-open')}VE.nClips=n;
   veNameUI();veResize();veTimeline();veLib();veProps();veUndoUI();vePH()}
 function veBuild(){if(VE.built)return;VE.built=true;const root=$('#v-video');
   root.innerHTML=`<div class="ve"><header class="ve-top"><button class="ve-name" id="ve-name" type="button" aria-haspopup="menu"><span></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><span class="hstat" id="ve-save" role="status"></span><span class="grow"></span>
@@ -660,7 +661,7 @@ function veLibGif(box){const sub=t=>box.append(Object.assign(document.createElem
   const foot=document.createElement('p');foot.className='sub ve-gfoot';foot.innerHTML='<span>Powered by GIPHY</span>';const ch=document.createElement('button');ch.type='button';ch.className='btn ghost sm';ch.textContent='Schlüssel ändern';ch.addEventListener('click',()=>{store.set('rn-giphy-key','');VE.gres=null;veLib()});foot.append(ch);box.append(foot);
   const paint=()=>{grid.innerHTML='';more.innerHTML='';const R=VE.gres;if(!R)return;if(R.err){grid.append(Object.assign(document.createElement('p'),{className:'sub',textContent:R.err}));return}
     if(!R.items.length){grid.append(Object.assign(document.createElement('p'),{className:'sub',textContent:'Nichts gefunden.'}));return}
-    for(const it of R.items){const im=(it.images||{}).fixed_width_small||(it.images||{}).fixed_width||{};if(!im.url)continue;const b=document.createElement('button');b.type='button';b.className='ve-gif'+(VE.gkind==='s'?' st':'');b.title=it.title||'GIF';const i=document.createElement('img');i.loading='lazy';i.alt=it.title||'GIF';i.src=im.url;i.width=+im.width||100;i.height=+im.height||100;b.append(i);
+    for(const it of R.items){const IM=it.images||{},im=IM.fixed_width_small||IM.fixed_width||{},still=(IM.fixed_width_small_still||IM.fixed_width_still||{}).url;if(!im.url)continue;const b=document.createElement('button');b.type='button';b.className='ve-gif'+(VE.gkind==='s'?' st':'');b.title=it.title||'GIF';const i=document.createElement('img');i.loading='lazy';i.alt=it.title||'GIF';i.src=still||im.url;i.width=+im.width||100;i.height=+im.height||100;b.append(i);if(still){const on=()=>{i.src=im.url},off=()=>{i.src=still};b.addEventListener('mouseenter',on);b.addEventListener('mouseleave',off);b.addEventListener('focus',on);b.addEventListener('blur',off)}
       b.addEventListener('click',async()=>{if(b.classList.contains('busy'))return;b.classList.add('busy');try{const r=await fetch(giphyPick(it));if(!r.ok)throw 0;await veAddGifBlob(await r.blob(),(it.title||'GIF').replace(/\s+GIF.*$/i,''),{giphy:it.id})}catch{toast('Das GIF konnte nicht geladen werden.')}b.classList.remove('busy')});grid.append(b)}
     if(R.more)vBtn(more,'Mehr laden',()=>load(true))};
   const load=async add=>{const kind=VE.gkind||'g',qq=(VE.gq||'').trim(),off=add&&VE.gres?VE.gres.items.length:0;if(!add)VE.gres={items:[],loading:true};
@@ -688,7 +689,7 @@ function veLibSub(box){const sub=t=>box.append(Object.assign(document.createElem
 /* ---------- Speicher-Wächter ---------- */
 const VE_IMG_BUDGET=350e6;
 function veMemTrim(hard){const now=performance.now(),P=VE.p,used=new Set();if(P){veLayout();for(const c of[...P.main,...P.over])if(c.type==='image'&&(!hard||veNear(c,VE.t)))used.add(c.asset)}
-  let tot=0;for(const[k,e]of[...VE.imgs.entries()].sort((a,b)=>b[1].used-a[1].used)){if(!e.ok)continue;tot+=e.bytes||0;const drop=hard?!used.has(k):((!used.has(k)&&now-e.used>60000)||(tot>VE_IMG_BUDGET&&now-e.used>4000));
+  let tot=0;for(const[k,e]of[...VE.imgs.entries()].sort((a,b)=>b[1].used-a[1].used)){if(!e.ok)continue;tot+=e.bytes||0;const drop=hard?!used.has(k):(!used.has(k)&&(now-e.used>60000||(tot>VE_IMG_BUDGET&&now-e.used>4000)));
     if(drop){if(e.gif)gifFree(e.gif);else if(e.img&&e.img.getContext)e.img.width=e.img.height=0;VE.imgs.delete(k);tot-=e.bytes||0}}
   if(!VE.busy)VE.abufs.clear();if(hard&&typeof txtCache!=='undefined')txtCache.clear()}
 setInterval(()=>{if(VE.p&&!VE.busy)veMemTrim(false)},10000);

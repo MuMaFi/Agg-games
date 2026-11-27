@@ -163,7 +163,7 @@ function startAnim(){initAnim();if(AR&&!AN.running){AN.running=true;AN.last=0;an
 function anResize(){if(!AR)return;const r=AR.stage.getBoundingClientRect(),[fw,fh]=AN_FMT[AN.data.fmt].s[0],pad=r.width<600?8:18,aw=Math.max(40,r.width-pad*2),ah=Math.max(40,r.height-pad*2);
   let w=aw,h=aw*fh/fw;if(h>ah){h=ah;w=ah*fw/fh}w=Math.round(w);h=Math.round(h);
   Object.assign(AR.frame.style,{width:w+'px',height:h+'px',left:Math.round((r.width-w)/2)+'px',top:Math.round((r.height-h)/2)+'px'});if(typeof anGuide==='function')anGuide();
-  if(AN.rec)return;AR.renderer.setPixelRatio(Math.min(COARSE?1.5:2,window.devicePixelRatio||1));AR.renderer.setSize(w,h,false);AR.camera.aspect=fw/fh;AR.camera.updateProjectionMatrix();anFx()}
+  if(AN.rec)return;AR.renderer.setPixelRatio(Math.min(COARSE?1.5:2,window.devicePixelRatio||1,Math.sqrt(3.6e6/Math.max(1,w*h))));AR.renderer.setSize(w,h,false);AR.camera.aspect=fw/fh;AR.camera.updateProjectionMatrix();anFx()}
 
 /* Blöcke: ein Netz pro Blockart, verdeckte Seiten fallen weg, Ecken bekommen weiche Schatten (wie „Weiches Licht“) */
 const AN_FACES=[[0,1,[[1,1,1],[1,1,0],[1,0,1],[1,0,0]],1],[0,-1,[[0,1,0],[0,1,1],[0,0,0],[0,0,1]],1],[1,1,[[0,1,0],[1,1,0],[0,1,1],[1,1,1]],0],[1,-1,[[0,0,1],[1,0,1],[0,0,0],[1,0,0]],2],[2,1,[[0,1,1],[1,1,1],[0,0,1],[1,0,1]],3],[2,-1,[[1,1,0],[0,1,0],[1,0,0],[0,0,0]],1]];
@@ -417,7 +417,7 @@ function anPath(){AN.pathDirty=false;const K=AN.data.cam.keys,T=THREE,pts=[];
 function anLoop(now){if(view!=='anim'||!AR){AN.running=false;return}requestAnimationFrame(anLoop);
   const dt=AN.last?Math.min(.1,(now-AN.last)/1000):0;AN.last=now;
   if(AN.playing&&!AN.rec){if(AN.audT0!=null&&anAC)AN.t=AN.audT+Math.max(0,anAC.currentTime-AN.audT0);else AN.t+=dt;if(AN.t>=AN.data.dur){if(AN.loop){AN.t=0;anAudioStart()}else{AN.t=AN.data.dur;anStop()}}}
-  if(!AN.rec)anRender(now)}
+  if(!AN.rec&&liveFrame('an',now,AN.playing,AN.playing?Math.min(60,Math.max(24,AN.data.fps||30)):60))anRender(now)}
 function anRender(now){if(AN.pathDirty)anPath();anApplyActors();anApplyProps();anUpdCam(now);
   const cam=AR.camera;AR.sky.position.copy(cam.position);AR.stars.position.copy(cam.position);AR.sun.position.copy(cam.position).addScaledVector(anSunDir(),8000);
   AR.clouds.position.set(-AN.t*14,0,-AN.t*4);
@@ -741,7 +741,8 @@ function anRecDone(blob,ext){const ov=$('#an-rec'),url=URL.createObjectURL(blob)
   ov.querySelector('[data-c]').addEventListener('click',()=>{ov.hidden=true;v.pause();URL.revokeObjectURL(url)})}
 function anRecPrep(W,H){anStop();anSelect(AN.sel);AR.tc.detach();AR.tcm.detach();AR.renderer.setPixelRatio(1);AR.renderer.setSize(W,H,false)}
 /* Video Bild für Bild erzeugen (WebCodecs). Liefert ein MP4-Blob, null bei Abbruch; wirft bei Fehlern ({mix} = Ton da, aber kein Ton-Encoder) */
-async function anEncodeBlob(ui){const[W,H]=anSize(),cfg=await anCodec(W,H);if(!cfg)throw new Error('no_codec');
+async function anEncodeBlob(ui){rnBusy(true);try{return await anEncodeBlob0(ui)}finally{rnBusy(false)}}
+async function anEncodeBlob0(ui){const[W,H]=anSize(),cfg=await anCodec(W,H);if(!cfg)throw new Error('no_codec');
   const out=mk(W,H),x=out.getContext('2d'),fps=AN.data.fps||30,N=Math.max(1,Math.round(AN.data.dur*fps));let err=null;
   let mix=null,acod=null;if((AN.data.audio||[]).length){ui.prog(0,'Ton wird gemischt …');try{mix=await anMixAudio()}catch{mix=null}if(mix){acod=await anAudCodec();if(!acod){const e=new Error('no_audio_codec');e.mix=mix;throw e}}}
   try{if(typeof fontsReady==='function')await Promise.race([fontsReady((AN.data.ovl||[]).filter(o=>o.kind==='text').map(o=>o.font)),new Promise(r=>setTimeout(r,8000))])}catch{}

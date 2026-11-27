@@ -371,7 +371,16 @@ function flyKey(e,down){
   if(e.metaKey||e.ctrlKey||e.altKey)return;const t=e.target;if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable]'))return;
   const ctx=FLY_CTX.map(f=>f()).find(Boolean);if(!ctx)return;e.preventDefault();FLY.keys.add(e.code);
   if(!FLY.raf){FLY.ctx=ctx;FLY.last=performance.now();if(ctx.start)ctx.start();FLY.raf=requestAnimationFrame(flyStep)}}
-function flyStep(now){const ctx=FLY.ctx,k=FLY.keys,dt=Math.min(.05,(now-FLY.last)/1000);FLY.last=now;
+/* Nur zeichnen, wenn sich etwas tut: nach Eingaben 1,5 s volle Bildrate (höchstens 60/s), sonst etwa 3 Bilder pro Sekunde.
+   Spart Lüfter, Hitze und Akku, vor allem auf großen Bildschirmen. */
+const LIVE={until:0,last:{}};
+/* Mac-App: während Export/Untertiteln auch im Hintergrund volle Leistung, sonst darf das System drosseln */
+function rnBusy(b){try{if(window.rnNative&&rnNative.setBusy)rnNative.setBusy(!!b)}catch{}}
+function liveWake(ms){LIVE.until=Math.max(LIVE.until,performance.now()+(ms||1500))}
+for(const ev of['pointerdown','pointermove','pointerup','wheel','keydown','keyup','input','change','touchstart','touchmove','click','drop'])addEventListener(ev,()=>liveWake(),{capture:true,passive:true});
+addEventListener('resize',()=>liveWake());document.addEventListener('visibilitychange',()=>liveWake());
+function liveFrame(key,now,active,fps){const l=LIVE.last[key]||0;if(active||now<LIVE.until){if(now-l<1000/(fps||60)-2)return false;LIVE.last[key]=now;return true}if(now-l>=320){LIVE.last[key]=now;return true}return false}
+function flyStep(now){liveWake(400);const ctx=FLY.ctx,k=FLY.keys,dt=Math.min(.05,(now-FLY.last)/1000);FLY.last=now;
   if(!ctx||!FLY_CODES.some(c=>k.has(c))){FLY.raf=0;FLY.ctx=null;if(ctx&&ctx.end)ctx.end();return}
   const T=THREE,cam=ctx.camera,tg=ctx.controls.target,fw=new T.Vector3().subVectors(tg,cam.position),dist=fw.length();fw.y=0;if(fw.lengthSq()<1e-6)fw.set(0,0,-1);fw.normalize();
   const rt=new T.Vector3(-fw.z,0,fw.x),d=new T.Vector3();

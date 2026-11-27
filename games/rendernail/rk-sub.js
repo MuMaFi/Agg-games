@@ -35,7 +35,7 @@ function subStop(){if(SUB.worker){try{SUB.worker.terminate()}catch{}SUB.worker=n
 async function subCreate(o){if(VE.busy)return;const P=VE.p;veLayout();const D=veDur();
   const sel=veFind(VE.sel),clips=(o.only&&sel&&veHasAudio(sel)?[sel]:[...P.main,...P.over,...P.audio].filter(veHasAudio));
   if(!clips.length){toast('In diesem Video gibt es keinen Ton.');return}
-  const model=(SUB_MODELS.find(m=>m[0]===o.model)||SUB_MODELS[1])[2];VE.busy=true;vePause();const ui=veRecUI('Untertitel werden erstellt');let fail=null;
+  const model=(SUB_MODELS.find(m=>m[0]===o.model)||SUB_MODELS[1])[2];VE.busy=true;rnBusy(true);vePause();const ui=veRecUI('Untertitel werden erstellt');let fail=null;
   try{ui.prog(0,'Ton wird vorbereitet …');const a=await subAudio(clips,D);if(!a)throw new Error('noaudio');const segs=subSegments(a,16000);if(!segs.length)throw new Error('silent');
     const w=SUB.worker=subWorker();if(!w)throw new Error('worker');
     const ask=msg=>new Promise((ok,no)=>{const h=e=>{const m=e.data;if(m.type==='dl'){if(m.total)ui.prog(Math.min(1,m.loaded/m.total)*.15,'Sprachmodell wird geladen (nur beim ersten Mal) … '+Math.round(m.loaded/1048576)+' MB');return}
@@ -52,7 +52,7 @@ async function subCreate(o){if(VE.busy)return;const P=VE.p;veLayout();const D=ve
     for(const l of lines){const s=Math.max(0,l.s),e=Math.max(s+.3,Math.min(D,l.e));P.over.push({id:'c'+uid(),type:'text',sub:1,name:'Untertitel',in:0,out:e-s,speed:1,start:s,lane,x:.5,y,s:1,r:0,o:1,text:l.text,color2:st.color,grad:false,...st,ain:'none',aout:'none',adj:{b:0,c:0,s:0,w:0}})}
     VE.sel=null;veCommit();veAll();$('#ve-ov').hidden=true;toast(lines.length+' Untertitel erstellt. Du kannst sie links unter „Untertitel“ ändern.')}
   catch(e){fail=e}
-  subStop();VE.abufs.clear();VE.busy=false;
+  subStop();VE.abufs.clear();VE.busy=false;rnBusy(false);
   if(fail){$('#ve-ov').hidden=true;const m=String(fail.message||'');toast(m==='cancel'?'Abgebrochen.':m==='silent'||m==='nothing'?'Ich habe keine Sprache gefunden.':m==='noaudio'?'Der Ton konnte nicht gelesen werden.':/fetch|network|Failed to load|import/i.test(m)?'Das Sprachmodell konnte nicht geladen werden. Prüfe die Internetverbindung.':'Die Untertitel konnten nicht erstellt werden.')}}
 function subStyleAll(k){const st=(SUB_STYLES.find(s=>s[0]===k)||SUB_STYLES[0])[2];for(const c of VE.p.over)if(c.sub){delete c.glow;delete c.glc;Object.assign(c,st,{color2:st.color})}veCommit();veAll()}
 function subList(){veLayout();return VE.p.over.filter(c=>c.sub).sort((a,b)=>a._s-b._s)}
