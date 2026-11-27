@@ -25,7 +25,13 @@
     if((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0', 'Add', 'Subtract'].indexOf(e.key) >= 0) e.preventDefault();
   }, true);
 
-  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  /* Safari meldet einen Doppeltipp als dblclick und zoomt nur, wenn die
+     Seite ihn nicht selbst abfängt. Das Spiel braucht dblclick nirgends. */
+  addEventListener('dblclick', nein, fest);
+  document.addEventListener('dblclick', nein, fest);
+
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform + navigator.userAgent));
   if(!ios) return;
 
   /* Doppeltippen: touch-action reicht Safari nicht überall (Rezept- und
@@ -43,7 +49,7 @@
     const L = letzt;
     letzt = { t: jetzt, x: p.clientX, y: p.clientY };
     if(!L || feld(t)) return;
-    if(jetzt - L.t > 400 || Math.abs(p.clientX - L.x) > 48 || Math.abs(p.clientY - L.y) > 48) return;
+    if(jetzt - L.t > 500 || Math.abs(p.clientX - L.x) > 70 || Math.abs(p.clientY - L.y) > 70) return;
     if(!e.cancelable) return;
     e.preventDefault();
     letzt = null;                      // ein dritter Tipp beginnt neu
