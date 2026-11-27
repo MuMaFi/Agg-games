@@ -751,6 +751,16 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .ve-in{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:6px 8px;color:inherit;font:inherit}
 .ve-tabs button{padding:4px 5px;font-size:11.5px}
 .ve #ve-libbtn,.ve #ve-propbtn{display:none}
+.ve-tabs{display:grid;grid-template-columns:repeat(4,1fr)}.ve-tabs button{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ve-clip.t-fx{background:#7a3a52}.ve-lane.fx{background:rgba(255,120,160,.05)}
+.ve-fxgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ve-fxb{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 2px 7px;border:1px solid var(--line2);border-radius:6px;background:var(--panel);color:var(--fg);cursor:pointer;min-width:0}
+.ve-fxb:hover{border-color:#888}.ve-fxb .ic{font-size:20px;line-height:1}.ve-fxb .nm{font-size:10.5px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ve-sfx{display:grid;grid-template-columns:1fr 1fr;gap:5px}.ve-sfxrow{display:flex;gap:3px;min-width:0}.ve-sfxrow .btn:last-child{flex:1;min-width:0;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ve-sfxrow .icon{width:24px;flex:0 0 24px;padding:0;justify-content:center}.ve-sfxrow .btn:last-child{padding:0 6px;font-size:11.5px}
+#ve-safe[aria-pressed=true]{background:var(--sel,#555);color:#fff}.ve-recbtn{animation:verec 1.1s ease-in-out infinite}@keyframes verec{50%{opacity:.6}}
+.ve-stage.ve-max{position:fixed;inset:0;z-index:200}.ve-maxx{position:absolute;top:max(10px,env(safe-area-inset-top,0px));right:max(10px,env(safe-area-inset-right,0px));z-index:2;width:40px;height:40px;padding:0;border-radius:50%;justify-content:center}.ve-stage:fullscreen{background:#000}
+@media (prefers-reduced-motion:reduce){.ve-recbtn{animation:none}}
 @media (max-width:980px){.ve-main{grid-template-columns:minmax(0,1fr) 260px}.ve-lib{position:absolute;left:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:12px 0 30px -12px #000;transform:translateX(-102%);transition:transform .2s}.ve.lib-open .ve-lib{transform:none}.ve #ve-libbtn{display:inline-flex}}
 @media (max-width:680px){.ve-top{gap:2px;padding:6px}.ve-top .hstat{display:none}.ve-name{max-width:28vw;padding:6px 4px}.ve-top .btn{padding:0 8px}#ve-fit{display:none}.ve-time{white-space:nowrap;font-size:11px}.ve-main{grid-template-columns:minmax(0,1fr)}.ve-props{position:absolute;right:0;top:0;bottom:0;width:min(300px,86vw);z-index:8;box-shadow:-12px 0 30px -12px #000;transform:translateX(102%);transition:transform .2s}.ve.props-open .ve-props{transform:none}.ve #ve-propbtn{display:inline-flex}.ve-zoomlab{display:none}.ve-time{min-width:0}}
 </style>
@@ -1002,26 +1012,26 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
-<script src="lib/three.min.js?v=202611271023"></script>
-<script src="lib/OrbitControls.js?v=202611271023"></script>
-<script src="lib/TransformControls.js?v=202611271023"></script>
-<script src="lib/mp4-muxer.js?v=202611271023"></script>
-<script src="lib/pptxgen.bundle.js?v=202611271023"></script>
-<script src="rk-i18n.js?v=202611271023"></script>
-<script src="rk-core.js?v=202611271023"></script>
-<script src="rk-local.js?v=202611271023"></script>
-<script src="rk-assets.js?v=202611271023"></script>
-<script src="rk-pack.js?v=202611271023"></script>
-<script src="rk-editor.js?v=202611271023"></script>
-<script src="rk-studio.js?v=202611271023"></script>
-<script src="rk-figure.js?v=202611271023"></script>
-<script src="rk-slides.js?v=202611271023"></script>
-<script src="rk-anim.js?v=202611271023"></script>
-<script src="rk-animfx.js?v=202611271023"></script>
-<script src="rk-anim2d.js?v=202611271023"></script>
-<script src="rk-video.js?v=202611271023"></script>
-<script src="rk-app.js?v=202611271023"></script>
-<script src="rk-shell.js?v=202611271023"></script>
+<script src="lib/three.min.js?v=202611271200"></script>
+<script src="lib/OrbitControls.js?v=202611271200"></script>
+<script src="lib/TransformControls.js?v=202611271200"></script>
+<script src="lib/mp4-muxer.js?v=202611271200"></script>
+<script src="lib/pptxgen.bundle.js?v=202611271200"></script>
+<script src="rk-i18n.js?v=202611271200"></script>
+<script src="rk-core.js?v=202611271200"></script>
+<script src="rk-local.js?v=202611271200"></script>
+<script src="rk-assets.js?v=202611271200"></script>
+<script src="rk-pack.js?v=202611271200"></script>
+<script src="rk-editor.js?v=202611271200"></script>
+<script src="rk-studio.js?v=202611271200"></script>
+<script src="rk-figure.js?v=202611271200"></script>
+<script src="rk-slides.js?v=202611271200"></script>
+<script src="rk-anim.js?v=202611271200"></script>
+<script src="rk-animfx.js?v=202611271200"></script>
+<script src="rk-anim2d.js?v=202611271200"></script>
+<script src="rk-video.js?v=202611271200"></script>
+<script src="rk-app.js?v=202611271200"></script>
+<script src="rk-shell.js?v=202611271200"></script>
 
 </body>
 </html>
