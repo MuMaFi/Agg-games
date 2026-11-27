@@ -116,15 +116,18 @@ function route(){
   const h=location.hash.slice(1);let v;
   if(h==='renders')v='studio';
   else if(h==='animation')v='anim';
+  else if(h==='video')v='video';
   else if(h==='editor'){if(!ED.p){const id=store.get('rk-current',null),d=id&&PROJECTS.get(id);if(d)openProject(d)}v=ED.p?'editor':'home'}
   else if(['neu','beliebt','meistgeladen'].includes(h))v='gallery';
   else v='home';
   if(view==='editor'&&v!=='editor'&&saveT)saveNow();
   view=v;
-  for(const[id,n]of[['v-studio','studio'],['v-anim','anim'],['v-home','home'],['v-editor','editor'],['v-gallery','gallery']])$('#'+id).hidden=n!==v;
+  for(const[id,n]of[['v-studio','studio'],['v-anim','anim'],['v-home','home'],['v-editor','editor'],['v-gallery','gallery'],['v-video','video']])$('#'+id).hidden=n!==v;
   document.querySelectorAll('.nav a').forEach(a=>{const on=a.dataset.r===v||(a.dataset.r==='home'&&v==='editor');if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
   if(v!=='editor')setSave('');
   if(v==='studio')startStudio();
+  if(v!=='video'&&typeof vePause==='function')vePause();
+  if(v==='video')veStart();
   if(v==='anim'){startAnim();if(typeof anHome==='function'&&AN.ready)anHome(true)}
   if(v==='home')renderHome();
   if(v==='gallery'){gstate.sort=['neu','beliebt','meistgeladen'].includes(h)?h:'neu';gstate.shown=12;draw()}
