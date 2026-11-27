@@ -374,7 +374,8 @@ MOBS.wither = {
    Gebaut in Blockgröße, gezeichnet viereinhalbmal so groß wie beim Vorbild. */
 MOBS.ghast = {
   name:'Ghast', w:4, h:4, health:10, speed:1.4, hostile:true, dmg:0, laut:'ghast', feuerfest:true, schwebt:true, skala:4.5,
-  beute: () => [[ITEM.string, zufallN(0, 2)]],
+  // wie beim Vorbild: Schwarzpulver (daraus wird TNT)
+  beute: () => [[ITEM.string, zufallN(0, 2)], [ITEM.schwarzpulver, zufallN(0, 2)]],
   parts: [{ n:'body', box:[-0.5, -0.1, -0.5, 1, 1, 1], tex:'m_skelett', face:'m_skelett_face' }]
     .concat([0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => {
       const x = ((i % 3) - ((i/3 | 0) % 2)*0.5 + 0.25)/2*2 - 1, z = (i/3 | 0)/2*2 - 1, l = [8, 13, 9, 11, 11, 10, 12, 9, 12][i]/16;
@@ -543,7 +544,7 @@ const RUEST_FARBE = [[0.74,0.5,0.32], [0.97,0.97,1.0], [1.18,0.92,0.32], [0.5,1.
    Spielers, die im Boden stecken, kann man wieder aufheben. Ein Ei (ei)
    zerbricht, wo es auftrifft. */
 /** wird geworfen statt benutzt: Ei und Enderperle */
-const istWurf = id => id === ITEM.egg || id === ITEM.enderperle;
+const istWurf = id => id === ITEM.egg || id === ITEM.enderperle || id === ITEM.windkugel;
 class Pfeil{
   constructor(x, y, z, vx, vy, vz, dmg, vomSpieler, ei, feuer){
     this.x = x; this.y = y; this.z = z; this.vx = vx; this.vy = vy; this.vz = vz;

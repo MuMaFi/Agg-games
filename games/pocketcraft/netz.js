@@ -856,9 +856,9 @@ const Netz = {
       }
       if(alt === id) return;
       if(alt >= 0 && this._toene > 0 && w === Game.world) this.bauKlang(alt, id, x, y, z);
-      if(alt === B.CHEST && id !== B.CHEST) w.chests.delete(k);
+      if(behaelterGroesse(alt) && behaelterGroesse(alt) !== behaelterGroesse(id)) w.chests.delete(k);
       if((alt === B.FURNACE || alt === B.FURNACE_LIT) && id !== B.FURNACE && id !== B.FURNACE_LIT) w.furnaces.delete(k);
-      if(id === B.CHEST && !w.chests.has(k)) w.chests.set(k, new Array(27).fill(null));
+      if(behaelterGroesse(id) && !w.chests.has(k)) w.chests.set(k, new Array(behaelterGroesse(id)).fill(null));
       if((id === B.FURNACE || id === B.FURNACE_LIT) && !w.furnaces.has(k))
         w.furnaces.set(k, { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x, y, z });
       if(isWheat(id)){ if(!w.crops.has(k)) w.crops.set(k, { t:0 }); }
@@ -906,10 +906,10 @@ const Netz = {
   truheEmpfangen(m, von){
     const d = [0, 1, 2].includes(m.d) ? m.d : 0, w = Game.welt(this.dimVon(d)), k = String(m.k);
     let t = w.chests.get(k);
-    if(!t){ t = new Array(27).fill(null); w.chests.set(k, t); }
-    // an Ort und Stelle ändern: Ist die Truhe gerade offen, hängt die Anzeige an genau diesem Feld
     const s = Array.isArray(m.s) ? m.s : [];
-    for(let i = 0; i < 27; i++) t[i] = stapelLang(s[i]);
+    if(!t){ t = new Array(clamp(s.length, 1, 27)).fill(null); w.chests.set(k, t); }
+    // an Ort und Stelle ändern: Ist die Truhe gerade offen, hängt die Anzeige an genau diesem Feld
+    for(let i = 0; i < t.length; i++) t[i] = stapelLang(s[i]);
     if(w !== Game.world) { if(this.istHost) this.anAlle({ t:'truhe', k, s: t.map(stapelKurz), d }, von); return; }
     this._behSig[k] = JSON.stringify(t.map(stapelKurz));
     if(this.istHost) this.anAlle({ t:'truhe', k, s: t.map(stapelKurz), d }, von);

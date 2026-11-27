@@ -80,6 +80,7 @@ const Game = {
       for(const g of Netz.gaeste.values())
         if(g.bereit && !g.tot && drin({ x: g.x, y: g.y, z: g.z, w: 0.6, h: 1.8 })) Befehle.an({ ich: false, g }, 'schub', { dx, dy, dz });
     };
+    this.mehrEinrichten(w);              // TNT, Notenblock, Spender, Trichter, Tageslicht (mehr.js)
     w.setBlock = (x, y, z, id, noSave) => {
       const vorher = w.getBlock(x, y, z);
       const ok = setzen(x, y, z, id, noSave);
@@ -385,6 +386,7 @@ const Game = {
     if(d === this.dim || !Netz.bereiteGaeste().some(g => (g.dim || 'oben') === d)) continue;
     this.inDim(d, () => {
       this.updateMobs(dt); this.updateDrops(dt); this.updatePfeile(dt);
+      if(this.world.tnts && this.world.tnts.length) this.tntTick(this.world, dt);
       this.tickFurnaces(dt); this.tickFelder(dt); this.spawnMobs(dt); this.feuerBrennt(dt); if(d === 'oben') this.dorfLeben(dt);
       this.wasser.tick(dt); this.schaltung.tick(dt); this.wolkenTick(dt);
       this._pruefAndere = (this._pruefAndere || 0) - dt;
@@ -743,8 +745,9 @@ const Game = {
       const f = w.furnaces.get(k);
       if(f){ inhalt.push(f.in, f.fuel, f.out); w.furnaces.delete(k); }
     }
-    if(id === B.CHEST){ const t = w.chests.get(k); if(t) inhalt.push(...t); w.chests.delete(k); }
+    if(behaelterGroesse(id)){ const t = w.chests.get(k); if(t) inhalt.push(...t); w.chests.delete(k); }
     if(id === B.JUKEBOX_VOLL) inhalt.push(Inv.make(ITEM.platte, 1));
+    if(!Netz.istGast) w.schaltung.vibration(x, y, z);
     for(const st of inhalt) if(st) this.dropItem(st.id, st.n, x+.5, y+.5, z+.5, st.dur);
     if(isWheat(id)) w.crops.delete(k);
     w.setBlock(x,y,z,B.AIR);
@@ -800,14 +803,19 @@ const Game = {
     if(!t){
       // ins Leere: ein Ei fliegt trotzdem, und Wasser schöpft man auch, wenn dahinter nichts in Reichweite ist
       const h = Inv.held();
-      if(h && istWurf(h.id)) this.eiWerfen();
+      if(h && istScheibe(h.id)) this.scheibeWerfen();
+      else if(h && istWurf(h.id)) this.eiWerfen();
       else if(h && h.id === ITEM.enderauge) this.augeWerfen();
       else if(h && h.id === ITEM.bucket) this.schoepfen();
       return;
     }
     const id = w.getBlock(t.x,t.y,t.z), k = t.x+','+t.y+','+t.z;
     const s = Inv.held(), it = s ? items[s.id] : null;
-    if(s && s.id === ITEM.feuerzeug){ this.zuenden(t); return; }
+    if(s && istScheibe(s.id)){ this.scheibeWerfen(); return; }
+    if(s && s.id === ITEM.feuerzeug){
+      if(id === B.TNT){ this.tntZuenden(w, t.x, t.y, t.z, TNT_ZUENDER); if(!p.creative) Inv.damageHeld(1); p.swinging = true; p.swing = 0; HUD.refreshHotbar(); return; }
+      this.zuenden(t); return;
+    }
     // Enderauge: in einen Rahmen setzen — sonst werfen, es zeigt den Weg zur Endfestung
     if(s && s.id === ITEM.enderauge){ if(id === B.ENDRAHMEN) this.augeEinsetzen(t.x, t.y, t.z); else this.augeWerfen(); return; }
     // Benutzbare Blöcke — geduckt baut man stattdessen daran
@@ -826,11 +834,45 @@ const Game = {
         if(!w.furnaces.has(k)) w.furnaces.set(k, { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x:t.x, y:t.y, z:t.z });
         Screens.oeffne('ofen', k); return;
       }
-      if(id === B.CHEST){
-        if(!w.chests.has(k)) w.chests.set(k, new Array(27).fill(null));
-        Screens.oeffne('truhe', k); Sfx.play('truhe_auf', t.x + .5, t.y + .5, t.z + .5); return;
+      // Truhen, Spender, Werfer, Trichter: ihre Fächer
+      if(behaelterGroesse(id)){
+        if(!w.chests.has(k)) w.chests.set(k, new Array(behaelterGroesse(id)).fill(null));
+        Screens.oeffne('truhe', k);
+        if(id === B.CHEST || isFallentruhe(id)) Sfx.play('truhe_auf', t.x + .5, t.y + .5, t.z + .5);
+        if(id === B.FALLENTRUHE) w.setBlock(t.x, t.y, t.z, B.FALLENTRUHE + 1);       // gibt Strom, solange sie offen ist
+        return;
       }
-      if(isDoor(id)){ this.tuerSchalten(t.x, t.y, t.z); return; }
+      if(isDoor(id)){
+        if(isEisentuer(id)){ hint('Eine Eisentür geht nur mit Redstone auf'); return; }
+        this.tuerSchalten(t.x, t.y, t.z); return;
+      }
+      if(isFalltuer(id)){
+        if(isEisenfalltuer(id)){ hint('Eine Eisenfalltür geht nur mit Redstone auf'); return; }
+        const f = falltuerInfo(id);
+        w.setBlock(t.x, t.y, t.z, falltuerId(B.FALLTUER, f.seite, !f.offen, f.oben));
+        Sfx.play(f.offen ? 'tuer_zu' : 'tuer_auf', t.x + .5, t.y + .5, t.z + .5);
+        p.swinging = true; p.swing = 0;
+        return;
+      }
+      // Notenblock: jeder Klick einen Halbton höher (nach 24 wieder von vorn), und man hört ihn
+      if(isNotenblock(id)){
+        const ton = (id - B.NOTENBLOCK + 1) % 25;
+        w.setBlock(t.x, t.y, t.z, B.NOTENBLOCK + ton);
+        this.noteSpielen(w, t.x, t.y, t.z, ton);
+        p.swinging = true; p.swing = 0;
+        return;
+      }
+      // Tageslichtsensor umkehren, Komparator zwischen Vergleichen und Subtrahieren umschalten
+      if(isTagessensor(id)){
+        w.setBlock(t.x, t.y, t.z, tagId(tagAn(id), !tagUmgekehrt(id)));
+        Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5); p.swinging = true; p.swing = 0;
+        return;
+      }
+      if(isKomparator(id)){
+        w.setBlock(t.x, t.y, t.z, kompId(kompRichtung(id), !kompMinus(id), kompAn(id)));
+        Sfx.play(kompMinus(id) ? 'rs_aus' : 'rs_an', t.x + .5, t.y + .5, t.z + .5); p.swinging = true; p.swing = 0;
+        return;
+      }
       // Hebel umlegen, Knopf drücken (springt nach einer Sekunde von selbst heraus)
       if(isHebel(id)){
         const an = !rsAn(id);
@@ -840,7 +882,7 @@ const Game = {
         return;
       }
       if(isKnopf(id)){
-        if(!rsAn(id)){ w.setBlock(t.x, t.y, t.z, knopfId(true, rsAnbau(id))); Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5); }
+        if(!rsAn(id)){ w.setBlock(t.x, t.y, t.z, knopfUm(id, true)); Sfx.play('rs_an', t.x + .5, t.y + .5, t.z + .5); }
         p.swinging = true; p.swing = 0;
         return;
       }
@@ -916,6 +958,7 @@ const Game = {
       Sfx.play('platsch', bx + .5, by + .5, bz + .5); schwing();
       return;
     }
+    if(s.id === ITEM.lava_bucket){ this.lavaGiessen(t); return; }
     // Redstone: auf festen Boden gestreut wird eine Leitung daraus
     if(s.id === ITEM.redstone){
       let bx = t.x + t.nx, by = t.y + t.ny, bz = t.z + t.nz;
@@ -957,17 +1000,35 @@ const Game = {
       setzId = ladderId(SEITE.findIndex(([a, b]) => a === -t.nx && b === -t.nz));
     }
     // Redstonefackel, Hebel, Knopf: auf den Boden oder an die Wand, je nachdem, wohin man zielt
-    if(s.id === B.RS_FACKEL || s.id === B.HEBEL || s.id === B.KNOPF){
+    if(s.id === B.RS_FACKEL || s.id === B.HEBEL || s.id === B.KNOPF || s.id === B.HOLZKNOPF){
       let a = 0;
       if(t.ny === 0 && isOpaqueCube(id) && bx === t.x + t.nx && bz === t.z + t.nz && by === t.y)
         a = 1 + SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz);
       else if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint(nameOf(s.id) + ' gehört auf festen Boden oder an eine Wand'); return; }
-      setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a);
+      setzId = s.id === B.RS_FACKEL ? rsFackel(true, a) : s.id === B.HEBEL ? hebelId(false, a) : knopfId(false, a, s.id === B.HOLZKNOPF);
     }
     // Fackel: an die Wand, wenn man auf die Seite eines Blocks zielt — sonst auf den Boden
     if(s.id === B.TORCH && t.ny === 0 && isOpaqueCube(id) && bx === t.x + t.nx && bz === t.z + t.nz && by === t.y)
       setzId = fackelWand(SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz));
-    if(s.id === B.DRUCKPLATTE && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
+    if(isPlatte(s.id) && !blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Eine Druckplatte braucht festen Boden'); return; }
+    // Beobachter: das Gesicht schaut dorthin, wohin man blickt; Spender und Werfer schauen einen an
+    if(isBeobachter(s.id)) setzId = beobId(richtungZumSpieler(p.forward()) ^ 1, false);
+    if(isSpender(s.id) || isWerfer(s.id)) setzId = auswurfId(auswurfBasis(s.id), richtungZumSpieler(p.forward()), false);
+    // Trichter: an die Seite eines Blocks gesetzt, gibt er in diesen Block ab, sonst nach unten
+    if(isTrichter(s.id)) setzId = t.ny === 0 ? B.TRICHTER + 1 + SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz) : B.TRICHTER;
+    // Komparator: wie der Verstärker, der Ausgang zeigt vom Spieler weg
+    if(isKomparator(s.id)){
+      if(!blocksMovement(w.getBlock(bx, by - 1, bz))){ hint('Ein Komparator braucht festen Boden'); return; }
+      const f = p.forward();
+      setzId = kompId(Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3), false, false);
+    }
+    // Falltür: an einer Wand klappt sie zur Wand auf; oben oder unten im Block, je nachdem, wohin man zielt
+    if(isFalltuer(s.id)){
+      const f = p.forward(), hy = p.eyeY() + f[1]*t.t;
+      const seite = t.ny === 0 ? SEITE.findIndex(([sx, sz]) => sx === -t.nx && sz === -t.nz)
+        : (Math.abs(f[0]) > Math.abs(f[2]) ? (f[0] > 0 ? 0 : 1) : (f[2] > 0 ? 2 : 3));
+      setzId = falltuerId(falltuerBasis(s.id), seite, false, t.ny < 0 || (t.ny === 0 && hy - Math.floor(hy) > 0.5));
+    }
     // Treppen steigen vom Spieler weg an; an einer Decke oder der oberen Hälfte
     // einer Wand gesetzt, hängen sie umgedreht — wie beim Vorbild
     if(isTreppe(s.id)){
@@ -997,7 +1058,8 @@ const Game = {
       const f = p.forward(), ax = Math.abs(f[0]), ay = Math.abs(f[1]), az = Math.abs(f[2]);
       setzId = kolbenId(s.id === B.KLEBKOLBEN, false, ay > ax && ay > az ? (f[1] > 0 ? 1 : 0) : ax > az ? (f[0] > 0 ? 3 : 2) : (f[2] > 0 ? 5 : 4));
     }
-    if(s.id === B.DOOR){
+    if(s.id === B.DOOR || s.id === B.EISENTUER){
+      const basis = s.id;
       if(!blocksMovement(w.getBlock(bx,by-1,bz))){ hint('Eine Tür braucht festen Boden'); return; }
       const ob = w.getBlock(bx,by+1,bz);
       if(ob !== B.AIR && !(blocks[ob] && blocks[ob].replaceable)){ hint('Eine Tür ist zwei Blöcke hoch'); return; }
@@ -1005,11 +1067,11 @@ const Game = {
       const dx = p.x - (bx+.5), dz = p.z - (bz+.5);
       const nah = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 0 : 1) : (dz > 0 ? 2 : 3);
       const fern = nah ^ 1;
-      const seite = [nah, fern].find(q => !this.belegt(bx,by,bz,doorId(0,0,q)) && !this.belegt(bx,by+1,bz,doorId(1,0,q)));
+      const seite = [nah, fern].find(q => !this.belegt(bx,by,bz,doorId(0,0,q,basis)) && !this.belegt(bx,by+1,bz,doorId(1,0,q,basis)));
       if(seite === undefined){ hint('Geh erst aus dem Weg'); return; }
-      w.setBlock(bx,by,bz,doorId(0,0,seite)); w.setBlock(bx,by+1,bz,doorId(1,0,seite));
+      w.setBlock(bx,by,bz,doorId(0,0,seite,basis)); w.setBlock(bx,by+1,bz,doorId(1,0,seite,basis));
       if(!p.creative) Inv.consumeHeld();
-      Sfx.block('setzen', B.DOOR, bx, by, bz); schwing();
+      Sfx.block('setzen', basis, bx, by, bz); schwing();
       return;
     }
     // Bett: wie beim Vorbild zwei Blöcke in Blickrichtung — hier das Fußteil (mit der Farbe), dahinter das Kopfteil
@@ -1034,7 +1096,8 @@ const Game = {
       if(!p.creative) Inv.consumeHeld();
       const k2 = bx+','+by+','+bz;
       if(s.id === B.FURNACE) w.furnaces.set(k2, { in:null, fuel:null, out:null, burn:0, burnMax:0, cook:0, x:bx, y:by, z:bz });
-      if(s.id === B.CHEST) w.chests.set(k2, new Array(27).fill(null));
+      if(behaelterGroesse(setzId)) w.chests.set(k2, new Array(behaelterGroesse(setzId)).fill(null));
+      if(!Netz.istGast) w.schaltung.vibration(bx, by, bz);
       // Acker unter einem festen Block wird wieder Erde
       if(bd.solid && w.getBlock(bx,by-1,bz) === B.FARMLAND) w.setBlock(bx,by-1,bz,B.DIRT);
       Sfx.block('setzen', setzId, bx, by, bz); schwing();
@@ -1044,9 +1107,10 @@ const Game = {
   schoepfen(){
     const w = this.world, p = this.player, f = p.forward();
     const r = w.raycast(p.x, p.eyeY(), p.z, f[0], f[1], f[2], 5, 'quelle');
-    if(!r.hit || r.id !== B.WATER) return false;
+    if(!r.hit || (r.id !== B.WATER && r.id !== B.LAVA)) return false;
+    const voll = r.id === B.LAVA ? ITEM.lava_bucket : ITEM.water_bucket;
     w.setBlock(r.x, r.y, r.z, B.AIR);
-    if(!p.creative){ Inv.consumeHeld(); const rest = Inv.add(ITEM.water_bucket, 1); if(rest) this.dropItem(ITEM.water_bucket, 1, p.x, p.y+1, p.z); }
+    if(!p.creative){ Inv.consumeHeld(); const rest = Inv.add(voll, 1); if(rest) this.dropItem(voll, 1, p.x, p.y+1, p.z); }
     Sfx.play('platsch', r.x + .5, r.y + .5, r.z + .5);
     p.swinging = true; p.swing = 0; HUD.refreshHotbar();
     return true;
@@ -1060,7 +1124,7 @@ const Game = {
     const w = this.world, di = doorInfo(w.getBlock(x,y0,z));
     if(di.offen === offen) return true;
     const neuSeite = di.offen ? DOOR_AUF.indexOf(di.seite) : DOOR_AUF[di.seite];
-    const unten = doorId(0, offen, neuSeite), oben = doorId(1, offen, neuSeite);
+    const unten = doorId(0, offen, neuSeite, di.basis), oben = doorId(1, offen, neuSeite, di.basis);
     if(this.belegt(x,y0,z,unten) || this.belegt(x,y0+1,z,oben)) return false;
     w.setBlock(x,y0,z,unten);
     if(isDoor(w.getBlock(x,y0+1,z))) w.setBlock(x,y0+1,z,oben);
@@ -1222,12 +1286,18 @@ const Game = {
         return true;
       }
     }
-    const best = this.wesenImBlick(3.4, true);
+    const h0 = Inv.held(), speer = h0 && istSpeer(h0.id);
+    const best = this.wesenImBlick(speer ? SPEER_REICH : 3.4, true);
     if(!best){ if(!this.targetBlock()) this.angriffT = 0; return false; }
     const p = this.player, s = Inv.held(), it = s && items[s.id];
     const lade = this.angriffLadung(), voll = lade > 0.9;
     this.angriffT = 0;
     let dmg = (it ? it.dmg : 1)*(0.2 + lade*lade*0.8);
+    // Streitkolben aus dem Fall: je tiefer, desto härter — und der Fall zählt nicht mehr
+    if(it && it.tool === 'streitkolben' && p.fallFrom !== null && !p.onGround){
+      const fall = p.fallFrom - p.y;
+      if(fall > 1.5){ dmg += this.kolbenBonus(fall); this.kolbenSchmettern(best, fall); }
+    }
     const krit = voll && !p.onGround && p.vy < 0 && !p.inWater && !p.flying && !Input.sprint;
     if(krit) dmg *= 1.5;
     const sprintStoss = voll && Input.sprint;
@@ -1521,8 +1591,10 @@ const Game = {
 
   /* ── Bogen und Pfeile ────────────────────────────────────────────── */
   hatPfeile(){ return this.player.creative || Inv.countOf(ITEM.arrow) > 0; },
-  bogenStart(){
+  bogenStart(vonSchlag){
     const s = Inv.held();
+    // mit dem Speer: Halten ist ein Sturmangriff (mehr.js)
+    if(s && istSpeer(s.id) && !this.bett) return this.speerStart(vonSchlag);
     if(!s || s.id !== ITEM.bow || this.bett) return false;
     if(!this.hatPfeile()){ hint('Keine Pfeile'); return true; }
     this.bogen.aktiv = true; this.bogen.t = 0;
@@ -1531,6 +1603,7 @@ const Game = {
   bogenLos(){
     const b = this.bogen;
     if(!b.aktiv) return;
+    if(b.speer){ this.speerLos(); return; }
     b.aktiv = false;
     const s = Inv.held();
     if(!s || s.id !== ITEM.bow || b.t < 0.12 || !this.hatPfeile()) return;
@@ -1549,14 +1622,15 @@ const Game = {
   eiWerfen(){
     const s = Inv.held();
     if(!s || !istWurf(s.id)) return false;
-    const perle = s.id === ITEM.enderperle, jetzt = performance.now();
-    if(jetzt - (this._wurfT || 0) < (perle || this._perleT ? 1000 : 250)) return true;
+    const perle = s.id === ITEM.enderperle, wind = s.id === ITEM.windkugel, jetzt = performance.now();
+    if(jetzt - (this._wurfT || 0) < (perle || this._perleT ? 1000 : wind ? 500 : 250)) return true;
     this._wurfT = jetzt; this._perleT = perle;
-    const p = this.player, f = p.forward(), v = 20;
-    const ei = new Pfeil(p.x + f[0]*0.4, p.eyeY() - 0.1 + f[1]*0.4, p.z + f[2]*0.4, f[0]*v, f[1]*v + 1.5, f[2]*v, 0, true, true);
-    ei.perle = perle;
+    // die Windkugel fliegt gerade, ohne zu fallen
+    const p = this.player, f = p.forward(), v = wind ? 26 : 20;
+    const ei = new Pfeil(p.x + f[0]*0.4, p.eyeY() - 0.1 + f[1]*0.4, p.z + f[2]*0.4, f[0]*v, f[1]*v + (wind ? 0 : 1.5), f[2]*v, wind ? 1 : 0, true, true);
+    ei.perle = perle; ei.wind = wind;
     this.pfeile.push(ei);
-    if(!perle) Netz.pfeilSenden(ei, true);
+    if(!perle && !wind) Netz.pfeilSenden(ei, true);
     if(!p.creative) Inv.consumeHeld();
     Sfx.play('werfen');
     p.swinging = true; p.swing = 0; HUD.refreshHotbar();
@@ -1567,6 +1641,7 @@ const Game = {
       1 zu 32 gleich vier. */
   eiZerbricht(a, x, y, z){
     if(a.perle){ this.perleLandet(a, x, y, z); return; }
+    if(a.wind){ this.windStoss(x, y, z); return; }
     Sfx.play('ei_kaputt', x, y, z);
     for(let k = 0; k < 8; k++)
       this.partikel.push({ x, y, z, t: 0, tex: k < 5 ? 'p_schale' : 'p_dotter', gr: 0.06 + Math.random()*0.05, dauer: 0.6 + Math.random()*0.35,
@@ -1637,6 +1712,7 @@ const Game = {
       a.alter += dt;
       if(a.weg || a.alter > 40){ this.pfeile.splice(i, 1); continue; }
       if(a.auge){ if(this.augeFliegt(a, dt)) this.pfeile.splice(i, 1); continue; }
+      if(a.scheibe){ if(this.scheibeFliegt(a, dt)) this.pfeile.splice(i, 1); continue; }
       if(a.steckt){
         // Pfeile des Spielers aufheben, sobald man nah ist; fremde verschwinden bald
         if(a.vomSpieler && !p.creative && Math.hypot(p.x - a.x, p.y + 0.9 - a.y, p.z - a.z) < 1.6){
@@ -1645,7 +1721,7 @@ const Game = {
         if(!a.vomSpieler && a.alter > 6) this.pfeile.splice(i, 1);
         continue;
       }
-      if(!a.feuer){
+      if(!a.feuer && !a.wind){
         a.vy -= (a.ei ? 12 : 20)*dt;
         const k = Math.pow(0.99, dt*60); a.vx *= k; a.vy *= k; a.vz *= k;
       }
@@ -1654,7 +1730,10 @@ const Game = {
       for(let j = 0; j < n && !a.steckt && !a.weg; j++){
         const ox = a.x, oy = a.y, oz = a.z;
         a.x += a.vx*dt/n; a.y += a.vy*dt/n; a.z += a.vz*dt/n;
-        if(blocksMovement(w.getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z)))){
+        const hid = w.getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z));
+        if(blocksMovement(hid)){
+          // ein Zielblock gibt kurz Strom, wenn etwas ihn trifft
+          if(hid === B.ZIELBLOCK && !Netz.istGast) w.schaltung.zielTreffer(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z));
           if(a.feuer){ a.weg = true; this.feuerkugelPlatzt(a); break; }
           if(a.ei){ a.weg = true; this.eiZerbricht(a, ox, oy, oz); break; }
           a.steckt = true; a.alter = 0; Sfx.play('pfeil', a.x, a.y, a.z); break;
@@ -2769,7 +2848,9 @@ const Game = {
         else p.vy = Math.max(p.vy, -2.4);
       }
 
-      const wasAir = !p.onGround;
+      const wasAir = !p.onGround, vyVorher = p.vy;
+      // auf Honig kommt man nur langsam voran
+      if(p.onGround && w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.05), Math.floor(p.z)) === B.HONIGBLOCK) speed *= 0.4;
       const res = moveAABB(w, p, (wx*speed + p.vx)*dt, p.vy*dt, (wz*speed + p.vz)*dt);
       // eine Stufe hinauf: der Blick folgt weich statt mit einem Ruck
       if(res.gestiegen) p.stufeGlatt = Math.max(-0.6, (p.stufeGlatt || 0) - res.gestiegen);
@@ -2783,8 +2864,14 @@ const Game = {
         if(blocksMovement(w.getBlock(tx,y0,tz)) && !blocksMovement(w.getBlock(tx,y0+1,tz))
            && !blocksMovement(w.getBlock(tx,y0+2,tz))) p.vy = 8.6;
       }
+      // Schleim federt (wer sich duckt, nicht), Honig fängt den Fall weich ab
+      const unterFuss = p.onGround ? w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.05), Math.floor(p.z)) : B.AIR;
+      if(p.onGround && wasAir && unterFuss === B.SCHLEIMBLOCK && !p.sneaking){
+        p.fallFrom = null;
+        if(vyVorher < -2.5){ p.vy = -vyVorher*0.85; p.onGround = false; Sfx.wesen({ type:'slime', x:p.x, y:p.y, z:p.z, h:0.5, kind:0, def:{} }, 'landen'); }
+      }
       if(p.onGround && wasAir && p.fallFrom !== null){
-        const fall = p.fallFrom - p.y;
+        const fall = (p.fallFrom - p.y)*(unterFuss === B.HONIGBLOCK ? 0.2 : 1);
         if(fall > 3 && !p.inWater && !p.creative){
           const dmg = Math.ceil(fall - 3 - 1e-6);                 // wie beim Vorbild: jeder angefangene Block über drei
           if(dmg > 0){ p.hurt(dmg, 'Du bist zu tief gefallen'); this.hurtFlash = 1; Sfx.play('hurt'); this.camShake = 0.16; }
@@ -2801,6 +2888,8 @@ const Game = {
         // der Block unter den Füßen gibt den Klang; geduckt leiser
         const unten = w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.2), Math.floor(p.z));
         Sfx.block('schritt', feetId === B.SCHNEEDECKE ? feetId : (unten !== B.AIR ? unten : feetId), undefined, undefined, undefined, p.sneaking ? .45 : 1);
+        // Schritte erschüttern den Boden — wer sich duckt, schleicht an Skulk-Sensoren vorbei
+        if(!p.sneaking && !Netz.istGast) w.schaltung.vibration(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
         if(input.sprint) p.addExhaustion(0.137); }             // ein Schritt ≈ 1,37 Blöcke; Sprinten 0,1 je Block, Gehen nichts
     } else this._lastStep = p.bob;
     if(p.inWater && !p.onGround && (Math.abs(wx)+Math.abs(wz)) > 0.05){
@@ -2939,7 +3028,7 @@ const Input = {
       werfT = setTimeout(weiter, 420);
     }, () => { clearTimeout(werfT); werfT = null; });
     // SCHLAG: mit dem Bogen in der Hand spannt Halten, Loslassen schießt
-    hold('#btnAttack', () => { if(Game.bogenStart()) return;
+    hold('#btnAttack', () => { if(Game.bogenStart(true)) return;
                                this.attackHeld = true; if(!Game.attack()) this.digging = true; Game.player.swinging = true; Game.player.swing = 0; },
                        () => { if(Game.bogen.aktiv) Game.bogenLos(); this.attackHeld = false; this.digging = false; });
     hold('#btnMode', () => Game.eat());
@@ -3079,7 +3168,7 @@ const Input = {
         // Tippen: erst Schere oder Eimer an einem Tier, dann Schlag, dann Block.
         // Mit einem Ei in der Hand wird geworfen statt geschlagen.
         const h = Inv.held();
-        if(h && istWurf(h.id)){ if(!Game.benutzeWesen()) Game.useAt(Game.targetBlock()); }
+        if(h && (istWurf(h.id) || istScheibe(h.id))){ if(!Game.benutzeWesen()) Game.useAt(Game.targetBlock()); }
         else if(!Game.benutzeWesen(true) && !Game.attack()) Game.useAt(Game.targetBlock());
         Game.player.swinging = true; Game.player.swing = 0;
       }
@@ -3198,6 +3287,7 @@ function frame(now){
     if(Netz.istGast) Netz.wesenNachziehen(dt); else Game.updateMobs(dt);
     Game.updateDrops(dt);
     Game.updatePfeile(dt);
+    Game.mehrTick(dt);
     for(let i = Game.partikel.length - 1; i >= 0; i--){
       const q = Game.partikel[i]; q.t += dt;
       if(q.fall){
@@ -3212,7 +3302,7 @@ function frame(now){
     }
     if(Game.bogen.aktiv){
       const s = Inv.held();
-      if(!s || s.id !== ITEM.bow) Game.bogen.aktiv = false; else Game.bogen.t = Math.min(1.2, Game.bogen.t + dt);
+      if(!s || (s.id !== ITEM.bow && !(Game.bogen.speer && istSpeer(s.id)))) Game.bogen.aktiv = false; else Game.bogen.t = Math.min(1.2, Game.bogen.t + dt);
     }
     if(!Netz.istGast){
       Game.tickFurnaces(dt);
@@ -3307,7 +3397,7 @@ function handleDigging(dt){
      && performance.now() - Input.holdStart > 280 && Input.holdMoved < 26){
     Input.touchDig = true; Input.pendingTap = false;
     const s = Inv.held();
-    if(s && s.id === ITEM.bow) Game.bogenStart();       // mit dem Bogen: Halten spannt statt abzubauen
+    if(s && (s.id === ITEM.bow || istSpeer(s.id))) Game.bogenStart();       // mit dem Bogen: Halten spannt statt abzubauen (mit dem Speer: Sturmangriff)
   }
   if(Input.lookId === null) Input.touchDig = false;
   if(Game.bogen.aktiv){ Game.breakPos = null; Game.breakProg = 0; return; }
@@ -3396,6 +3486,7 @@ window.androidPause = () => {
 /* ═══════════════════════════════════════════════════════════════════
    START
    ═══════════════════════════════════════════════════════════════════ */
+Object.assign(Game, Mehr);             // mehr.js: TNT, Spender, Trichter, Windkugel, Speer, Wurfscheibe …
 function boot(){
   buildTextures();
   initBlocks(); buildBlockTables(); buildFaceTables(); initItems(); initRecipes(); initSmelt();

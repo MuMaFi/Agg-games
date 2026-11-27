@@ -6,7 +6,7 @@
 /* ── Block-Register ────────────────────────────────────────────────── */
 /* Block-Nummern: 1…255 wie seit jeher; die Gegenstände belegen 256…;
    was danach an Blöcken kam, liegt ab BLOCK2 (die Chunks speichern 16 Bit) */
-const BLOCK2 = 512, BMAX = 576;
+const BLOCK2 = 512, BMAX = 1024;
 const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:7, LOG:8,
   LEAVES:9, GLASS:10, WATER:11, BEDROCK:12, COAL_ORE:13, IRON_ORE:14, GOLD_ORE:15, DIAMOND_ORE:16,
   TABLE:17, FURNACE:18, FURNACE_LIT:19, TORCH:20, TALLGRASS:21, ROSE:22, DANDELION:23,
@@ -32,7 +32,51 @@ const B = { AIR:0, STONE:1, GRASS:2, DIRT:3, COBBLE:4, PLANKS:5, SAND:6, GRAVEL:
   NETHERZIEGEL:518, SPAWNER:519 /* Monsterspawner der Festungen */, FEUER:520,
   // das End
   ENDRAHMEN:521, ENDRAHMEN_AUGE:522, ENDPORTAL:523, ENDSTEIN:524, DRACHENEI:525,
-  LAPIS_ERZ:526, LAPIS_BLOCK:527 };
+  LAPIS_ERZ:526, LAPIS_BLOCK:527,
+  // bunte Blöcke (16 Farben wie FARBEN) und Ton
+  WOLLE2:528 /* …539: die zwölf Farben, die Schafe nicht haben */, BETON:540 /* …555 */, KERAMIK:556 /* ungefärbt */,
+  KERAMIK_F:557 /* …572 */, GLAS_F:573 /* …588: gefärbtes Glas */, TON:589,
+  // die übrigen Redstone-Bauteile
+  HOLZKNOPF:590 /* …599 wie KNOPF */, PLATTE_HOLZ:600 /* 601 gedrückt */, PLATTE_GOLD:602 /* 603 */, PLATTE_EISEN:604 /* 605 */,
+  BEOBACHTER:606 /* …617: Richtung (RICHTUNG6, dorthin schaut das Gesicht) + 6·an */,
+  TAGESSENSOR:618 /* …621: an + 2·umgekehrt */, ZIELBLOCK:622 /* 623 getroffen */, NOTENBLOCK:624 /* …648: Ton 0…24 */,
+  TNT:649, EISENTUER:650 /* …665 wie DOOR */, FALLTUER:666 /* …681: Seite + 4·offen + 8·oben */, EISENFALLTUER:682 /* …697 */,
+  SPENDER:698 /* …709: Richtung + 6·ausgelöst */, WERFER:710 /* …721 */, TRICHTER:722 /* …726: 0 nach unten, 1…4 zur Seite SEITE[r − 1] */,
+  KOMPARATOR:727 /* …742: Richtung + 4·subtrahieren + 8·an */, KUPFERLEUCHTE:743 /* …746: an + 2·gespeist */,
+  SCHLEIMBLOCK:747, HONIGBLOCK:748, SKULK:749 /* 750 an */, FALLENTRUHE:751 /* 752 offen */ };
+
+/* Die sechzehn Farben des Vorbilds, in seiner Reihenfolge. rgb: die Farbe
+   des Farbstoffs; wolle: die Nummer der Wolle in dieser Farbe (die vier
+   Schaffarben gibt es seit jeher, die anderen ab B.WOLLE2) */
+const FARBEN = [
+  { key:'weiss',     mc:'white',      name:'Weiß',      adj:'Weiße',      rgb:[233, 236, 236] },
+  { key:'orange',    mc:'orange',     name:'Orange',    adj:'Orange',     rgb:[240, 118, 19] },
+  { key:'magenta',   mc:'magenta',    name:'Magenta',   adj:'Magenta',    rgb:[189, 68, 179] },
+  { key:'hellblau',  mc:'light_blue', name:'Hellblau',  adj:'Hellblaue',  rgb:[58, 175, 217] },
+  { key:'gelb',      mc:'yellow',     name:'Gelb',      adj:'Gelbe',      rgb:[248, 198, 39] },
+  { key:'hellgruen', mc:'lime',       name:'Hellgrün',  adj:'Hellgrüne',  rgb:[112, 185, 25] },
+  { key:'rosa',      mc:'pink',       name:'Rosa',      adj:'Rosa',       rgb:[237, 141, 172] },
+  { key:'grau',      mc:'gray',       name:'Grau',      adj:'Graue',      rgb:[62, 68, 71] },
+  { key:'hellgrau',  mc:'light_gray', name:'Hellgrau',  adj:'Hellgraue',  rgb:[142, 142, 134] },
+  { key:'tuerkis',   mc:'cyan',       name:'Türkis',    adj:'Türkise',    rgb:[21, 137, 145] },
+  { key:'lila',      mc:'purple',     name:'Lila',      adj:'Lila',       rgb:[121, 42, 172] },
+  { key:'blau',      mc:'blue',       name:'Blau',      adj:'Blaue',      rgb:[53, 57, 157] },
+  { key:'braun',     mc:'brown',      name:'Braun',     adj:'Braune',     rgb:[114, 71, 40] },
+  { key:'gruen',     mc:'green',      name:'Grün',      adj:'Grüne',      rgb:[84, 109, 27] },
+  { key:'rot',       mc:'red',        name:'Rot',       adj:'Rote',       rgb:[160, 39, 34] },
+  { key:'schwarz',   mc:'black',      name:'Schwarz',   adj:'Schwarze',   rgb:[20, 21, 25] },
+];
+{
+  const alt = { weiss:0, hellgrau:1, schwarz:2, braun:3 };
+  let n = 0;
+  for(const f of FARBEN) f.wolle = alt[f.key] !== undefined ? B.WOOL + alt[f.key] : B.WOLLE2 + n++;
+}
+const farbeNr = key => FARBEN.findIndex(f => f.key === key);
+/** Farbwort mit Endung — Orange, Magenta, Rosa und Lila beugt man nicht */
+const farbAdj = (f, endung) => ['orange', 'magenta', 'rosa', 'lila'].includes(f.key) ? f.name : f.name + endung;
+const isBeton = id => id >= B.BETON && id < B.BETON + 16;
+const isKeramik = id => id === B.KERAMIK || (id >= B.KERAMIK_F && id < B.KERAMIK_F + 16);
+const isGlasF = id => id >= B.GLAS_F && id < B.GLAS_F + 16;
 
 /* Natürliche Schaffarben — Wolle gibt es in genau diesen vier */
 const WOLLE = [
@@ -41,7 +85,7 @@ const WOLLE = [
   { name:'Schwarze Wolle',  tint:[.2, .2, .22],      anteil:.06 },
   { name:'Braune Wolle',    tint:[.56, .39, .26],    anteil:.06 },
 ];
-const isWool = id => id >= B.WOOL && id < B.WOOL + 4;
+const isWool = id => (id >= B.WOOL && id < B.WOOL + 4) || (id >= B.WOLLE2 && id < B.WOLLE2 + 12);
 
 /* Wasser: B.WATER ist eine Quelle (Meer, Eimer). Was davon wegfließt, trägt
    seine Stärke im Block: 7 gleich neben der Quelle, 1 am Rand. Fallendes
@@ -60,20 +104,29 @@ const SEITE = [[1,0],[-1,0],[0,1],[0,-1]];
    ihre Ladung (0…15) in der Nummer, wie das Wasser seine Stärke. */
 const rsFackel = (an, anbau) => B.RS_FACKEL + (an ? 0 : 5) + anbau;
 const hebelId = (an, anbau) => B.HEBEL + (an ? 5 : 0) + anbau;
-const knopfId = (an, anbau) => B.KNOPF + (an ? 5 : 0) + anbau;
+const knopfId = (an, anbau, holz) => (holz ? B.HOLZKNOPF : B.KNOPF) + (an ? 5 : 0) + anbau;
+const isHolzknopf = id => id >= B.HOLZKNOPF && id < B.HOLZKNOPF + 10;
+const knopfBasis = id => isHolzknopf(id) ? B.HOLZKNOPF : B.KNOPF;
+/** derselbe Knopf, gedrückt oder nicht */
+const knopfUm = (id, an) => knopfBasis(id) + (an ? 5 : 0) + (id - knopfBasis(id)) % 5;
 const staubId = ladung => B.STAUB + ladung;
 const isRSFackel = id => id >= B.RS_FACKEL && id < B.RS_FACKEL + 10;
 const isHebel = id => id >= B.HEBEL && id < B.HEBEL + 10;
-const isKnopf = id => id >= B.KNOPF && id < B.KNOPF + 10;
+const isKnopf = id => (id >= B.KNOPF && id < B.KNOPF + 10) || isHolzknopf(id);
 const isStaub = id => id >= B.STAUB && id < B.STAUB + 16;
-const isPlatte = id => id === B.DRUCKPLATTE || id === B.DRUCKPLATTE + 1;
+const isPlatte = id => id === B.DRUCKPLATTE || id === B.DRUCKPLATTE + 1 || (id >= B.PLATTE_HOLZ && id < B.PLATTE_HOLZ + 6);
+/** die ungedrückte Platte derselben Art */
+const platteBasis = id => id === B.DRUCKPLATTE || id === B.DRUCKPLATTE + 1 ? B.DRUCKPLATTE : B.PLATTE_HOLZ + ((id - B.PLATTE_HOLZ) & ~1);
+const platteGedrueckt = id => id === platteBasis(id) + 1;
 const isLampe = id => id === B.RS_LAMPE || id === B.RS_LAMPE + 1;
 const staubLadung = id => id - B.STAUB;
 /** Anbau eines hängenden Bauteils, sonst −1 */
-const rsAnbau = id => isRSFackel(id) ? (id - B.RS_FACKEL) % 5 : isHebel(id) ? (id - B.HEBEL) % 5 : isKnopf(id) ? (id - B.KNOPF) % 5 : -1;
+const rsAnbau = id => isRSFackel(id) ? (id - B.RS_FACKEL) % 5 : isHebel(id) ? (id - B.HEBEL) % 5 : isKnopf(id) ? (id - knopfBasis(id)) % 5 : -1;
 /** an, gedrückt, leuchtend? */
-const rsAn = id => isRSFackel(id) ? id < B.RS_FACKEL + 5 : isHebel(id) ? id >= B.HEBEL + 5 : isKnopf(id) ? id >= B.KNOPF + 5
-  : isVerstaerker(id) ? id >= B.VERSTAERKER + 16 : id === B.DRUCKPLATTE + 1 || id === B.RS_LAMPE + 1;
+const rsAn = id => isRSFackel(id) ? id < B.RS_FACKEL + 5 : isHebel(id) ? id >= B.HEBEL + 5 : isKnopf(id) ? id >= knopfBasis(id) + 5
+  : isVerstaerker(id) ? id >= B.VERSTAERKER + 16 : isPlatte(id) ? platteGedrueckt(id)
+  : isBeobachter(id) ? beobAn(id) : isKomparator(id) ? kompAn(id) : isTagessensor(id) ? tagAn(id) : isKupferleuchte(id) ? kupferAn(id)
+  : id === B.RS_LAMPE + 1 || id === B.ZIELBLOCK + 1 || id === B.SKULK + 1 || id === B.FALLENTRUHE + 1;
 /* Verstärker: gibt Strom nur nach vorn weiter (Richtung wie SEITE), nach 1…4
    Zehntelsekunden. Kolben zeigen in eine von sechs Richtungen, die erste nach oben. */
 const RICHTUNG6 = [[0,1,0],[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];
@@ -219,11 +272,75 @@ const isLadder = id => id >= B.LADDER && id < B.LADDER + 4;
 const isWheat = id => id >= B.WHEAT && id < B.WHEAT + 4;
 const isGeschnitzt = id => id >= B.GESCHNITZT && id < B.GESCHNITZT + 4;
 /* Tür: Hälfte (0 unten, 1 oben) · offen · Seite, an der das Blatt steht */
-const doorId = (oben, offen, seite) => B.DOOR + (oben ? 8 : 0) + (offen ? 4 : 0) + seite;
-const isDoor = id => id >= B.DOOR && id < B.DOOR + 16;
-const doorInfo = id => { const k = id - B.DOOR; return { oben: k >= 8, offen: (k & 4) !== 0, seite: k & 3 }; };
+const doorId = (oben, offen, seite, basis = B.DOOR) => basis + (oben ? 8 : 0) + (offen ? 4 : 0) + seite;
+const isEisentuer = id => id >= B.EISENTUER && id < B.EISENTUER + 16;
+const isDoor = id => (id >= B.DOOR && id < B.DOOR + 16) || isEisentuer(id);
+const doorInfo = id => { const basis = isEisentuer(id) ? B.EISENTUER : B.DOOR, k = id - basis; return { basis, oben: k >= 8, offen: (k & 4) !== 0, seite: k & 3 }; };
 /* Beim Öffnen schwingt das Blatt an die Nachbarseite */
 const DOOR_AUF = [2, 3, 1, 0];
+
+/* ── Die übrigen Redstone-Bauteile ─────────────────────────────────── */
+/* Beobachter: das Gesicht schaut in Richtung RICHTUNG6[r]; ändert sich der
+   Block davor, gibt er hinten einen kurzen Puls */
+const beobId = (r, an) => B.BEOBACHTER + r + (an ? 6 : 0);
+const isBeobachter = id => id >= B.BEOBACHTER && id < B.BEOBACHTER + 12;
+const beobRichtung = id => (id - B.BEOBACHTER) % 6;
+const beobAn = id => id >= B.BEOBACHTER + 6;
+/* Tageslichtsensor: Strom bei Tag — umgekehrt bei Nacht */
+const isTagessensor = id => id >= B.TAGESSENSOR && id < B.TAGESSENSOR + 4;
+const tagAn = id => ((id - B.TAGESSENSOR) & 1) === 1;
+const tagUmgekehrt = id => ((id - B.TAGESSENSOR) & 2) === 2;
+const tagId = (an, umgekehrt) => B.TAGESSENSOR + (an ? 1 : 0) + (umgekehrt ? 2 : 0);
+const isNotenblock = id => id >= B.NOTENBLOCK && id < B.NOTENBLOCK + 25;
+/* Falltüren: Seite, zu der sie aufklappen (wie SEITE), offen, oben im Block */
+const isFalltuer = id => id >= B.FALLTUER && id < B.FALLTUER + 32;
+const isEisenfalltuer = id => id >= B.EISENFALLTUER && id < B.EISENFALLTUER + 16;
+const falltuerBasis = id => isEisenfalltuer(id) ? B.EISENFALLTUER : B.FALLTUER;
+const falltuerInfo = id => { const k = id - falltuerBasis(id); return { seite: k & 3, offen: (k & 4) !== 0, oben: (k & 8) !== 0 }; };
+const falltuerId = (basis, seite, offen, oben) => basis + seite + (offen ? 4 : 0) + (oben ? 8 : 0);
+function falltuerBox(seite, offen, oben){
+  if(offen) return blattBox(seite, 3);
+  return oben ? [0, 13, 0, 16, 16, 16] : [0, 0, 0, 16, 3, 16];
+}
+/* Spender und Werfer: Richtung wie beim Kolben, ausgelöst, solange Strom anliegt */
+const isSpender = id => id >= B.SPENDER && id < B.SPENDER + 12;
+const isWerfer = id => id >= B.WERFER && id < B.WERFER + 12;
+const auswurfBasis = id => isWerfer(id) ? B.WERFER : B.SPENDER;
+const auswurfRichtung = id => (id - auswurfBasis(id)) % 6;
+const auswurfAus = id => id - auswurfBasis(id) >= 6;
+const auswurfId = (basis, r, aus) => basis + r + (aus ? 6 : 0);
+/* Trichter: 0 gibt nach unten ab, 1…4 zur Seite SEITE[r − 1] */
+const isTrichter = id => id >= B.TRICHTER && id < B.TRICHTER + 5;
+const trichterZiel = id => { const r = id - B.TRICHTER; return r === 0 ? [0, -1, 0] : [SEITE[r - 1][0], 0, SEITE[r - 1][1]]; };
+/* Komparator: wie der Verstärker gerichtet; vergleicht oder subtrahiert */
+const isKomparator = id => id >= B.KOMPARATOR && id < B.KOMPARATOR + 16;
+const kompRichtung = id => (id - B.KOMPARATOR) & 3;
+const kompMinus = id => ((id - B.KOMPARATOR) & 4) === 4;
+const kompAn = id => ((id - B.KOMPARATOR) & 8) === 8;
+const kompId = (r, minus, an) => B.KOMPARATOR + r + (minus ? 4 : 0) + (an ? 8 : 0);
+/* Kupferleuchte: schaltet bei jedem neuen Strom um */
+const isKupferleuchte = id => id >= B.KUPFERLEUCHTE && id < B.KUPFERLEUCHTE + 4;
+const kupferAn = id => ((id - B.KUPFERLEUCHTE) & 1) === 1;
+const kupferGespeist = id => ((id - B.KUPFERLEUCHTE) & 2) === 2;
+const kupferId = (an, gespeist) => B.KUPFERLEUCHTE + (an ? 1 : 0) + (gespeist ? 2 : 0);
+const isFallentruhe = id => id === B.FALLENTRUHE || id === B.FALLENTRUHE + 1;
+/** Behälter mit Fächern in world.chests: wie viele */
+const behaelterGroesse = id => id === B.CHEST || isFallentruhe(id) ? 27 : isSpender(id) || isWerfer(id) ? 9 : isTrichter(id) ? 5 : 0;
+/** Richtung in RICHTUNG6, in die ein Block mit Gesicht zum Spieler zeigen soll (f: Blickrichtung) */
+function richtungZumSpieler(f){
+  const ax = Math.abs(f[0]), ay = Math.abs(f[1]), az = Math.abs(f[2]);
+  return ay > ax && ay > az ? (f[1] > 0 ? 1 : 0) : ax > az ? (f[0] > 0 ? 3 : 2) : (f[2] > 0 ? 5 : 4);
+}
+/** Fläche (wie faces: +X, −X, +Y, −Y, +Z, −Z) für eine Richtung in RICHTUNG6 */
+const R6_FLAECHE = [2, 3, 0, 1, 4, 5];
+/** Bilder eines Würfels, der in Richtung r schaut: vorn, hinten, sonst Seite (oben/unten eigene, wenn waagerecht) */
+function gerichteteFlaechen(r, vorne, hinten, seite, oben, unten){
+  const f = [seite, seite, oben || seite, unten || oben || seite, seite, seite];
+  if(r < 2){ f[0] = f[1] = f[4] = f[5] = seite; f[2] = f[3] = seite; }
+  const v = R6_FLAECHE[r];
+  f[v] = vorne; f[v ^ 1] = hinten;
+  return f;
+}
 
 const blocks = [];
 /** faces-Reihenfolge: +X, -X, +Y(oben), -Y(unten), +Z, -Z */
@@ -410,6 +527,81 @@ function initBlocks(){
       defBlock(treppeId(art, r, oben),{name:t.name, tex:st.faces, model:'treppe', opaque:false, lichtStau:true, hardness:st.hardness,
         tool:st.tool, tier:st.tier, drop:treppeId(art, 0, false), item:!oben && r === 0});
   });
+  initBlocksMehr();
+}
+
+/* Seit 26.11: alle sechzehn Farben (Wolle, Beton, Keramik, Glas), Ton und die
+   übrigen Redstone-Bauteile des Vorbilds */
+function initBlocksMehr(){
+  FARBEN.forEach((f, i) => {
+    if(f.wolle >= B.WOLLE2) defBlock(f.wolle, { name:farbAdj(f, 'e') + ' Wolle', tex:'wolle_' + f.key, hardness:.8, tool:'shears', mc:f.mc + '_wool' });
+    defBlock(B.BETON + i, { name:farbAdj(f, 'er') + ' Beton', tex:'beton_' + f.key, hardness:1.8, tool:'pickaxe', tier:1, mc:f.mc + '_concrete' });
+    defBlock(B.KERAMIK_F + i, { name:farbAdj(f, 'e') + ' Keramik', tex:'keramik_' + f.key, hardness:1.25, tool:'pickaxe', tier:1, mc:f.mc + '_terracotta' });
+    defBlock(B.GLAS_F + i, { name:farbAdj(f, 'es') + ' Glas', tex:'glas_' + f.key, hardness:.3, opaque:false, durchscheinend:true, drop:B.AIR,
+      mc:f.mc + '_stained_glass' });
+  });
+  defBlock(B.KERAMIK, { name:'Keramik', tex:'keramik', hardness:1.25, tool:'pickaxe', tier:1, mc:'terracotta' });
+  defBlock(B.TON, { name:'Ton', tex:'ton', hardness:.6, tool:'shovel', mc:'clay' });
+
+  // Holzknopf: wie der aus Stein, bleibt aber anderthalb Sekunden gedrückt
+  for(let a = 0; a < 5; a++) for(const an of [false, true])
+    defBlock(knopfId(an, a, true), { name:'Holzknopf', tex:'planks', model:'box', box:knopfBox(a, an), solid:false, opaque:false,
+      hardness:.5, tool:'axe', drop:B.HOLZKNOPF, item:!an && a === 0, icon:'i_holzknopf', rs:true });
+  // Druckplatten aus Holz, Gold (leicht) und Eisen (schwer)
+  for(const [b, name, tex, tool, icon] of [[B.PLATTE_HOLZ, 'Holzdruckplatte', 'planks', 'axe', 'i_platte_holz'],
+      [B.PLATTE_GOLD, 'Leichte Wägeplatte', 'gold_block', 'pickaxe', 'i_platte_gold'], [B.PLATTE_EISEN, 'Schwere Wägeplatte', 'iron_block', 'pickaxe', 'i_platte_eisen']])
+    for(const an of [false, true])
+      defBlock(b + (an ? 1 : 0), { name, tex, model:'box', box: an ? [1,0,1,15,1,15] : [1,0,1,15,2,15], solid:false, opaque:false,
+        hardness:.5, tool, drop:b, item:!an, icon, rs:true });
+  // Beobachter: schaut mit dem Gesicht auf einen Block, gibt hinten einen Puls, wenn der sich ändert
+  for(let r = 0; r < 6; r++) for(const an of [false, true])
+    defBlock(beobId(r, an), { name:'Beobachter', tex:gerichteteFlaechen(r, 'beob_vorne', an ? 'beob_hinten_an' : 'beob_hinten', 'beob_seite', 'beob_oben', 'beob_oben'),
+      hardness:3, tool:'pickaxe', tier:1, drop:beobId(4, false), item:r === 4 && !an, rs:true });
+  // Tageslichtsensor: eine Platte, die bei Tag Strom gibt (umgekehrt bei Nacht)
+  for(const um of [false, true]) for(const an of [false, true])
+    defBlock(tagId(an, um), { name: um ? 'Tageslichtsensor (umgekehrt)' : 'Tageslichtsensor', tex:[um ? 'tag_oben_um' : 'tag_oben', 'tag_seite', 'tag_seite'],
+      model:'box', box:[0,0,0,16,6,16], opaque:false, lichtStau:true, hardness:.2, tool:'axe', drop:B.TAGESSENSOR, item:!an && !um, rs:true });
+  for(const an of [false, true])
+    defBlock(B.ZIELBLOCK + (an ? 1 : 0), { name:'Zielblock', tex:['ziel_oben','ziel_oben','ziel_seite'], hardness:.5, tool:'hoe', drop:B.ZIELBLOCK, item:!an, rs:true });
+  for(let t = 0; t < 25; t++)
+    defBlock(B.NOTENBLOCK + t, { name:'Notenblock', tex:'notenblock', hardness:.8, tool:'axe', drop:B.NOTENBLOCK, item:t === 0, rs:true, ton:t });
+  defBlock(B.TNT, { name:'TNT', tex:['tnt_oben','tnt_unten','tnt_seite'], hardness:0, rs:true });
+  // Eisentür: nur Redstone macht sie auf
+  for(let oben = 0; oben < 2; oben++) for(let offen = 0; offen < 2; offen++) for(let s = 0; s < 4; s++)
+    defBlock(doorId(oben, offen, s, B.EISENTUER), { name:'Eisentür', tex: oben ? 'eisentuer_oben' : 'eisentuer_unten', model:'box', box:blattBox(s, 3),
+      opaque:false, hardness:5, tool:'pickaxe', tier:1, drop:B.EISENTUER, item:!oben && !offen && s === 0, icon:'i_eisentuer', rs:true });
+  // Falltüren aus Holz (mit der Hand) und Eisen (nur mit Redstone)
+  for(const [b, name, tex, h, tool] of [[B.FALLTUER, 'Holzfalltür', 'falltuer', 3, 'axe'], [B.EISENFALLTUER, 'Eisenfalltür', 'eisenfalltuer', 5, 'pickaxe']])
+    for(let k = 0; k < 16; k++){
+      const s = k & 3, offen = (k & 4) !== 0, oben = (k & 8) !== 0;
+      defBlock(b + k, { name, tex, model:'box', box:falltuerBox(s, offen, oben), opaque:false, hardness:h, tool, tier: tool === 'pickaxe' ? 1 : 0,
+        drop:b, item:k === 0, icon:tex, rs:true });
+    }
+  // Spender (schießt, gießt, zündet) und Werfer (wirft nur aus)
+  for(const [b, name, vorne] of [[B.SPENDER, 'Spender', 'spender'], [B.WERFER, 'Werfer', 'werfer']])
+    for(let r = 0; r < 6; r++) for(const aus of [false, true])
+      defBlock(auswurfId(b, r, aus), { name, tex:gerichteteFlaechen(r, r < 2 ? vorne + '_vorne_hoch' : vorne + '_vorne', 'furn_top', 'furn_side', 'furn_top', 'furn_top'),
+        hardness:3.5, tool:'pickaxe', tier:1, drop:auswurfId(b, 4, false), item:r === 4 && !aus, rs:true });
+  // Trichter: zieht Dinge von oben herein und gibt sie weiter, wohin sein Rohr zeigt
+  for(let r = 0; r < 5; r++)
+    defBlock(B.TRICHTER + r, { name:'Trichter', tex:['trichter_oben','trichter_aussen','trichter_aussen'], model:'trichter', opaque:false,
+      hardness:3, tool:'pickaxe', tier:1, drop:B.TRICHTER, item:r === 0, icon:'i_trichter', rs:true });
+  // Komparator: flach wie der Verstärker; vorn eine Fackel, hinten zwei
+  for(let k = 0; k < 16; k++)
+    defBlock(B.KOMPARATOR + k, { name:'Redstone-Komparator', tex:['rs_komparator','stone','stone'], model:'komparator', solid:false, opaque:false,
+      hardness:0, drop:B.KOMPARATOR, item:k === 0, icon:'i_komparator', rs:true });
+  for(let k = 0; k < 4; k++)
+    defBlock(B.KUPFERLEUCHTE + k, { name:'Kupferleuchte', tex: k & 1 ? 'kupferleuchte_an' : 'kupferleuchte', light: k & 1 ? 15 : 0,
+      hardness:3, tool:'pickaxe', tier:1, drop:B.KUPFERLEUCHTE, item:k === 0, rs:true });
+  // Schleim- und Honigblock: durchscheinend; Kolben nehmen mit, was an ihnen klebt
+  defBlock(B.SCHLEIMBLOCK, { name:'Schleimblock', tex:'schleimblock', opaque:false, durchscheinend:true, hardness:0, mc:'slime_block' });
+  defBlock(B.HONIGBLOCK, { name:'Honigblock', tex:['honig_oben','honig_unten','honig_seite'], opaque:false, durchscheinend:true, hardness:0, mc:'honey_block' });
+  for(const an of [false, true])
+    defBlock(B.SKULK + (an ? 1 : 0), { name:'Skulk-Sensor', tex:['skulk_oben','skulk_unten','skulk_seite'], model:'box', box:[0,0,0,16,8,16], opaque:false,
+      lichtStau:true, light:1, hardness:1.5, tool:'hoe', drop:B.SKULK, item:!an, rs:true });
+  for(const an of [false, true])
+    defBlock(B.FALLENTRUHE + (an ? 1 : 0), { name:'Redstone-Truhe', tex:['fallentruhe_oben','fallentruhe_oben','fallentruhe_seite'], dirFront:'fallentruhe_vorne',
+      hardness:2.5, tool:'axe', drop:B.FALLENTRUHE, item:!an, rs:true });
 }
 
 /* ── Gegenstände (ID ≥ 256) ────────────────────────────────────────── */
@@ -511,6 +703,23 @@ function initItems(){
   defItem('netherziegel',{name:'Netherziegelstein', tex:'i_netherziegel'});
   // Lohenstaub und Enderperle: zeigt einmal den Weg zum Ende
   defItem('enderauge',{name:'Enderauge', tex:'i_enderauge'});
+
+  // 26.11 — nur hinten anhängen: die Nummern stehen in den Spielständen
+  defItem('lava_bucket',{name:'Lavaeimer', stack:1, fuel:16000});
+  FARBEN.forEach(f => defItem('farbe_' + f.key, { name:farbAdj(f, 'er') + ' Farbstoff', tex:'i_farbe_' + f.key }));
+  defItem('schwarzpulver',{name:'Schwarzpulver', tex:'i_schwarzpulver'});
+  defItem('windrute',{name:'Windrute', tex:'i_windrute'});
+  defItem('schwerer_kern',{name:'Schwerer Kern', tex:'i_schwerer_kern'});
+  // Streitkolben: langsam, aber aus dem Fall ein Schlag, der mit jedem Block Fallhöhe härter wird
+  defItem('streitkolben',{name:'Streitkolben', tex:'i_streitkolben', stack:1, dmg:6, tempo:0.6, dur:500, tool:'streitkolben'});
+  defItem('windkugel',{name:'Windkugel', tex:'i_windkugel'});
+  // Speere: ein Stich reicht weiter als ein Schwert; gehalten ein Sturmangriff, je schneller, desto härter
+  for(const [mk, mn, dmg, tempo, dur] of [['wood','Holz',2,1.5,59], ['stone','Stein',3,1.35,131], ['iron','Eisen',4,1.1,250],
+      ['gold','Gold',2,1.25,32], ['diamond','Diamant',5,1,1561]])
+    defItem(mk + '_speer', { name: mn + 'speer', tex:'i_' + mk + '_speer', stack:1, dmg, tempo, dur, tool:'speer' });
+  // Wurfscheiben: fliegen durch alle Gegner hindurch, prallen an Wänden ab und kommen zurück
+  for(const [mk, mn, dmg, dur] of [['iron','Eisen',5,250], ['gold','Gold',4,60], ['diamond','Diamant',7,1561]])
+    defItem(mk + '_scheibe', { name: mn + 'wurfscheibe', tex:'i_' + mk + '_scheibe', stack:1, dmg:2, scheibe:dmg, dur, tool:'scheibe' });
 }
 
 /* ── Hilfen für Slot-Inhalte ───────────────────────────────────────── */
