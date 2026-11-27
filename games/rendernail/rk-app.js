@@ -136,10 +136,10 @@ window.addEventListener('hashchange',route);
 route();
 
 /* ================= Schriften ================= */
+function fontsRefresh(){fontsTick++;txtCache.clear();clearFontAssets();fxCache.clear();
+  if(ED.p){ED.p.layers.filter(L=>L.type==='text').forEach(refitText)}
+  if(view==='editor'){requestRender();renderLayers();if(['text','templates','assets'].includes(ED.tab))buildSide()}}
 if(document.fonts&&document.fonts.load){
-  Promise.all(Object.values(FONTS).map(f=>document.fonts.load(`${f[2]} 40px ${f[1].split(',')[0]}`).catch(()=>{}))).then(()=>{
-    fontsTick++;txtCache.clear();clearFontAssets();fxCache.clear();
-    if(ED.p){ED.p.layers.filter(L=>L.type==='text').forEach(refitText)}
-    if(view==='editor'){requestRender();renderLayers();if(['text','templates','assets'].includes(ED.tab))buildSide()}})}
+  Promise.all(Object.values(FONTS).map(f=>document.fonts.load(`${f[2]} 40px ${f[1].split(',')[0]}`).catch(()=>{}))).then(fontsRefresh)}
 
 $('#start-new').addEventListener('click',()=>createAndOpen('yt'));$('#start-open').addEventListener('click',()=>$('#f-project').click());

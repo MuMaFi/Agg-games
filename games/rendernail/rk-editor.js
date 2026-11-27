@@ -485,7 +485,7 @@ function buildProps0(){
     fBtns(grp(),[['Hintergrund entfernen',del,'danger']]);return}
   if(L.type==='text'){const g=grp('Text');
     fText(g,'Text',()=>L.text,v=>{L.text=v;rt()},true);
-    fSelect(g,'Schrift',Object.entries(FONTS).map(([k,v])=>[k,v[0]]),()=>L.font,v=>{L.font=v;rt()});
+    fontField(g,'Schrift',()=>L.font,v=>{L.font=v;rt();requestRender();commit()});
     fRange(g,'Schriftgröße',()=>L.size,v=>{L.size=v;rt()},10,400,1,v=>v+' px');
     fColor(g,'Farbe',()=>L.color,v=>{L.color=v});
     fCheck(g,'Farbverlauf',()=>L.grad,v=>{L.grad=v;buildProps()});

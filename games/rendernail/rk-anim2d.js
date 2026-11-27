@@ -68,7 +68,7 @@ function paneOvl(P){const D=AN.data,o=anOvl();D.ovl=D.ovl||[];
   add.addEventListener('toggle',()=>{if(add.open&&!grid.childElementCount)fill()});q.addEventListener('input',fill);s.append(add);
   if(!o)return;const cur=evalOvl(o,AN.t),k=anKeyAt(o.keys,AN.t);
   if(o.kind==='text'){s=aSec(P,'Text');const ta=el('textarea','an-otext');ta.rows=2;ta.value=o.text||'';ta.setAttribute('aria-label','Text');ta.addEventListener('input',()=>{o.text=ta.value.slice(0,200);anTimeline()});ta.addEventListener('change',anCommit);s.append(ta);
-    aSelect(s,'Schrift',AN_OFONTS.map(f=>[f,FONTS[f][0]]),()=>o.font,v=>{o.font=v});
+    fontField(s,'Schrift',()=>o.font,v=>{o.font=v;anCommit()});
     aRange(s,'Schriftgröße',20,260,1,()=>o.size||90,v=>{o.size=v});
     const cr=el('div','an-ocolors');const col=(lab,get,set)=>{const l=el('label','an-ocol');const i=el('input');i.type='color';i.value=get();i.addEventListener('input',()=>set(i.value));i.addEventListener('change',anCommit);l.append(i,el('span',null,lab));cr.append(l)};
     col('Farbe',()=>o.color||'#ffffff',v=>{o.color=v});col('Kontur',()=>o.strokeColor||'#000000',v=>{o.strokeColor=v});s.append(cr);

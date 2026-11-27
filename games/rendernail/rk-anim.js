@@ -58,7 +58,7 @@ function anCapture(){if(!AR||AN.rec||AR.renderer.domElement.width<10)return'';tr
 function anHome(show=true){const h=$('#an-home');if(!h)return;h.hidden=!show;if(!show)return;anStop();h.innerHTML='';
   const w=document.createElement('div');w.className='wrap home';w.innerHTML='<h1>Animationen</h1><p class="lead">Tippe eine Animation an, um weiterzumachen. Alles speichert sich automatisch.</p><div class="fmt-grid"></div><h2>Deine Animationen <small></small></h2><div class="pgrid"></div>';h.append(w);
   const nb=document.createElement('button');nb.type='button';nb.className='fmt main';nb.innerHTML='<span class="ic">+</span><span><b>Neue Animation</b><span>Schritt für Schritt: Hintergrund, Figuren, Kamera, Licht, Video</span></span>';
-  nb.addEventListener('click',()=>{const n=prompt('Name der neuen Animation:','Animation '+(anIndex().length+1));if(n===null)return;anNewProject(n);anHome(false)});
+  nb.addEventListener('click',async()=>{const n=await askText('Name der neuen Animation','Animation '+(anIndex().length+1),{ok:'Erstellen'});if(n===null)return;anNewProject(n);anHome(false)});
   const ob=document.createElement('button');ob.type='button';ob.className='fmt';ob.innerHTML='<span class="ic">⇪</span><span><b>Datei öffnen</b><span>.rnanim.json aus Rendernail</span></span>';ob.addEventListener('click',()=>$('#f-anfile').click());
   w.querySelector('.fmt-grid').append(nb,ob);
   const idx=anIndex().sort((a,b)=>b.t-a.t);w.querySelector('h2 small').textContent=idx.length||'';const g=w.querySelector('.pgrid');
@@ -86,8 +86,8 @@ function anProjMenu(btn){closeMenu();const el2=document.createElement('div');el2
   for(const p of idx.slice(0,15))item(p.name,()=>{if(p.id!==AN.pid)anOpenProject(p.id)},p.id===AN.pid,when(p.t));
   el2.append(document.createElement('hr'));
   item('Alle Animationen',()=>{anSaveNow();anHome(true)});
-  item('Neue Animation',()=>anNewProject(prompt('Name der neuen Animation:','Animation '+(anIndex().length+1))||''));
-  item('Umbenennen …',()=>{const n=prompt('Neuer Name:',anProjName());if(!n||!n.trim())return;const i=anIndex(),p=i.find(x=>x.id===AN.pid);if(p){p.name=n.trim().slice(0,60);store.set(AN_IDX,i);anProjUI()}});
+  item('Neue Animation',async()=>{const n=await askText('Name der neuen Animation','Animation '+(anIndex().length+1),{ok:'Erstellen'});if(n!==null)anNewProject(n)});
+  item('Umbenennen …',async()=>{const n=await askText('Neuer Name',anProjName(),{ok:'Umbenennen'});if(!n||!n.trim())return;const i=anIndex(),p=i.find(x=>x.id===AN.pid);if(p){p.name=n.trim().slice(0,60);store.set(AN_IDX,i);anProjUI()}});
   item('Kopie speichern',()=>{anSaveNow();anNewProject(anProjName()+' (Kopie)',JSON.parse(JSON.stringify(AN.data)))});
   el2.append(document.createElement('hr'));
   item('Als Datei speichern',async()=>{anSaveNow();const name=anProjName(),data=await anEmbedAudio(AN.data),blob=new Blob([JSON.stringify({app:'rendernail-animation',v:1,name,data})],{type:'application/json'});saveFile((slug(name)||'animation')+'.rnanim.json',blob)});
@@ -744,7 +744,9 @@ function anRecPrep(W,H){anStop();anSelect(AN.sel);AR.tc.detach();AR.tcm.detach()
 async function anEncodeBlob(ui){const[W,H]=anSize(),cfg=await anCodec(W,H);if(!cfg)throw new Error('no_codec');
   const out=mk(W,H),x=out.getContext('2d'),fps=AN.data.fps||30,N=Math.max(1,Math.round(AN.data.dur*fps));let err=null;
   let mix=null,acod=null;if((AN.data.audio||[]).length){ui.prog(0,'Ton wird gemischt …');try{mix=await anMixAudio()}catch{mix=null}if(mix){acod=await anAudCodec();if(!acod){const e=new Error('no_audio_codec');e.mix=mix;throw e}}}
-  const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H,frameRate:fps},...(mix?{audio:{codec:acod.mux,sampleRate:mix.sampleRate,numberOfChannels:2}}:{}),fastStart:'in-memory'});
+  try{if(typeof fontsReady==='function')await Promise.race([fontsReady((AN.data.ovl||[]).filter(o=>o.kind==='text').map(o=>o.font)),new Promise(r=>setTimeout(r,8000))])}catch{}
+  const sink=typeof veSink==='function'?veSink():null;
+  const muxer=new Mp4Muxer.Muxer({target:sink?new Mp4Muxer.StreamTarget({onData:(d,p)=>sink.onData(d,p),chunked:true,chunkSize:1<<23}):new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H,frameRate:fps},...(mix?{audio:{codec:acod.mux,sampleRate:mix.sampleRate,numberOfChannels:2}}:{}),fastStart:sink?false:'in-memory'});
   const enc=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>{err=e}});enc.configure({...cfg,framerate:fps,latencyMode:'quality'});
   AN.rec={enc};anRecPrep(W,H);const t0=AN.t;
   try{for(let i=0;i<N;i++){if(ui.cancel||err)break;const t=i/fps;AN.t=t;anRender(performance.now());anComposite(x,W,H,t);
@@ -755,7 +757,7 @@ async function anEncodeBlob(ui){const[W,H]=anSize(),cfg=await anCodec(W,H);if(!c
       if(i%2===0){ui.prog(i/N,anFmtT(t)+' von '+anFmtT(AN.data.dur));await new Promise(r=>setTimeout(r,0))}}
     if(!ui.cancel&&!err){ui.prog(1,'Wird gespeichert …');await Promise.race([enc.flush(),new Promise((_,no)=>setTimeout(()=>no(new Error('flush_timeout')),20000))]);if(err)throw err;if(mix){ui.prog(1,'Ton wird eingefügt …');await anEncodeAudio(muxer,mix,acod.codec)}muxer.finalize()}}
   catch(e){err=e}finally{try{enc.close()}catch{}AN.rec=null;AN.t=t0;anResize()}
-  if(ui.cancel)return null;if(err)throw err;return new Blob([muxer.target.buffer],{type:'video/mp4'})}
+  if(ui.cancel)return null;if(err)throw err;return sink?sink.blob('video/mp4'):new Blob([muxer.target.buffer],{type:'video/mp4'})}
 async function anRecord(){if(!AR||AN.rec)return;const[W,H]=anSize(),cfg=await anCodec(W,H);
   if(!cfg){anRecordLive();return}const ui=anRecUI();let blob=null;
   try{blob=await anEncodeBlob(ui)}catch(e){$('#an-rec').hidden=true;if(e&&e.mix){anRecordLive(e.mix);return}toast('Das Video konnte nicht erstellt werden, ich versuche die Echtzeit-Aufnahme.');anRecordLive();return}
@@ -794,7 +796,7 @@ document.addEventListener('keydown',e=>{if(view!=='anim'||!AN.ready||AN.rec)retu
   q('#an-dur').addEventListener('change',e=>{const D=AN.data,nd=+e.target.value,f=nd/D.dur;for(const a of D.actors)a.keys.forEach(k=>k.t=Math.round(k.t*f*20)/20);D.cam.keys.forEach(k=>k.t=Math.round(k.t*f*20)/20);D.dur=nd;AN.t=Math.min(AN.t*f,nd);AN.pathDirty=true;anTimeline();anCommit();anPane()});
   q('#an-undo').addEventListener('click',()=>anUndo(-1));q('#an-redo').addEventListener('click',()=>anUndo(1));
   q('#an-look').addEventListener('click',e=>{AN.look=AN.look==='cam'?'work':'cam';e.currentTarget.setAttribute('aria-pressed',AN.look==='cam')});
-  q('#an-new').addEventListener('click',()=>{if(AN.ready)anNewProject(prompt('Name der neuen Animation:','Animation '+(anIndex().length+1))||'')});
+  q('#an-new').addEventListener('click',async()=>{if(!AN.ready)return;const n=await askText('Name der neuen Animation','Animation '+(anIndex().length+1),{ok:'Erstellen'});if(n!==null)anNewProject(n)});
   q('#an-proj').addEventListener('click',e=>{if(!AN.ready)return;if(openMenu&&openMenu.btn===e.currentTarget){closeMenu();return}anProjMenu(e.currentTarget)});
   document.addEventListener('change',e=>{if(!e.target||e.target.id!=='f-anfile')return;const f=e.target.files[0];e.target.value='';if(!f)return;
     f.text().then(async t=>{const o=JSON.parse(t);if(!o||o.app!=='rendernail-animation'||!o.data||o.data.v!==1)throw new Error('Das ist keine Rendernail-Animation.');await anUnembedAudio(o.data);anNewProject(String(o.name||f.name.replace(/\.rnanim\.json$|\.json$/i,'')).slice(0,60),o.data);toast('Animation geöffnet.')}).catch(err=>toast(err.message||'Die Datei konnte nicht gelesen werden.'))});
