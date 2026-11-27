@@ -18,7 +18,7 @@ function gfLoad(n,w){const k=n+'@'+w;if(GF_CSS.has(k))return GF_CSS.get(k);
 const UF_IDX='rn-ufonts';function ufList(){const a=store.get(UF_IDX,[]);return Array.isArray(a)?a.filter(x=>x&&x.id):[]}
 const UF_LOAD=new Map();
 function ufLoad(id){if(UF_LOAD.has(id))return UF_LOAD.get(id);const p=(async()=>{try{const b=await srcBlob({asset:id}),ff=new FontFace('RNU'+id,await b.arrayBuffer());await ff.load();document.fonts.add(ff);return true}catch{return false}})();UF_LOAD.set(id,p);return p}
-let fontChT=0;function fontChanged(){clearTimeout(fontChT);fontChT=setTimeout(()=>{if(typeof fontsRefresh==='function')fontsRefresh()},60)}
+let fontChT=0;function fontChanged(){clearTimeout(fontChT);fontChT=setTimeout(()=>{if(typeof fontsRefresh==='function')fontsRefresh();if(typeof liveWake==='function')liveWake(500)},60)}
 function fontReg(k){if(k.startsWith('g:')){const m=/^g:(.+)@(\d+)$/.exec(k);if(!m)return null;const f=gfFind(m[1]);const w=+m[2];gfLoad(m[1],w).then(ok=>{if(ok)fontChanged()});return[m[1],`"${m[1]}", ${GF_FALL[f?f.c:'s']}`,w]}
   if(k.startsWith('u:')){const id=k.slice(2),u=ufList().find(x=>x.id===id);ufLoad(id).then(ok=>{if(ok)fontChanged()});return[u?u.name:'Eigene Schrift',`"RNU${id}", sans-serif`,400]}return null}
 async function fontsReady(keys){await Promise.all([...new Set(keys.filter(Boolean))].map(k=>{FONTS[k];if(k.startsWith('g:')){const m=/^g:(.+)@(\d+)$/.exec(k);return m?gfLoad(m[1],+m[2]):null}if(k.startsWith('u:'))return ufLoad(k.slice(2));return null}).filter(Boolean));fontChanged()}

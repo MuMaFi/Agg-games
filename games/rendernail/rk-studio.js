@@ -157,8 +157,8 @@ const ST_FMT={'9:16':9/16,'1:1':1,'16:9':16/9};ST.fmt=ST_FMT[store.get('rk-st-fm
 function stFrameRect(){if(!R3||!ST_FMT[ST.fmt])return null;const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight,a=ST_FMT[ST.fmt];let fw,fh;if(w/h>a){fh=h;fw=h*a}else{fw=w;fh=w/a}return{x:(w-fw)/2,y:(h-fh)/2,w:fw,h:fh,W:w,H:h}}
 function stFrame(){const f=$('#st-frame');if(!f)return;const r=stFrameRect();f.hidden=!r;if(r)Object.assign(f.style,{left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px'});document.querySelectorAll('#st-fmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===ST.fmt))}
 document.querySelectorAll('#st-fmt button').forEach(b=>b.addEventListener('click',()=>{ST.fmt=b.dataset.f;store.set('rk-st-fmt',ST.fmt);stFrame()}));
-let skyT=0;function resize3(){if(!R3)return;setTimeout(stFrame,0);const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
-function loop3(){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);R3.controls.update();for(const mm of ST.models)miterRig(mm);R3.renderer.render(R3.scene,R3.camera)}
+let skyT=0;function resize3(){if(!R3)return;setTimeout(stFrame,0);const w=R3.wrap.clientWidth,h=R3.wrap.clientHeight;if(!w||!h)return;R3.renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1,Math.sqrt(4.2e6/(w*h))));R3.renderer.setSize(w,h,false);R3.camera.aspect=w/h;R3.camera.updateProjectionMatrix();if(ST.bg==='sky'){clearTimeout(skyT);skyT=setTimeout(setBackground,150)}}
+function loop3(now){if(view!=='studio'||!R3){ST.running=false;return}requestAnimationFrame(loop3);if(!liveFrame('st',now||performance.now(),false))return;R3.controls.update();for(const mm of ST.models)miterRig(mm);R3.renderer.render(R3.scene,R3.camera)}
 function startStudio(){initStudio();if(R3&&!ST.running){ST.running=true;resize3();loop3()}}
 let skyTex=null,skyKey='';
 function setBackground(){if(!R3)return;const T=THREE;$('#st-stage').classList.toggle('transparent',ST.bg==='none');
