@@ -186,11 +186,12 @@ function veExportSheet(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.0
   d.addEventListener('close',()=>{d.remove();veProps()});document.body.append(d);d.showModal()}
 
 /* ---------- Rundgang beim ersten Öffnen (später über „?“ wieder aufrufbar) ---------- */
-function veTour(force){if(!force&&store.get('ve-tour',false))return;if(document.querySelector('.ve-tour'))return;store.set('ve-tour',true);const sm=veSmall();
-  const S=[[sm?'#ve-dock':'#ve-tabs','Einfügen',sm?'Hier unten fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.':'Hier fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.'],
+function veTour(force){const sm=veSmall();rnTour('ve-tour',[[sm?'#ve-dock':'#ve-tabs','Einfügen',sm?'Hier unten fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.':'Hier fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.'],
     ['.ve-tl','Zeitleiste','Hier liegen deine Clips. Ziehen verschiebt sie, an den Rändern kürzt du sie, „Teilen“ schneidet am Zeitregler.'],
     [sm?'#ve-dock':'#ve-props','Bearbeiten',sm?'Tippe einen Clip an: Dann erscheinen hier unten seine Werkzeuge, z. B. Tempo, Ton, Filter oder Greenscreen.':'Tippe einen Clip an: Hier erscheinen dann seine Werkzeuge in Reitern, z. B. Tempo, Ton, Filter oder Greenscreen.'],
-    ['#ve-export','Fertig?','„Exportieren“ macht daraus ein MP4-Video. Alles speichert sich automatisch. Hilfe findest du jederzeit beim „?“.']];
+    ['#ve-export','Fertig?','„Exportieren“ macht daraus ein MP4-Video. Alles speichert sich automatisch. Hilfe findest du jederzeit beim „?“.']],force)}
+/* Rundgang mit hervorgehobenen Bereichen (Video-Editor, Skin-Editor) */
+function rnTour(key,S,force){if(!force&&store.get(key,false))return;if(document.querySelector('.ve-tour'))return;store.set(key,true);
   let i=0;const ov=document.createElement('div');ov.className='ve-tour';ov.innerHTML='<div class="ve-tourhole"></div><div class="ve-tourbox" role="dialog" aria-live="polite"><span class="ve-tourn"></span><b></b><p></p><div class="btnrow"><button type="button" class="btn ghost sm" data-s>Überspringen</button><button type="button" class="btn primary sm" data-n>Weiter</button></div></div>';document.body.append(ov);
   const hole=ov.querySelector('.ve-tourhole'),box=ov.querySelector('.ve-tourbox'),end=()=>{ov.remove();removeEventListener('resize',show)};
   const show=()=>{const[sel,t,x]=S[i],el=document.querySelector(sel);if(!el||!el.offsetParent){if(i<S.length-1){i++;show()}else end();return}const r=el.getBoundingClientRect(),p=6;
