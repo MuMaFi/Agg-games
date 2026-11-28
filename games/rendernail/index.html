@@ -817,9 +817,18 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .sk-new{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.sk-skin{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--fg);cursor:pointer;min-width:0;width:100%}
 .sk-skin canvas{width:32px;height:32px;image-rendering:pixelated;border-radius:3px;background:#2a2d31}.sk-skin span{font-size:10.5px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sk-mine{position:relative}.sk-del{position:absolute;top:-5px;right:-5px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.sk-bar{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 10px}.sk-bar .seg button{padding:4px 10px;font-size:12px}
+.sk-fit{position:absolute;top:8px;right:8px;z-index:2}
+.sk-shades{grid-template-columns:repeat(7,1fr)}.sk-sw.on{outline:2px solid #fff;outline-offset:1px}
+.sk-dock{display:none}.sk-colsheet[hidden]{display:none}
+@media (max-width:980px){.sk{grid-template-rows:auto minmax(0,1fr) auto}.sk-dock{display:flex;gap:2px;overflow-x:auto;padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--panel2);scrollbar-width:none}.sk-dock::-webkit-scrollbar{display:none}
+.sk-dock button{flex:0 0 auto;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 6px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:10.5px;cursor:pointer}.sk-dock button[aria-pressed=true]{background:var(--sel,#555);color:#fff}
+.sk-dock svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.sk-dock .sk-cur{width:22px;height:22px;border-radius:50%;border:2px solid #fff}
+.sk-colsheet{position:absolute;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));max-height:60%;overflow:auto;z-index:20;background:var(--panel2);border-top:1px solid var(--line2);border-radius:14px 14px 0 0;box-shadow:0 -14px 30px -12px #000;padding:14px;display:flex;flex-direction:column;gap:10px}.sk-colsheet .sk-pal{grid-template-columns:repeat(10,1fr)}.sk-colsheet .sk-shades{grid-template-columns:repeat(7,1fr)}
+#sk-tools,.sk-right .sk-colsec{display:none}}
 @media (max-width:980px){.sk-main{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}.sk-main>*{flex:none}.sk-left,.sk-right{overflow:visible;min-height:auto}.sk-center{height:62vh;min-height:360px}.sk-left,.sk-right{border:0;border-top:1px solid var(--line)}.sk-right{order:-1}.sk-main>.sk-center{order:-2}.sk-tools{grid-template-columns:repeat(6,1fr)}.sk-pal{grid-template-columns:repeat(10,minmax(0,32px))}}
 @media (max-width:980px){.sk-main>.sk-center{position:sticky;top:0;z-index:3;background:var(--bg);box-shadow:0 8px 16px -10px #000}}
-@media (max-width:680px){.sk-top #sk-save{padding:0 8px}.sk-center{height:50vh;min-height:300px}.sk-hint{display:none}}
+@media (max-width:680px){.sk-top #sk-save{padding:0 8px}.sk-top #sk-state{display:none}.sk-center{height:52vh;min-height:320px;padding:6px}.sk-hint{display:none}.sk-bar{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;padding-bottom:2px}.sk-bar::-webkit-scrollbar{display:none}.sk-bar .seg{flex:none}.sk-dock button{min-width:50px;padding:5px 4px}}
 /* Chroma Key: Farbfelder */
 .ve-keysw{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ve-sw{width:28px;height:28px;border-radius:50%;border:2px solid var(--line2);cursor:pointer;padding:0}.ve-sw:hover{border-color:#fff}
 .ve-keysw label.row{flex:1;min-width:120px}.btn.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
@@ -1118,31 +1127,31 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
-<script src="lib/three.min.js?v=202611281959"></script>
-<script src="lib/OrbitControls.js?v=202611281959"></script>
-<script src="lib/TransformControls.js?v=202611281959"></script>
-<script src="lib/mp4-muxer.js?v=202611281959"></script>
-<script src="lib/pptxgen.bundle.js?v=202611281959"></script>
-<script src="rk-i18n.js?v=202611281959"></script>
-<script src="rk-core.js?v=202611281959"></script>
-<script src="rk-local.js?v=202611281959"></script>
-<script src="rk-assets.js?v=202611281959"></script>
-<script src="rk-fonts.js?v=202611281959"></script>
-<script src="rk-pack.js?v=202611281959"></script>
-<script src="rk-editor.js?v=202611281959"></script>
-<script src="rk-studio.js?v=202611281959"></script>
-<script src="rk-figure.js?v=202611281959"></script>
-<script src="rk-slides.js?v=202611281959"></script>
-<script src="rk-anim.js?v=202611281959"></script>
-<script src="rk-animfx.js?v=202611281959"></script>
-<script src="rk-anim2d.js?v=202611281959"></script>
-<script src="rk-gif.js?v=202611281959"></script>
-<script src="rk-sub.js?v=202611281959"></script>
-<script src="rk-video.js?v=202611281959"></script>
-<script src="rk-pro.js?v=202611281959"></script>
-<script src="rk-skin.js?v=202611281959"></script>
-<script src="rk-app.js?v=202611281959"></script>
-<script src="rk-shell.js?v=202611281959"></script>
+<script src="lib/three.min.js?v=202611282032"></script>
+<script src="lib/OrbitControls.js?v=202611282032"></script>
+<script src="lib/TransformControls.js?v=202611282032"></script>
+<script src="lib/mp4-muxer.js?v=202611282032"></script>
+<script src="lib/pptxgen.bundle.js?v=202611282032"></script>
+<script src="rk-i18n.js?v=202611282032"></script>
+<script src="rk-core.js?v=202611282032"></script>
+<script src="rk-local.js?v=202611282032"></script>
+<script src="rk-assets.js?v=202611282032"></script>
+<script src="rk-fonts.js?v=202611282032"></script>
+<script src="rk-pack.js?v=202611282032"></script>
+<script src="rk-editor.js?v=202611282032"></script>
+<script src="rk-studio.js?v=202611282032"></script>
+<script src="rk-figure.js?v=202611282032"></script>
+<script src="rk-slides.js?v=202611282032"></script>
+<script src="rk-anim.js?v=202611282032"></script>
+<script src="rk-animfx.js?v=202611282032"></script>
+<script src="rk-anim2d.js?v=202611282032"></script>
+<script src="rk-gif.js?v=202611282032"></script>
+<script src="rk-sub.js?v=202611282032"></script>
+<script src="rk-video.js?v=202611282032"></script>
+<script src="rk-pro.js?v=202611282032"></script>
+<script src="rk-skin.js?v=202611282032"></script>
+<script src="rk-app.js?v=202611282032"></script>
+<script src="rk-shell.js?v=202611282032"></script>
 
 </body>
 </html>
