@@ -5,7 +5,7 @@ VE.envs=VE.envs||new Map();VE.envv=VE.envv||new Map();
 
 /* ---------- Hintergrund-Aufgaben: kleine Anzeige oben im Editor ---------- */
 const VE_JOBS=[];let veJobsT=0;
-function veJob(name,opt={}){const j={id:'j'+uid(),name,p:0,text:'',cancel:false,tab:opt.tab||null,
+function veJob(name,opt={}){const j={id:'j'+uid(),name,p:0,text:'',cancel:false,tab:opt.tab||null,bytes:opt.bytes||0,
     prog(p,t){j.p=clamp(p,0,1);if(t!=null)j.text=t;veJobsUI()},
     stop(){if(j.cancel)return;j.cancel=true;if(opt.onCancel)try{opt.onCancel()}catch{}if(j.kill)try{j.kill()}catch{}veJobsUI()},
     end(){const i=VE_JOBS.indexOf(j);if(i>=0)VE_JOBS.splice(i,1);veJobsUI();if(!VE_JOBS.length)rnBusy(false)}};
@@ -92,7 +92,7 @@ function veWav(x,sr){const n=x.length,b=new ArrayBuffer(44+n*2),v=new DataView(b
   for(let i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-1,Math.min(1,x[i]))*32767,true);return new Blob([b],{type:'audio/wav'})}
 async function veProVoice(c0){if(!VE.p)return;if(!ASSETS){toast('Speichern ist in dieser Ansicht nicht möglich.');return}const sel=c0||veFind(VE.sel);let c=sel&&(sel.type==='video'||sel.type==='audio')?sel:null;
   if(!c){const v=VE.p.main.filter(x=>x.type==='video'&&veHasAudio(x));if(v.length===1)c=v[0]}if(!c){toast('Wähle zuerst den Clip mit der Stimme aus.');return}if(c.mute){toast('Der Ton dieses Clips ist stumm oder abgetrennt. Wähle den Ton-Clip aus.');return}
-  const job=veJob('Stimme verbessern');let wk=null;
+  const need=(c.out-c.in)*48000*4*7;if(!veMemOk(need))return;const job=veJob('Stimme verbessern',{bytes:need});let wk=null;
   try{job.prog(0,'Ton wird gelesen …');const b=await veAudioDecode(c.asset,48000);if(!b)throw new Error('noaudio');const sr=b.sampleRate,a=Math.max(0,Math.floor(c.in*sr)),z=Math.min(b.length,Math.ceil(c.out*sr)),x=new Float32Array(z-a);
     for(let ch=0;ch<b.numberOfChannels;ch++){const d=b.getChannelData(ch);for(let i=0;i<x.length;i++)x[i]+=d[a+i]/b.numberOfChannels}
     if(job.cancel)throw new Error('cancel');const u=URL.createObjectURL(new Blob([VE_DSP],{type:'text/javascript'}));wk=new Worker(u);setTimeout(()=>URL.revokeObjectURL(u),5000);
@@ -107,9 +107,10 @@ async function veProVoice(c0){if(!VE.p)return;if(!ASSETS){toast('Speichern ist i
 
 /* ---------- Hilfe: Tastenkürzel und Tipps ---------- */
 function veHelp(){const d=document.createElement('dialog');d.className='ask-dlg ve-helpdlg';const K=[['Leertaste','Abspielen / Anhalten'],['S','Am Zeitregler teilen'],['⌘Z / ⇧⌘Z','Rückgängig / Wiederholen'],['⌘C / ⌘V','Clip kopieren / einfügen'],['⌘D','Clip duplizieren'],['Entf','Clip löschen'],['← / →','Ein Bild zurück / vor (mit ⇧: 1 Sekunde)'],['Esc','Auswahl aufheben']];
-  d.innerHTML='<form method="dialog"><h3>So geht’s</h3><ol class="ve-steps"><li>Links ein Video, Bild oder Projekt einfügen.</li><li>Unten in der Zeitleiste einen Clip antippen, dann rechts (am Handy unten) die Werkzeuge nutzen.</li><li>Zeitregler verschieben und im Bild ziehen, um Dinge zu bewegen.</li><li>Oben rechts auf „Exportieren“.</li></ol><h3>Tastenkürzel</h3><dl class="ve-keys"></dl><p class="sub">Alles speichert sich automatisch. Rechtsklick oder langes Drücken auf einen Clip öffnet ein Menü.</p><div class="ask-btns"><button class="btn primary">Alles klar</button></div></form>';
+  d.innerHTML='<form method="dialog"><h3>So geht’s</h3><ol class="ve-steps"><li>Links ein Video, Bild oder Projekt einfügen.</li><li>Unten in der Zeitleiste einen Clip antippen, dann rechts (am Handy unten) die Werkzeuge nutzen.</li><li>Zeitregler verschieben und im Bild ziehen, um Dinge zu bewegen.</li><li>Oben rechts auf „Exportieren“.</li></ol><h3>Tastenkürzel</h3><dl class="ve-keys"></dl><p class="sub">Alles speichert sich automatisch. Rechtsklick oder langes Drücken auf einen Clip öffnet ein Menü.</p><p class="sub ve-memline"></p><div class="ask-btns"><button type="button" class="btn ghost" data-tour>Rundgang starten</button><button class="btn primary">Alles klar</button></div></form>';
   const dl=d.querySelector('.ve-keys');for(const[k,v]of K){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dl.append(dt,dd)}
-  d.addEventListener('close',()=>d.remove());document.body.append(d);d.showModal()}
+  const ml=d.querySelector('.ve-memline'),fresh=performance.now()-VE_MEM.nativeAt<6000;ml.textContent=tr('Arbeitsspeicher')+': '+veMemFmt(veMemNow())+' '+tr(fresh?'(gemessen)':'(geschätzt)')+' · '+tr('Grenze 4 GB');
+  d.querySelector('[data-tour]').addEventListener('click',()=>{d.close();veTour(true)});d.addEventListener('close',()=>d.remove());document.body.append(d);d.showModal()}
 /* ---------- Profi-Reiter ---------- */
 function veLibPro(box){const P=VE.p,sel=veFind(VE.sel);
   const intro=document.createElement('p');intro.className='sub';intro.textContent='Werkzeuge, die anderswo Geld kosten. Hier gratis, und alles läuft auf deinem Gerät, nichts wird hochgeladen.';box.append(intro);
@@ -119,11 +120,80 @@ function veLibPro(box){const P=VE.p,sel=veFind(VE.sel);
   card('sub','Automatische Untertitel','Aus der Stimme im Video, in 11 Sprachen, auf Wunsch ins Englische übersetzt. Du kannst währenddessen weiterarbeiten.',a=>vBtn(a,SUB.job?'Läuft … ansehen':'Untertitel erstellen',()=>{VE.tab='sub';veLib()},'btn sm primary'));
   card('cut','Pausen entfernen','Schneidet stille Stellen aus deinem Video, z. B. Denkpausen. Am besten vor den Untertiteln machen.',a=>{const o=VE.silo||(VE.silo=.6);const s=document.createElement('div');s.className='seg';for(const[v,n]of[[.9,'Nur lange'],[.6,'Normal'],[.35,'Auch kurze']]){const b=document.createElement('button');b.type='button';b.textContent=n;b.setAttribute('aria-pressed',o===v);b.addEventListener('click',()=>{VE.silo=v;veLib()});s.append(b)}a.append(s);
     const b=vBtn(a,busy('Pausen entfernen')?'Läuft …':sel&&(sel.type==='video'||sel.type==='audio')?'Im ausgewählten Clip entfernen':'Im ganzen Video entfernen',()=>veProSilence(VE.silo),'btn sm primary');b.disabled=busy('Pausen entfernen')});
-  card('key','Hintergrund entfernen','Stellt Personen frei, z. B. deine Facecam. Ohne Greenscreen, per KI auf deinem Gerät.',a=>{const ok=sel&&(sel.type==='video'||sel.type==='image');
-    if(!ok){a.append(Object.assign(document.createElement('p'),{className:'sub ve-hint',textContent:'Wähle zuerst ein Video oder Bild aus (unten in der Zeitleiste antippen).'}));return}
-    vCheck(a,'Hintergrund entfernen',()=>!!sel.seg,v=>{sel.seg=v;if(v)segLoad().catch(()=>toast('Die KI zum Freistellen konnte nicht geladen werden.'));veLib()})});
+  card('key','Greenscreen','Macht den grünen (oder blauen) Hintergrund durchsichtig. Ein Tipp genügt, die Farbe wird automatisch erkannt.',a=>{const c=veKeyTarget();
+    if(!c){a.append(Object.assign(document.createElement('p'),{className:'sub ve-hint',textContent:'Füge zuerst ein Video oder Bild mit Greenscreen hinzu.'}));return}
+    const t=document.createElement('p');t.className='sub';t.textContent='Für: '+(c.name||'Clip');a.append(t);const r=document.createElement('div');r.className='btnrow';vBtn(r,c.key&&c.key.on?'Farbe neu erkennen':'Greenscreen entfernen',()=>veKeyAuto(c),'btn sm primary');vBtn(r,'Pipette',()=>veKeyPick(c),'btn sm');if(c.key&&c.key.on)vBtn(r,'Aus',()=>{c.key.on=false;veCommit();veAll()},'btn sm');a.append(r)});
   card('mic','Stimme verbessern','Entfernt Rauschen und Brummen und macht die Stimme klarer, wie mit einem guten Mikrofon.',a=>{const b=vBtn(a,busy('Stimme verbessern')?'Läuft …':'Stimme verbessern',()=>veProVoice(),'btn sm primary');b.disabled=busy('Stimme verbessern')});
   card('duck','Musik leiser bei Sprache','Die Hintergrundmusik wird automatisch leiser, sobald jemand spricht, und danach wieder lauter.',a=>{vCheck(a,'Automatisch leiser',()=>!!P.duck,v=>{P.duck=v;if(v)veDuckPrep().then(()=>liveWake(300));VE_DUCK.key='';veLib()});
     if(P.duck)vRange(a,'Wie viel leiser',.3,.9,.05,()=>P.duckAmt??.7,v=>{P.duckAmt=v;VE_DUCK.key=''},v=>Math.round(v*100)+' %')});
   card('vol','Lautstärke angleichen','Macht alle Clips gleich laut, Musik etwas leiser als Stimmen.',a=>vBtn(a,'Angleichen',veProLoudness,'btn sm primary'));
   card('fmt','4K-Export','Exportiere in 4K (2160p) mit bis zu 60 Bildern pro Sekunde, ohne Wasserzeichen.',a=>vSeg(a,null,[[0,'720p'],[1,'1080p'],[2,'4K']],()=>P.q,v=>{P.q=+v;veCommit();veProps()}))}
+
+/* ---------- Einfacher Chroma Key: Farbe automatisch erkennen oder mit der Pipette antippen ---------- */
+function veKeyTarget(){const P=VE.p;if(!P)return null;veLayout();const ok=c=>c&&(c.type==='video'||c.type==='image');const sel=veFind(VE.sel);if(ok(sel))return sel;
+  const ov=P.over.filter(c=>ok(c)&&veActive(c,VE.t)).sort((a,b)=>b.lane-a.lane)[0];if(ov)return ov;const mn=P.main.find(c=>ok(c)&&veActive(c,VE.t));return mn||P.over.find(ok)||P.main.find(ok)||null}
+const veHex2=v=>'#'+v.map(x=>Math.round(clamp(x,0,255)).toString(16).padStart(2,'0')).join('');
+async function veKeySrc(c){veLayout();if(!veActive(c,VE.t)){vePause();veGoto(c._s+Math.min(.3,veL(c)/2))}
+  for(let i=0;i<40;i++){veSync();const S=veSource(c,VE.t,null,1);if(S&&S.src&&(c.type!=='video'||(S.src.readyState>=2&&!S.src.seeking)))return S;await new Promise(r=>setTimeout(r,60))}return null}
+async function veKeyAuto(c){if(!c)return;const S=await veKeySrc(c);if(!S){toast('Das Bild ist noch nicht geladen. Versuch es gleich nochmal.');return}
+  const W=96,H=Math.max(8,Math.round(96*S.nh/S.nw)),cv=mk(W,H),x=cv.getContext('2d',{willReadFrequently:true});try{x.drawImage(S.src,0,0,W,H)}catch{toast('Das Bild konnte nicht gelesen werden.');return}
+  const d=x.getImageData(0,0,W,H).data,px=[],ring=Math.max(2,Math.round(W*.06));for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){if(xx>=ring&&xx<W-ring&&y>=ring&&y<H-ring)continue;const i=(y*W+xx)*4;px.push([d[i],d[i+1],d[i+2]])}
+  const med=[0,1,2].map(k=>{const a=px.map(p=>p[k]).sort((p,q)=>p-q);return a[a.length>>1]}),near=px.filter(p=>Math.hypot(p[0]-med[0],p[1]-med[1],p[2]-med[2])<70).length/px.length;
+  let col=veHex2(med),guess=false;if(near<.5){col='#00ff00';guess=true}
+  c.key={...(c.key||{}),on:true,color:col,sim:c.key&&c.key.on?c.key.sim??.13:.13,smooth:c.key&&c.key.on?c.key.smooth??.08:.08};VE.sel=c.id;veCommit();veAll();
+  toastAct(guess?'Ich habe keinen einfarbigen Rand gefunden und Grün genommen. Mit der Pipette kannst du die Farbe antippen.':'Greenscreen entfernt.','Rückgängig',()=>veUndo(-1))}
+function veKeyPick(c){if(!c)return;if(VE.pick===c.id){VE.pick=null;veProps();veLib();return}VE.pick=c.id;VE.sel=c.id;veTimeline();veProps();veLib();toast('Tippe im Vorschaubild auf die Hintergrundfarbe.')}
+document.addEventListener('pointerdown',async e=>{if(!VE.pick||!e.target||e.target.id!=='ve-cv')return;e.preventDefault();e.stopImmediatePropagation();const c=veFind(VE.pick);VE.pick=null;if(!c){veProps();return}
+  const S=await veKeySrc(c),cv=e.target,r=cv.getBoundingClientRect(),[BW,BH]=veBase(),g=veGeo(c,VE.t,null,1);if(!S||!g){veProps();return}
+  const bx=(e.clientX-r.left)/r.width*BW,by=(e.clientY-r.top)/r.height*BH,co=Math.cos(g.r),si=Math.sin(g.r),dx=bx-g.x,dy=by-g.y;let lx=dx*co+dy*si,ly=-dx*si+dy*co;if(c.flip)lx=-lx;const u=lx/g.w+.5,v=ly/g.h+.5;
+  if(u<0||u>1||v<0||v>1){toast('Tippe direkt auf den Clip.');veProps();return}const cr=c.crop||{},sx=((cr.l||0)+u*(1-(cr.l||0)-(cr.r||0)))*S.nw,sy=((cr.t||0)+v*(1-(cr.t||0)-(cr.b||0)))*S.nh;
+  const t=mk(1,1),x=t.getContext('2d',{willReadFrequently:true});try{x.drawImage(S.src,Math.max(0,sx-1),Math.max(0,sy-1),3,3,0,0,1,1)}catch{veProps();return}const p=x.getImageData(0,0,1,1).data;
+  c.key={...(c.key||{}),on:true,color:veHex2([p[0],p[1],p[2]]),sim:c.key&&c.key.on?c.key.sim??.13:.13,smooth:c.key&&c.key.on?c.key.smooth??.08:.08};veCommit();veAll();veUndoToast('Farbe entfernt.')},true);
+
+/* ---------- Speicher-Limiter: Rendernail bleibt unter 4 GB Arbeitsspeicher ----------
+   Mac-App: der echte Verbrauch aller App-Prozesse wird alle 2 s gemessen. Browser: Rendernail schätzt seinen Verbrauch
+   (Bilder, Ton, Videos, Verlauf, Export, KI). Stufen: ab 2,4 GB aufräumen, ab 3 GB gründlich aufräumen und sparsamer laden,
+   ab 3,6 GB Hintergrund-Aufgaben und Export stoppen. Große Aufgaben starten nur, wenn sie unter die Grenze passen. */
+const VE_MEM={limit:4e9,soft:2.4e9,hard:3e9,stop:3.6e9,native:0,nativeAt:0,warnAt:-1e9,lowAt:0};
+function veMemEstimate(){let b=260e6;for(const e of VE.imgs.values())b+=e.bytes||0;for(const p of VE.abufs.values())b+=p._bytes||0;
+  for(const e of VE.els.values())if(e._has)b+=e.videoWidth?e.videoWidth*e.videoHeight*4*10+25e6:12e6;
+  for(const s of VE.hist||[])b+=s.length*2;b+=(VE.sinkBytes||0)+(VE_JOBS.reduce((a,j)=>a+(j.bytes||0),0));
+  if(performance.memory&&performance.memory.usedJSHeapSize)b+=performance.memory.usedJSHeapSize;return b}
+function veMemNow(){const est=veMemEstimate();return performance.now()-VE_MEM.nativeAt<6000&&VE_MEM.native?Math.max(VE_MEM.native,est*.6):est}
+function veMemFmt(b){return(Math.round(b/1e8)/10).toLocaleString(LANG==='en'?'en':'de-DE')+' GB'}
+/* Passt eine Aufgabe mit „need“ Bytes noch unter die Grenze? Sonst erst aufräumen, dann ehrlich Nein sagen. */
+function veMemOk(need,quiet){if(veMemNow()+need<=VE_MEM.hard)return true;veMemTrim(true);if(veMemNow()+need<=VE_MEM.hard)return true;
+  if(!quiet)toast('Dafür reicht der Arbeitsspeicher gerade nicht: Rendernail bleibt unter 4 GB. Schließe andere große Projekte oder nimm einen kürzeren Ausschnitt.');
+  else if(quiet===true&&performance.now()-VE_MEM.warnAt>30000){VE_MEM.warnAt=performance.now();toast('Eine sehr große Datei wird sparsam behandelt, damit Rendernail unter 4 GB bleibt.')}return false}
+function veMemGuard(){if(!VE.p)return;const m=veMemNow(),now=performance.now();
+  if(m>VE_MEM.soft)veMemTrim(false);
+  if(m>VE_MEM.hard){veMemTrim(true);VE.lowMem=true;VE_MEM.lowAt=now;if(now-VE_MEM.warnAt>60000){VE_MEM.warnAt=now;toast('Der Arbeitsspeicher wird knapp. Ich habe aufgeräumt, damit Rendernail unter 4 GB bleibt.')}}
+  else if(VE.lowMem&&m<VE_MEM.soft&&now-VE_MEM.lowAt>30000)VE.lowMem=false;
+  if(m>VE_MEM.stop&&VE_JOBS.length){for(const j of[...VE_JOBS])j.stop();toast('Hintergrund-Aufgaben gestoppt, damit Rendernail unter 4 GB Arbeitsspeicher bleibt.')}}
+setInterval(veMemGuard,3000);
+if(window.rnNative&&typeof rnNative.onMemory==='function')rnNative.onMemory(b=>{if(typeof b==='number'&&b>0){VE_MEM.native=b;VE_MEM.nativeAt=performance.now()}veMemGuard()});
+
+/* ---------- Export-Fenster: Qualität und Bildrate klar wählen, Dateigröße vorher sehen ---------- */
+function veExBitrate(W,H){return W*H>=6e6?36e6:H>=1080||W>=1080?12e6:8e6}
+function veExportSheet(){if(VE.busy||!VE.p)return;const P=VE.p,D=veDur();if(D<.05){toast('Füge zuerst ein Video oder Bild hinzu.');return}vePause();
+  const d=document.createElement('dialog');d.className='ask-dlg ve-exdlg';d.innerHTML='<form method="dialog"><h3>Video exportieren</h3><div class="ve-exq" role="radiogroup" aria-label="Qualität"></div><div class="ve-exf"></div><p class="sub ve-exinfo"></p><div class="ask-btns"><button type="button" class="btn ghost" data-x>Abbrechen</button><button class="btn primary" data-go autofocus>Exportieren</button></div></form>';
+  const Q=[[0,'720p','Schnell, kleine Datei'],[1,'1080p','Empfohlen für YouTube und TikTok'],[2,'4K','Beste Qualität, große Datei']],q=d.querySelector('.ve-exq'),info=d.querySelector('.ve-exinfo');
+  const paint=()=>{q.innerHTML='';for(const[v,n,t]of Q){const b=document.createElement('button');b.type='button';b.className='ve-exopt';b.setAttribute('role','radio');b.setAttribute('aria-checked',P.q===v);b.innerHTML='<b></b><span></span>';b.querySelector('b').textContent=n;b.querySelector('span').textContent=t;b.addEventListener('click',()=>{P.q=v;veCommit();paint()});q.append(b)}
+    const[BW,BH]=veBase(),sc=P.q===2?2:P.q?1:2/3,W=Math.round(BW*sc/2)*2,H=Math.round(BH*sc/2)*2,mb=(veExBitrate(W,H)+160e3)*D/8/1e6;
+    info.textContent=`${tr('Länge')} ${veFmt(D)} · ${W} × ${H} · ${tr('ca.')} ${mb<1000?Math.max(1,Math.round(mb))+' MB':(Math.round(mb/100)/10).toLocaleString(LANG==='en'?'en':'de-DE')+' GB'}`};
+  const f=d.querySelector('.ve-exf');vSeg(f,'Bilder pro Sekunde',[[24,'24'],[30,'30'],[60,'60']],()=>P.fps,v=>{P.fps=+v;paint()});paint();
+  d.querySelector('[data-x]').addEventListener('click',()=>d.close());d.querySelector('form').addEventListener('submit',e=>{e.preventDefault();d.close();veExport()});
+  d.addEventListener('close',()=>{d.remove();veProps()});document.body.append(d);d.showModal()}
+
+/* ---------- Rundgang beim ersten Öffnen (später über „?“ wieder aufrufbar) ---------- */
+function veTour(force){if(!force&&store.get('ve-tour',false))return;if(document.querySelector('.ve-tour'))return;store.set('ve-tour',true);const sm=veSmall();
+  const S=[[sm?'#ve-dock':'#ve-tabs','Einfügen',sm?'Hier unten fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.':'Hier fügst du Videos, Bilder, Text, Sticker, GIFs und Musik ein. Unter „Profi“ gibt es Untertitel, Greenscreen und mehr, alles gratis.'],
+    ['.ve-tl','Zeitleiste','Hier liegen deine Clips. Ziehen verschiebt sie, an den Rändern kürzt du sie, „Teilen“ schneidet am Zeitregler.'],
+    [sm?'#ve-dock':'#ve-props','Bearbeiten',sm?'Tippe einen Clip an: Dann erscheinen hier unten seine Werkzeuge, z. B. Tempo, Ton, Filter oder Greenscreen.':'Tippe einen Clip an: Hier erscheinen dann seine Werkzeuge in Reitern, z. B. Tempo, Ton, Filter oder Greenscreen.'],
+    ['#ve-export','Fertig?','„Exportieren“ macht daraus ein MP4-Video. Alles speichert sich automatisch. Hilfe findest du jederzeit beim „?“.']];
+  let i=0;const ov=document.createElement('div');ov.className='ve-tour';ov.innerHTML='<div class="ve-tourhole"></div><div class="ve-tourbox" role="dialog" aria-live="polite"><span class="ve-tourn"></span><b></b><p></p><div class="btnrow"><button type="button" class="btn ghost sm" data-s>Überspringen</button><button type="button" class="btn primary sm" data-n>Weiter</button></div></div>';document.body.append(ov);
+  const hole=ov.querySelector('.ve-tourhole'),box=ov.querySelector('.ve-tourbox'),end=()=>{ov.remove();removeEventListener('resize',show)};
+  const show=()=>{const[sel,t,x]=S[i],el=document.querySelector(sel);if(!el||!el.offsetParent){if(i<S.length-1){i++;show()}else end();return}const r=el.getBoundingClientRect(),p=6;
+    Object.assign(hole.style,{left:(r.left-p)+'px',top:(r.top-p)+'px',width:(r.width+p*2)+'px',height:(r.height+p*2)+'px'});box.querySelector('.ve-tourn').textContent=(i+1)+' / '+S.length;box.querySelector('b').textContent=tr(t);box.querySelector('p').textContent=tr(x);box.querySelector('[data-n]').textContent=tr(i===S.length-1?'Los geht’s':'Weiter');
+    const bw=Math.min(320,innerWidth-24);box.style.width=bw+'px';const below=r.bottom+12+170<innerHeight,left=clamp(r.left+r.width/2-bw/2,12,innerWidth-bw-12);box.style.left=left+'px';box.style.top=(below?r.bottom+12:Math.max(12,r.top-12-box.offsetHeight))+'px'};
+  ov.querySelector('[data-s]').addEventListener('click',end);ov.querySelector('[data-n]').addEventListener('click',()=>{if(++i>=S.length)end();else show()});addEventListener('resize',show);requestAnimationFrame(show)}

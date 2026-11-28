@@ -44,7 +44,8 @@ async function subCreate(o){if(SUB.job){toast('Die Untertitel werden schon erste
   const sel=veFind(VE.sel),clips=(o.only&&sel&&veHasAudio(sel)?[sel]:[...P.main,...P.over,...P.audio].filter(veHasAudio));
   if(!clips.length){toast('In diesem Video gibt es keinen Ton.');return}
   const model=(SUB_MODELS.find(m=>m[0]===o.model)||SUB_MODELS[1])[2],trans=!!o.translate&&o.lang!=='english',stD=(SUB_STYLES.find(s=>s[0]===o.style)||SUB_STYLES[0])[2],{words,...st}=stD,y=P.fmt==='9:16'?(words?.62:.7):P.fmt==='16:9'?.86:.8;
-  const job=SUB.job=veJob(trans?'Untertitel (Englisch)':'Untertitel',{tab:'sub',onCancel:subStop});let added=0,first=true,lane=null,fail=null;
+  const need=450e6+D*16000*4*2;if(typeof veMemOk==='function'&&!veMemOk(need))return;
+  const job=SUB.job=veJob(trans?'Untertitel (Englisch)':'Untertitel',{tab:'sub',onCancel:subStop,bytes:need});let added=0,first=true,lane=null,fail=null;
   const insert=lines=>{const T=subTarget(pid);if(!T||!lines.length)return;T.over=T.over||[];if(first){first=false;if(o.replace!==false)T.over=T.over.filter(c=>!c.sub)}
     if(lane==null){lane=0;while(lane<20&&T.over.some(c=>c.lane===lane))lane++}
     for(const l of lines){const s=Math.max(0,l.s),e=Math.max(s+(words?.18:.3),Math.min(D,l.e));T.over.push({id:'c'+uid(),type:'text',sub:1,name:'Untertitel',in:0,out:e-s,speed:1,start:s,lane,x:.5,y,s:1,r:0,o:1,text:l.text,color2:st.color,grad:false,ain:'none',aout:'none',...st,adj:{b:0,c:0,s:0,w:0}})}
