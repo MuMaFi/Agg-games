@@ -22,6 +22,8 @@ const blobToDataURL=b=>new Promise((res,rej)=>{const fr=new FileReader();fr.onlo
 const loadImage=url=>new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('img'));im.src=url});
 let toastT=0;
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true},3400)}
+/* Hinweis mit Knopf, z. B. „Gelöscht. · Rückgängig“ */
+function toastAct(t,label,fn,ms){const el=$('#toast');el.textContent='';const s=document.createElement('span');s.textContent=t;const b=document.createElement('button');b.type='button';b.className='toast-btn';b.textContent=label;b.addEventListener('click',()=>{el.hidden=true;fn()});el.append(s,b);el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true},ms||6500)}
 const dlErr=e=>e&&e.code==='declined'?'Download abgebrochen.':e&&e.code==='rate_limited'?'Es ist schon ein Download-Fenster offen.':'Download hat nicht geklappt. Lange auf das Bild drücken oder Rechtsklick und „Bild speichern“ geht immer.';
 const ICON={
   copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',

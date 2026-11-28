@@ -731,7 +731,7 @@ function anStill(){if(!AR)return;const[W,H]=anSize(),prev=AR.renderer.getPixelRa
   c.toBlob(b=>{if(b)saveFile('rendernail-standbild.png',b,c.toDataURL('image/png'))},'image/png')}
 /* Video: am liebsten Bild für Bild mit WebCodecs (immer flüssig, unabhängig vom Gerät), sonst Echtzeit-Aufnahme */
 async function anCodec(W,H){if(!window.VideoEncoder||!window.VideoFrame||!window.Mp4Muxer)return null;
-  for(const codec of['avc1.640033','avc1.640028','avc1.4d0028','avc1.42003e','avc1.42001f'])try{const c={codec,width:W,height:H,bitrate:H>=1080||W>=1080?12e6:8e6,framerate:30};if((await VideoEncoder.isConfigSupported(c)).supported)return c}catch{}return null}
+  for(const codec of['avc1.640033','avc1.640028','avc1.4d0028','avc1.42003e','avc1.42001f'])try{const c={codec,width:W,height:H,bitrate:W*H>=6e6?36e6:H>=1080||W>=1080?12e6:8e6,framerate:30};if((await VideoEncoder.isConfigSupported(c)).supported)return c}catch{}return null}
 function anRecUI(){const ov=$('#an-rec');ov.hidden=false;ov.innerHTML='<div class="an-reccard"><b>Video wird erstellt</b><div class="an-prog"><i></i></div><p class="sub" id="an-recst"></p><button class="btn sm" type="button">Abbrechen</button></div>';
   const st={cancel:false};ov.querySelector('button').addEventListener('click',()=>{st.cancel=true});
   st.prog=(t,txt)=>{const p=ov.querySelector('.an-prog i');if(p)p.style.width=(t*100)+'%';const s=$('#an-recst');if(s)s.textContent=txt};return st}

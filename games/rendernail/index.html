@@ -768,9 +768,9 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 /* Bibliothek mit Symbolleiste, Werkzeug-Reiter, Dock fürs Handy/iPad */
 .ve-main{grid-template-columns:330px minmax(0,1fr) 290px}
 .ve-lib{display:grid;grid-template-columns:64px minmax(0,1fr)}
-.ve-rail{display:flex;flex-direction:column;gap:2px;padding:8px 5px;border-right:1px solid var(--line);overflow-y:auto;min-height:0}
+.ve-rail{display:flex;flex-direction:column;gap:1px;padding:8px 5px;border-right:1px solid var(--line);overflow-y:auto;min-height:0}
 .ve-rail button,.ve-tools button,.ve-dock button{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:10.5px;line-height:1.15;min-width:0}
-.ve-rail button{padding:7px 2px}.ve-rail button:hover,.ve-tools button:hover{color:var(--fg);background:rgba(255,255,255,.05)}
+.ve-rail button{padding:5px 2px;gap:2px}.ve-rail svg{width:20px;height:20px}.ve-rail button:hover,.ve-tools button:hover{color:var(--fg);background:rgba(255,255,255,.05)}
 .ve-rail button[aria-pressed=true],.ve-tools button[aria-selected=true],.ve-dock button[aria-pressed=true]{color:#fff;background:var(--sel,#555)}
 .ve-rail svg,.ve-dock svg,.ve-tools svg,.ve-emptycard svg,.ve-libhead svg,.ve-phead svg,.ve-subrow svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ve-tools button span,.ve-rail button span,.ve-dock button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -796,6 +796,25 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .ve-sublist{display:flex;flex-direction:column;gap:4px}.ve-subrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px;align-items:center}.ve-subrow.sel .ve-in{border-color:#bbb}
 .ve-subt{font:11px var(--font-mono);color:var(--muted);background:none;border:0;cursor:pointer;padding:0 2px;min-width:40px;text-align:left}
 .ve-clip.t-text.sub{background:#8a6d1f}
+/* Hintergrund-Aufgaben oben */
+.ve-jobs{display:flex;gap:6px;min-width:0;overflow:hidden}.ve-jobs:empty{display:none}
+.ve-job{display:flex;align-items:center;background:var(--panel);border:1px solid var(--line2);border-radius:999px;min-width:0}
+.ve-jobb{display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--fg);padding:3px 4px 3px 6px;font-size:12px;cursor:pointer;min-width:0}
+.ve-jobb svg{width:18px;height:18px;flex:none;transform:rotate(-90deg)}.ve-jobb circle{fill:none;stroke-width:3}.ve-jobb .bg{stroke:var(--line2)}.ve-jobb .fg{stroke:var(--accent);transition:stroke-dashoffset .3s}
+.ve-jobb .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}.ve-jobb .p{font-variant-numeric:tabular-nums;color:var(--muted)}
+.ve-jobx{display:grid;place-items:center;width:24px;height:24px;border:0;background:none;color:var(--muted);cursor:pointer;border-radius:50%;margin-right:2px}.ve-jobx:hover{color:var(--fg);background:rgba(255,255,255,.08)}
+.ve-jobx svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+/* Profi-Karten */
+.ve-pro{border:1px solid var(--line2);border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:7px;background:var(--panel)}
+.ve-proh{display:flex;align-items:center;gap:8px}.ve-proh b{flex:1;font-size:13.5px}.ve-proh svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;color:var(--accent)}
+.ve-free{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#0f3d1c;background:#7ee29a;border-radius:999px;padding:2px 7px}
+.ve-proa{display:flex;flex-direction:column;gap:7px}.ve-proa .btn{align-self:flex-start}.ve-hint{margin:0;font-style:italic}
+.ve-subrun b{font-size:13px}
+/* Hinweis mit Knopf */
+.toast:has(.toast-btn){display:flex;align-items:center;gap:12px}.toast-btn{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;padding:2px 4px;white-space:nowrap}.toast-btn:hover{text-decoration:underline}
+/* Hilfe */
+.ve-helpdlg{width:min(460px,calc(100vw - 32px))}.ve-helpdlg h3{margin:4px 0 8px;font-size:15px}.ve-helpdlg .ve-steps{margin-bottom:12px}
+.ve-keys{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 10px;font-size:13px}.ve-keys dt{font-family:var(--font-mono);color:var(--fg);white-space:nowrap}.ve-keys dd{margin:0;color:var(--muted)}
 .ve-tabs{display:grid;grid-template-columns:repeat(4,1fr)}.ve-tabs button{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ve-clip.t-fx{background:#7a3a52}.ve-lane.fx{background:rgba(255,120,160,.05)}
 .ve-fxgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -808,7 +827,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 @media (prefers-reduced-motion:reduce){.ve-recbtn{animation:none}}
 @media (max-width:980px){.ve{grid-template-rows:auto minmax(0,1fr) minmax(150px,32%) auto}.ve-tools{display:none}.ve-dock{display:flex;gap:2px;overflow-x:auto;padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--panel2);scrollbar-width:none;-webkit-overflow-scrolling:touch}.ve-dock::-webkit-scrollbar{display:none}.ve-dock button{flex:0 0 auto;min-width:58px;padding:5px 6px}.ve-dock button[data-a=done]{color:var(--fg)}.ve-rail{display:none}.ve-x{display:inline-flex}
 .ve-main{grid-template-columns:minmax(0,1fr) 260px}.ve-lib{grid-template-columns:minmax(0,1fr);position:absolute;left:0;top:0;bottom:0;width:min(320px,88vw);z-index:8;box-shadow:12px 0 30px -12px #000;transform:translateX(-102%);transition:transform .2s}.ve.lib-open .ve-lib{transform:none}}
-@media (max-width:680px){#ve-split,#ve-del{display:none}.ve-props .ve-head{display:none}.ve-emptycard{padding:14px 12px;gap:8px}.ve-emptycard>p{display:none}.ve-emptyic{width:40px;height:40px}.ve-emptycard b{font-size:15px}.ve-main{position:static}.ve-lib,.ve-props{position:absolute;left:0;right:0;top:auto;bottom:calc(58px + env(safe-area-inset-bottom,0px));width:auto;height:54%;border-radius:14px 14px 0 0;border:0;border-top:1px solid var(--line2);box-shadow:0 -14px 30px -12px #000;transform:translateY(calc(100% + 70px));transition:transform .22s;z-index:9}.ve.lib-open .ve-lib,.ve.props-open .ve-props{transform:none}.ve-phead{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 4px 14px;position:sticky;top:0;background:var(--panel2);z-index:2}.ve-phead b{font-size:15px}.ve-dock{height:calc(58px + env(safe-area-inset-bottom,0px));box-sizing:border-box}.ve-tools{display:none}
+@media (max-width:680px){#ve-split,#ve-del{display:none}.ve-jobb .n{display:none}#ve-help{display:none}.ve-props .ve-head{display:none}.ve-emptycard{padding:14px 12px;gap:8px}.ve-emptycard>p{display:none}.ve-emptyic{width:40px;height:40px}.ve-emptycard b{font-size:15px}.ve-main{position:static}.ve-lib,.ve-props{position:absolute;left:0;right:0;top:auto;bottom:calc(58px + env(safe-area-inset-bottom,0px));width:auto;height:54%;border-radius:14px 14px 0 0;border:0;border-top:1px solid var(--line2);box-shadow:0 -14px 30px -12px #000;transform:translateY(calc(100% + 70px));transition:transform .22s;z-index:9}.ve.lib-open .ve-lib,.ve.props-open .ve-props{transform:none}.ve-phead{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 4px 14px;position:sticky;top:0;background:var(--panel2);z-index:2}.ve-phead b{font-size:15px}.ve-dock{height:calc(58px + env(safe-area-inset-bottom,0px));box-sizing:border-box}.ve-tools{display:none}
 @media (max-width:680px){.ve-top{gap:2px;padding:6px}.ve-top .hstat{display:none}.ve-name{max-width:46vw;padding:6px 4px}.ve-top .btn{padding:0 8px}#ve-fit{display:none}.ve-time{white-space:nowrap;font-size:11px}.ve-main{grid-template-columns:minmax(0,1fr)}.ve-zoomlab{display:none}.ve-time{min-width:0}}
 </style>
 
@@ -1059,29 +1078,31 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <input type="file" id="f-pack" accept=".zip,.jar,application/zip,application/java-archive,application/x-zip-compressed" hidden>
 
 <script>window.RK_STANDALONE=true;if(window.self!==window.top)document.documentElement.classList.add("embedded")</script>
-<script src="lib/three.min.js?v=202611272030"></script>
-<script src="lib/OrbitControls.js?v=202611272030"></script>
-<script src="lib/TransformControls.js?v=202611272030"></script>
-<script src="lib/mp4-muxer.js?v=202611272030"></script>
-<script src="lib/pptxgen.bundle.js?v=202611272030"></script>
-<script src="rk-i18n.js?v=202611272030"></script>
-<script src="rk-core.js?v=202611272030"></script>
-<script src="rk-local.js?v=202611272030"></script>
-<script src="rk-assets.js?v=202611272030"></script>
-<script src="rk-fonts.js?v=202611272030"></script>
-<script src="rk-pack.js?v=202611272030"></script>
-<script src="rk-editor.js?v=202611272030"></script>
-<script src="rk-studio.js?v=202611272030"></script>
-<script src="rk-figure.js?v=202611272030"></script>
-<script src="rk-slides.js?v=202611272030"></script>
-<script src="rk-anim.js?v=202611272030"></script>
-<script src="rk-animfx.js?v=202611272030"></script>
-<script src="rk-anim2d.js?v=202611272030"></script>
-<script src="rk-gif.js?v=202611272030"></script>
-<script src="rk-sub.js?v=202611272030"></script>
-<script src="rk-video.js?v=202611272030"></script>
-<script src="rk-app.js?v=202611272030"></script>
-<script src="rk-shell.js?v=202611272030"></script>
+<script src="lib/three.min.js?v=202611280335"></script>
+<script src="lib/OrbitControls.js?v=202611280335"></script>
+<script src="lib/TransformControls.js?v=202611280335"></script>
+<script src="lib/mp4-muxer.js?v=202611280335"></script>
+<script src="lib/pptxgen.bundle.js?v=202611280335"></script>
+<script src="rk-i18n.js?v=202611280335"></script>
+<script src="rk-core.js?v=202611280335"></script>
+<script src="rk-local.js?v=202611280335"></script>
+<script src="rk-assets.js?v=202611280335"></script>
+<script src="rk-fonts.js?v=202611280335"></script>
+<script src="rk-pack.js?v=202611280335"></script>
+<script src="rk-editor.js?v=202611280335"></script>
+<script src="rk-studio.js?v=202611280335"></script>
+<script src="rk-figure.js?v=202611280335"></script>
+<script src="rk-slides.js?v=202611280335"></script>
+<script src="rk-anim.js?v=202611280335"></script>
+<script src="rk-animfx.js?v=202611280335"></script>
+<script src="rk-anim2d.js?v=202611280335"></script>
+<script src="rk-gif.js?v=202611280335"></script>
+<script src="rk-sub.js?v=202611280335"></script>
+<script src="rk-seg.js?v=202611280335"></script>
+<script src="rk-video.js?v=202611280335"></script>
+<script src="rk-pro.js?v=202611280335"></script>
+<script src="rk-app.js?v=202611280335"></script>
+<script src="rk-shell.js?v=202611280335"></script>
 
 </body>
 </html>

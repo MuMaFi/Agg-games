@@ -1937,7 +1937,7 @@ footer a:hover{color:var(--gruen-dunkel); border-bottom-color:var(--gruen-dunkel
     document.body.classList.toggle('app-tab', app);
     for(const t of tabs){ const an = t.dataset.tab === name; t.setAttribute('aria-selected', String(an)); t.tabIndex = an ? 0 : -1; }
     const fr = document.getElementById('rn-frame');
-    if(app && !fr.getAttribute('src')) fr.src = 'games/rendernail/?v=202611272030';
+    if(app && !fr.getAttribute('src')) fr.src = 'games/rendernail/?v=202611280335';
     document.title = app ? 'Rendernail — AGG Games' : 'AGG Games — Spiele direkt im Browser';
     if(app) scrollTo(0, 0);
   }
